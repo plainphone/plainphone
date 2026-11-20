@@ -196,6 +196,7 @@ class SyncRunnerTest {
     @Test
     fun `a rate limited suggestion upload is kept and resent`() {
         assertThat(uploadsAfterRejection(429)).containsExactly(listOf(DeviceContact("Alex", listOf("+4512345678"))))
+        assertThat(uploadsAfterRejection(408)).containsExactly(listOf(DeviceContact("Alex", listOf("+4512345678"))))
     }
 
     @Test

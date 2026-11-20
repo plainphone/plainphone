@@ -62,9 +62,9 @@ object ContactCodec {
     fun cleanName(name: String): String {
         val clean = name.replace(Regex("[;=\\n\\r\\t]"), " ").replace(Regex(" +"), " ").trim()
         if (clean.length <= NAME_LIMIT) return clean
-        // Never cut inside a surrogate pair (an emoji).
-        val end = if (Character.isHighSurrogate(clean[NAME_LIMIT - 1])) NAME_LIMIT - 1 else NAME_LIMIT
-        return clean.substring(0, end).trim()
+        // Cut on a grapheme boundary, never inside an emoji, flag or other cluster.
+        val breaks = java.text.BreakIterator.getCharacterInstance().apply { setText(clean) }
+        return clean.substring(0, breaks.preceding(NAME_LIMIT + 1)).trim()
     }
 
     private const val NAME_LIMIT = 60

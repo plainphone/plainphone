@@ -162,7 +162,7 @@ internal class SmsHistory(
     ): List<T> {
         val top = olderThan ?: nowMs()
         var span = FIRST_WINDOW_MS
-        while (span <= MAX_WINDOW_MS && top - span > 0) {
+        while (top - span > 0) {
             val rows = query(conversations, columns, "$selection AND date >= ${top - span}", read)
             if (rows.size > size) return rows
             span *= WINDOW_GROWTH
@@ -188,7 +188,6 @@ internal class SmsHistory(
     private companion object {
         const val FIRST_WINDOW_MS = 30L * 24 * 60 * 60 * 1000
         const val WINDOW_GROWTH = 4
-        const val MAX_WINDOW_MS = 4 * 365L * 24 * 60 * 60 * 1000
         val conversations: Uri = Uri.parse("content://mms-sms/conversations?simple=true")
         val canonicalAddresses: Uri = Uri.parse("content://mms-sms/canonical-addresses")
     }

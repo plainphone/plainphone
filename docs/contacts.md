@@ -49,8 +49,8 @@ setting was already saved in another tab.
 The phone reads the address book at most once every six hours while enabled and
 sends up to 2,000 of the most recently updated contacts. If the upload fails,
 the app can retry from memory on the next sync. If the server rejects the
-upload for good (a 4xx other than 429), the app drops it and waits for the next
-read; 429 and server errors keep it for the next try. The dashboard and
+upload for good (a 4xx other than 408 or 429), the app drops it and waits for the next
+read; 408, 429 and server errors keep it for the next try. The dashboard and
 parent app offer **Approve**, **Dismiss** and **Approve all**. If a suggestion
 changes before review, its replacement stays pending. Reviewed numbers stay
 excluded from later suggestions. Turning suggestions off stops uploads and

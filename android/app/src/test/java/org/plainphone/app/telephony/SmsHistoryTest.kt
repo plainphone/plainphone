@@ -141,6 +141,8 @@ class SmsHistoryTest {
         val page = SmsHistory(context, nowMs = { now }).threads(null, 1)
         assertEquals(listOf(7L), page.threads.keys.map { it.systemId })
         assertNotNull(page.next)
+        // Only the 480 day window was built; a direct full query would have built all three.
+        assertEquals(2, provider.threadCount)
     }
 
     @Test

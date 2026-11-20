@@ -37,6 +37,13 @@ class ContactListTest {
     }
 
     @Test
+    fun `a long name is never cut inside a flag`() {
+        val flag = "🇩🇰"
+        assertThat(ContactCodec.cleanName("a".repeat(59) + flag + "tail")).isEqualTo("a".repeat(59))
+        assertThat(ContactCodec.cleanName("a".repeat(56) + flag + "tail")).isEqualTo("a".repeat(56) + flag)
+    }
+
+    @Test
     fun `names cannot break the format`() {
         val tricky = ApprovedContact("A;B=C\nD", "+4512345678")
         val decoded = ContactCodec.decode(ContactCodec.encode(listOf(tricky)))
