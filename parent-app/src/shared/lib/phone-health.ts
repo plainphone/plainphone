@@ -9,6 +9,8 @@ const PHONE_STATUS_STALE_MS = 20 * 60_000;
 
 type PhoneHealth = PhoneStateInput & {
   mode: "strong" | "light";
+  /** Missing on old servers: an Android phone. */
+  platform?: "android" | "ios";
   dnsConfigured?: boolean;
   dnsReady?: boolean;
   rulesDnsReady?: boolean;
@@ -22,6 +24,7 @@ type PhoneHealth = PhoneStateInput & {
     filterWorking?: boolean;
     filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
     protections?: Partial<Record<string, boolean>>;
+    ios?: { authorizationStatus: "notDetermined" | "denied" | "approved" };
   } | null;
 };
 
@@ -102,6 +105,19 @@ export function healthRows(phone: PhoneHealth, now: number, locale: Locale, t: T
       detail: lastContact(phone, seen, now, locale, t),
     },
   ];
+  if (phone.platform === "ios") {
+    // An iPhone has no phone app role or light-mode protections: its lock is Apple's
+    // Screen Time permission for Plainphone (docs/ios/architecture.md).
+    const auth = status?.ios?.authorizationStatus;
+    const at = rows.findIndex((r) => r.key === "dialer");
+    rows.splice(at, 1, {
+      key: "screenTime", label: t("platform.iphone.authLabel"),
+      detail: auth === "approved" ? t("health.on") : auth === "denied" ? t("platform.iphone.authDenied") :
+        auth === "notDetermined" ? t("platform.iphone.authNotDetermined") : unknown,
+      action: auth === "denied" || auth === "notDetermined",
+    });
+    return rows;
+  }
   if (phone.mode === "light") {
     for (const key of LIGHT_CHECKS) {
       // Private DNS does not use the VPN, so Always-on VPN advice would only confuse.

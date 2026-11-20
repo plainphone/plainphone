@@ -1,127 +1,9 @@
 {
-  "id": "4b0412e3-75d3-48d7-8163-e66f7e982930",
+  "id": "a820cc17-1e20-4b7d-8b79-2d749e592331",
   "prevId": "7a598c15-111a-4528-9151-d86ba144131e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.callback_requests": {
-      "name": "callback_requests",
-      "schema": "",
-      "columns": {
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "received_at": {
-          "name": "received_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pushed_at": {
-          "name": "pushed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "done_at": {
-          "name": "done_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "done_by": {
-          "name": "done_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "done_via": {
-          "name": "done_via",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "callback_requests_expires_idx": {
-          "name": "callback_requests_expires_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "callback_requests_phone_id_phones_id_fk": {
-          "name": "callback_requests_phone_id_phones_id_fk",
-          "tableFrom": "callback_requests",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "callback_requests_done_by_users_id_fk": {
-          "name": "callback_requests_done_by_users_id_fk",
-          "tableFrom": "callback_requests",
-          "tableTo": "users",
-          "columnsFrom": [
-            "done_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "callback_requests_phone_id_id_pk": {
-          "name": "callback_requests_phone_id_id_pk",
-          "columns": [
-            "phone_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.contact_suggestions": {
       "name": "contact_suggestions",
       "schema": "",
@@ -1238,6 +1120,76 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.ios_selections": {
+      "name": "ios_selections",
+      "schema": "",
+      "columns": {
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "selection": {
+          "name": "selection",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ios_selections_phone_id_phones_id_fk": {
+          "name": "ios_selections_phone_id_phones_id_fk",
+          "tableFrom": "ios_selections",
+          "tableTo": "phones",
+          "columnsFrom": [
+            "phone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ios_selections_updated_by_users_id_fk": {
+          "name": "ios_selections_updated_by_users_id_fk",
+          "tableFrom": "ios_selections",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.locations": {
       "name": "locations",
       "schema": "",
@@ -1979,6 +1931,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'android'"
         },
         "requires_confirmation": {
           "name": "requires_confirmation",
@@ -3012,19 +2971,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "sos_callback_set_at": {
-          "name": "sos_callback_set_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "callback_requests_enabled": {
-          "name": "callback_requests_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "hidden_sos_power": {
           "name": "hidden_sos_power",

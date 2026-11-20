@@ -1,6 +1,7 @@
 # Plainphone on iPhone: architecture
 
-Status: phase 0 (groundwork). No iOS code ships yet. This page is the plan the later phases
+Status: phase 0 (groundwork) done, and the server, dashboard and parent app are prepared for
+phase 1 (see [Phase 1 preparation](#phase-1-preparation-server-and-dashboard)). No iOS code ships yet. This page is the plan the later phases
 follow, based on the research in issue #163 and the maintainer decisions of 2026-11-20.
 Related: [apple-applications.md](apple-applications.md) (entitlement requests) and
 [spikes.md](spikes.md) (questions to answer on a real iPhone).
@@ -103,11 +104,11 @@ Wake-ups: an APNs background push on rule changes (the server's existing APNs pr
 background pushes and drops them after a force quit, so rule changes can take minutes to hours if
 the child never opens the app. The dashboard has to say so on iPhones.
 
-Server additions in later phases, all additive: iOS app entries as opaque token blobs with an
-optional EU bundle ID, `PUT /phones/{id}/ios-selection` and `PUT /device/ios-selection`, the
-`location` push type (topic `org.plainphone.app.location-query`), and status fields
-(`authorizationStatus`, `communicationLimits`, `dnsEnabled`, `locationAuth`, `iosVersion`,
-`effectiveStores`).
+App selections (`PUT /phones/{id}/ios-selection`, `PUT /device/ios-selection`) and the status
+fields (`authorizationStatus`, `communicationLimits`, `dnsEnabled`, `locationAuth`, `iosVersion`,
+`effectiveStores`) exist since the phase 1 preparation. Still to come, all additive: the optional EU
+bundle ID next to a selection (phase 6) and the `location` push type (topic
+`org.plainphone.app.location-query`, phase 3).
 
 ## Capability map
 
@@ -125,15 +126,16 @@ Phase 0 adds the map the dashboard needs before any iPhone pairs:
   up with the guide."), a note above the rules, and an "iPhone" tag instead of the mode.
   Android phones look exactly as before.
 
-Nothing sets `platform = ios` yet: iOS pairing arrives in phase 1. The lines are information about
+An iPhone gets `platform = ios` when it pairs with `"platform": "ios"`, which the server only
+accepts while `IOS_PAIRING_ENABLED` is on (phase 1 preparation, below). The lines are information about
 what the platform can do, not a feature, so they have no switch: hiding them would make the
 dashboard claim more than the phone does.
 
 The rows with a line are Apps, Contacts, Web filter, Screen time (more time on request), Bedtime
 (silence), Location (Ring cannot pass silent mode without Critical Alerts), Home screen, Settings and
-the Myself key. The Contacts and Bedtime lines say "Set it up with the guide": that guide is the
-phase 5 wizard. If phase 1 ships before phase 5, those two lines must link to Apple's own help page
-(https://support.apple.com/en-us/108806) or drop the sentence until the wizard exists.
+the Myself key. The Contacts and Bedtime lines point to Screen Time on the parent's iPhone ("Set it up in Screen
+Time under Communication Limits"), because phase 1 can ship before the phase 5 wizard. When the
+wizard exists, the lines can point to it instead.
 
 ## App roles
 
@@ -143,6 +145,85 @@ app behaves exactly as today. Parent can never be switched off: a parent must al
 dashboard. Phase 1 turns `child` on and adds the first-launch question "Whose phone is this?"
 (`needsRoleChoice`), like the Android app. A saved role the build no longer offers falls back to
 Parent.
+
+## Phase 1 preparation: server and dashboard
+
+Done before any Swift code, so the server, the dashboard and the parent app are ready when the
+spikes have run on a real iPhone. Everything is behind one server switch, `IOS_PAIRING_ENABLED`
+(default `false`, [self-hosting.md](../self-hosting.md)).
+
+### Pairing
+
+`POST /device/pairings` takes `"platform": "ios"`. With the switch off the server
+answers 403 `{"code": "ios_pairing_not_yet"}`: the app shows "This server cannot add iPhones yet",
+not an error. With it on, the pairing is stored with its platform and always as a light pairing
+(no Device Owner), `GET /phones/pairing-profile` returns `platform`, and the claim creates the
+phone with `platform = ios` and `ios_tier = family_controls`. A claim after the switch went off is
+refused the same way. Android pairing is unchanged. Migration `0052_ios_pairing` adds
+`pairings.platform` and the `ios_selections` table.
+
+### iOS rules document
+
+An iPhone's `GET /device/rules` is the Android document projected through an
+allowlist (`IOS_RULE_KEYS` in [`server/src/services/ios-rules.ts`](../../server/src/services/ios-rules.ts)).
+Each key is tied to the capability it needs and left out when the phone's tier says `no`
+(for example `lockSystemLanguage`). Android mechanisms never reach an iPhone: package names, modes
+with app lists, Android settings and home screen, FCM and UnifiedPush, private DNS, app update
+windows and Google accounts (`ANDROID_ONLY_RULE_KEYS`; a test fails when a new Android key is not
+placed in one of the two lists). Schedules lose their app lists, time limits keep only the
+whole-phone limit and its bonuses (the `*` rows, so an approved "more time" for the whole phone
+reaches the iPhone; per-app limits and bonuses wait for app tokens), and the document adds
+`platform`, `tier`, `capabilities` and `iosApps`. `pendingChanges` keeps only `id`, `type`,
+`keyType` and `effectiveAt`: enough for the transparency page to say that a change of a kind is
+coming and when. The contents (which contact, how many minutes) are left out in phase 1 because
+many ops carry package names; sending platform-neutral fields is left for the Swift side to ask for.
+
+### App selections
+
+The apps an iPhone allows (or blocks, in open mode) are Apple's encoded
+`FamilyActivitySelection`, stored per phone as an opaque base64 blob of at most 128 KiB
+(`ios_selections`). Two routes, each behind a capability, because spike (a) decides which one
+phase 1 uses:
+
+| Route | Who picks | Capability | Today |
+|---|---|---|---|
+| `PUT /phones/{id}/ios-selection` | The parent, on their own iPhone | `pickAppsOnParent` | `partial` until spike (a); set it to `no` if tokens do not work across devices |
+| `PUT /device/ios-selection` | The child's iPhone, after the parent PIN | `pickAppsOnPhone` | `yes` |
+
+A parent's pick is a rule change (new rules revision and a wake-up); a pick on the phone already
+happened there, so the server records it. The rules document carries only `iosApps.selection`
+(`revision`, `source`, `updatedAt`); the phone fetches the bytes from `GET /device/ios-selection`
+when the revision changes. Android phones get 409 `not_supported` on both routes.
+
+### Receipts and status
+
+`PUT /device/status` takes an `ios` object (`iosVersion`, `authorizationStatus`,
+`communicationLimits`, `dnsEnabled`, `locationAuth`, `effectiveStores`). An iPhone's lock counts as
+intact only while `authorizationStatus` is `approved`, nothing failed and no maintenance runs; the
+light-mode protections do not apply. Unknown fields are ignored, and `iosVersion`,
+`authorizationStatus` and `locationAuth` take any short string (a beta version, a case Apple adds
+later), so a newer app is never refused; a value other than `approved` never counts as intact.
+Receipts use the same `rulesEtag` and `rulesReceiptConfirmed` fields as Android.
+
+### Dashboard and parent app
+
+"Add phone" offers "An iPhone" only while `GET /me` says
+`iosPairing: true`. That path asks "Whose phone is this?" (Child or Myself), lists Apple's
+prerequisites (Family Sharing, a child Apple Account, Screen Time on; only Screen Time for Myself)
+with a link to Apple's guide, and then takes the code or QR code the iPhone shows. On an iPhone's
+pages, a rule the tier cannot do at all is shown as text with its line instead of a link to
+switches that would do nothing, the Apps page says apps are picked on the iPhone and when they were
+last picked, the health card checks Screen Time permission instead of Android's protections, and
+light mode's Android parts (Private DNS choice, contact restriction, protections list) are hidden.
+
+### Left for the Swift side (phase 1 proper)
+
+the Child role and the app's own "Whose phone is
+this?" screen (`ROLE_FLAGS` in [`roles.ts`](../../parent-app/src/lib/roles.ts) still has Child off),
+calling `POST /device/pairings` with `platform: "ios"` and showing the code and QR, `.child`
+authorization, `RulesCompiler` for the `IosRules` document, the picker and the two selection
+routes, the status `ios` object, APNs registration for wake-ups, the transparency page, release
+and maintenance with the parent PIN. Then turn `IOS_PAIRING_ENABLED` on for TestFlight.
 
 ## Phases
 

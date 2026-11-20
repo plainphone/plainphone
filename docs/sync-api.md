@@ -420,6 +420,16 @@ feature for that platform and tier. Clients show a short line under a rule that 
 fully do. The table and the iPhone plan are in [ios/architecture.md](ios/architecture.md#capability-map).
 Older servers send none of the three: treat the phone as Android.
 
+### iPhones
+
+An iPhone pairs like a light phone, with `"platform": "ios"` in `POST /device/pairings`. While the
+server's `IOS_PAIRING_ENABLED` is off (the default), it answers 403 with
+`{"code": "ios_pairing_not_yet"}`, which the app shows as "not yet". An iPhone's
+`GET /device/rules` is a cut-down document (`IosRules` in the OpenAPI): only what an iPhone can act
+on, no package names, and its apps as an opaque selection fetched from `GET /device/ios-selection`.
+Status reports carry an `ios` object; the lock counts as intact only while Family Controls is
+approved. Details: [ios/architecture.md](ios/architecture.md#phase-1-preparation-server-and-dashboard).
+
 ### Support tools
 
 `PATCH /phones/{pid}` accepts `supportEnabled` and `releaseWarningsEnabled`

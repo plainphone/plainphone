@@ -12,6 +12,7 @@ import { useI18n } from "../i18n/I18n";
 import { phoneStateText } from "../lib/phoneStateText";
 import { space } from "../lib/theme";
 import { isIphone } from "../shared/lib/platform";
+import { useIosPairing } from "../lib/session";
 
 interface Row {
   phone: Phone;
@@ -26,6 +27,8 @@ function PhonesList() {
     ? { tone: "warn" as const, text: t("support.phoneUnavailable") }
     : null, [notice, t]);
   const now = useNow(60_000);
+  // Only while the server pairs iPhones (IOS_PAIRING_ENABLED, docs/ios/architecture.md).
+  const iosPairing = useIosPairing();
   const res = useLoad(async (): Promise<Row[]> => {
     const { phones } = await unwrap<{ phones: Phone[] }>(client.GET("/phones"));
     return Promise.all(
@@ -77,6 +80,7 @@ function PhonesList() {
               <Text variant="heading">{t("phones.emptyTitle")}</Text>
               <Text>{t("phones.emptyBody")}</Text>
               <Button title={t("phones.add")} onPress={() => router.push("/pair")} testID="add-phone" />
+              {iosPairing ? <Button kind="secondary" title={t("platform.iphone.addTitle")} onPress={() => router.push("/add-iphone")} testID="add-iphone" /> : null}
             </VStack>
           ) : (
             <VStack gap={space.sm}>
@@ -104,6 +108,7 @@ function PhonesList() {
               ))}
               <View style={{ marginTop: space.sm }}>
                 <Button kind="secondary" title={t("phones.add")} onPress={() => router.push("/pair")} testID="add-phone" />
+                {iosPairing ? <Button kind="secondary" title={t("platform.iphone.addTitle")} onPress={() => router.push("/add-iphone")} testID="add-iphone" /> : null}
               </View>
             </VStack>
           )
