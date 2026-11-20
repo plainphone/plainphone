@@ -214,37 +214,19 @@ function landingSchema(t, items) {
 
 const sw = (on) => `<span class="sw${on ? " on" : ""}" aria-hidden="true"></span>`;
 
-// Line icons on a 24-unit grid with 2-unit rounded strokes (brand guide, Icons).
-const icon = {
-  phone: '<path d="M5 3h3.5l1.8 4.6-2.3 1.6a12 12 0 0 0 6.8 6.8l1.6-2.3L21 15.5V19a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2z"/>',
-  message: '<path d="M4 5h16v11H9l-5 4z"/>',
-  camera: '<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/>',
-  map: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/>',
-  music: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-};
-const svgIcon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icon[name]}</svg>`;
+// Real screenshots from `pnpm site:screenshots`: WebP at 1x and 2x, light and dark, in every language.
+// The sizes come from img/manifest.json, so width and height always match the files.
+const shotSizes = JSON.parse(readFileSync(join(src, "img", "manifest.json"), "utf8"));
 
-function dashboardMock(m) {
-  return `<figure class="illustration"><div class="dash" aria-hidden="true">
-<p class="dash-title">${m.title}</p>
-<p class="dash-status">${m.status}</p>
-${m.rows.map(([label, detail, on]) => `<div class="dash-row"><div><b>${label}</b><span class="desc">${detail}</span></div>${sw(on)}</div>`).join("")}
-<div class="dash-ask"><p>${m.request}</p><div><span>${m.allow}</span><span>${m.decline}</span></div></div>
-</div><figcaption>${m.caption}</figcaption></figure>`;
+function picture(name, lang, alt, { eager = false } = {}) {
+  const { width, height } = shotSizes[name][lang];
+  const set = (scheme) => `/img/${name}-${lang}-${scheme}-1x.webp 1x, /img/${name}-${lang}-${scheme}-2x.webp 2x`;
+  return `<picture><source media="(prefers-color-scheme: dark)" srcset="${set("dark")}"><img src="/img/${name}-${lang}-light-1x.webp" srcset="${set("light")}" width="${width}" height="${height}" alt="${esc(alt)}"${eager ? ' fetchpriority="high"' : ' loading="lazy"'} decoding="async"></picture>`;
 }
 
-function phoneMock(m) {
-  const apps = ["phone", "message", "camera", "map", "music", "clock"];
-  return `<figure class="illustration"><div class="phone" aria-hidden="true">
-<div class="phone-bar"><span>${m.time}</span><span>4G · 82 %</span></div>
-<span class="phone-clock">${m.time}</span>
-<p class="phone-date">${m.date}</p>
-<p class="phone-notice">${m.notice}</p>
-${m.calls.map((c) => `<div class="phone-call">${svgIcon("phone")}${c}</div>`).join("")}
-<ul class="phone-apps">${m.apps.map((a, i) => `<li>${svgIcon(apps[i])}${a}</li>`).join("")}</ul>
-<p class="phone-sos">${m.emergency} <b>112</b></p>
-</div><figcaption>${m.caption}</figcaption></figure>`;
+function shot(name, t, extra = {}) {
+  const s = home[t.lang].shots[name];
+  return `<figure class="shot ${name}">${picture(name, t.lang, s.alt, extra)}<figcaption>${s.caption}</figcaption></figure>`;
 }
 
 function page(t) {
@@ -268,7 +250,6 @@ function page(t) {
   const head2 = (id, title, lead = "") =>
     `<div class="section-head"><h2 id="${id}-title">${title}</h2>${lead ? `<p>${lead}</p>` : ""}</div>`;
 
-  const p = hm.panel;
   const hero = `<section class="hero wrap" aria-labelledby="hero-title">
 <div>
 <p class="status">${t.status}</p>
@@ -280,9 +261,7 @@ function page(t) {
 </div>
 <p class="note">${hm.note}</p>
 </div>
-<figure class="panel"><figcaption>${p.caption}</figcaption>
-<ul role="list">${p.rows.map(([label, on]) => `<li class="${on ? "on" : "off"}"><span>${label}<span class="sr">: ${on ? p.on : p.off}</span></span>${sw(on)}</li>`).join("")}</ul>
-<p class="panel-foot">${p.foot}</p></figure>
+${shot("dashboard", t, { eager: true })}
 </section>`;
 
   const s = hm.switches;
@@ -299,13 +278,14 @@ ${head2("how", s.title, s.lead)}
   const d = hm.decide;
   const decide = `<section class="section wrap split" id="decide" aria-labelledby="decide-title">
 <div><h2 id="decide-title">${d.title}</h2>${d.body.map((b) => `<p>${b}</p>`).join("")}</div>
-${dashboardMock(d.mock)}
+${shot("requests", t)}
 </section>`;
 
   const c = hm.sees;
-  const childView = `<section class="section wrap split flip" id="child-view" aria-labelledby="child-view-title">
-<div><h2 id="child-view-title">${c.title}</h2><p>${childBody}</p><p>${c.extra}</p></div>
-${phoneMock(c.mock)}
+  const childView = `<section class="section wrap" id="child-view" aria-labelledby="child-view-title">
+<div class="child-text"><h2 id="child-view-title">${c.title}</h2><p>${childBody}</p><p>${c.extra}</p></div>
+<div class="shots">${["home", "blocked", "sharing"].map((name) => shot(name, t)).join("")}</div>
+<p class="note shots-note">${hm.shots.note}</p>
 </section>`;
 
   const who = `<section class="section wrap" id="who" aria-labelledby="who-title">
@@ -620,6 +600,7 @@ writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
+cpSync(join(src, "img"), join(dist, "img"), { recursive: true, filter: (f) => !f.endsWith("manifest.json") });
 cpSync(join(src, "brand", "favicon.svg"), join(dist, "favicon.svg"));
 for (const f of [appSearchFile, ...icons.filter((f) => f !== "favicon.svg"), ...pages.map((t) => `og-${t.lang}.png`)]) {
   cpSync(join(src, f), join(dist, f));

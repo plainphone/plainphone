@@ -9,6 +9,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "dev:server": "pnpm --filter @plainphone/server dev",
-    "dev:web": "pnpm --filter @plainphone/web dev"
+    "dev:web": "pnpm --filter @plainphone/web dev",
+    "site:screenshots": "NODE_PATH=${PLAYWRIGHT_NODE_PATH:-${NODE_PATH:-$HOME/dev/pw-test/node_modules}} node site/tools/site-screenshots.mjs"
   }
 }
