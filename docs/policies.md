@@ -201,7 +201,7 @@ Things to know:
 
 ## Maintenance screen
 
-Tap "Version" seven times on the Plainphone status screen and enter the parent PIN. From the fifth wrong PIN in a row, each wrong PIN locks the screen for 1, 2, 4 ... minutes (at most an hour). The count survives app restarts and reboots.
+Tap "Version" seven times on the Plainphone status screen and enter the parent PIN. From the fifth wrong PIN in a row, each wrong PIN locks the screen for 1, 2, 4 ... minutes (at most an hour). The count survives app restarts and reboots. The lockout also runs on the time since boot, so setting the clock forward does not shorten it (light mode cannot force automatic time), and it is never longer than an hour, also when the clock is set back.
 
 - **Lift the lock for N minutes** (default 30) clears every restriction, shows hidden apps and sets private DNS back to automatic. The lock returns by alarm after N minutes or at the next reboot, whichever comes first. Opening Plainphone does not end the unlock; use "Apply the lock now" for that.
 - **Apply the lock now** re-applies everything.
@@ -213,7 +213,7 @@ The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, ran
 
 ## Time limits and catalog installs (strong mode)
 
-- **Time limits** ([time-limits.md](time-limits.md)): an app whose minutes are used up today is suspended with `setPackagesSuspended` (the icon stays; Android says the app is paused) and comes back at local midnight. Core apps (phone, messages, maps, clock, Settings, launcher, keyboard, camera, contacts) are never counted and never suspended, so calls and emergency calls are never affected. Counting needs usage access, which only the user can grant (Plainphone > Today); until then the step "usage access (time limits)" fails and the parent sees it.
+- **Time limits** ([time-limits.md](time-limits.md)): an app whose minutes are used up today is suspended with `setPackagesSuspended` (the icon stays; Android says the app is paused) and comes back at local midnight. Core apps (phone, messages, maps, clock, Settings, launcher, keyboard, camera, contacts) are never counted and never suspended, so calls and emergency calls are never affected. Core means the phone's own (system) apps for these jobs, plus the chosen phone app, SMS app, home screen and keyboard: an installed app that merely claims to be a camera or a clock is not core. Counting needs usage access, which only the user can grant (Plainphone > Today); until then the step "usage access (time limits)" fails and the parent sees it.
 - **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone. The ordinary Install button keeps account changes blocked. Adding an account through the parent PIN is limited to the same watchdog-backed catalog window described in [Android updates](android-updates.md).
 
 - **App updates** (below): `DISALLOW_INSTALL_APPS` also blocks updates of installed apps, and a hidden Play cannot run its own updates, so approved apps are updated in a bounded window.
