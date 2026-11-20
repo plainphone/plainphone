@@ -273,7 +273,6 @@ ul, ol { max-width: var(--measure); }
 .split { display: grid; gap: 2.5rem; align-items: center; }
 @media (min-width: 56rem) {
   .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 5rem; }
-  .split.flip > figure { order: -1; }
 }
 .split h2 { margin-bottom: 1.25rem; }
 .split > div > p { font-size: 1.125rem; }

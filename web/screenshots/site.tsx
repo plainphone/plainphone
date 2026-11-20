@@ -30,6 +30,8 @@ const PHONE_NAME: Record<string, string> = {
   de: "Sams Handy",
 };
 const phoneName = PHONE_NAME[lang] ?? PHONE_NAME.en;
+/** Matches the app name in the home-screen picture (SiteScreenshotTest WORDS). */
+const MAPS_LABEL: Record<string, string> = { en: "Maps", da: "Kort", sv: "Kartor", nb: "Kart", de: "Karten" };
 
 const phone = {
   lastSeenAt: new Date(FIXTURE_NOW - 2 * 60_000).toISOString(),
@@ -72,7 +74,7 @@ function Requests() {
   return (
     <>
       <PageTitle sub={<PhoneStateTitle phone={phone} now={FIXTURE_NOW} />}>{phoneName}</PageTitle>
-      <MoreTimeRequests phoneName={phoneName} requests={[req({ appLabel: "Maps" })]} busy={null} alreadyAnswered={new Set()} onAnswer={noop} />
+      <MoreTimeRequests phoneName={phoneName} requests={[req({ appLabel: MAPS_LABEL[lang] ?? MAPS_LABEL.en })]} busy={null} alreadyAnswered={new Set()} onAnswer={noop} />
     </>
   );
 }

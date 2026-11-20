@@ -118,7 +118,7 @@ export const home = {
       note: "Skærmbilleder af det rigtige forældrepanel og den rigtige telefon-app, med et opdigtet barn.",
       dashboard: { alt: "Forældrepanelet for Sams telefon. Skoletid, webfilter og at bede om mere tid er slået til. Placering og ugeoversigt er slået fra.", caption: "Forældrepanelet" },
       requests: { alt: "Forældrepanelet viser, at Sams telefon beder om mere tid på Kort. Forælderen kan svare 15 minutter, 1 time, resten af dagen eller nej.", caption: "En anmodning fra telefonen" },
-      home: { alt: "Barnets startskærm i skoletiden: klokken 10.32, „Skoletid til 14.00“, fire apps og knapperne Telefon, Beskeder og SOS.", caption: "Startskærm i skoletiden" },
+      home: { alt: "Barnets startskærm i skoletiden: klokken 10:32, „Skoletid til 14:00“, fire apps og knapperne Telefon, Beskeder og SOS.", caption: "Startskærm i skoletiden" },
       blocked: { alt: "Telefonens stopskærm, når tiden i Musik er brugt. Den har en knap til at bede om mere tid, en til at ringe eller skrive til en forælder og en tilbage til start.", caption: "Når tiden er brugt" },
       sharing: { alt: "Telefonens side „Hvad kan mine forældre se?“. Den fortæller, hvornår forældrene får telefonens placering, og viser hver gang, den er sendt.", caption: "„Hvad kan mine forældre se?“" },
     },

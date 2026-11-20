@@ -218,10 +218,10 @@ const sw = (on) => `<span class="sw${on ? " on" : ""}" aria-hidden="true"></span
 // The sizes come from img/manifest.json, so width and height always match the files.
 const shotSizes = JSON.parse(readFileSync(join(src, "img", "manifest.json"), "utf8"));
 
-function picture(name, lang, alt, { eager = false, sizes } = {}) {
+function picture(name, lang, alt, { eager = false } = {}) {
   const { width, height } = shotSizes[name][lang];
   const set = (scheme) => `/img/${name}-${lang}-${scheme}-1x.webp 1x, /img/${name}-${lang}-${scheme}-2x.webp 2x`;
-  return `<picture><source media="(prefers-color-scheme: dark)" srcset="${set("dark")}"><img src="/img/${name}-${lang}-light-1x.webp" srcset="${set("light")}" width="${width}" height="${height}" alt="${esc(alt)}"${sizes ? ` sizes="${sizes}"` : ""}${eager ? ' fetchpriority="high"' : ' loading="lazy"'} decoding="async"></picture>`;
+  return `<picture><source media="(prefers-color-scheme: dark)" srcset="${set("dark")}"><img src="/img/${name}-${lang}-light-1x.webp" srcset="${set("light")}" width="${width}" height="${height}" alt="${esc(alt)}"${eager ? ' fetchpriority="high"' : ' loading="lazy"'} decoding="async"></picture>`;
 }
 
 function shot(name, t, extra = {}) {
