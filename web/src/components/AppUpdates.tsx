@@ -16,13 +16,13 @@ export function AppUpdates({ phone, setPhone, notify }: {
 }) {
   const { t, locale } = useI18n();
   const [saving, setSaving] = useState(false);
-  const [requested, setRequested] = useState(false);
+  const [requestedAt, setRequestedAt] = useState<string | null>(null);
   if (phone.mode !== "strong") return null;
   const report = phone.status?.appUpdates;
   // A request newer than the last window the phone reported is still on its way.
   const reportedAt = report?.openedAt ?? report?.closedAt;
-  const waiting = requested || (phone.appUpdatesRequestedAt != null &&
-    (!reportedAt || Date.parse(reportedAt) < Date.parse(phone.appUpdatesRequestedAt)));
+  const asked = [requestedAt, phone.appUpdatesRequestedAt].filter((at): at is string => !!at).map(Date.parse);
+  const waiting = asked.length > 0 && (!reportedAt || Date.parse(reportedAt) < Math.max(...asked));
 
   async function toggle(enabled: boolean) {
     setSaving(true);
@@ -39,7 +39,7 @@ export function AppUpdates({ phone, setPhone, notify }: {
     setSaving(true);
     try {
       await api.post(`/phones/${phone.id}/app-updates`);
-      setRequested(true);
+      setRequestedAt(new Date().toISOString());
     } catch (error) {
       notify({ tone: "error", text: errorMessage(error, t) });
     } finally {

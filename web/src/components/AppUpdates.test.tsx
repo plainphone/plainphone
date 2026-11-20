@@ -68,6 +68,16 @@ it("asks the phone to update now and says when it will happen", async () => {
   await m.unmount();
 });
 
+it("stops saying the request is on its way once the phone reports a newer window", async () => {
+  const waiting = await mount(withReport(night, { appUpdatesRequestedAt: "2026-11-16T09:00:00Z" }));
+  expect(waiting.container.textContent).toContain(t("appUpdates.requested"));
+  await waiting.unmount();
+  const done = await mount(withReport({ ...night, trigger: "parent", openedAt: "2026-11-16T09:01:00Z", closedAt: null },
+    { appUpdatesRequestedAt: "2026-11-16T09:00:00Z" }));
+  expect(done.container.textContent).not.toContain(t("appUpdates.requested"));
+  await done.unmount();
+});
+
 it("shows the last window and the new apps it kept hidden", async () => {
   const m = await mount(withReport({ ...night, caught: ["com.example.game"] }));
   expect(m.container.textContent).toContain("Apps updated: 3.");
