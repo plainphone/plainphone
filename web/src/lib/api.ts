@@ -142,6 +142,10 @@ export interface Phone {
   /** Strong mode: the nightly app update window. Missing on old servers (treated as on). */
   appUpdatesEnabled?: boolean;
   appUpdatesRequestedAt?: string | null;
+  /** iPhone support (docs/ios/architecture.md). Missing on old servers: an Android phone. */
+  platform?: import("./platform").Platform;
+  tier?: "strong" | "light" | "family_controls" | "supervised";
+  capabilities?: Partial<Record<string, import("./platform").Support>>;
   ruleReceipt?: import("./phone-health").RuleReceipt | null;
 }
 

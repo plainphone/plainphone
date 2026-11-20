@@ -23,6 +23,11 @@ Plainphone is free today. Running it on your own server and keeping one fully pr
 
 See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work.
 
+**iPhone:** planned, not available yet. Plainphone for iPhone will use Apple's Family Controls, and
+some things stay Apple's to decide (who can call, who rings at bedtime). The dashboard already says
+so per rule for an iPhone. See the [architecture and phase plan](docs/ios/architecture.md), the
+[Apple entitlement requests](docs/ios/apple-applications.md) and the [real-device spikes](docs/ios/spikes.md).
+
 Plainphone is built on a short list of [design principles](docs/design-principles.md), each tied to research, regulation or official guidance. The [evidence review](docs/evidence.md) lists the sources per feature and says where the evidence is weak. In short:
 
 - the child can see, on the phone, what the parent can see;

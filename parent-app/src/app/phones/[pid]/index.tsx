@@ -28,6 +28,7 @@ import { HOME_PALETTES } from "../../../shared/lib/settings";
 import { describeOp } from "../../../shared/lib/ops";
 import { appUpdateReceiptLine } from "../../../shared/lib/app-updates";
 import { healthRows, receiptText } from "../../../shared/lib/phone-health";
+import { isIphone, platformLine } from "../../../shared/lib/platform";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
 function PendingList() {
@@ -514,7 +515,7 @@ function Overview() {
   const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
-    t(phone.mode === "light" ? "mode.light" : "mode.strong"),
+    t(isIphone(phone) ? "platform.iphone" : phone.mode === "light" ? "mode.light" : "mode.strong"),
     state.title,
   ].join(", ");
 
@@ -601,18 +602,23 @@ function Overview() {
             {updating && <Text>{t(updating.key, updating.params)}</Text>}
           </Card>
         )}
+        {isIphone(phone) ? <Notice tone="info" text={t("platform.iosNote")} /> : null}
         {groups.map((g) => (
           <VStack key={g.title} gap={space.sm}>
             <Text variant="label">{g.title}</Text>
-            {g.items.map((i) => (
-              <LinkRow
-                key={i.to}
-                testID={`section-${i.to}`}
-                title={i.label}
-                meta={i.hint}
-                onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
-              />
-            ))}
+            {g.items.map((i) => {
+              const note = platformLine(phone, i.to);
+              return (
+                <LinkRow
+                  key={i.to}
+                  testID={`section-${i.to}`}
+                  title={i.label}
+                  meta={i.hint}
+                  note={note ? t(note) : undefined}
+                  onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
+                />
+              );
+            })}
           </VStack>
         ))}
       </VStack>

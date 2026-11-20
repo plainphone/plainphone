@@ -401,6 +401,15 @@ app caught later in the same window, or carried over from an earlier window the 
 heard about, still becomes a request. Older servers send no `appUpdates`: the phone keeps the nightly
 window on. See [Policies, App updates](policies.md#app-updates-strong-mode).
 
+### Platform and capabilities
+
+Phone summaries (`GET /phones`, `GET /phones/{pid}`) include `platform` (`android` or `ios`;
+every existing phone is `android`), `tier` (Android: the mode, `strong` or `light`; iPhone:
+`family_controls` or `supervised`) and `capabilities`, which says `yes`, `partial` or `no` per
+feature for that platform and tier. Clients show a short line under a rule that an iPhone cannot
+fully do. The table and the iPhone plan are in [ios/architecture.md](ios/architecture.md#capability-map).
+Older servers send none of the three: treat the phone as Android.
+
 ### Support tools
 
 `PATCH /phones/{pid}` accepts `supportEnabled` and `releaseWarningsEnabled`
