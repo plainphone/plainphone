@@ -402,6 +402,8 @@ interface AlertWords {
   lookInApp: string;
   offlineSubject: (name: string, silence: string) => string;
   offline: (name: string, lastSeen: string) => string;
+  neverSubject: (name: string) => string;
+  never: (name: string) => string;
   rulesStillApply: string;
   late: string;
   open: string;
@@ -419,6 +421,8 @@ export const phoneAlertText = {
     lookInApp: "Open Plainphone to see what the phone reports. Often it is enough to open Plainphone on the phone.",
     offlineSubject: (n, s) => `${n} has not been in touch for ${s}`,
     offline: (n, l) => `The phone "${n}" was last in touch ${l}. It may be switched off, out of battery or reset.`,
+    neverSubject: (n) => `${n} has not connected yet`,
+    never: (n) => `The phone "${n}" was set up and confirmed on the phone, but it has not been in touch since. Open Plainphone on the phone, or remove it from the list if you no longer need it.`,
     rulesStillApply: "The rules still apply on the phone, also without a network. You will hear from us again if it goes quiet another time.",
     late: "The phone reported late.",
     open: "Open Plainphone",
@@ -433,6 +437,8 @@ export const phoneAlertText = {
     lookInApp: "Åbn Plainphone for at se, hvad telefonen melder. Ofte er det nok at åbne Plainphone på telefonen.",
     offlineSubject: (n, s) => `${n} har ikke været i kontakt i ${s}`,
     offline: (n, l) => `Telefonen "${n}" var sidst i kontakt ${l}. Den kan være slukket, løbet tør for strøm eller nulstillet.`,
+    neverSubject: (n) => `${n} er ikke forbundet endnu`,
+    never: (n) => `Telefonen "${n}" blev sat op og bekræftet på telefonen, men har ikke været i kontakt siden. Åbn Plainphone på telefonen, eller fjern den fra listen, hvis du ikke skal bruge den.`,
     rulesStillApply: "Reglerne gælder stadig på telefonen, også uden net. Du får besked igen, hvis den tier en anden gang.",
     late: "Telefonen rapporterede det med forsinkelse.",
     open: "Åbn Plainphone",
@@ -447,6 +453,8 @@ export const phoneAlertText = {
     lookInApp: "Öppna Plainphone för att se vad telefonen rapporterar. Ofta räcker det att öppna Plainphone på telefonen.",
     offlineSubject: (n, s) => `${n} har inte hörts av på ${s}`,
     offline: (n, l) => `Telefonen "${n}" hördes senast av ${l}. Den kan vara avstängd, ha slut på batteri eller ha återställts.`,
+    neverSubject: (n) => `${n} har inte anslutit än`,
+    never: (n) => `Telefonen "${n}" konfigurerades och bekräftades på telefonen, men har inte hörts av sedan dess. Öppna Plainphone på telefonen eller ta bort den från listan om du inte behöver den.`,
     rulesStillApply: "Reglerna gäller fortfarande på telefonen, även utan nät. Du får besked igen om den tystnar en annan gång.",
     late: "Telefonen rapporterade det med fördröjning.",
     open: "Öppna Plainphone",
@@ -461,6 +469,8 @@ export const phoneAlertText = {
     lookInApp: "Åpne Plainphone for å se hva telefonen melder. Ofte er det nok å åpne Plainphone på telefonen.",
     offlineSubject: (n, s) => `${n} har ikke vært i kontakt på ${s}`,
     offline: (n, l) => `Telefonen "${n}" var sist i kontakt ${l}. Den kan være slått av, tom for strøm eller tilbakestilt.`,
+    neverSubject: (n) => `${n} er ikke koblet til ennå`,
+    never: (n) => `Telefonen "${n}" ble satt opp og bekreftet på telefonen, men har ikke vært i kontakt siden. Åpne Plainphone på telefonen, eller fjern den fra listen hvis du ikke trenger den.`,
     rulesStillApply: "Reglene gjelder fortsatt på telefonen, også uten nett. Du får beskjed igjen hvis den blir stille en annen gang.",
     late: "Telefonen rapporterte det med forsinkelse.",
     open: "Åpne Plainphone",
@@ -475,6 +485,8 @@ export const phoneAlertText = {
     lookInApp: "Öffnen Sie Plainphone, um zu sehen, was das Handy meldet. Oft genügt es, Plainphone auf dem Handy zu öffnen.",
     offlineSubject: (n, s) => `${n} war ${s} lang nicht erreichbar`,
     offline: (n, l) => `Das Handy "${n}" hatte zuletzt Kontakt (${l}). Es kann ausgeschaltet, leer oder zurückgesetzt worden sein.`,
+    neverSubject: (n) => `${n} hat sich noch nicht verbunden`,
+    never: (n) => `Das Handy "${n}" wurde eingerichtet und auf dem Handy bestätigt, hat sich seitdem aber nicht gemeldet. Öffnen Sie Plainphone auf dem Handy oder entfernen Sie es aus der Liste, wenn Sie es nicht mehr brauchen.`,
     rulesStillApply: "Die Regeln gelten auf dem Handy weiterhin, auch ohne Netz. Sie hören wieder von uns, falls es ein anderes Mal verstummt.",
     late: "Das Handy hat es verspätet gemeldet.",
     open: "Plainphone öffnen",
@@ -489,7 +501,8 @@ export function phoneAlertMail(
   publicUrl: string,
   alert:
     | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
-    | { kind: "offline"; phoneId: string; phoneName: string; hours: number; lastSeen: string },
+    | { kind: "offline"; phoneId: string; phoneName: string; hours: number; lastSeen: string }
+    | { kind: "neverConnected"; phoneId: string; phoneName: string },
 ): Mail {
   const t = phoneAlertText[locale];
   const name = alert.phoneName;
@@ -500,6 +513,9 @@ export function phoneAlertMail(
     paragraphs = alert.reason === "setup-undo"
       ? [t.undone(name)]
       : [alert.reason === "owner" ? t.owner(name) : t.lock(name), t.lookInApp];
+  } else if (alert.kind === "neverConnected") {
+    subject = t.neverSubject(name);
+    paragraphs = [t.never(name)];
   } else {
     subject = t.offlineSubject(name, silence(alert.hours, locale));
     paragraphs = [t.offline(name, alert.lastSeen), t.rulesStillApply];

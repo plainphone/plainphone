@@ -24,6 +24,8 @@ const MAX_FAILURES = 20;
 export type NotifyEvent =
   | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
+  /** A light phone confirmed its set-up but never connected: the parent is asked to open the app on it or remove it. */
+  | { type: "neverConnected"; phoneId: string; phoneName: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
   | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string | null; kind: "app" | "contact" | "more-time" }
@@ -52,6 +54,7 @@ function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"
   switch (e.type) {
     case "protection": return pushWords.protection(e, locale);
     case "offline": return pushWords.offline(e, locale);
+    case "neverConnected": return pushWords.neverConnected(e, locale);
     case "approval": return pushWords.approval(e, locale);
     case "request": return pushWords.request(e, locale);
     case "request-on-phone": return pushWords.requestOnPhone(e, locale);
@@ -87,6 +90,8 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
     case "protection":
       return { ...t, url: e.trusted ? "/approvals" : e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
     case "offline":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}` };
+    case "neverConnected":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}` };
     case "approval":
       return { ...t, url: "/approvals", tag: "approvals" };
@@ -216,7 +221,7 @@ export async function notifyAlertRecipients(
 ): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
-  if ((e.type === "protection" || e.type === "offline") && ctx.mail.canSend) {
+  if ((e.type === "protection" || e.type === "offline" || e.type === "neverConnected") && ctx.mail.canSend) {
     for (const m of members) {
       const locale = toLocale(m.locale);
       try {
@@ -227,7 +232,9 @@ export async function notifyAlertRecipients(
             ctx.cfg.PUBLIC_URL,
             e.type === "protection"
               ? { kind: "protection", phoneId: e.phoneId, phoneName: e.phoneName, reason: e.reason, trusted: e.trusted }
-              : { kind: "offline", phoneId: e.phoneId, phoneName: e.phoneName, hours: e.hours, lastSeen: lastSeen(e, locale) },
+              : e.type === "neverConnected"
+                ? { kind: "neverConnected", phoneId: e.phoneId, phoneName: e.phoneName }
+                : { kind: "offline", phoneId: e.phoneId, phoneName: e.phoneName, hours: e.hours, lastSeen: lastSeen(e, locale) },
           ),
         );
       } catch (err) {
@@ -300,5 +307,29 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
       timezone: p.timezone,
     });
   }
+  return claimed.length + (await alertNeverConnectedPhones(ctx, hours));
+}
+
+/** A confirmed light phone that never connected has no last contact to go quiet from: remind once after two days. */
+const NEVER_CONNECTED_HOURS = 48;
+
+async function alertNeverConnectedPhones(ctx: Ctx, hours: ReturnType<typeof sql>): Promise<number> {
+  const claimed = await ctx.db
+    .update(phones)
+    .set({ offlineAlertedAt: ctx.now() })
+    .where(
+      and(
+        isNull(phones.lastSeenAt),
+        isNull(phones.pairedAt),
+        isNotNull(phones.deviceTokenHash),
+        eq(phones.mode, "light"),
+        isNull(phones.offlineAlertedAt),
+        // The parents' "offline alerts off" choice for the phone covers this reminder too.
+        sql`${hours} > 0`,
+        sql`${phones.createdAt} < ${ctx.now().toISOString()}::timestamptz - make_interval(hours => ${NEVER_CONNECTED_HOURS})`,
+      ),
+    )
+    .returning({ id: phones.id, name: phones.name });
+  for (const p of claimed) await notifyHousehold(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
   return claimed.length;
 }

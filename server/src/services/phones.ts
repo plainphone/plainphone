@@ -88,6 +88,7 @@ export async function createPhone(
       language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
+      createdAt: ctx.now(),
     })
     .returning();
   // Spec 6: every category is blocked by default.
