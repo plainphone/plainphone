@@ -15,6 +15,7 @@ import { SettingsPage } from "./Settings";
 vi.mock("../lib/session", () => ({
   useMe: () => ({ user: { id: "u1", email: "me@example.test" }, households: [{ id: "h1", name: "Home", role: "owner" }] }),
   useSession: () => ({ refresh: async () => null }),
+  useHouseholdId: () => "h1",
 }));
 vi.mock("./Notifications", () => ({ NotificationsSection: () => null }));
 vi.mock("../components/WeeklySummarySettings", () => ({ WeeklySummarySettings: () => null }));
