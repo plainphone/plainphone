@@ -225,6 +225,9 @@ export type Protection = (typeof PROTECTIONS)[number];
  * - `always`: every 5 minutes, plus the above. The phone shows this all the time.
  */
 export const LOCATION_MODES = ["off", "find", "checkin", "always"] as const;
+/** docs/ios/architecture.md, "Capability map". */
+export const PLATFORMS = ["android", "ios"] as const;
+export const IOS_TIERS = ["family_controls", "supervised"] as const;
 export type LocationMode = (typeof LOCATION_MODES)[number];
 
 export const phones = pgTable(
@@ -243,6 +246,10 @@ export const phones = pgTable(
     lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
+    /** iPhone support (docs/ios/architecture.md); existing phones are Android. */
+    platform: text("platform", { enum: PLATFORMS }).notNull().default("android"),
+    /** Only on iPhones: Family Controls alone, or supervised with Apple Configurator. Android's tier is `mode`. */
+    iosTier: text("ios_tier", { enum: IOS_TIERS }),
     language: text("language", { enum: ["da", "en", "sv", "nb", "de"] }),
     lockSystemLanguage: boolean("lock_system_language").notNull().default(true),
     filterMethod: text("filter_method", { enum: FILTER_METHODS }).notNull().default("vpn"),

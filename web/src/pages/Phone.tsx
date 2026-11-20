@@ -36,6 +36,7 @@ import { PhoneAppVersion } from "./PhoneAppVersion";
 import { AppUpdates } from "../components/AppUpdates";
 import { appUpdateReceiptLine } from "../lib/app-updates";
 import { healthRows, receiptText } from "../lib/phone-health";
+import { isIphone, platformLine } from "../lib/platform";
 
 interface PhoneCtx {
   phone: Phone;
@@ -560,7 +561,7 @@ export function PhoneOverview() {
         sub={
           <span className="row-meta">
             <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
-            <span className="tag">{t(phone.mode === "light" ? "mode.light" : "mode.strong")}</span>
+            <span className="tag">{t(isIphone(phone) ? "platform.iphone" : phone.mode === "light" ? "mode.light" : "mode.strong")}</span>
             <PhoneStateTitle phone={phone} now={now} />
           </span>
         }
@@ -599,22 +600,27 @@ export function PhoneOverview() {
       <section className="section rules-section" aria-labelledby="rules-h">
         <h2 id="rules-h" ref={rulesHeading} tabIndex={-1}>{t("phone.rules")}</h2>
         <RuleReceipt phone={phone} />
+        {isIphone(phone) && <p className="notice notice-info">{t("platform.iosNote")}</p>}
         <div className="stack">
           {groups.map(({ title, items }) => (
             <div key={title} className="stack-sm">
               <h3 className="h3">{title}</h3>
               <ul className="list phone-rules">
-                {items.map(({ to, label, hint }) => (
-                  <li key={to}>
-                    <Link to={`${base}/${to}`} className="row-link">
-                      <span className="row-main">
-                        <span className="row-title">{label}</span>
-                        <span className="row-meta">{hint}</span>
-                      </span>
-                      <Chevron />
-                    </Link>
-                  </li>
-                ))}
+                {items.map(({ to, label, hint }) => {
+                  const platformNote = platformLine(phone, to);
+                  return (
+                    <li key={to}>
+                      <Link to={`${base}/${to}`} className="row-link">
+                        <span className="row-main">
+                          <span className="row-title">{label}</span>
+                          <span className="row-meta">{hint}</span>
+                          {platformNote && <span className="row-meta platform-note">{t(platformNote)}</span>}
+                        </span>
+                        <Chevron />
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

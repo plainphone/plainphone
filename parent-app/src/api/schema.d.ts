@@ -3497,6 +3497,52 @@ export interface components {
             ring: null | components["schemas"]["Ring"];
             checkin: null | components["schemas"]["Checkin"];
         };
+        /**
+         * @description yes: Plainphone does it. partial: it does part of it, or the platform's own setting does the rest. no: not possible on this platform and tier.
+         * @enum {unknown}
+         */
+        Support: "yes" | "partial" | "no";
+        /** @description What the phone can do, derived from `platform` and `tier` (docs/ios/architecture.md, Capability map). Clients show a short line for features that are not `yes` on an iPhone. */
+        Capabilities: {
+            apps: components["schemas"]["Support"];
+            appNames: components["schemas"]["Support"];
+            installBlock: components["schemas"]["Support"];
+            uninstallProtection: components["schemas"]["Support"];
+            factoryResetBlock: components["schemas"]["Support"];
+            resetProtection: components["schemas"]["Support"];
+            accountLock: components["schemas"]["Support"];
+            usbBlock: components["schemas"]["Support"];
+            vpnBlock: components["schemas"]["Support"];
+            webFilter: components["schemas"]["Support"];
+            adultFilter: components["schemas"]["Support"];
+            safeSearch: components["schemas"]["Support"];
+            systemLanguage: components["schemas"]["Support"];
+            openMode: components["schemas"]["Support"];
+            schoolTime: components["schemas"]["Support"];
+            bedtimeApps: components["schemas"]["Support"];
+            bedtimeSilence: components["schemas"]["Support"];
+            timeLimits: components["schemas"]["Support"];
+            limitWarning: components["schemas"]["Support"];
+            moreTime: components["schemas"]["Support"];
+            contacts: components["schemas"]["Support"];
+            callScreening: components["schemas"]["Support"];
+            callLog: components["schemas"]["Support"];
+            helpLines: components["schemas"]["Support"];
+            sos: components["schemas"]["Support"];
+            location: components["schemas"]["Support"];
+            ring: components["schemas"]["Support"];
+            checkin: components["schemas"]["Support"];
+            pinApproval: components["schemas"]["Support"];
+            receipts: components["schemas"]["Support"];
+            health: components["schemas"]["Support"];
+            updateAlarm: components["schemas"]["Support"];
+            weeklySummary: components["schemas"]["Support"];
+            calmHome: components["schemas"]["Support"];
+            release: components["schemas"]["Support"];
+            maintenance: components["schemas"]["Support"];
+            selfKeys: components["schemas"]["Support"];
+            phoneSettings: components["schemas"]["Support"];
+        };
         PhoneSummary: {
             /** Format: uuid */
             id?: string;
@@ -3505,6 +3551,17 @@ export interface components {
             profile?: "child" | "self";
             /** @enum {unknown} */
             mode?: "strong" | "light";
+            /**
+             * @description Existing phones are android. See docs/ios/architecture.md.
+             * @enum {unknown}
+             */
+            platform?: "android" | "ios";
+            /**
+             * @description Android: the mode. iPhone: Family Controls alone, or supervised with Apple Configurator.
+             * @enum {unknown}
+             */
+            tier?: "strong" | "light" | "family_controls" | "supervised";
+            capabilities?: components["schemas"]["Capabilities"];
             language?: components["schemas"]["PhoneLanguage"];
             /** @description Whether Android system language changes are blocked on a strong Child phone. */
             lockSystemLanguage?: boolean;

@@ -10,6 +10,10 @@ The native parent app lives in [`parent-app/`](../parent-app). This page covers 
 | Team / signing | Apple team `P7698GU4AV` | Play App Signing, with an upload key |
 | Minimum OS | Expo SDK 58 default | Expo SDK 58 default |
 
+The same app will also be the iPhone app for a child's phone and an adult's own phone (roles
+Parent, Child and Myself, `src/lib/roles.ts`). Only Parent is switched on today. See
+[ios/architecture.md](ios/architecture.md).
+
 ## Login and other links
 
 Login links for the app look like `https://app.plainphone.org/auth/app#token=…`. The app asks for them with `client: "native"` on `POST /api/auth/request`; the web app keeps getting `/auth/callback` links. The token sits in the URL fragment, so it never reaches a server log, and the app sends it with `POST /api/auth/verify` and `client: "native"` to get a session token. The session token is kept in the iOS Keychain or Android Keystore and sent as `Authorization: Bearer pp_s_…`. The app never uses cookies.

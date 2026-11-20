@@ -2,11 +2,13 @@
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
 import { appUpdatesDe } from "./app-updates";
+import { platformDe } from "./platform";
 import { statusEn } from "./status";
 
 export const de: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesDe,
+  ...platformDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",
   "status.stale.title": "Zuletzt online {when}",
