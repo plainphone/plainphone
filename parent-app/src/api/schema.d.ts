@@ -2008,6 +2008,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/app-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a strong-mode phone to open its app update window now ("Update apps now")
+         * @description Sets `appUpdates.requestedAt` in the rules and wakes the phone. The phone reports the window in its status.
+         */
+        post: operations["requestAppUpdates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/locate": {
         parameters: {
             query?: never;
@@ -2966,6 +2986,18 @@ export interface components {
                 /** Format: date-time */
                 requestedAt?: string | null;
             };
+            /** @description Strong mode only (docs/policies.md, "App updates"). Missing means a nightly window and no request. */
+            appUpdates?: {
+                /** @description Open a window once a night (02:00 to 05:00 local, charging, unmetered network) in which Play may update approved apps. */
+                automatic?: boolean;
+                /**
+                 * Format: date-time
+                 * @description Set when a parent pressed "Update apps now"; the phone opens the window once for each new value.
+                 */
+                requestedAt?: string | null;
+                /** @description The last window whose new apps the server turned into requests. The phone stops holding those apps back itself. */
+                reportedWindow?: string | null;
+            };
             location: {
                 /** @description `mode` is not off. Kept for phones from before `mode`. */
                 enabled?: boolean;
@@ -3219,6 +3251,13 @@ export interface components {
             weeklySummaryEnabled?: boolean;
             silentBedtime?: boolean;
             pinApprovalEnabled?: boolean;
+            /** @description Strong mode: the nightly window in which Play may update approved apps. */
+            appUpdatesEnabled?: boolean;
+            /**
+             * Format: date-time
+             * @description When a parent last pressed "Update apps now".
+             */
+            appUpdatesRequestedAt?: string | null;
             /** @description Confirmation for the current rules document. Null if disabled or unpaired. */
             ruleReceipt?: {
                 /** @description The phone still reports a fetched ETag without confirming successful application. */
@@ -3329,6 +3368,31 @@ export interface components {
             filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
             protections?: components["schemas"]["Protections"];
             timeUsed?: components["schemas"]["TimeUsed"];
+            /** @description The last app update window in strong mode. The server records it and turns `caught` into app requests once per `id`. */
+            appUpdates?: {
+                id: string;
+                /** @enum {string} */
+                trigger: "night" | "parent";
+                /**
+                 * Format: date-time
+                 * @description Null when the window could not open.
+                 */
+                openedAt: string | null;
+                /**
+                 * Format: date-time
+                 * @description Null while it is open.
+                 */
+                closedAt: string | null;
+                /** @description Installed apps that were updated. */
+                updated: number;
+                /** @description New apps installed during the window. The phone hid them at once. */
+                caught: components["schemas"]["PackageName"][];
+                /**
+                 * @description Why the window could not open.
+                 * @enum {string}
+                 */
+                error?: "batteryExemption" | "failed";
+            };
         };
         /** @description What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC. */
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
@@ -5828,6 +5892,8 @@ export interface operations {
                     weeklySummaryEnabled?: boolean;
                     silentBedtime?: boolean;
                     pinApprovalEnabled?: boolean;
+                    /** @description Strong mode: update approved apps in a nightly window (default on). */
+                    appUpdatesEnabled?: boolean;
                     pushWakeups?: boolean;
                     preferUnifiedPush?: boolean;
                     language?: components["schemas"]["PhoneLanguage"];
@@ -7339,6 +7405,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    requestAppUpdates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requested */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The phone is in light mode, which never blocks app updates */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };

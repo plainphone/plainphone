@@ -10,6 +10,7 @@ import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/mode
 import { MoreTimeRequests } from "../../../components/MoreTimeRequests";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
 import { PhoneSwitch } from "../../../components/BedtimeSettings";
+import { AppUpdates } from "../../../components/AppUpdates";
 import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
@@ -604,6 +605,7 @@ function Overview() {
         <PushPreferences />
         {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />
+        <AppUpdates />
         <PhoneDisplayPreferences />
         {phone.profile === "child" && phone.pairedAt ? (
           <Card>

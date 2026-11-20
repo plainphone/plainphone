@@ -147,6 +147,38 @@ describe("overview", () => {
     await waitFor(() => expect(screen.getByRole("switch", { name: "Approve on the phone with the PIN", checked: false })).toBeTruthy());
   });
 
+  it("switches nightly app updates off and asks the phone to update apps now", async () => {
+    const path = `/phones/${PHONE.id}`;
+    const api = phoneApi(PHONE, {
+      [`PATCH ${path}`]: { body: { ...PHONE, appUpdatesEnabled: false } },
+      [`POST ${path}/app-updates`]: { status: 202 },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    const name = "Update approved apps automatically";
+    expect(await screen.findByRole("switch", { name, checked: true })).toBeTruthy();
+    expect(screen.getByText("No update window yet.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("switch", { name }));
+    await waitFor(() => expect(api.calls).toContainEqual(expect.objectContaining({ method: "PATCH", path, body: { appUpdatesEnabled: false } })));
+    await fireEvent.press(screen.getByRole("button", { name: "Update apps now" }));
+    await waitFor(() => expect(api.calls).toContainEqual(expect.objectContaining({ method: "POST", path: `${path}/app-updates` })));
+    expect(await screen.findByText("The phone opens the update window the next time it is online.")).toBeTruthy();
+  });
+
+  it("shows the last app update window and the new apps it kept hidden", async () => {
+    const phone = {
+      ...PHONE,
+      status: {
+        appVersion: "0.1.16", batteryPct: 80, charging: true, deviceOwner: true, lockIntact: true, maintenance: false,
+        failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null, reportedAt: "2026-11-19T03:00:00Z",
+        appUpdates: { id: "w1", trigger: "night" as const, openedAt: "2026-11-19T02:12:00Z", closedAt: "2026-11-19T02:57:00Z", updated: 3, caught: ["org.example.game"] },
+      },
+    };
+    phoneApi(phone);
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/Apps updated: 3\./)).toBeTruthy();
+    expect(screen.getByText("New apps kept hidden: 1. Each one waits for your answer as a request.")).toBeTruthy();
+  });
+
   it("offers no approval on the phone for a Self phone, which has no parent PIN", async () => {
     phoneApi(SELF);
     await renderRouter(routes, { initialUrl: at(SELF) });
