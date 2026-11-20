@@ -171,7 +171,12 @@ Each key is tied to the capability it needs and left out when the phone's tier s
 with app lists, Android settings and home screen, FCM and UnifiedPush, private DNS, app update
 windows and Google accounts (`ANDROID_ONLY_RULE_KEYS`; a test fails when a new Android key is not
 placed in one of the two lists). Schedules lose their app lists, time limits keep only the
-whole-phone limit, and the document adds `platform`, `tier`, `capabilities` and `iosApps`.
+whole-phone limit and its bonuses (the `*` rows, so an approved "more time" for the whole phone
+reaches the iPhone; per-app limits and bonuses wait for app tokens), and the document adds
+`platform`, `tier`, `capabilities` and `iosApps`. `pendingChanges` keeps only `id`, `type`,
+`keyType` and `effectiveAt`: enough for the transparency page to say that a change of a kind is
+coming and when. The contents (which contact, how many minutes) are left out in phase 1 because
+many ops carry package names; sending platform-neutral fields is left for the Swift side to ask for.
 
 ### App selections
 
@@ -195,7 +200,9 @@ when the revision changes. Android phones get 409 `not_supported` on both routes
 `PUT /device/status` takes an `ios` object (`iosVersion`, `authorizationStatus`,
 `communicationLimits`, `dnsEnabled`, `locationAuth`, `effectiveStores`). An iPhone's lock counts as
 intact only while `authorizationStatus` is `approved`, nothing failed and no maintenance runs; the
-light-mode protections do not apply. Unknown fields are ignored, so a newer app is never refused.
+light-mode protections do not apply. Unknown fields are ignored, and `iosVersion`,
+`authorizationStatus` and `locationAuth` take any short string (a beta version, a case Apple adds
+later), so a newer app is never refused; a value other than `approved` never counts as intact.
 Receipts use the same `rulesEtag` and `rulesReceiptConfirmed` fields as Android.
 
 ### Dashboard and parent app

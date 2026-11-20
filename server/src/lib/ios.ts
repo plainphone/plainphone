@@ -34,16 +34,24 @@ export const IOS_LOCATION_AUTH = ["notDetermined", "denied", "whenInUse", "alway
 /** The ManagedSettings stores an iPhone can have in effect (docs/ios/architecture.md, Stores.swift). */
 export const IOS_STORES = ["base", "school", "bedtime", "limits", "maintenance"] as const;
 
+/**
+ * A value Apple names. IOS_AUTHORIZATION and IOS_LOCATION_AUTH are the cases known today; a newer
+ * iOS or app may send another, and the report is recorded rather than refused (the phone is the
+ * authority for what happened). Only "approved" ever counts as an intact lock.
+ */
+const appleValue = z.string().min(1).max(40);
+
 /** The `ios` part of `PUT /device/status`. Android phones leave it out. */
 export const iosStatusInput = z.object({
-  iosVersion: z.string().regex(/^\d{1,3}(?:\.\d{1,3}){0,2}$/),
+  /** "26.1", but also whatever a beta writes ("26.2 beta 3"). */
+  iosVersion: appleValue,
   /** Family Controls authorization (`AuthorizationCenter.shared.authorizationStatus`). */
-  authorizationStatus: z.enum(IOS_AUTHORIZATION),
+  authorizationStatus: appleValue,
   /** Apple's Communication Limits through Declared Age Range; null when the phone cannot tell. */
   communicationLimits: z.boolean().nullable().optional(),
   /** The per-phone DNS settings (NEDNSSettingsManager) are enabled; null before phase 4. */
   dnsEnabled: z.boolean().nullable().optional(),
-  locationAuth: z.enum(IOS_LOCATION_AUTH).optional(),
+  locationAuth: appleValue.optional(),
   /** The named stores in effect right now (IOS_STORES today; a newer app may add some). */
   effectiveStores: z.array(z.string().min(1).max(40)).max(20).optional(),
 });

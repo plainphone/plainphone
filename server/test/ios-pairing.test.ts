@@ -4,9 +4,10 @@
 // iOS rules document, app selections and iPhone status reports.
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { iosSelections, phones } from "../src/db/schema.js";
+import { iosSelections, phoneApps, phones, schedules, timeBonuses, timeLimits } from "../src/db/schema.js";
 import { MAX_IOS_SELECTION_BYTES } from "../src/lib/ios.js";
 import { ANDROID_ONLY_RULE_KEYS, IOS_RULE_KEYS } from "../src/services/ios-rules.js";
+import { localDate, TOTAL } from "../src/services/limits.js";
 import { Client, pairPhone, signIn, useHarness, type Harness } from "./harness.js";
 
 const h = useHarness();
@@ -105,11 +106,27 @@ describe("iOS rules document", () => {
     iosPairing(true);
     const parent = await signIn(h, "parent@example.org");
     const { device, phoneId } = await pairIphone(h, parent);
-    // Give the Android side something to leak: an app, a schedule and a per-app limit.
+    // Give the Android side something to leak: an app, a schedule, a per-app limit and a per-app bonus.
     await h.ctx.db.update(phones).set({ lockSystemLanguage: true, suggestDeviceContacts: true }).where(eq(phones.id, phoneId));
+    const [phone] = await h.ctx.db.select().from(phones).where(eq(phones.id, phoneId));
+    const today = localDate(phone!.timezone, h.clock.now);
+    await h.ctx.db.insert(phoneApps).values({ phoneId, packageName: "com.example.game", label: "Game", allowed: true });
+    await h.ctx.db.insert(schedules).values({
+      phoneId, kind: "school", days: [1, 2, 3, 4, 5], startMinute: 480, endMinute: 900, allowedPackages: ["com.example.game"],
+    });
+    await h.ctx.db.insert(timeLimits).values([{ phoneId, packageName: TOTAL, minutes: 90 }, { phoneId, packageName: "com.example.game", minutes: 30 }]);
+    await h.ctx.db.insert(timeBonuses).values([
+      { phoneId, packageName: TOTAL, day: today, minutes: 15 },
+      { phoneId, packageName: "com.example.game", day: today, minutes: 10 },
+    ]);
     const r = await device.get("/api/device/rules");
     expect(r.status).toBe(200);
-    const doc = r.json as Record<string, unknown>;
+    const doc = r.json as Record<string, any>;
+    // The data really reached the projections, cut down to what an iPhone can act on.
+    expect(doc.schedules).toEqual([expect.objectContaining({ kind: "school", days: [1, 2, 3, 4, 5] })]);
+    // The whole-phone limit and its "more time" stay; the per-app limit and bonus wait for app tokens.
+    expect(doc.timeLimits).toEqual({ total: { minutes: 90, days: {} }, bonuses: [{ date: today, minutes: 15 }] });
+    expect(JSON.stringify(doc)).not.toContain("com.example.game");
     for (const key of ANDROID_ONLY_RULE_KEYS) expect(doc, key).not.toHaveProperty(key);
     const allowed = new Set([...Object.keys(IOS_RULE_KEYS), "platform", "tier", "capabilities", "iosApps"]);
     for (const key of Object.keys(doc)) expect(allowed.has(key), key).toBe(true);
@@ -229,5 +246,15 @@ describe("iPhone status", () => {
     const { device } = await pairIphone(h, parent);
     // The phone is the authority for what happened: a newer report is recorded, not refused.
     expect((await device.put("/api/device/status", iosStatus({ somethingNew: true }))).status).toBe(204);
+  });
+
+  it("records a case Apple adds later and never counts it as an intact lock", async () => {
+    iosPairing(true);
+    const parent = await signIn(h, "parent@example.org");
+    const { device, phoneId } = await pairIphone(h, parent);
+    const report = iosStatus({ iosVersion: "27.0 beta 2", authorizationStatus: "approvedWithLimits", locationAuth: "approximate" });
+    expect((await device.put("/api/device/status", report)).status).toBe(204);
+    const summary = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(summary.status).toMatchObject({ lockIntact: false, ios: { iosVersion: "27.0 beta 2", authorizationStatus: "approvedWithLimits" } });
   });
 });

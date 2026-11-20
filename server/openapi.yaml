@@ -1504,7 +1504,8 @@ components:
       description: >
         iPhones only. The lock counts as intact only while `authorizationStatus` is `approved`,
         no policy failed and no maintenance runs; Android's light-mode protections do not apply.
-        Unknown fields are ignored, so a newer app can report more.
+        Unknown fields are ignored, so a newer app can report more. A value outside the listed
+        cases (a newer iOS) is recorded, not refused, and only `approved` counts as intact.
       required: [iosVersion, authorizationStatus]
       properties:
         iosVersion: { type: string, examples: ["26.1"] }

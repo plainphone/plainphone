@@ -108,3 +108,20 @@ it("shows where an iPhone's apps are picked instead of an Android app list", asy
   expect(await screen.findByText(en["platform.iphone.appsOnPhone"])).toBeTruthy();
   expect(await screen.findByText(en["platform.iphone.appsNone"])).toBeTruthy();
 });
+
+it("shows Apple's honest line instead of the Android-only contact switch on an iPhone", async () => {
+  const contacts = { body: { contacts: [], suggestDeviceContacts: true, lightContactRestriction: false, selfScheduleContacts: false } };
+  api(ME, IPHONE, { [`GET /phones/${PHONE.id}/contacts`]: contacts });
+  await renderRouter(routes, { initialUrl: `/phones/${PHONE.id}/contacts` });
+  expect(await screen.findByText(en["platform.ios.contacts"])).toBeTruthy();
+  expect(screen.queryByTestId("suggest-device-contacts")).toBeNull();
+  expect(screen.queryByTestId("light-contact-restriction")).toBeNull();
+});
+
+it("keeps the contact suggestion switch on Android", async () => {
+  const contacts = { body: { contacts: [], suggestDeviceContacts: false, lightContactRestriction: false } };
+  api(ME, { ...PHONE, platform: "android" }, { [`GET /phones/${PHONE.id}/contacts`]: contacts });
+  await renderRouter(routes, { initialUrl: `/phones/${PHONE.id}/contacts` });
+  expect(await screen.findByTestId("suggest-device-contacts")).toBeTruthy();
+  expect(screen.queryByText(en["platform.ios.contacts"])).toBeNull();
+});

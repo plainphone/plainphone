@@ -4194,7 +4194,7 @@ export interface components {
             /** @constant */
             code: "ios_pairing_not_yet";
         };
-        /** @description iPhones only. The lock counts as intact only while `authorizationStatus` is `approved`, no policy failed and no maintenance runs; Android's light-mode protections do not apply. Unknown fields are ignored, so a newer app can report more. */
+        /** @description iPhones only. The lock counts as intact only while `authorizationStatus` is `approved`, no policy failed and no maintenance runs; Android's light-mode protections do not apply. Unknown fields are ignored, so a newer app can report more. A value outside the listed cases (a newer iOS) is recorded, not refused, and only `approved` counts as intact. */
         IosStatus: {
             /** @example 26.1 */
             iosVersion: string;

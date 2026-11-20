@@ -11,6 +11,7 @@ import type { Capabilities, Feature, Tier } from "../lib/capabilities.js";
 import { eq } from "drizzle-orm";
 import { iosSelections, type IOS_SELECTION_SOURCES } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+import { TOTAL } from "./limits.js";
 
 /** "core": always sent. A feature: sent unless the tier's support for it is "no". */
 type Gate = "core" | Feature;
@@ -89,10 +90,11 @@ function iosSchedules(schedules: unknown): unknown {
 
 /** The whole-phone limit and its bonuses; per-app limits need app tokens (phase 2). */
 function iosTimeLimits(limits: unknown): unknown {
-  const l = limits as { total?: unknown; bonuses?: { packageName?: string | null; date: string; minutes: number }[] };
+  const l = limits as { total?: unknown; bonuses?: { packageName: string; date: string; minutes: number }[] };
   return {
     total: l.total ?? null,
-    bonuses: (l.bonuses ?? []).filter((b) => !b.packageName).map(({ date, minutes }) => ({ date, minutes })),
+    // A whole-phone bonus carries the TOTAL sentinel; per-app bonuses wait for app tokens.
+    bonuses: (l.bonuses ?? []).filter((b) => b.packageName === TOTAL).map(({ date, minutes }) => ({ date, minutes })),
   };
 }
 
@@ -102,7 +104,10 @@ function iosDns(dns: unknown): unknown {
   return { host: d.host, ready: d.ready, blockedCategories: d.blockedCategories };
 }
 
-/** Pending changes keep their timing; package names in them mean nothing on an iPhone. */
+/**
+ * Pending changes keep their kind and timing only (docs/ios/architecture.md): many ops carry
+ * package names, which mean nothing on an iPhone, so the contents wait until the Swift side asks.
+ */
 function iosPending(pending: unknown): unknown {
   if (!Array.isArray(pending)) return [];
   return pending.map((c: { id: string; op: { type: string }; keyType: unknown; effectiveAt: unknown }) => ({

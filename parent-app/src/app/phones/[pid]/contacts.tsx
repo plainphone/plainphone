@@ -22,17 +22,20 @@ function ContactsList() {
   const { phone, run, pending, notify } = usePhone();
   const self = phone.profile === "self";
   // An iPhone is light but has no Android contact restriction (docs/ios/architecture.md).
-  const lightChild = !self && phone.mode === "light" && !isIphone(phone);
+  const iphone = isIphone(phone);
+  const lightChild = !self && phone.mode === "light" && !iphone;
   const res = useLoad(
     () => unwrap<{ contacts: Contact[]; selfScheduleContacts?: boolean | null; suggestDeviceContacts?: boolean; lightContactRestriction?: boolean }>(
       client.GET("/phones/{pid}/contacts", { params: { path: { pid: phone.id } } }),
     ),
     [phone.id],
   );
-  const sharing = !self && res.data?.suggestDeviceContacts === true;
+  // Suggestions come from the phone's address book, which only Android shares.
+  const sharing = !self && !iphone && res.data?.suggestDeviceContacts === true;
   const suggestions = useLoad(() => sharing ? loadContactSuggestions(phone.id) : Promise.resolve([]), [phone.id, sharing]);
   const addLabel = t(self ? "contacts.addFavourite" : "contacts.add");
-  const selfIntro = res.data && t(res.data.selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro");
+  // Limiting calls during schedules is an Android mechanism; on an iPhone, Apple decides.
+  const selfIntro = iphone ? t("platform.ios.contacts") : res.data && t(res.data.selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro");
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [errors, setErrors] = useState<{ name?: string; number?: string }>({});
@@ -159,10 +162,12 @@ function ContactsList() {
               disabled={savingSettings || res.data.lightContactRestriction === undefined}
               onValueChange={(on) => void changeSettings({ lightContactRestriction: on })} />
           )}
-          <Switch testID="suggest-device-contacts" label={t("contacts.suggestFromPhone")} help={t("contacts.suggestSharing")}
-            value={res.data.suggestDeviceContacts === true}
-            disabled={savingSettings || res.data.suggestDeviceContacts === undefined}
-            onValueChange={(on) => void changeSettings({ suggestDeviceContacts: on })} />
+          {iphone ? <Notice tone="info" text={t("platform.ios.contacts")} /> : (
+            <Switch testID="suggest-device-contacts" label={t("contacts.suggestFromPhone")} help={t("contacts.suggestSharing")}
+              value={res.data.suggestDeviceContacts === true}
+              disabled={savingSettings || res.data.suggestDeviceContacts === undefined}
+              onValueChange={(on) => void changeSettings({ suggestDeviceContacts: on })} />
+          )}
         </VStack>
       )}
 
