@@ -18,7 +18,8 @@ curl http://localhost:8080/api/health
 
 Put a TLS-terminating reverse proxy (Caddy, Traefik, nginx) in front and point your domain at
 it. Then set `TRUST_PROXY=true` and stop publishing port 8080 to the internet, so rate limits
-see each client's own address. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
+see each client's own address. The API reads request bodies up to 1 MB; only contact suggestions
+and server moves accept more. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
 pairing QR code.
 
 ## Connect the apps

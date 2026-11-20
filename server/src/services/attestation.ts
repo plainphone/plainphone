@@ -6,6 +6,7 @@
 // (https://source.android.com/docs/security/features/keystore/attestation#schema). Verification
 // only ever happens here, never on the phone. No serial number or IMEI is attested or stored.
 
+import { errorSummary } from "../lib/log.js";
 import { spawnSync } from "node:child_process";
 import { randomBytes, X509Certificate } from "node:crypto";
 import { GOOGLE_ATTESTATION_ROOTS } from "../lib/attestation-roots.js";
@@ -164,7 +165,7 @@ export class RevocationList {
       const serials = new Set(Object.keys(body.entries).map((s) => s.toLowerCase().replace(/^0+(?=.)/, "")));
       this.cached = { at: now, serials };
     } catch (err) {
-      console.error(`attestation revocation list: ${(err as Error).message}`);
+      console.error(`attestation revocation list: ${errorSummary(err)}`);
       return null;
     }
     return this.cached?.serials ?? null;

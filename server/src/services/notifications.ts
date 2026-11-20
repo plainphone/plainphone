@@ -5,6 +5,7 @@
 // sent once, when it happens, never on every poll. A failed push never fails the request
 // that caused it.
 
+import { errorSummary } from "../lib/log.js";
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, toLocale } from "../lib/locale.js";
@@ -14,13 +15,10 @@ import { lastSeen, moreTimeActions, pushWords, type SafetyNews } from "../lib/pu
 import { reviewWords } from "../lib/review-words.js";
 import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
-import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
+import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
 import { recordSummaryEvent } from "./summary-record.js";
-
-/** After this many failed sends in a row (not 404/410), a subscription is dropped. */
-const MAX_FAILURES = 20;
 
 export type NotifyEvent =
   | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
@@ -173,7 +171,7 @@ export async function notifyUsers(
           const message = pushMessage(e, language);
           outcome = await ctx.parentPush.send(sub, message, { urgent });
         } catch (err) {
-          console.error(`push send failed: ${(err as Error).message}`);
+          console.error(`push send failed: ${errorSummary(err)}`);
           outcome = "failed";
         }
         if (outcome === "sent") {
@@ -186,21 +184,15 @@ export async function notifyUsers(
         if (outcome === "failed") opts.onFailure?.();
         // A retried alert must not use up a subscription's allowance: only a permanent error deletes it.
         if (outcome === "failed" && opts.keepOnTransientFailure) return 0;
-        if (outcome === "gone" || (outcome === "failed" && sub.platform === "web" && sub.failures + 1 >= MAX_FAILURES)) {
-          await discardGonePushSubscription(ctx, sub);
-        } else if (outcome === "failed") {
-          await ctx.db
-            .update(pushSubscriptions)
-            .set({ failures: sql`${pushSubscriptions.failures} + 1` })
-            .where(sameRegistration);
-        }
+        if (outcome === "gone") await discardGonePushSubscription(ctx, sub);
+        else if (outcome === "failed") await recordFailedPush(ctx, sub);
         return 0;
       }),
     );
     return results.reduce<number>((a, b) => a + b, 0);
   } catch (err) {
     opts.onFailure?.();
-    console.error(`notification failed: ${(err as Error).message}`);
+    console.error(`notification failed: ${errorSummary(err)}`);
     return 0;
   }
 }
@@ -244,8 +236,9 @@ export async function notifyAlertRecipients(
 ): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
-  if ((e.type === "protection" || e.type === "offline" || e.type === "neverConnected") && ctx.mail.canSend) {
-    for (const m of members) {
+  // The mails go out alongside the push, not before it: a slow mail server must not hold up the alert.
+  const mails = (e.type === "protection" || e.type === "offline" || e.type === "neverConnected") && ctx.mail.canSend
+    ? members.map(async (m) => {
       const locale = toLocale(m.locale);
       try {
         await ctx.mail.send(
@@ -261,16 +254,12 @@ export async function notifyAlertRecipients(
           ),
         );
       } catch (err) {
-        console.error(`alert mail failed: ${(err as Error).message}`);
+        console.error(`alert mail failed: ${errorSummary(err)}`);
       }
-    }
-  }
-  return notifyUsers(
-    ctx,
-    members.map((m) => m.id),
-    e,
-    opts,
-  );
+    })
+    : [];
+  const [sent] = await Promise.all([notifyUsers(ctx, members.map((m) => m.id), e, opts), ...mails]);
+  return sent;
 }
 
 interface StatusLike {
@@ -317,7 +306,7 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
       hours: phones.offlineAlertHours,
     });
   for (const p of claimed) {
-    await notifyHousehold(ctx, p.id, {
+    await notifyClaimed(ctx, p.id, {
       type: "offline",
       phoneId: p.id,
       phoneName: p.name,
@@ -331,6 +320,15 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
     });
   }
   return claimed.length + (await alertNeverConnectedPhones(ctx, hours));
+}
+
+/** The phones are already claimed: one phone's failed alert must not cost the others theirs. */
+async function notifyClaimed(ctx: Ctx, phoneId: string, e: NotifyEvent) {
+  try {
+    await notifyHousehold(ctx, phoneId, e);
+  } catch (err) {
+    console.error(`${e.type} alert failed: ${errorSummary(err)}`);
+  }
 }
 
 /** A confirmed light phone that never connected has no last contact to go quiet from: remind once after two days. */
@@ -355,6 +353,6 @@ async function alertNeverConnectedPhones(ctx: Ctx, hours: ReturnType<typeof sql>
       ),
     )
     .returning({ id: phones.id, name: phones.name });
-  for (const p of claimed) await notifyHousehold(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
+  for (const p of claimed) await notifyClaimed(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
   return claimed.length;
 }
