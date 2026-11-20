@@ -845,7 +845,7 @@ function LightModeSection({ phone }: { phone: Phone }) {
  * Rename the phone, release it, or remove it. Releasing switches Plainphone off on the phone;
  * removing only deletes it here. On a Self phone both wait for the key.
  */
-function ManagePhone() {
+export function ManagePhone() {
   const { t } = useI18n();
   const { phone, setPhone, run, notify } = usePhone();
   const navigate = useNavigate();
