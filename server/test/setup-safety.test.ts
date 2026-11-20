@@ -105,6 +105,20 @@ describe("onboarding safety", () => {
       .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
   });
 
+  it("mails the setup-undo notice even when the parent muted the phone", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
+    const claimed = await claim();
+    expect((await parent.put(`/api/phones/${claimed.json.id}/notifications`, { enabled: false })).status).toBe(204);
+    device.token = (await decide("confirm")).json.deviceToken;
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    await sweep(h.ctx);
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.to).toBe("claimer@example.org");
+    expect(notices[0]?.text).toContain("Set-up was undone on the phone");
+  });
+
   it.each([true, false])("accepts undo and distinguishes reports within the grace period: %s", async (withinGrace) => {
     const { parent, device, decide, claim } = await start(undefined, "light", "child");
     const claimed = await claim();

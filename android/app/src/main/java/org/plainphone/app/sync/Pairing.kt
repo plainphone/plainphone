@@ -16,13 +16,21 @@ class PairingController(
     private val mode: String = "strong",
     private val profile: String? = null,
     private val canRedeemEnrollment: () -> Boolean = { true },
+    private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     /** Starts a new pairing (or keeps showing the current one). */
     fun start(): Pairing = synchronized(enrollmentLock) {
         check(!store.isPaired) { "already paired" }
         check(!store.enrollmentOutdated) { "outdated setup QR" }
-        // The server can still recover a claimed pairing after the displayed code expires.
-        store.pairing()?.let { return it }
+        // The server can still recover a claimed pairing after the displayed code expires, so an
+        // expired code is only dropped when the server says so. Until it answers (it throws when
+        // offline), the phone must not show a code that may already be dead.
+        store.pairing()?.let { saved ->
+            if (saved.expiresAtMs > nowMs()) return saved
+            poll()
+            check(!store.isPaired) { "already paired" }
+            store.pairing()?.let { return it }
+        }
         return api.startConfirmedPairing(mode, deviceInfo, profile).also(store::savePairing)
     }
 
