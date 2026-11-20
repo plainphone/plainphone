@@ -50,6 +50,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.plainphone.app.R
+import org.plainphone.app.extended.ExtendedFamily
+import org.plainphone.app.extended.ShareLocationButton
+import org.plainphone.app.extended.ShareTarget
 import org.plainphone.app.sos.SendState
 import org.plainphone.app.sync.QuickMessage
 import org.plainphone.app.ui.ConversationTopBar
@@ -73,11 +76,17 @@ internal fun FamilyThreadScreen(onBack: () -> Unit) {
     var entries by remember { mutableStateOf<List<InboxEntry>?>(null) }
     var offer by remember { mutableStateOf<InboxOffer?>(null) }
     var recipients by remember { mutableStateOf(emptyList<String>()) }
-    LaunchedEffect(changes, tick) {
+    var snapshotMinutes by remember { mutableStateOf<Int?>(null) }
+    val extendedChanges by ExtendedFamily.changes.collectAsState()
+    LaunchedEffect(changes, extendedChanges, tick) {
         withContext(Dispatchers.IO) {
-            entries = FamilyInbox.entries(context)
+            val thread = FamilyInbox.thread(context)
+            // Snapshots still on their way to the parents sit in the extended outbox (docs/extended-family.md).
+            entries = (FamilyInbox.entries(context) + ExtendedFamily.parentSnapshotEntries(context, thread.messages.map { it.id }.toSet()))
+                .sortedBy { it.atMs }
             offer = FamilyInbox.offer(context)
-            recipients = FamilyInbox.thread(context).recipients
+            recipients = thread.recipients
+            snapshotMinutes = ExtendedFamily.snapshotRules(context).takeIf { it.enabled }?.minutes
             FamilyInbox.cancelNotification(context)
         }
     }
@@ -92,6 +101,7 @@ internal fun FamilyThreadScreen(onBack: () -> Unit) {
         entries, offer, recipients, onBack,
         onSend = { FamilyInbox.send(context, it) },
         onCheckIn = { FamilyInbox.checkIn(context) },
+        share = snapshotMinutes?.let { minutes -> { ShareLocationButton(ShareTarget.Parents, recipients, minutes) } },
     )
 }
 
@@ -108,6 +118,8 @@ internal fun FamilyThread(
     onBack: () -> Unit,
     onSend: (QuickMessage) -> Boolean,
     onCheckIn: () -> Boolean,
+    /** "Share where I am" (docs/extended-family.md), while location snapshots are on. */
+    share: (@Composable () -> Unit)? = null,
 ) {
     val t = plainTokens
     var lastTap by remember { mutableLongStateOf(0L) }
@@ -179,6 +191,7 @@ internal fun FamilyThread(
                         style = MaterialTheme.typography.titleMedium,
                     )
                 }
+                share?.invoke()
                 if (quick.isEmpty() && offer?.checkIns != true) Text(
                     stringResource(R.string.inbox_nothing_to_send),
                     style = MaterialTheme.typography.bodyMedium,
@@ -211,7 +224,11 @@ private fun InboxBubble(e: InboxEntry) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (e.kind == "checkin") Icon(PlainIcons.Home, contentDescription = null, modifier = Modifier.size(20.dp).padding(end = 0.dp))
                 Box(Modifier.padding(start = if (e.kind == "checkin") 8.dp else 0.dp)) {
-                    Text(e.text, style = MaterialTheme.typography.bodyLarge)
+                    // The text of a snapshot is a placeholder: never shown (docs/extended-family.md).
+                    Text(
+                        if (e.kind == "snapshot") stringResource(R.string.ext_shared_location) else e.text,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                 }
             }
         }

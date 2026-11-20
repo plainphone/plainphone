@@ -1,0 +1,52 @@
+<resources>
+    <string name="ext_section_title">Familjekontakter</string>
+    <string name="ext_invited_question">Dina föräldrar har bjudit in %1$s. Vill du skriva med %1$s?</string>
+    <string name="ext_yes">Ja</string>
+    <string name="ext_no_thanks">Nej tack</string>
+    <string name="ext_waiting_for">Väntar på %1$s</string>
+    <string name="ext_blocked">Blockerad</string>
+    <string name="ext_row_hint">Skicka snabbmeddelanden till %1$s</string>
+    <string name="ext_changes_title">Vad som har ändrats</string>
+    <string name="ext_change_invited">Dina föräldrar har bjudit in %1$s</string>
+    <string name="ext_change_joined">%1$s är med</string>
+    <string name="ext_change_new_link">%1$s har fått en ny länk av dina föräldrar. Säg ja igen om du vill skriva med varandra.</string>
+    <string name="ext_change_removed">%1$s finns inte längre i din lista</string>
+    <string name="ext_change_blocked">Du har blockerat %1$s</string>
+    <string name="ext_only_you_and">Bara du och %1$s. Plainphones server kan också läsa den.</string>
+    <string name="ext_who_reads">Bara du och %1$s kan läsa konversationen. Plainphone-servern kan också läsa den och raderar den efter 30 dagar.</string>
+    <string name="ext_empty_title">Inget här än</string>
+    <string name="ext_empty">Skicka ett snabbmeddelande till %1$s. Svaren visas här.</string>
+    <string name="ext_gone_title">Finns inte i din lista</string>
+    <string name="ext_gone">Personen finns inte längre i din lista.</string>
+    <string name="ext_state_not_delivered">Inte levererat</string>
+    <string name="ext_shared_location">Du delade var du är</string>
+    <string name="ext_not_during">Inte under %1$s</string>
+    <string name="ext_sent_now">På väg</string>
+    <string name="ext_not_active">Du kan skriva till %1$s när ni båda har sagt ja.</string>
+    <string name="ext_blocked_note">Du har blockerat %1$s. Inget från %1$s når fram till dig.</string>
+    <string name="ext_block">Blockera %1$s</string>
+    <string name="ext_block_title">Vill du blockera %1$s?</string>
+    <string name="ext_block_text">%1$s kan inte skicka något till dig längre. Bara dina föräldrar kan ångra det genom att bjuda in %1$s igen. Då bestämmer du på nytt.</string>
+    <string name="ext_block_confirm">Blockera</string>
+    <string name="ext_notification_from">Meddelande från %1$s</string>
+    <string name="ext_share">Dela var jag är</string>
+    <string name="ext_share_working">Hittar var du är …</string>
+    <string name="ext_share_title">Vill du dela var du är?</string>
+    <string name="ext_share_text">%1$s kan se var du är just nu, %2$s. Det är en position, delad en gång.</string>
+    <string name="ext_share_confirm">Dela</string>
+    <string name="ext_share_sent">Delat. Du ser det i konversationen.</string>
+    <string name="ext_your_parents">dina föräldrar</string>
+    <string name="ext_location_off">Platsen är avstängd på telefonen</string>
+    <string name="ext_no_fix">Det gick inte att hitta var du är. Försök igen utomhus.</string>
+    <string name="sharing_extended">Familjekontakter är på. Personer som dina föräldrar bjuder in kan skicka snabbmeddelanden till dig, men bara om du säger ja. Du kan blockera vem som helst.</string>
+    <string name="sharing_snapshots">Du kan dela var du är en gång i en konversation. Du väljer först vem som får det, och de ser det %1$s.</string>
+    <string name="sharing_snapshot_log">Du delade var du var med %1$s kl. %2$s, till %3$s</string>
+    <plurals name="ext_for_hours">
+        <item quantity="one">i 1 timme</item>
+        <item quantity="other">i %d timmar</item>
+    </plurals>
+    <plurals name="ext_for_minutes">
+        <item quantity="one">i 1 minut</item>
+        <item quantity="other">i %d minuter</item>
+    </plurals>
+</resources>

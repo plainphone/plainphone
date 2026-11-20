@@ -52,6 +52,9 @@ class SharingActivity : ComponentActivity() {
                     hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
                     inbox = rules?.takeIf { it.profile == "child" && !it.release }?.inbox ?: org.plainphone.app.sync.InboxRules.OFF,
                     agreement = org.plainphone.app.sync.AgreementRules.forChild(rules),
+                    extendedContacts = org.plainphone.app.extended.ExtendedFamily.rules(this).enabled,
+                    snapshotMinutes = org.plainphone.app.extended.ExtendedFamily.snapshotRules(this).takeIf { it.enabled }?.minutes,
+                    snapshotLog = org.plainphone.app.extended.ExtendedFamily.snapshotLog(this),
                     // Groups only narrow calls on an enforced list with a parent marked (docs/modes.md).
                     activeMode = org.plainphone.app.sync.Modes.shown(
                         rules,
@@ -85,6 +88,12 @@ fun SharingScreen(
     inbox: org.plainphone.app.sync.InboxRules = org.plainphone.app.sync.InboxRules.OFF,
     agreement: org.plainphone.app.sync.AgreementRules = org.plainphone.app.sync.AgreementRules.NONE,
     activeMode: org.plainphone.app.sync.ActiveMode? = null,
+    /** Extended family contacts are on (docs/extended-family.md). */
+    extendedContacts: Boolean = false,
+    /** Location snapshots are on: how long a snapshot can be seen, in minutes. Null: off. */
+    snapshotMinutes: Int? = null,
+    /** Snapshots this phone shared, newest first; shown in the same list as the positions it sent. */
+    snapshotLog: List<org.plainphone.app.extended.SnapshotLogEntry> = emptyList(),
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -133,20 +142,40 @@ fun SharingScreen(
             Text(stringResource(R.string.sharing_inbox), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (inbox.checkIns) Text(stringResource(R.string.sharing_inbox_check_in), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (extendedContacts) {
+            Text(stringResource(R.string.sharing_extended), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (snapshotMinutes != null) {
+            val (amount, hours) = org.plainphone.app.extended.SnapshotConfirm.duration(snapshotMinutes)
+            val duration = if (hours) pluralStringResource(R.plurals.ext_for_hours, amount, amount) else pluralStringResource(R.plurals.ext_for_minutes, amount, amount)
+            Text(stringResource(R.string.sharing_snapshots, duration), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         AgreementSection(agreement)
         Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.sharing_latest), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        if (log.isEmpty()) {
+        if (log.isEmpty() && snapshotLog.isEmpty()) {
             Text(stringResource(R.string.sharing_none), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
+            // Positions sent and snapshots shared, newest first.
+            val rows = log.map { it.lastMs to (@Composable { LogRow(it, format) }) } +
+                snapshotLog.map { it.atMs to (@Composable { SnapshotRow(it, format) }) }
             Column {
-                log.forEachIndexed { i, e ->
+                rows.sortedByDescending { it.first }.forEachIndexed { i, row ->
                     if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    LogRow(e, format)
+                    row.second()
                 }
             }
         }
         Text(stringResource(R.string.sharing_log_note), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** "You shared your location with Grandma at 16:40, until 17:40": the child sees every snapshot. */
+@Composable
+private fun SnapshotRow(e: org.plainphone.app.extended.SnapshotLogEntry, format: (Long) -> String) {
+    val who = e.names.ifEmpty { stringResource(R.string.ext_your_parents) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Text(stringResource(R.string.sharing_snapshot_log, who, format(e.atMs), format(e.untilMs)), fontSize = 16.sp)
     }
 }
 
