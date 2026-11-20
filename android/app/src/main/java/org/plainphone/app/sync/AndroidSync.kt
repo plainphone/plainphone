@@ -155,6 +155,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun requestUpdate(requestedAtMs: Long) = SelfUpdate.request(context, requestedAtMs)
 
+    override fun onAppUpdateRules() = org.plainphone.app.update.AppUpdateWindow.onRules(context)
+
+    override fun appUpdatesReport() = org.plainphone.app.update.AppUpdateWindow.report(context)
+
     override fun refreshPhoneLanguage() {
         (context.applicationContext as? org.plainphone.app.PlainphoneApplication)?.refreshPhoneLanguage()
     }
@@ -530,6 +534,13 @@ object SyncScheduler {
 
     fun pushWake(context: Context, reason: String) =
         enqueueNow(context, "push: $reason", "plainphone-push-wake", ExistingWorkPolicy.APPEND_OR_REPLACE)
+
+    /**
+     * After the app update guard caught an app or a window closed. Appended, never dropped: a sync
+     * that is already running may have read the state before the change.
+     */
+    fun appUpdates(context: Context, reason: String) =
+        enqueueNow(context, reason, "plainphone-sync-app-updates", ExistingWorkPolicy.APPEND_OR_REPLACE)
 
     fun pushRegistrationChanged(context: Context) =
         enqueueNow(context, PhoneWake.REGISTRATION_CHANGED, "plainphone-push-registration", ExistingWorkPolicy.APPEND_OR_REPLACE)

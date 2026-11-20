@@ -74,6 +74,8 @@ object EffectivePolicy {
             config.server?.settings?.canonical().orEmpty(),
             config.timeBlocked.sorted().joinToString(","),
             config.installing.toString(),
+            config.updatingApps.toString(),
+            config.heldBack.sorted().joinToString(","),
             config.lockSystemLanguage.toString(),
             config.openBlocked?.sorted()?.joinToString(",") ?: "-",
         ).joinToString("|")

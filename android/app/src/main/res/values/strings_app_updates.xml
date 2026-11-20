@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App updates in strong mode (update/AppUpdateWindow.kt, docs/policies.md "App updates"). -->
+<resources>
+    <string name="install_watchdog_app_updates">Updating approved apps</string>
+    <string name="play_explain_title">Apps update by themselves</string>
+    <string name="play_explain_automatic">At night, while the phone charges on Wi-Fi, the apps you already have are updated. You do not need to do anything.</string>
+    <string name="play_explain_manual">Your parents update the apps on this phone. Ask them if an app says it needs an update.</string>
+    <string name="play_explain_new_app">Want a new app? Ask a parent. They can add it to your phone.</string>
+    <string name="sharing_app_updates">At night while the phone charges on Wi-Fi, or when a parent asks, the apps you have can update. A new app installed then stays hidden until your parents say yes. Your parents see when it happened and how many apps were updated.</string>
+    <string name="sharing_app_updates_manual">When a parent asks, the apps you have can update. A new app installed then stays hidden until your parents say yes. Your parents see when it happened and how many apps were updated.</string>
+</resources>

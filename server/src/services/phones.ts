@@ -222,6 +222,10 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       weeklySummaryEnabled: phone.weeklySummaryEnabled,
       silentBedtime: phone.silentBedtime,
       pinApprovalEnabled: phone.pinApprovalEnabled,
+      appUpdatesEnabled: phone.appUpdatesEnabled,
+      appUpdatesRequestedAt: phone.appUpdatesRequestedAt,
+      appUpdatesReportedWindow: phone.appUpdatesReportedWindow,
+      appUpdatesRecordedApps: phone.appUpdatesRecordedApps,
       language: phone.language,
       lockSystemLanguage: phone.lockSystemLanguage,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
@@ -354,6 +358,13 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     settings: rulesSettings(own?.settings ?? {}),
     home: fullHome(own?.home),
     update: { requestedAt: phone.updateRequestedAt?.toISOString() ?? null },
+    // Strong mode: the nightly window for updates of approved apps, and "Update apps now".
+    appUpdates: {
+      automatic: phone.appUpdatesEnabled,
+      requestedAt: phone.appUpdatesRequestedAt?.toISOString() ?? null,
+      reportedWindow: phone.appUpdatesReportedWindow,
+      recordedApps: sorted(phone.appUpdatesRecordedApps),
+    },
     ring: safety.ring,
     checkIn: safety.checkIn,
     pendingChanges: pending.map((c) => ({
@@ -548,6 +559,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     weeklySummaryEnabled: phone.weeklySummaryEnabled,
     silentBedtime: phone.silentBedtime,
     pinApprovalEnabled: phone.pinApprovalEnabled,
+    appUpdatesEnabled: phone.appUpdatesEnabled,
+    appUpdatesRequestedAt: phone.appUpdatesRequestedAt?.toISOString() ?? null,
     status: summaryStatus(phone, ctx.now()),
   };
 }

@@ -46,6 +46,9 @@ class SharingActivity : ComponentActivity() {
                 SharingScreen(
                     mode = store.locationMode ?: ServerRules.LOCATION_OFF,
                     weeklySummary = rules?.profile == "child" && rules.weeklySummaryEnabled,
+                    // "Update apps now" works with the nightly window off too: the child is told either way.
+                    appUpdates = org.plainphone.app.light.Mode.isStrong(this),
+                    appUpdatesNightly = org.plainphone.app.update.AppUpdateWindow.automatic(this),
                     hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
                     inbox = rules?.takeIf { it.profile == "child" && !it.release }?.inbox ?: org.plainphone.app.sync.InboxRules.OFF,
                     alwaysUntilMs = store.alwaysUntilMs,
@@ -69,6 +72,8 @@ fun SharingScreen(
     log: List<SharingEntry>,
     format: (Long) -> String,
     weeklySummary: Boolean = false,
+    appUpdates: Boolean = false,
+    appUpdatesNightly: Boolean = true,
     hiddenSos: org.plainphone.app.sos.SosSharing = org.plainphone.app.sos.SosSharing.NONE,
     inbox: org.plainphone.app.sync.InboxRules = org.plainphone.app.sync.InboxRules.OFF,
     onClose: () -> Unit,
@@ -96,6 +101,10 @@ fun SharingScreen(
         // Principle 1: the child is told what else the parents see, in plain words.
         if (weeklySummary) {
             Text(stringResource(R.string.sharing_weekly_summary), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (appUpdates) {
+            val text = if (appUpdatesNightly) R.string.sharing_app_updates else R.string.sharing_app_updates_manual
+            Text(stringResource(text), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // The hidden SOS is hidden from others, never from the child.
         hiddenSos.powerPresses?.let { presses ->

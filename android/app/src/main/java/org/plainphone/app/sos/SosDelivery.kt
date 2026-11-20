@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Compat
+import org.plainphone.app.R
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
@@ -147,7 +148,7 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
         }
 
         if (!prefs.contains("sms-claim:$id") && canSendSms(context)) {
-            val text = sosSmsText(sos.name, kind, trigger, message, location?.let { it.getDouble("lat") to it.getDouble("lon") })
+            val text = sosSmsText(context, sos.name, kind, trigger, message, location?.let { it.getDouble("lat") to it.getDouble("lon") })
             val submitted = submitSosFallback(prefs, id, at, sos.parents) { number ->
                 submitSosSms(context, number, text)
             }
@@ -166,17 +167,21 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
 
 /**
  * The fallback SMS. A code word is sent as just its text (plus a map link when there is a position),
- * so it looks like any quick message; everything else is the usual SOS text.
+ * so it looks like any quick message; everything else is the usual SOS text, in the phone's language.
  */
-internal fun sosSmsText(name: String, kind: String, trigger: String?, message: String?, position: Pair<Double, Double>?): String {
+internal fun sosSmsText(
+    context: Context, name: String, kind: String, trigger: String?, message: String?, position: Pair<Double, Double>?,
+): String {
     val link = position?.let { (lat, lon) -> "https://maps.google.com/?q=$lat,$lon" }
     if (trigger == "code" && message != null) return listOfNotNull(message, link).joinToString(" ")
-    val description = when {
-        trigger != null -> "akut (skjult SOS)"
-        kind == "urgent" -> "akut"
-        else -> "har brug for hjælp"
-    }
-    return "SOS fra $name: $description. Position: ${link ?: "ukendt"}. Sendt via Plainphone."
+    val description = context.getString(
+        when {
+            trigger != null -> R.string.sos_sms_hidden
+            kind == "urgent" -> R.string.sos_sms_urgent
+            else -> R.string.sos_sms_help
+        },
+    )
+    return context.getString(R.string.sos_sms_text, name, description, link ?: context.getString(R.string.sos_sms_unknown_position))
 }
 
 internal fun submitSosFallback(

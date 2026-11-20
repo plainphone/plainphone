@@ -3,6 +3,7 @@
 // English is the source language. Every key here must exist in da.ts (the type enforces it).
 // Placeholders look like {name}. Never use em dashes in copy.
 
+import { appUpdatesEn } from "./app-updates";
 import { statusEn } from "./status";
 
 const filterSummary = "The web filter makes you less likely to encounter websites in the categories you choose, but some can still get through.";
@@ -12,6 +13,7 @@ const changeTiming = `Takes effect ${nextOnline}`;
 
 export const en = {
   ...statusEn,
+  ...appUpdatesEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",

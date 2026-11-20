@@ -58,10 +58,13 @@ in this table against the production source, including both branches of platform
 | `time/TimeTicker.kt` `context.registerReceiver(` | On screen-on or screen-off | Either | Start or stop the time-limit ticker. |
 | `time/TimeTicker.kt` `if (intent.action == Intent.ACTION_SCREEN_ON) main.postDelayed(tick, EVERY_MS)` | On screen-on, first tick in 60 s | On | Resume time-limit checks. |
 | `time/TimeTicker.kt` `main.postDelayed(tick, EVERY_MS)` | On registration, first tick in 60 s | On | Start time-limit checks if the screen is already interactive. |
+| `update/AppUpdateWorker.kt` `val request = PeriodicWorkRequestBuilder<AppUpdateWorker>(30, TimeUnit.MINUTES)` | 30 min, only while charging on an unmetered network | Either | Build the nightly app update check (docs/policies.md, "App updates"); it exits at once outside 02:00 to 05:00. |
+| `update/AppUpdateWorker.kt` `.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)` | 30 min, only while charging on an unmetered network | Either | Enqueue one unique nightly app update check. |
+| `update/AppUpdateWorker.kt` `val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))` | Once per nightly check | Either | Read the sticky battery state without subscribing. |
 | `update/InstallRecoveryWorker.kt` `val request = OneTimeWorkRequestBuilder<InstallRecoveryWorker>()` | At install-lease expiry | Either | Build the recovery backup with a delay. |
 | `update/InstallRecoveryWorker.kt` `WorkManager.getInstance(context).enqueue(request).result.get(5, TimeUnit.SECONDS)` | At install-lease expiry | Either | Persist the recovery backup before lifting the restriction. |
 | `update/InstallWatchdogService.kt` `.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:install-watchdog")` | When the watchdog starts | Either | Create the partial wake lock used for install recovery. |
-| `update/InstallWatchdogService.kt` `wakeLock.acquire(InstallLease.MAX_MS + 5_000L)` | When a lease is armed | Either | Keep the CPU available until recovery, with a bounded timeout. |
+| `update/InstallWatchdogService.kt` `wakeLock.acquire(InstallLease.LONGEST_MS + 5_000L)` | When a lease is armed | Either | Keep the CPU available until recovery, bounded by the longest lease (45 min app update window). |
 | `update/InstallWatchdogService.kt` `check(timer.postDelayed({ onDeadline(ticket.deadline) }, remaining))` | At install-lease expiry | Either | Restore the install restriction before releasing the watchdog’s bounded wake lock. |
 | `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force) }, remaining)` | At the remaining lease deadline | Either | Re-arm a watchdog callback that arrived early. |
 | `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force) }, 1_000L)` | 1 s after a recovery error | Either | Retry restoring the install restriction. |

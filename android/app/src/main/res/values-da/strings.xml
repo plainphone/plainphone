@@ -384,4 +384,10 @@
     <string name="self_new_code">Vis en ny kode</string>
     <string name="self_invite_not_approval">Det her er en invitation, ikke en godkendelse. Den gør din ven til din nøgle.</string>
     <string name="self_approval_not_invite">Det her beder din ven om at se på én ændring. At scanne er ikke samtykke: de beslutter, når de har læst den.</string>
+    <!-- The fallback SOS SMS, built on the phone: keep it to one SMS segment. -->
+    <string name="sos_sms_text">SOS fra %1$s: %2$s. Position: %3$s. Sendt via Plainphone.</string>
+    <string name="sos_sms_hidden">akut (skjult SOS)</string>
+    <string name="sos_sms_urgent">akut</string>
+    <string name="sos_sms_help">har brug for hjælp</string>
+    <string name="sos_sms_unknown_position">ukendt</string>
 </resources>
