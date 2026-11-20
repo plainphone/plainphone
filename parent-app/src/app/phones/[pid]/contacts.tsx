@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
-import type { ChangeResult, Contact } from "../../../api/models";
+import { View } from "react-native";
+import type { ChangeResult, Contact, ContactGroup } from "../../../api/models";
 import { ContactSuggestions, loadContactSuggestions } from "../../../components/ContactSuggestions";
 import { ItemRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
-import { useI18n } from "../../../i18n/I18n";
+import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Segmented, Stack as VStack, Text, useLoad } from "../../../components/ui";
+import { type Key, useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { cleanNumber, NUMBER_RE } from "../../../lib/validate";
 
@@ -47,6 +48,16 @@ function ContactsList() {
       setSosError(true);
     } finally {
       setMarking(false);
+    }
+  }
+
+  async function setGroup(c: Contact, group: ContactGroup) {
+    if ((c.group ?? "others") === group) return;
+    try {
+      const r = await unwrap<Contact>(client.PATCH("/phones/{pid}/contacts/{cid}", { params: { path: { pid: phone.id, cid: c.id } }, body: { group } }));
+      res.setData((data) => data && { ...data, contacts: data.contacts.map((x) => (x.id === c.id ? { ...x, group: r.group ?? group } : x)) });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
     }
   }
 
@@ -119,8 +130,23 @@ function ContactsList() {
             <Text variant="muted">{t(self ? "contacts.noFavourites" : lightChild && !res.data?.lightContactRestriction ? "contacts.emptyUnrestricted" : "contacts.empty")}</Text>
           ) : (
             <VStack gap={space.sm}>
+              {!self && <Text variant="small">{t("group.help")}</Text>}
               {list.map((c) => (
                 <ItemRow key={c.id} testID={`contact-${c.id}`} title={c.name} meta={c.number} mono>
+                  {!self && (c.sosParent ? (
+                    <View testID={`group-fixed-${c.id}`} accessible accessibilityLabel={`${t("group.label")}: ${t("group.family")}. ${t("group.parentFixed")}`} style={{ gap: 2 }}>
+                      <Text variant="label">{`${t("group.label")}: ${t("group.family")}`}</Text>
+                      <Text variant="small">{t("group.parentFixed")}</Text>
+                    </View>
+                  ) : (
+                    <Segmented<ContactGroup>
+                      testID={`group-${c.id}`}
+                      label={`${t("group.label")}: ${c.name}`}
+                      value={c.group ?? "others"}
+                      onChange={(g) => void setGroup(c, g)}
+                      options={(["family", "friends", "others"] as const).map((g) => ({ value: g, label: t(`group.${g}` as Key), testID: `group-${c.id}-${g}` }))}
+                    />
+                  ))}
                   {!self && <Button kind="plain"
                     title={t(c.sosParent ? "sos.unmark" : "sos.mark")}
                     disabled={marking}
