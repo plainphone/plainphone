@@ -36,6 +36,8 @@ export type NotifyEvent =
   /** An ordinary quick message from the child's phone, or the child's suggestion for a new one (docs/sos.md). */
   | { type: "quickMessage"; id: string; phoneId: string; phoneName: string; text: string }
   | { type: "quickSuggestion"; phoneId: string; phoneName: string; text: string }
+  /** "I'm home" from the family inbox (docs/family-inbox.md). */
+  | { type: "checkIn"; id: string; phoneId: string; phoneName: string }
   | { type: "test" }
   /** The weekly summary is ready (docs/weekly-summary.md). */
   | { type: "summary"; summaryId: string };
@@ -60,6 +62,7 @@ function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"
     case "sos": return pushWords.sos(e, locale);
     case "quickMessage": return pushWords.quickMessage(e, locale);
     case "quickSuggestion": return pushWords.quickSuggestion(e, locale);
+    case "checkIn": return pushWords.checkIn(e, locale);
     case "test": return pushWords.test(locale);
   }
 }
@@ -106,6 +109,8 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
         data: { type: e.kind === "urgent" ? "sos-urgent" : "sos-help", phoneId: e.phoneId } };
     case "quickMessage":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-${e.id.replaceAll("-", "")}`, data: { type: "quick-message", phoneId: e.phoneId } };
+    case "checkIn":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `checkin-${e.id.replaceAll("-", "")}`, data: { type: "check-in", phoneId: e.phoneId } };
     case "quickSuggestion":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-suggestion-${e.phoneId}`, data: { type: "quick-suggestion", phoneId: e.phoneId } };
     case "test":

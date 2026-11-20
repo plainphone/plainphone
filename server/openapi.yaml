@@ -199,14 +199,38 @@ components:
     SosSettings:
       type: object
       description: Per-phone switches for hidden SOS and quick messages (docs/sos.md).
-      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled]
+      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled, familyInbox, checkIns]
       properties:
         hiddenPower: { type: boolean, default: false, description: Pressing the power button quickly sends a silent urgent SOS }
         hiddenPresses: { type: integer, enum: [3, 4, 5, 6], default: 4, description: How many presses within about three seconds }
         hiddenClock: { type: boolean, default: false, description: A long press on the home screen clock sends a silent urgent SOS }
         hiddenFeedback: { enum: [vibrate, none], default: vibrate, description: The quiet confirmation on the child's phone }
-        quickMessagesEnabled: { type: boolean, default: true }
+        quickMessagesEnabled: { type: boolean, default: false, description: Off for new phones since the family inbox; earlier phones keep their choice }
         quickSuggestionsEnabled: { type: boolean, default: true, description: The child may suggest new quick messages }
+        familyInbox: { type: boolean, default: false, description: One short thread between the child and the parents (docs/family-inbox.md) }
+        checkIns: { type: boolean, default: false, description: "\"I'm home\" in the family inbox, without a position" }
+    FamilyMessage:
+      type: object
+      description: One message of the family inbox (docs/family-inbox.md). Code words never appear here.
+      required: [id, from, kind, text, sentAt]
+      properties:
+        id: { type: string, format: uuid }
+        from: { enum: [child, parent] }
+        kind: { enum: [quick, checkin, reply] }
+        text: { type: string, maxLength: 60 }
+        sentAt: { type: string, format: date-time, description: "When it was sent; for the child, the phone's time, never later than the server's" }
+        delivered: { type: [integer, "null"], description: "Child messages: parent devices that got a push; 0 means the phone sent an SMS" }
+        author: { type: [string, "null"], description: "Parent replies: the name the parent signed with" }
+        receivedAt: { type: [string, "null"], format: date-time, description: "Parent replies: when the child's phone got it (the device receipt)" }
+    FamilyInbox:
+      type: object
+      required: [familyInbox, quickMessages, checkIns, recipients, messages]
+      properties:
+        familyInbox: { type: boolean }
+        quickMessages: { type: boolean, description: Quick messages in the inbox (needs the inbox) }
+        checkIns: { type: boolean, description: "\"I'm home\" in the inbox (needs the inbox)" }
+        recipients: { type: array, items: { type: string }, description: "The SOS parents' names, as the child knows them" }
+        messages: { type: array, items: { $ref: "#/components/schemas/FamilyMessage" } }
     QuickMessage:
       type: object
       required: [id, text, meansSos, createdAt]
@@ -739,6 +763,15 @@ components:
                       id: { type: string, format: uuid }
                       text: { type: string }
                       meansSos: { type: boolean }
+        inbox:
+          type: object
+          description: The family inbox of a Child phone (docs/family-inbox.md). Left out while it is off.
+          required: [enabled, quickMessages, checkIns, latest]
+          properties:
+            enabled: { type: boolean, enum: [true] }
+            quickMessages: { type: boolean, description: The quick messages in sos.quickMessages can be sent from the inbox }
+            checkIns: { type: boolean, description: "The child can send \"I'm home\"" }
+            latest: { type: [string, "null"], format: uuid, description: The newest parent reply; when it changes, the phone fetches GET /device/inbox }
         allowServerMove: { type: boolean }
         fallbackDnsHost:
           type: [string, "null"]
@@ -1367,6 +1400,10 @@ paths:
               properties:
                 id: { type: string, format: uuid }
                 text: { type: string, minLength: 1, maxLength: 60 }
+                inbox: { type: boolean, description: Sent from the family inbox; the message joins the thread (docs/family-inbox.md) }
+                kind: { enum: [quick, checkin], default: quick, description: "checkin is \"I'm home\" without a position; it always joins the thread" }
+                sentAt: { type: string, format: date-time, description: When the child pressed send; a later time is taken as the server's }
+                smsSent: { type: boolean, description: "The phone was offline and sent the message by SMS: it joins the thread, nobody is notified again" }
       responses:
         "200":
           description: Sent
@@ -1408,6 +1445,38 @@ paths:
                   status: { enum: [active, suggested] }
         "403": { description: Suggestions are switched off }
         "409": { description: Three suggestions are already waiting }
+  /device/inbox:
+    get:
+      operationId: getDeviceInbox
+      summary: The family inbox thread for the child's phone
+      description: The newest 30 messages, oldest first (docs/family-inbox.md). With the inbox off, empty lists. The phone fetches it when the rules' `inbox.latest` changes.
+      tags: [device]
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyInbox" }
+        "404": { description: Not a Child phone }
+  /device/inbox/received:
+    post:
+      operationId: inboxReceived
+      summary: The device receipt for parent replies the phone has
+      description: Only the first receipt per reply counts; repeats and unknown ids change nothing.
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+      responses:
+        "204": { description: Recorded }
   /device/sos/{id}:
     get:
       operationId: getDeviceSos
@@ -1470,8 +1539,46 @@ paths:
                 hiddenFeedback: { enum: [vibrate, none] }
                 quickMessagesEnabled: { type: boolean }
                 quickSuggestionsEnabled: { type: boolean }
+                familyInbox: { type: boolean }
+                checkIns: { type: boolean }
       responses:
         "204": { description: Saved }
+        "404": { description: Not a Child phone }
+  /phones/{pid}/inbox:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getFamilyInbox
+      summary: The family inbox thread of a Child phone
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyInbox" }
+        "404": { description: Not a Child phone }
+    post:
+      operationId: replyFamilyInbox
+      summary: Send a short reply to the child's phone
+      description: The server can read the reply, like the quick messages (docs/family-inbox.md). Wakes the phone.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 60 }
+                name: { type: string, minLength: 1, maxLength: 60, description: The name the child knows the parent by }
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyMessage" }
+        "403": { description: The family inbox is off for this phone }
         "404": { description: Not a Child phone }
   /phones/{pid}/quick-messages:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
