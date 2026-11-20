@@ -23,7 +23,8 @@ import {
   users,
 } from "../db/schema.js";
 import { matchesApprovalChallenge } from "../lib/approval-challenge.js";
-import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
+import { approvalRequestMail, inviteMail } from "../lib/mail-templates.js";
+import { toLocale } from "../lib/locale.js";
 import {
   checkSetting,
   type HomeUpdate,

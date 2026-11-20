@@ -32,6 +32,7 @@ const events: Record<string, NotifyEvent> = {
   "request app": { type: "request", phoneId: "p1", phoneName: "Robin", what: "Maps", kind: "app" },
   "request contact": { type: "request", phoneId: "p1", phoneName: "Robin", what: "Sam", kind: "contact" },
   "request on phone": { type: "request-on-phone", phoneId: "p1", phoneName: "Robin", what: "Maps", kind: "app" },
+  "request on phone daily limit": { type: "request-on-phone", phoneId: "p1", phoneName: "Robin", what: null, kind: "more-time" },
   "more time app": { type: "moreTime", requestId: "r1", phoneId: "p1", phoneName: "Robin", what: "Maps", reason: "Homework" },
   "more time total": { type: "moreTime", requestId: "r1", phoneId: "p1", phoneName: "Robin", what: null, reason: null },
   "sos urgent": { type: "sos", id: "s1", phoneId: "p1", phoneName: "Robin", kind: "urgent" },

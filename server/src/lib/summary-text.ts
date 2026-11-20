@@ -3,10 +3,8 @@
 // The words of the weekly summary mail and push, in the five languages of the app. The
 // dashboard and the parent app render the same numbers with their own i18n files.
 
-import { type Locale, toLocale } from "./locale.js";
+import type { Locale } from "./locale.js";
 
-export type SummaryLocale = Locale;
-export const toSummaryLocale = toLocale;
 
 export type ChangeCategory = "time" | "apps" | "contacts" | "web" | "schedules" | "other";
 
@@ -37,7 +35,7 @@ interface Words {
   pushBody: string;
 }
 
-export const summaryTable: Record<SummaryLocale, Words> = {
+export const summaryTable: Record<Locale, Words> = {
   en: {
     subject: "Your week with Plainphone",
     preheader: "Screen time, requests and changes from the past week.",
@@ -180,6 +178,6 @@ export const summaryTable: Record<SummaryLocale, Words> = {
   },
 };
 
-export function summaryWords(locale: SummaryLocale): Words {
+export function summaryWords(locale: Locale): Words {
   return summaryTable[locale];
 }

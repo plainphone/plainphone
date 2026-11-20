@@ -25,7 +25,7 @@ export type NotifyEvent =
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
-  | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" | "more-time" }
+  | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string | null; kind: "app" | "contact" | "more-time" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
   /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
   | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null }

@@ -17,7 +17,7 @@ for lang in en da sv nb de; do
     n=1; [ "$scheme" = dark ] && n=0
     "$chrome" --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$tmp/profile-$lang-$scheme" \
       --blink-settings=preferredColorScheme=$n --allow-file-access-from-files \
-      --window-size=2240,900 --virtual-time-budget=4000 \
+      --window-size=2800,1800 --virtual-time-budget=4000 \
       --screenshot="$dest/$lang-$scheme.png" "file://$tmp/$lang.html" >/dev/null 2>&1
   done
 done

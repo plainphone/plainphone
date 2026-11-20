@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Mail } from "../providers/mail.js";
 
-import { type Locale, toLocale } from "./locale.js";
+import type { Locale } from "./locale.js";
 import { silence } from "./push-text.js";
 
-export { type Locale, toLocale };
-/** Kept for the layout's callers: the mail layout speaks all five languages. */
-export type LayoutLocale = Locale;
 
 function esc(s: string): string {
   return s
@@ -34,11 +31,11 @@ const privacyUrl = {
   de: "https://plainphone.org/de/privacy/",
 } as const;
 const privacyLabel = { en: "Privacy", da: "Privatliv", sv: "Integritet", nb: "Personvern", de: "Datenschutz" } as const;
-const siteUrl = (locale: LayoutLocale) => `https://plainphone.org${locale === "en" ? "/" : `/${locale}/`}`;
+const siteUrl = (locale: Locale) => `https://plainphone.org${locale === "en" ? "/" : `/${locale}/`}`;
 
 interface LayoutInput {
   publicUrl: string;
-  locale: LayoutLocale;
+  locale: Locale;
   preheader: string;
   heading: string;
   paragraphs: string[];

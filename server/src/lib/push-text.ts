@@ -20,7 +20,8 @@ export interface PushFacts {
   offline: { phoneName: string; hours: number; lastSeenAt: Date; timezone: string };
   approval: { phoneName: string };
   request: { phoneName: string; what: string; kind: "app" | "contact" };
-  requestOnPhone: { phoneName: string; what: string };
+  /** `what` is null for the daily limit. */
+  requestOnPhone: { phoneName: string; what: string | null };
   safety: { phoneName: string; what: SafetyNews };
   sos: { phoneName: string; kind: "urgent" | "help" };
 }
@@ -161,11 +162,11 @@ const request = {
 } satisfies Record<Locale, (e: PushFacts["request"]) => Words>;
 
 const requestOnPhone = {
-  en: (e) => ({ title: `Approved on ${e.phoneName}`, body: `${e.what}. A parent approved it on the phone with the PIN. Nothing more to do.` }),
-  da: (e) => ({ title: `Godkendt på ${e.phoneName}`, body: `${e.what}. En forælder godkendte det på telefonen med pinkoden. Du skal ikke gøre mere.` }),
-  sv: (e) => ({ title: `Godkänt på ${e.phoneName}`, body: `${e.what}. En förälder godkände det på telefonen med pinkoden. Du behöver inte göra något mer.` }),
-  nb: (e) => ({ title: `Godkjent på ${e.phoneName}`, body: `${e.what}. En forelder godkjente det på telefonen med pinkoden. Du trenger ikke å gjøre mer.` }),
-  de: (e) => ({ title: `Auf ${e.phoneName} genehmigt`, body: `${e.what}. Ein Elternteil hat es am Handy mit der PIN genehmigt. Sie müssen nichts weiter tun.` }),
+  en: (e) => ({ title: `Approved on ${e.phoneName}`, body: `${e.what ?? "The daily limit"}. A parent approved it on the phone with the PIN. Nothing more to do.` }),
+  da: (e) => ({ title: `Godkendt på ${e.phoneName}`, body: `${e.what ?? "Den daglige grænse"}. En forælder godkendte det på telefonen med pinkoden. Du skal ikke gøre mere.` }),
+  sv: (e) => ({ title: `Godkänt på ${e.phoneName}`, body: `${e.what ?? "Den dagliga gränsen"}. En förälder godkände det på telefonen med pinkoden. Du behöver inte göra något mer.` }),
+  nb: (e) => ({ title: `Godkjent på ${e.phoneName}`, body: `${e.what ?? "Den daglige grensen"}. En forelder godkjente det på telefonen med pinkoden. Du trenger ikke å gjøre mer.` }),
+  de: (e) => ({ title: `Auf ${e.phoneName} genehmigt`, body: `${e.what ?? "Das Tageslimit"}. Ein Elternteil hat es am Handy mit der PIN genehmigt. Sie müssen nichts weiter tun.` }),
 } satisfies Record<Locale, (e: PushFacts["requestOnPhone"]) => Words>;
 
 /** "More time": the phone asks for more time. `what` is the app's name, or null for the daily limit. */
@@ -270,7 +271,7 @@ const sos = {
   da: (e) => ({ title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} fra ${e.phoneName}`, body: e.kind === "urgent" ? "Jeg har brug for hjælp nu." : "Jeg har brug for hjælp." }),
   sv: (e) => ({ title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} från ${e.phoneName}`, body: e.kind === "urgent" ? "Jag behöver hjälp nu." : "Jag behöver hjälp." }),
   nb: (e) => ({ title: `${e.kind === "urgent" ? "Akutt SOS" : "SOS"} fra ${e.phoneName}`, body: e.kind === "urgent" ? "Jeg trenger hjelp nå." : "Jeg trenger hjelp." }),
-  de: (e) => ({ title: `${e.kind === "urgent" ? "Dringender SOS" : "SOS"} von ${e.phoneName}`, body: e.kind === "urgent" ? "Ich brauche jetzt Hilfe." : "Ich brauche Hilfe." }),
+  de: (e) => ({ title: `${e.kind === "urgent" ? "Dringendes SOS" : "SOS"} von ${e.phoneName}`, body: e.kind === "urgent" ? "Ich brauche jetzt Hilfe." : "Ich brauche Hilfe." }),
 } satisfies Record<Locale, (e: PushFacts["sos"]) => Words>;
 
 const test = {
