@@ -74,12 +74,14 @@ fast depends on the transport:
 
 | Transport | Decides the delay | Expected |
 |---|---|---|
-| FCM (`fcm`) | A high-priority data message starts an expedited sync. Android may treat high-priority messages that never show a notification as normal priority after a while. TTL: ring and Find 2 min, SOS acknowledgement 10 min, rules 15 min, app update 1 h. All wakes share one collapse key, so a burst of changes is one wake. | Typical 1 to 5 s including the sync. |
+| FCM (`fcm`) | A high-priority data message starts an expedited sync. Android may treat high-priority messages that never show a notification as normal priority after a while. TTL: ring (start and stop) and Find 2 min, SOS acknowledgement 10 min, rules and "Are you okay?" 15 min, app update 1 h. All wakes share one collapse key, so a burst of changes is one wake. | Typical 1 to 5 s including the sync. |
 | UnifiedPush (`unifiedpush`) | The distributor (for example ntfy) keeps its own connection; `Urgency: high` and the same TTLs. | Typical 1 to 5 s; depends on the distributor's connection. |
 | Polling (`poll`) | The [timing table](phone-sync.md#when-the-phone-syncs): screen on every 60 s, an open ring or "Are you okay?" every 10 s, screen off every 2 minutes, which deep Doze stretches to 9 to 15 minutes. | Screen on: up to 1 min. Screen off: up to 2 min, in deep Doze up to 15 min. |
 
 Measured as `server-child`, per transport: from the first wake-up a phone has not answered yet to
-its next rules fetch. A burst of changes counts once, from its first change.
+its next rules fetch. A burst of changes counts once, from its first change. A wake-up answered
+more than 30 minutes later (twice the slowest polling interval) is dropped: the phone was off or
+without signal, which says nothing about how fast push is.
 
 **Faster rule updates** (push wake-ups) is now on by default for a new Android phone when the server
 can wake phones (`PUSH_PROVIDER` is `fcm` or `unifiedpush` with a usable provider). Phones paired
@@ -92,8 +94,9 @@ One row per timing in `latency_samples`: the path, the provider, the class or ki
 (rounded down) and the durations in milliseconds. No message, no user, no phone: an open wake-up
 holds the phone's id only until the phone answers it, and a parent push holds its random receipt id
 for at most a day. Rows are deleted after 8 days. `/api/latency` reports the last 7 days and leaves
-out every path with fewer than 5 samples, so it never describes a single event. The response is
-cached for a minute.
+out every path with fewer than 5 samples, so it never describes a single event. It never shows the
+sample counts either: on a server with one family the count would tick up with every SOS. The
+response is cached for a minute.
 
 Self-hosters can switch it all off with `LATENCY_STATS=off`: nothing is recorded, pushes carry no
 receipt id, `/api/latency` answers `enabled: false`, and the dashboard line disappears. This is a
@@ -102,13 +105,17 @@ chain, not to a phone or a family.
 
 ```json
 { "enabled": true, "windowDays": 7, "minSamples": 5, "paths": [
-  { "path": "phone-server", "provider": null, "kind": "sos", "samples": 12, "p50Ms": 1400, "p95Ms": 2900 },
-  { "path": "parent-device", "provider": "fcm", "kind": null, "samples": 40, "p50Ms": 900, "p95Ms": 3100 }
+  { "path": "phone-server", "provider": null, "kind": "sos", "p50Ms": 1400, "p95Ms": 2900 },
+  { "path": "parent-device", "provider": "fcm", "kind": null, "p50Ms": 900, "p95Ms": 3100 }
 ] }
 ```
 
-The dashboard's line is the sample-weighted median of `phone-server` (`sos`) plus `parent-device`,
-rounded up to whole seconds. It shows nothing until confirmed deliveries exist.
+The dashboard's line is the median of `phone-server` (`sos`) plus the slowest provider's median
+for `parent-device`, rounded up to whole seconds. It shows nothing until confirmed deliveries
+exist. The parent app can only confirm an FCM or APNs alert that arrives while it is open (Android
+and iOS show a background alert without waking the app), so `parent-device` for `fcm` and `apns`
+leans on foreground deliveries and may read a little faster than a phone in a pocket. Web Push
+receipts come from the service worker and cover the background too.
 
 ## Test on real phones
 

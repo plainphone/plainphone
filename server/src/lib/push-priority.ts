@@ -18,17 +18,15 @@ export interface Delivery {
   fcmPriority: "HIGH" | "NORMAL";
   webUrgency: "high" | "normal";
   apnsPriority: "10" | "5";
-  /** iOS 15+ interruption level; "time-sensitive" needs the entitlement the app carries. */
-  interruption: "time-sensitive" | "active" | "passive";
 }
 
 const HOUR = 3600;
 
 export const DELIVERY: Record<PushClass, Delivery> = {
   // An SOS is still worth showing when a parent's phone comes back after hours without signal.
-  alarm: { ttlSeconds: 24 * HOUR, fcmPriority: "HIGH", webUrgency: "high", apnsPriority: "10", interruption: "time-sensitive" },
-  prompt: { ttlSeconds: 4 * HOUR, fcmPriority: "HIGH", webUrgency: "high", apnsPriority: "10", interruption: "active" },
-  normal: { ttlSeconds: 24 * HOUR, fcmPriority: "NORMAL", webUrgency: "normal", apnsPriority: "5", interruption: "active" },
+  alarm: { ttlSeconds: 24 * HOUR, fcmPriority: "HIGH", webUrgency: "high", apnsPriority: "10" },
+  prompt: { ttlSeconds: 4 * HOUR, fcmPriority: "HIGH", webUrgency: "high", apnsPriority: "10" },
+  normal: { ttlSeconds: 24 * HOUR, fcmPriority: "NORMAL", webUrgency: "normal", apnsPriority: "5" },
 };
 
 /** The class of a parent notification, from its event type (services/notifications.ts). `urgent` always wins. */
@@ -51,11 +49,13 @@ export function pushClass(eventType: string, urgent: boolean): PushClass {
 }
 
 /**
- * Child phone wake-ups are content-free data messages (docs/sync-api.md#push-wakeups). A ring or an
- * "Are you okay?" is pointless minutes later (polling has caught up by then), a rule change and an
- * acknowledged SOS stay useful a little longer, and an app update for an hour.
+ * Child phone wake-ups are content-free data messages (docs/sync-api.md#push-wakeups). A ring (start
+ * or stop) and Find are pointless minutes later (polling has caught up by then), a rule change, an
+ * "Are you okay?" (its deadline runs for minutes to hours) and an acknowledged SOS stay useful a
+ * little longer, and an app update for an hour.
  */
 export const WAKE_TTL_SECONDS: Record<WakeReason, number> = {
+  ring: 120,
   locate: 120,
   "sos-ack": 600,
   rules: 900,

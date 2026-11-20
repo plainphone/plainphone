@@ -6,7 +6,6 @@ export interface LatencyRow {
   path: "phone-server" | "server-parent" | "parent-device" | "server-child";
   provider: string | null;
   kind: string | null;
-  samples: number;
   p50Ms: number;
   p95Ms: number;
 }
@@ -18,10 +17,12 @@ export interface LatencyStats {
   paths: LatencyRow[];
 }
 
-/** The sample-weighted median of a path's rows, or null when it has none. */
+/**
+ * The slowest provider's median, or null when a path has no rows. The server leaves out sample
+ * counts (they would show when a single SOS happened), so the line errs on the slow side.
+ */
 function typical(rows: LatencyRow[]): number | null {
-  const samples = rows.reduce((sum, r) => sum + r.samples, 0);
-  return samples ? rows.reduce((sum, r) => sum + r.p50Ms * r.samples, 0) / samples : null;
+  return rows.length ? Math.max(...rows.map((r) => r.p50Ms)) : null;
 }
 
 /**

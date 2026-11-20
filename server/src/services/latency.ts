@@ -24,6 +24,11 @@ const RECEIPT_DAYS = 1;
 export const MIN_SAMPLES = 5;
 /** Longest believable phone-side delay (an SOS queued offline for a month is still a report, not a timing). */
 const MAX_UPLOAD_MS = DAY;
+/**
+ * Longest believable wake-up: twice the slowest polling interval (deep Doze, docs/phone-sync.md).
+ * Beyond it the phone was off or without signal, which says nothing about push delivery.
+ */
+const MAX_WAKE_MS = 30 * 60_000;
 
 export const latencyOn = (ctx: Ctx) => ctx.cfg.LATENCY_STATS !== "off";
 const hourOf = (d: Date) => new Date(Math.floor(d.getTime() / HOUR) * HOUR);
@@ -111,9 +116,14 @@ export async function startWake(ctx: Ctx, phoneId: string, provider: "fcm" | "un
 /** The phone fetched its rules: close its open wake-up and forget which phone it was. */
 export async function finishWake(ctx: Ctx, phoneId: string) {
   if (!latencyOn(ctx)) return;
+  const now = ctx.now();
+  const open = and(eq(latencySamples.phoneId, phoneId), isNull(latencySamples.ms));
+  await ctx.db.delete(latencySamples)
+    .where(and(open, lt(latencySamples.anchorAt, new Date(now.getTime() - MAX_WAKE_MS))))
+    .catch(quietly("wake"));
   await ctx.db.update(latencySamples)
-    .set({ ms: sinceAnchor(ctx.now()), phoneId: null, anchorAt: null })
-    .where(and(eq(latencySamples.phoneId, phoneId), isNull(latencySamples.ms)))
+    .set({ ms: sinceAnchor(now), phoneId: null, anchorAt: null })
+    .where(open)
     .catch(quietly("wake"));
 }
 
@@ -121,7 +131,6 @@ export interface LatencyRow {
   path: "phone-server" | "server-parent" | "parent-device" | "server-child";
   provider: string | null;
   kind: string | null;
-  samples: number;
   p50Ms: number;
   p95Ms: number;
 }
@@ -129,6 +138,7 @@ export interface LatencyRow {
 /**
  * p50 and p95 per path for the last 7 days. `parent-device` is end to end: from the event reaching
  * the server to the parent's device confirming it, for the pushes that sent a receipt.
+ * The sample count stays on the server: in a one-family install it would tick up with every SOS.
  */
 export async function latencyStats(ctx: Ctx): Promise<LatencyRow[]> {
   if (!latencyOn(ctx)) return [];
@@ -148,12 +158,13 @@ export async function latencyStats(ctx: Ctx): Promise<LatencyRow[]> {
       .from(s).where(and(window, eq(s.path, "server-parent"), isNotNull(s.deliveredMs)))
       .groupBy(s.provider),
   ]);
-  const rows: LatencyRow[] = [
+  const rows = [
     ...legs.map((r) => ({ ...r, kind: r.kind ?? null })),
     ...endToEnd.map((r) => ({ path: "parent-device" as const, kind: null, ...r })),
   ];
   const order = ["phone-server", "server-parent", "parent-device", "server-child"];
   return rows.filter((r) => r.samples >= MIN_SAMPLES)
+    .map(({ samples: _, ...row }): LatencyRow => row)
     .sort((a, b) => order.indexOf(a.path) - order.indexOf(b.path) || String(a.provider ?? a.kind).localeCompare(String(b.provider ?? b.kind)));
 }
 

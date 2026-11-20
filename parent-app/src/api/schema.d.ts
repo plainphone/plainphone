@@ -430,7 +430,7 @@ export interface paths {
         };
         /**
          * How fast alerts and wake-ups travel (last 7 days)
-         * @description Median and 95th percentile per path (docs/latency.md). `phone-server`: from the press on the child phone to the server, per `kind` (`sos`, `quick`). `server-parent`: from the server to the push service accepting the alert, per `provider` (`web`, `fcm`, `apns`). `parent-device`: from the server to the parent's device confirming it arrived. `server-child`: from a wake-up to the child phone's next rules fetch, per `provider` (`fcm`, `unifiedpush`, `poll`). Paths with fewer than `minSamples` samples are left out. No personal data; cached for a minute.
+         * @description Median and 95th percentile per path (docs/latency.md). `phone-server`: from the press on the child phone to the server, per `kind` (`sos`, `quick`). `server-parent`: from the server to the push service accepting the alert, per `provider` (`web`, `fcm`, `apns`). `parent-device`: from the server to the parent's device confirming it arrived. `server-child`: from a wake-up to the child phone's next rules fetch, per `provider` (`fcm`, `unifiedpush`, `poll`). Paths with fewer than `minSamples` samples are left out, and the sample counts are never shown, so the numbers cannot reveal when a single alert happened. No personal data; cached for a minute.
          */
         get: operations["getLatency"];
         put?: never;
@@ -5444,7 +5444,6 @@ export interface operations {
                             path: "phone-server" | "server-parent" | "parent-device" | "server-child";
                             provider: string | null;
                             kind: string | null;
-                            samples: number;
                             p50Ms: number;
                             p95Ms: number;
                         }[];

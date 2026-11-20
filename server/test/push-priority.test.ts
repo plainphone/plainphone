@@ -50,6 +50,8 @@ describe("push priority per message kind", () => {
 
   it("keeps alerts longer than wakeups, and a ring shortest of all", () => {
     expect(DELIVERY.alarm.ttlSeconds).toBe(86_400);
+    expect(WAKE_TTL_SECONDS.ring).toBe(120);
+    expect(Math.min(...Object.values(WAKE_TTL_SECONDS))).toBe(WAKE_TTL_SECONDS.ring);
     expect(WAKE_TTL_SECONDS.locate).toBeLessThan(WAKE_TTL_SECONDS.rules);
     expect(Math.max(...Object.values(WAKE_TTL_SECONDS))).toBeLessThan(DELIVERY.prompt.ttlSeconds);
   });
@@ -74,7 +76,9 @@ describe("FCM", () => {
     const { fcm, body } = fcmWith();
     const wake = new PhonePushProvider(loadConfig({ DATABASE_URL: "unused", PUSH_PROVIDER: "fcm" }), fcm);
     await wake.wake("token", reason as keyof typeof WAKE_TTL_SECONDS);
-    expect(body(1)).toEqual({ token: "token", data: { wake: reason }, android: { priority: "HIGH", ttl: `${ttl}s`, collapse_key: "plainphone-sync" } });
+    // A ring goes out as an ordinary rules wake: older phones only know the four reasons.
+    const wire = reason === "ring" ? "rules" : reason;
+    expect(body(1)).toEqual({ token: "token", data: { wake: wire }, android: { priority: "HIGH", ttl: `${ttl}s`, collapse_key: "plainphone-sync" } });
   });
 });
 

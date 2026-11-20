@@ -136,6 +136,22 @@ describe("timing wakeups of the child phone", () => {
     expect((await samples())[0]).toMatchObject({ path: "server-child", provider: "poll", kind: "locate", phoneId: null, anchorAt: null });
   });
 
+  it("drops a wake-up the phone only answered after it was off for a long time", async () => {
+    const { phoneId, device } = await parentWithPhone();
+    await vi.waitFor(async () => expect((await samples()).every((s) => s.ms !== null)).toBe(true));
+    await h.ctx.db.delete(latencySamples);
+    await wakePhone(h.ctx, phoneId, "rules");
+    await vi.waitFor(async () => expect(await samples()).toHaveLength(1));
+    h.clock.advance(20 * HOUR);
+    await device.get("/api/device/rules");
+    await vi.waitFor(async () => expect(await samples()).toEqual([]));
+    // The next wake-up is timed again.
+    await wakePhone(h.ctx, phoneId, "rules");
+    h.clock.advance(4_000);
+    await device.get("/api/device/rules");
+    await vi.waitFor(async () => expect((await samples()).map((s) => s.ms)).toEqual([4_000]));
+  });
+
   it("names the transport the phone registered", async () => {
     const { phoneId, device } = await parentWithPhone();
     h.ctx.push = { ...h.push, name: "fcm", fcmAvailable: true, validateFcmToken: async () => "sent", wake: async () => undefined };
@@ -159,9 +175,9 @@ describe("the stats", () => {
     for (const ms of [1, 2, 3, 4]) rows.push({ path: "phone-server" as const, provider: null, kind: "sos", hour: at(1), ms });
     await h.ctx.db.insert(latencySamples).values(rows);
     expect(await latencyStats(h.ctx)).toEqual([
-      { path: "server-parent", provider: "fcm", kind: null, samples: 10, p50Ms: 550, p95Ms: 955 },
-      { path: "parent-device", provider: "fcm", kind: null, samples: 10, p50Ms: 1100, p95Ms: 1910 },
-      { path: "server-child", provider: "poll", kind: null, samples: 10, p50Ms: 55_000, p95Ms: 95_500 },
+      { path: "server-parent", provider: "fcm", kind: null, p50Ms: 550, p95Ms: 955 },
+      { path: "parent-device", provider: "fcm", kind: null, p50Ms: 1100, p95Ms: 1910 },
+      { path: "server-child", provider: "poll", kind: null, p50Ms: 55_000, p95Ms: 95_500 },
     ]);
     const res = await new Client(h).get("/api/latency");
     expect(res.status).toBe(200);

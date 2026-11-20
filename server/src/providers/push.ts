@@ -6,7 +6,8 @@ import { pushHostAllowed } from "./parent-push.js";
 
 export const WAKE_PROVIDERS = ["none", "fcm", "unifiedpush"] as const;
 export type WakeTransport = (typeof WAKE_PROVIDERS)[number];
-export type WakeReason = "rules" | "locate" | "update" | "sos-ack";
+/** `ring` goes out as `rules` (the phone fetches everything either way); it only gets a shorter TTL. */
+export type WakeReason = "rules" | "ring" | "locate" | "update" | "sos-ack";
 
 /** Push only shortens the delay. The payload has no authority to apply rules. */
 export interface PushProvider {
@@ -48,16 +49,17 @@ export class PhonePushProvider implements PushProvider {
     // Every wake is a high-priority data message: it runs the app's sync even in Doze. One collapse key,
     // because any wake fetches everything, so a burst of rule changes is one wake-up, not a queue.
     const ttl = WAKE_TTL_SECONDS[reason];
+    const wake = reason === "ring" ? "rules" : reason;
     if (transport === "fcm" && this.fcmAvailable) {
       if (await this.fcm!.send({
-        token, data: { wake: reason }, android: { priority: "HIGH", ttl: `${ttl}s`, collapse_key: "plainphone-sync" },
+        token, data: { wake }, android: { priority: "HIGH", ttl: `${ttl}s`, collapse_key: "plainphone-sync" },
       }) === "gone") return "gone";
     }
     if (transport === "unifiedpush" && this.acceptsEndpoint(token)) {
       const response = await this.http(token, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(5000),
         headers: { "content-type": "text/plain", ttl: String(ttl), urgency: "high", "x-unifiedpush": "1", "x-cache": "no" },
-        body: JSON.stringify({ wake: reason }),
+        body: JSON.stringify({ wake }),
       });
       await response.body?.cancel();
       if (response.status === 404 || response.status === 410) return "gone";
