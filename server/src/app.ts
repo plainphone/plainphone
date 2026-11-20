@@ -14,6 +14,7 @@ import { attestationRoutes } from "./routes/attestation.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
 import { downloadRoutes } from "./routes/download.js";
+import { familyContactRoutes } from "./routes/extended-family.js";
 import { parentRoutes } from "./routes/parent.js";
 import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
@@ -132,6 +133,8 @@ export function createApp(ctx: Ctx) {
   app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
   const resetProtection = resetProtectionRoutes(ctx);
   app.route("/api/reset-protection", resetProtection.callback);
+  // Before the parent API: an extended contact has no parent session (docs/extended-family.md).
+  app.route("/api/family-contact", familyContactRoutes(ctx));
   app.route("/api", parentRoutes(ctx, updateWake, resetProtection.parent));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   // Stable APK address for provisioning QR codes (redirects to the newest release).

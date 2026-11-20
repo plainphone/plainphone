@@ -9,6 +9,7 @@ import { phones, quickMessages } from "../db/schema.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { wakePhone } from "../services/phones.js";
+import { deviceExtendedRoutes, parentExtendedRoutes } from "./extended-family.js";
 import { deviceFamilyInboxRoutes, parentFamilyInboxRoutes } from "./family-inbox.js";
 import {
   addQuickMessage, approveSuggestion, listQuickMessages, QUICK_TEXT_MAX, QuickMessageError, quickMessageJson,
@@ -37,6 +38,7 @@ export function deviceQuickMessageRoutes<E extends { Variables: { phone: Phone }
   });
 
   deviceFamilyInboxRoutes(app, ctx);
+  deviceExtendedRoutes(app, ctx);
 
   app.post("/quick-messages/suggest", async (c) => {
     const input = await body(c, z.strictObject({ text }));
@@ -60,6 +62,7 @@ export function parentQuickMessageRoutes<E extends { Variables: { user: { id: st
   }
   const key = (phoneId: string, id: string) => and(eq(quickMessages.phoneId, phoneId), eq(quickMessages.id, id));
   parentFamilyInboxRoutes(app, ctx, childPhone);
+  parentExtendedRoutes(app, ctx, childPhone);
 
   app.get("/phones/:pid/quick-messages", async (c) => {
     const phone = await childPhone(c);

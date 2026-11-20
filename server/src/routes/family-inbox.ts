@@ -12,6 +12,7 @@ import type { Ctx } from "../services/context.js";
 import {
   addParentReply, familyMessageJson, inboxSwitches, listFamilyMessages, markReceived, REPLY_MAX,
 } from "../services/family-inbox.js";
+import { parentSnapshot } from "../services/extended-family.js";
 import { wakePhone } from "../services/phones.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -31,8 +32,8 @@ export function deviceFamilyInboxRoutes<E extends { Variables: { phone: Phone } 
     if (!phone || phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
     const switches = inboxSwitches(phone);
     if (!switches.familyInbox) return c.json({ ...switches, recipients: [], messages: [] });
-    const messages = await listFamilyMessages(ctx.db, phone.id);
-    return c.json({ ...switches, recipients: await recipients(ctx, phone.id), messages: messages.map(familyMessageJson) });
+    const [messages, snapshot] = await Promise.all([listFamilyMessages(ctx.db, phone.id), parentSnapshot(ctx, phone.id)]);
+    return c.json({ ...switches, recipients: await recipients(ctx, phone.id), messages: messages.map((m) => familyMessageJson(m, snapshot)) });
   });
 
   // The device receipt: the phone has these parent replies. A repeat changes nothing.
@@ -48,8 +49,11 @@ export function parentFamilyInboxRoutes<E extends { Variables: { user: { id: str
 ) {
   app.get("/phones/:pid/inbox", async (c) => {
     const phone = await childPhone(c);
-    const messages = await listFamilyMessages(ctx.db, phone.id);
-    return c.json({ ...inboxSwitches(phone), recipients: await recipients(ctx, phone.id), messages: messages.map(familyMessageJson) });
+    const [messages, snapshot] = await Promise.all([listFamilyMessages(ctx.db, phone.id), parentSnapshot(ctx, phone.id)]);
+    return c.json({
+      ...inboxSwitches(phone), recipients: await recipients(ctx, phone.id),
+      messages: messages.map((m) => familyMessageJson(m, snapshot)),
+    });
   });
 
   app.post("/phones/:pid/inbox", async (c) => {

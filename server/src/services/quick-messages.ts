@@ -29,6 +29,8 @@ export function sosSettingsJson(phone: Phone) {
     quickSuggestionsEnabled: phone.quickSuggestionsEnabled,
     familyInbox: phone.familyInboxEnabled,
     checkIns: phone.checkInsEnabled,
+    extendedFamily: phone.extendedFamilyEnabled,
+    locationSnapshots: phone.locationSnapshotsEnabled,
   };
 }
 
