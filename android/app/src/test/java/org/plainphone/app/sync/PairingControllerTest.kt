@@ -92,7 +92,7 @@ class PairingControllerTest {
         api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
         val first = controller.start()
         now += 16 * 60_000
-        api.pollResult = PairPoll.Confirm("p***@example.org", "Home")
+        api.pollResult = PairPoll.Waiting
         assertThat(controller.start()).isEqualTo(first)
     }
 
