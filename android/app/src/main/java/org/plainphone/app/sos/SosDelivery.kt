@@ -95,7 +95,7 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
         val token = sync.deviceToken()
         val prefs = SosDelivery.prefs(context)
         val key = "status:$id"
-        if (phone == null || phone != sync.phoneId || token == null || sos == null || rules.release ||
+        if (phone == null || phone != sync.phoneId || sos == null || rules.release ||
             System.currentTimeMillis() - at >= 30L * 86_400_000
         ) {
             prefs.edit().putString(key, "failed").remove("position:$id").apply()
@@ -132,19 +132,20 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
             return false
         }
 
-        try {
-            // A retry only to place the call must not report again.
-            if (SosDelivery.status(context, id) != "online") SosDelivery.api(context).reportSos(token, payload)
-            prefs.edit().putString(key, "online").remove(positionKey).apply()
-            return@withContext if (urgentCallOutstanding()) Result.retry() else Result.success()
-        } catch (e: HttpError) {
-            if (e.status in 400..499 && e.status != 404) {
-                if (SosDelivery.status(context, id) != "sms") prefs.edit().putString(key, "failed").apply()
-                prefs.edit().remove(positionKey).apply()
-                return@withContext Result.failure()
+        // The server will never take this report: the phone was removed or released in the dashboard,
+        // its token cannot be opened, or a proxy refuses it. The SMS and the call need no server.
+        var refused = token == null
+        if (token != null) {
+            try {
+                // A retry only to place the call must not report again.
+                if (SosDelivery.status(context, id) != "online") SosDelivery.api(context).reportSos(token, payload)
+                prefs.edit().putString(key, "online").remove(positionKey).apply()
+                return@withContext if (urgentCallOutstanding()) Result.retry() else Result.success()
+            } catch (e: HttpError) {
+                refused = e.status in 400..499 && e.status != 404
+            } catch (_: java.io.IOException) {
+                // Try the carrier when the server cannot be reached.
             }
-        } catch (_: java.io.IOException) {
-            // Try the carrier when the server cannot be reached.
         }
 
         if (!prefs.contains("sms-claim:$id") && canSendSms(context)) {
@@ -155,6 +156,12 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
             if (submitted.isNotEmpty()) {
                 prefs.edit().putString(key, "sms").putStringSet("sms-names:$id", submitted.map { it.name }.toSet()).commit()
             }
+        }
+        if (refused) {
+            val calling = urgentCallOutstanding()
+            if (SosDelivery.status(context, id) != "sms") prefs.edit().putString(key, "failed").apply()
+            prefs.edit().remove(positionKey).apply()
+            return@withContext if (calling) Result.retry() else Result.failure()
         }
         when (SosDelivery.status(context, id)) {
             "sms" -> urgentCallOutstanding()
