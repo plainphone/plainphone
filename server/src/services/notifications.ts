@@ -11,6 +11,7 @@ import { type Locale, toLocale } from "../lib/locale.js";
 import { phoneAlertMail } from "../lib/mail-templates.js";
 import { clockTime, followUpWords, moreTimeWords } from "../lib/more-time-words.js";
 import { lastSeen, moreTimeActions, pushWords, type SafetyNews } from "../lib/push-text.js";
+import { reviewWords } from "../lib/review-words.js";
 import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
@@ -45,9 +46,11 @@ export type NotifyEvent =
   | { type: "emergencyOpening"; phoneId: string; phoneName: string; appName: string | null; minutes: number; used: number; allowance: number }
   | { type: "test" }
   /** The weekly summary is ready (docs/weekly-summary.md). */
-  | { type: "summary"; summaryId: string };
+  | { type: "summary"; summaryId: string }
+  /** The phone's "review the rules" date has come (docs/age-presets.md). */
+  | { type: "review"; phoneId: string; phoneName: string };
 
-type TextEvent = Exclude<NotifyEvent, { type: "summary" | "moreTimeReceipt" }>;
+type TextEvent = Exclude<NotifyEvent, { type: "summary" | "moreTimeReceipt" | "review" }>;
 
 /** The notification's tag for one request: the buttons, the follow-up and the receipt all share it. */
 export const moreTimeTag = (requestId: string) => `moretime-${requestId.replaceAll("-", "")}`;
@@ -78,6 +81,10 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   if (e.type === "summary") {
     const w = summaryWords(locale);
     return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary", data: { type: "summary" } };
+  }
+  if (e.type === "review") {
+    const w = reviewWords(locale);
+    return { title: w.pushTitle(e.phoneName), body: w.pushBody, url: `/phones/${e.phoneId}`, tag: `review-${e.phoneId}`, data: { type: "review", phoneId: e.phoneId } };
   }
   if (e.type === "moreTimeReceipt") {
     const w = moreTimeWords(locale);

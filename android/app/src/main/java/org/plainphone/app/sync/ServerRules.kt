@@ -72,6 +72,8 @@ data class ServerRules(
     val sos: SosRules? = null,
     /** The family inbox (InboxRules.kt); off when missing. */
     val inbox: InboxRules = InboxRules.OFF,
+    /** The family agreement (AgreementRules.kt); nothing when missing. */
+    val agreement: AgreementRules = AgreementRules.NONE,
     val locationAlwaysUntil: Instant? = null,
     /** An open "Ring the phone"; null means stop. */
     val ring: RingRequest? = null,
@@ -211,6 +213,7 @@ data class ServerRules(
                     }, HiddenSos.parse(sos.optJSONObject("hidden")), QuickMessages.parse(sos.optJSONObject("quickMessages")))
                 },
                 inbox = InboxRules.parse(j.optJSONObject("inbox")),
+                agreement = AgreementRules.parse(j.optJSONObject("ageAgreement")),
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { runCatching { Instant.parse(it) }.getOrNull() },

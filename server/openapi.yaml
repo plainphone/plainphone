@@ -231,6 +231,65 @@ components:
         checkIns: { type: boolean, description: "\"I'm home\" in the inbox (needs the inbox)" }
         recipients: { type: array, items: { type: string }, description: "The SOS parents' names, as the child knows them" }
         messages: { type: array, items: { $ref: "#/components/schemas/FamilyMessage" } }
+    AgePreset:
+      type: object
+      description: What an age preset starts with (docs/age-presets.md). Every value stays editable; a preset locks nothing.
+      required: [id, dailyMinutes, bedtime, school, blockedCategories]
+      properties:
+        id: { type: string, enum: ["8-9", "10-11", "12-13", "14plus"] }
+        dailyMinutes:
+          type: object
+          required: [weekday, weekend]
+          properties:
+            weekday: { type: integer }
+            weekend: { type: integer, description: Saturday and Sunday }
+        bedtime:
+          type: object
+          description: Every day; minutes after local midnight, the window crosses midnight
+          required: [startMinute, endMinute]
+          properties:
+            startMinute: { type: integer }
+            endMinute: { type: integer }
+        school:
+          type: [object, "null"]
+          description: Monday to Friday; null for no school window
+          properties:
+            startMinute: { type: integer }
+            endMinute: { type: integer }
+        blockedCategories: { type: array, items: { type: string } }
+    AgeSuggestion:
+      type: object
+      description: One idea for what to open next, from the current rules. `time` and `bedtime` carry minutes (bedtime as minutes after midnight); `category` carries the web filter category.
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [time, bedtime, school, category, talk] }
+        from: { type: integer }
+        to: { type: integer }
+        category: { type: string }
+    AgeState:
+      type: object
+      required: [agePreset, review]
+      properties:
+        agePreset: { type: [string, "null"], enum: ["8-9", "10-11", "12-13", "14plus", null] }
+        review:
+          type: object
+          required: [enabled, intervalMonths, dueAt, due, suggestions]
+          properties:
+            enabled: { type: boolean }
+            intervalMonths: { type: integer, enum: [1, 2, 3, 6, 12] }
+            dueAt: { type: [string, "null"], format: date-time, description: The reminder moment (09:00 on the phone's wall clock) }
+            due: { type: boolean }
+            suggestions: { type: array, items: { $ref: "#/components/schemas/AgeSuggestion" }, description: Up to three ideas; empty while the reminder is off }
+    Agreement:
+      type: object
+      description: The family agreement (docs/family-agreement.md). The family's own words, kept per phone and shown on the child's phone only.
+      required: [lines, adultLines, enabled, onHome, updatedAt]
+      properties:
+        lines: { type: array, items: { type: string, maxLength: 140 }, maxItems: 8, description: In the child's words }
+        adultLines: { type: array, items: { type: string, maxLength: 140 }, maxItems: 5, description: Rules for the adults, a suggestion that is not enforced }
+        enabled: { type: boolean, description: Show it on the child's phone (default on) }
+        onHome: { type: boolean, description: Also on the home screen (default off) }
+        updatedAt: { type: [string, "null"], format: date-time }
     QuickMessage:
       type: object
       required: [id, text, meansSos, createdAt]
@@ -781,6 +840,15 @@ components:
             quickMessages: { type: boolean, description: The quick messages in sos.quickMessages can be sent from the inbox }
             checkIns: { type: boolean, description: "The child can send \"I'm home\"" }
             latest: { type: [string, "null"], format: uuid, description: The newest parent reply; when it changes, the phone fetches GET /device/inbox }
+        ageAgreement:
+          type: object
+          description: The family agreement of a Child phone (docs/family-agreement.md), in the family's own words. Left out while it is off or empty; old phones ignore it.
+          required: [lines, adultLines, onHome, updatedAt]
+          properties:
+            lines: { type: array, items: { type: string, maxLength: 140 }, maxItems: 8, description: What the family agreed, in the child's words }
+            adultLines: { type: array, items: { type: string, maxLength: 140 }, maxItems: 5, description: Rules the adults set for themselves (a suggestion, not enforced) }
+            onHome: { type: boolean, description: Also show the agreement on the home screen }
+            updatedAt: { type: [string, "null"], format: date-time }
         allowServerMove: { type: boolean }
         fallbackDnsHost:
           type: [string, "null"]
@@ -1263,6 +1331,14 @@ components:
         changeReceiptsEnabled: { type: boolean }
         healthBoardEnabled: { type: boolean }
         weeklySummaryEnabled: { type: boolean }
+        agePreset: { type: [string, "null"], enum: ["8-9", "10-11", "12-13", "14plus", null], description: The age preset last applied; null for none }
+        reviewEnabled: { type: boolean, description: The "review the rules" reminder (off for phones from before it existed) }
+        reviewIntervalMonths: { type: integer }
+        reviewDueAt: { type: [string, "null"], format: date-time }
+        reviewDue: { type: boolean, description: The review date has come }
+        agreementEnabled: { type: boolean, description: Show the family agreement on the child's phone }
+        agreementOnHome: { type: boolean, description: Also show it on the home screen }
+        agreementHasText: { type: boolean }
         silentBedtime: { type: boolean }
         pinApprovalEnabled: { type: boolean }
         modesEnabled: { type: boolean, description: "Modes on one weekly schedule (docs/modes.md). Always false on a Self phone." }
@@ -1783,6 +1859,139 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/FamilyMessage" }
         "403": { description: The family inbox is off for this phone }
+        "404": { description: Not a Child phone }
+  /age-presets:
+    get:
+      operationId: listAgePresets
+      summary: The age presets and what each one sets
+      description: One table for setup in the dashboard and the parent app (docs/age-presets.md).
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The presets, youngest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [presets]
+                properties:
+                  presets: { type: array, items: { $ref: "#/components/schemas/AgePreset" } }
+  /phones/{pid}/age:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getAgeState
+      summary: The age preset and the review reminder of a Child phone
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The state, with ideas for what to open next
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgeState" }
+        "404": { description: Not a Child phone }
+  /phones/{pid}/age-preset:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: applyAgePreset
+      summary: Apply an age preset
+      description: Sets the daily cap, bedtime, school time and blocked web categories to the preset's values, and counts as a review. Nothing is locked; every value stays editable.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preset]
+              additionalProperties: false
+              properties:
+                preset: { type: string, enum: ["8-9", "10-11", "12-13", "14plus"] }
+      responses:
+        "200":
+          description: Applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgeState" }
+        "400": { description: Unknown preset }
+        "404": { description: Not a Child phone }
+  /phones/{pid}/review:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    put:
+      operationId: setReview
+      summary: Turn the review reminder on or off, change how often it comes, or move the date
+      description: Turning it on starts the clock one interval from now. A new interval restarts the clock; a date moves it to 09:00 that day on the phone's clock. The reminder goes out by the household's summary channels (mail and notification).
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                enabled: { type: boolean }
+                intervalMonths: { type: integer, enum: [1, 2, 3, 6, 12] }
+                dueDate: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: A local date, today or later }
+      responses:
+        "200":
+          description: The new state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgeState" }
+        "400": { description: Not a date, or in the past }
+        "404": { description: Not a Child phone }
+        "409": { description: The reminder is off }
+  /phones/{pid}/review/done:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: markReviewed
+      summary: "We looked at the rules: the next review is one interval away"
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The new state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgeState" }
+        "404": { description: Not a Child phone }
+        "409": { description: The reminder is off }
+  /phones/{pid}/agreement:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getAgreement
+      summary: The family agreement of a Child phone
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The agreement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Agreement" }
+        "404": { description: Not a Child phone }
+    put:
+      operationId: setAgreement
+      summary: Write the family agreement, or switch it on or off
+      description: Any field may be left out. The phone gets it in the rules (`ageAgreement`) and shows it on "What can my parents see?". It is never written to logs.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                lines: { type: array, items: { type: string }, maxItems: 8 }
+                adultLines: { type: array, items: { type: string }, maxItems: 5 }
+                enabled: { type: boolean }
+                onHome: { type: boolean }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Agreement" }
+        "400": { description: Too many or too long lines }
         "404": { description: Not a Child phone }
   /phones/{pid}/quick-messages:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

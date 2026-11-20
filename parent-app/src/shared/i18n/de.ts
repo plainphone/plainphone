@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
+import { ageDe } from "./age";
 import { appUpdatesDe } from "./app-updates";
 import { platformDe } from "./platform";
 import { modesDe } from "./modes";
@@ -9,6 +10,7 @@ import { statusEn } from "./status";
 export const de: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesDe,
+  ...ageDe,
   ...platformDe,
   ...modesDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",

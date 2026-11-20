@@ -480,7 +480,7 @@ function Overview() {
     setRefreshing(false);
   }
 
-  type Section = "apps" | "contacts" | "filter" | "time" | "schedules" | "modes" | "location" | "key";
+  type Section = "apps" | "contacts" | "filter" | "time" | "schedules" | "modes" | "location" | "key" | "growing" | "agreement";
   type Item = { to: Section; label: string; hint?: string };
   // The same groups, in the same order, as the web dashboard's rule list.
   const groups: { title: string; items: Item[] }[] = [
@@ -509,6 +509,15 @@ function Overview() {
         ...(phone.profile === "self" ? [{ to: "key" as const, label: t("phone.key"), hint: t("phone.keyHint") }] : []),
       ],
     },
+    ...(phone.profile === "child" && phone.agePreset !== undefined
+      ? [{
+        title: t("age.title"),
+        items: [
+          { to: "growing" as const, label: t("age.nav"), hint: t("age.navHint") },
+          { to: "agreement" as const, label: t("age.agreement.nav"), hint: t("age.agreement.navHint") },
+        ],
+      }]
+      : []),
   ];
 
   const state = phoneStateText(phone, now, t, locale);
@@ -589,6 +598,17 @@ function Overview() {
       ) : null}
 
       {phone.profile === "child" && phone.pairedAt ? <MoreTimeRequests key={`more-time-${phone.id}`} /> : null}
+
+      {phone.reviewDue ? (
+        <Notice tone="info" text={`${t("age.review.dueTitle")}. ${t("age.review.dueBody")}`}>
+          <Button
+            testID="review-due"
+            kind="secondary"
+            title={t("age.review.done")}
+            onPress={() => router.push({ pathname: "/phones/[pid]/growing", params: { pid: phone.id } })}
+          />
+        </Notice>
+      ) : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>

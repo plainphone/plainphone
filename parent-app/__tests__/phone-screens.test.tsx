@@ -72,11 +72,18 @@ describe("pairing", () => {
   it("saves the strong setup language before opening the QR flow in the browser", async () => {
     const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
     try {
-      const api = phoneApi(PHONE, { "POST /phones/enroll": { status: 201, body: { phone: PHONE } } });
+      const api = phoneApi(PHONE, {
+        "POST /phones/enroll": { status: 201, body: { phone: PHONE } },
+        "GET /age-presets": { body: { presets: [] } },
+      });
       await renderRouter(routes, { initialUrl: "/strong-setup" });
       await fireEvent.changeText(await screen.findByLabelText("Name"), "Test phone");
       await fireEvent.press(screen.getByRole("radio", { name: "Svenska" }));
-      await fireEvent.press(screen.getByRole("button", { name: "Continue in the browser" }));
+      // A Child phone has two optional steps first; skipped here, with the review reminder switched off.
+      await fireEvent.press(screen.getByRole("button", { name: "Continue" }));
+      await fireEvent.press(await screen.findByTestId("review-switch"));
+      await fireEvent.press(screen.getByTestId("setup-age-next"));
+      await fireEvent.press(await screen.findByRole("button", { name: "Continue in the browser" }));
       await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
       expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child" });
     } finally {
@@ -85,7 +92,7 @@ describe("pairing", () => {
   });
 
   it("fills the code from a pairing link and adds the phone", async () => {
-    const api = phoneApi(PHONE, { "POST /phones/claim": { status: 201, body: PHONE } });
+    const api = phoneApi(PHONE, { "POST /phones/claim": { status: 201, body: PHONE }, "GET /age-presets": { body: { presets: [] } } });
     await renderRouter(routes, { initialUrl: "/pair?code=k7mp4qxr" });
     expect((await screen.findByTestId("pair-code")).props.value).toBe("K7MP-4QXR");
     // The name is required.
@@ -94,6 +101,10 @@ describe("pairing", () => {
     expect(api.calls.some((c) => c.path === "/phones/claim")).toBe(false);
     await fireEvent.changeText(screen.getByTestId("pair-name"), " Alma ");
     await fireEvent.press(screen.getByTestId("pair-submit"));
+    // A Child phone has two optional steps first; skipped here, with the review reminder switched off.
+    await fireEvent.press(await screen.findByTestId("review-switch"));
+    await fireEvent.press(screen.getByTestId("pair-age-next"));
+    await fireEvent.press(await screen.findByTestId("pair-agreement-next"));
     await waitFor(() => expect(screen).toHavePathname(at(PHONE)));
     const claim = api.calls.find((c) => c.path === "/phones/claim")!;
     expect(claim.body).toMatchObject({ code: "K7MP-4QXR", name: "Alma", profile: "child" });
@@ -101,10 +112,12 @@ describe("pairing", () => {
   });
 
   it("says when the code is unknown", async () => {
-    phoneApi(PHONE, { "POST /phones/claim": { status: 404, body: { error: "code not found or expired" } } });
+    phoneApi(PHONE, { "POST /phones/claim": { status: 404, body: { error: "code not found or expired" } }, "GET /age-presets": { body: { presets: [] } } });
     await renderRouter(routes, { initialUrl: "/pair?code=K7MP4QXR" });
     await fireEvent.changeText(await screen.findByTestId("pair-name"), "Alma");
     await fireEvent.press(screen.getByTestId("pair-submit"));
+    await fireEvent.press(await screen.findByTestId("pair-age-next"));
+    await fireEvent.press(await screen.findByTestId("pair-agreement-next"));
     expect(await screen.findByText("That code was not found or has expired. Check the code on the phone.")).toBeTruthy();
   });
 

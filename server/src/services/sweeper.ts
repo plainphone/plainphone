@@ -14,6 +14,7 @@ import { sweepMoreTime } from "./more-time.js";
 import { sweepSos } from "./sos.js";
 import { sweepQuickMessages } from "./quick-messages.js";
 import { sweepSummaries } from "./weekly-summary.js";
+import { sweepReviewReminders } from "./age-review.js";
 
 const DAY = 86_400_000;
 /** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
@@ -133,6 +134,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   await sweepSos(ctx);
   await sweepQuickMessages(ctx);
   await sweepSummaries(ctx);
+  await sweepReviewReminders(ctx);
   await sweepMoreTime(ctx);
   return { applied, dns, dnsDeleted, offlineAlerts, alwaysEnded: ended.length, deleted };
 }

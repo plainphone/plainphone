@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
+import { ageSv } from "./age";
 import { appUpdatesSv } from "./app-updates";
 import { platformSv } from "./platform";
 import { modesSv } from "./modes";
@@ -9,6 +10,7 @@ import { statusEn } from "./status";
 export const sv: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesSv,
+  ...ageSv,
   ...platformSv,
   ...modesSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",

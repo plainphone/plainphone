@@ -231,6 +231,8 @@ export type Protection = (typeof PROTECTIONS)[number];
 export const LOCATION_MODES = ["off", "find", "checkin", "always"] as const;
 /** docs/ios/architecture.md, "Capability map". */
 export const PLATFORMS = ["android", "ios"] as const;
+/** The age presets (lib/age-presets.ts holds what each one sets). */
+export const AGE_PRESET_IDS = ["8-9", "10-11", "12-13", "14plus"] as const;
 export const IOS_TIERS = ["family_controls", "supervised"] as const;
 export type LocationMode = (typeof LOCATION_MODES)[number];
 
@@ -319,6 +321,20 @@ export const phones = pgTable(
     /** The family inbox and its "I'm home" check-in (docs/family-inbox.md); off until a parent turns them on. */
     familyInboxEnabled: boolean("family_inbox_enabled").notNull().default(false),
     checkInsEnabled: boolean("check_ins_enabled").notNull().default(false),
+    /** The age preset the parents last applied (docs/age-presets.md); null = none, as for phones from before. */
+    agePreset: text("age_preset", { enum: AGE_PRESET_IDS }),
+    /** A calm "review the rules" reminder to the parents; off until a parent turns it on. */
+    reviewEnabled: boolean("review_enabled").notNull().default(false),
+    reviewIntervalMonths: smallint("review_interval_months").notNull().default(3),
+    reviewDueAt: timestamp("review_due_at", { withTimezone: true }),
+    /** The due date the last reminder was sent for, so one date is reminded once. */
+    reviewRemindedFor: timestamp("review_reminded_for", { withTimezone: true }),
+    /** The family agreement (docs/family-agreement.md): the family's own words, shown on the child's phone only. */
+    agreementLines: text("agreement_lines").array().notNull().default(sql`'{}'::text[]`),
+    agreementAdultLines: text("agreement_adult_lines").array().notNull().default(sql`'{}'::text[]`),
+    agreementEnabled: boolean("agreement_enabled").notNull().default(true),
+    agreementOnHome: boolean("agreement_on_home").notNull().default(false),
+    agreementUpdatedAt: timestamp("agreement_updated_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {

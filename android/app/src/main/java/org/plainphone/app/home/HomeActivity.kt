@@ -261,6 +261,7 @@ class HomeActivity : ComponentActivity() {
                 openRequests = if (rules?.pinApproval == true) SyncStore(context).openRequests else 0,
                 limitWarning = runCatching { HomeTimeLimits.warning(context) }.getOrNull(),
                 hiddenClock = org.plainphone.app.sos.SilentSos.childSos(rules)?.hidden?.clock == true,
+                agreementLines = org.plainphone.app.sync.AgreementRules.homeLines(rules),
             )
         }
 
