@@ -451,6 +451,16 @@ describe("overview", () => {
     expect(screen.queryByText(failedPolicy)).toBeNull();
   });
 
+  it.each([
+    // Far from any real clock, so the test does not depend on the date.
+    { name: "open window", until: "2099-01-01T12:00:00Z", text: /^Account changes are allowed for an approved sign-in until / },
+    { name: "past deadline, phone silent", until: "2000-01-01T12:00:00Z", text: /^Account changes were allowed for a sign-in until .* The phone has not reported since\.$/ },
+  ])("shows the lifted account window: $name", async ({ until, text }) => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: [], liftedPolicies: [{ name: "restriction no_modify_accounts", until }] } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(text)).toBeTruthy();
+  });
+
   it("lists waiting changes on a Self phone and cancels one", async () => {
     const api = phoneApi(SELF, {
       [`GET /phones/${SELF_ID}/changes`]: {

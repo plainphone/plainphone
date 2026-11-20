@@ -400,6 +400,9 @@ interface AlertWords {
   owner: (name: string) => string;
   lock: (name: string) => string;
   lookInApp: string;
+  liftedSubject: (name: string) => string;
+  lifted: (name: string) => string;
+  liftedFix: string;
   offlineSubject: (name: string, silence: string) => string;
   offline: (name: string, lastSeen: string) => string;
   neverSubject: (name: string) => string;
@@ -419,6 +422,9 @@ export const phoneAlertText = {
     owner: (n) => `Plainphone no longer controls the phone "${n}". That happens when the app is removed as device owner.`,
     lock: (n) => `The lock on the phone "${n}" is no longer intact. One of its steps does not work, for example because the default phone app was changed.`,
     lookInApp: "Open Plainphone to see what the phone reports. Often it is enough to open Plainphone on the phone.",
+    liftedSubject: (n) => `${n}: account changes may still be allowed`,
+    lifted: (n) => `An approved sign-in window on the phone "${n}" ended at its deadline, but the phone has not reported since. Account changes may still be allowed.`,
+    liftedFix: "Open Plainphone on the phone to restore the lock.",
     offlineSubject: (n, s) => `${n} has not been in touch for ${s}`,
     offline: (n, l) => `The phone "${n}" was last in touch ${l}. It may be switched off, out of battery or reset.`,
     neverSubject: (n) => `${n} has not connected yet`,
@@ -435,6 +441,9 @@ export const phoneAlertText = {
     owner: (n) => `Plainphone styrer ikke længere telefonen "${n}". Det sker, hvis appen er fjernet som enhedsejer.`,
     lock: (n) => `Låsen på telefonen "${n}" er ikke længere intakt. Et af låsens trin virker ikke, fx hvis standardtelefonappen er skiftet.`,
     lookInApp: "Åbn Plainphone for at se, hvad telefonen melder. Ofte er det nok at åbne Plainphone på telefonen.",
+    liftedSubject: (n) => `${n}: kontoændringer kan stadig være tilladt`,
+    lifted: (n) => `Et godkendt tidsvindue til login på telefonen "${n}" sluttede ved fristen, men telefonen har ikke meldt sig siden. Kontoændringer kan stadig være tilladt.`,
+    liftedFix: "Åbn Plainphone på telefonen for at genskabe låsen.",
     offlineSubject: (n, s) => `${n} har ikke været i kontakt i ${s}`,
     offline: (n, l) => `Telefonen "${n}" var sidst i kontakt ${l}. Den kan være slukket, løbet tør for strøm eller nulstillet.`,
     neverSubject: (n) => `${n} er ikke forbundet endnu`,
@@ -451,6 +460,9 @@ export const phoneAlertText = {
     owner: (n) => `Plainphone styr inte längre telefonen "${n}". Det händer om appen tas bort som enhetsägare.`,
     lock: (n) => `Låset på telefonen "${n}" är inte längre intakt. Ett av låsets steg fungerar inte, till exempel om standardtelefonappen har ändrats.`,
     lookInApp: "Öppna Plainphone för att se vad telefonen rapporterar. Ofta räcker det att öppna Plainphone på telefonen.",
+    liftedSubject: (n) => `${n}: kontoändringar kan fortfarande vara tillåtna`,
+    lifted: (n) => `Ett godkänt inloggningsfönster på telefonen "${n}" tog slut vid tidsgränsen, men telefonen har inte hört av sig sedan dess. Kontoändringar kan fortfarande vara tillåtna.`,
+    liftedFix: "Öppna Plainphone på telefonen för att återställa låset.",
     offlineSubject: (n, s) => `${n} har inte hörts av på ${s}`,
     offline: (n, l) => `Telefonen "${n}" hördes senast av ${l}. Den kan vara avstängd, ha slut på batteri eller ha återställts.`,
     neverSubject: (n) => `${n} har inte anslutit än`,
@@ -467,6 +479,9 @@ export const phoneAlertText = {
     owner: (n) => `Plainphone styrer ikke lenger telefonen "${n}". Det skjer hvis appen fjernes som enhetseier.`,
     lock: (n) => `Låsen på telefonen "${n}" er ikke lenger intakt. Ett av trinnene i låsen fungerer ikke, for eksempel hvis standard telefonapp er byttet.`,
     lookInApp: "Åpne Plainphone for å se hva telefonen melder. Ofte er det nok å åpne Plainphone på telefonen.",
+    liftedSubject: (n) => `${n}: kontoendringer kan fortsatt være tillatt`,
+    lifted: (n) => `Et godkjent tidsvindu for innlogging på telefonen "${n}" gikk ut ved fristen, men telefonen har ikke meldt seg siden. Kontoendringer kan fortsatt være tillatt.`,
+    liftedFix: "Åpne Plainphone på telefonen for å gjenopprette låsen.",
     offlineSubject: (n, s) => `${n} har ikke vært i kontakt på ${s}`,
     offline: (n, l) => `Telefonen "${n}" var sist i kontakt ${l}. Den kan være slått av, tom for strøm eller tilbakestilt.`,
     neverSubject: (n) => `${n} er ikke koblet til ennå`,
@@ -483,6 +498,9 @@ export const phoneAlertText = {
     owner: (n) => `Plainphone steuert das Handy "${n}" nicht mehr. Das passiert, wenn die App als Geräteeigentümer entfernt wird.`,
     lock: (n) => `Die Sperre auf dem Handy "${n}" ist nicht mehr intakt. Einer ihrer Schritte funktioniert nicht, zum Beispiel weil die Standard-Telefon-App geändert wurde.`,
     lookInApp: "Öffnen Sie Plainphone, um zu sehen, was das Handy meldet. Oft genügt es, Plainphone auf dem Handy zu öffnen.",
+    liftedSubject: (n) => `${n}: Kontoänderungen sind möglicherweise noch erlaubt`,
+    lifted: (n) => `Ein genehmigtes Anmeldefenster auf dem Handy "${n}" ist zur Frist abgelaufen, aber das Handy hat sich seitdem nicht gemeldet. Kontoänderungen sind möglicherweise noch erlaubt.`,
+    liftedFix: "Öffnen Sie Plainphone auf dem Handy, um die Sperre wiederherzustellen.",
     offlineSubject: (n, s) => `${n} war ${s} lang nicht erreichbar`,
     offline: (n, l) => `Das Handy "${n}" hatte zuletzt Kontakt (${l}). Es kann ausgeschaltet, leer oder zurückgesetzt worden sein.`,
     neverSubject: (n) => `${n} hat sich noch nicht verbunden`,
@@ -500,7 +518,7 @@ export function phoneAlertMail(
   locale: Locale,
   publicUrl: string,
   alert:
-    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
+    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo" | "lifted"; reportedLate?: boolean; trusted?: boolean }
     | { kind: "offline"; phoneId: string; phoneName: string; hours: number; lastSeen: string }
     | { kind: "neverConnected"; phoneId: string; phoneName: string },
 ): Mail {
@@ -509,8 +527,10 @@ export function phoneAlertMail(
   let subject: string;
   let paragraphs: string[];
   if (alert.kind === "protection") {
-    subject = t.protectionSubject(name);
-    paragraphs = alert.reason === "setup-undo"
+    subject = alert.reason === "lifted" ? t.liftedSubject(name) : t.protectionSubject(name);
+    paragraphs = alert.reason === "lifted"
+      ? [t.lifted(name), t.liftedFix]
+      : alert.reason === "setup-undo"
       ? [t.undone(name)]
       : [alert.reason === "owner" ? t.owner(name) : t.lock(name), t.lookInApp];
   } else if (alert.kind === "neverConnected") {

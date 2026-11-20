@@ -550,6 +550,14 @@ object SyncScheduler {
     fun appUpdates(context: Context, reason: String) =
         enqueueNow(context, reason, "plainphone-sync-app-updates", ExistingWorkPolicy.APPEND_OR_REPLACE)
 
+    /**
+     * A lock step was lifted for an approved window or put back, or an unapproved account appeared. Appended,
+     * never dropped: a sync already running may have read the state before the change, and a stale "lifted"
+     * report would raise the overdue alert after the deadline.
+     */
+    fun lockStateChanged(context: Context, reason: String) =
+        enqueueNow(context, reason, "plainphone-sync-lock-state", ExistingWorkPolicy.APPEND_OR_REPLACE)
+
     fun pushRegistrationChanged(context: Context) =
         enqueueNow(context, PhoneWake.REGISTRATION_CHANGED, "plainphone-push-registration", ExistingWorkPolicy.APPEND_OR_REPLACE)
 

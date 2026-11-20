@@ -230,7 +230,9 @@ class MaintenanceActivity : Activity() {
             return
         }
         val started = runCatching {
-            AccountManager.get(this).addAccount(CatalogAccounts.GOOGLE, null, null, Bundle(), this, {
+            val future = AccountManager.get(this).addAccount(CatalogAccounts.GOOGLE, null, null, Bundle(), this, {
+                CatalogAccounts.signInFinished(request)
+                // Also runs when the window closed and cancelled the request.
                 val added = runCatching { CatalogAccounts.complete(app, request) }
                     .onFailure { android.util.Log.w("Plainphone", "Could not finish Google sign-in", it) }
                     .getOrDefault(false)
@@ -240,6 +242,7 @@ class MaintenanceActivity : Activity() {
                     } else failed(request)
                 }
             }, null)
+            runCatching { CatalogAccounts.trackSignIn(app, request, future) }
         }.isSuccess
         if (!started) {
             runCatching { CatalogAccounts.complete(app, request) }

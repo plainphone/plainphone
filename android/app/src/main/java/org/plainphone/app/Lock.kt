@@ -21,6 +21,7 @@ import org.plainphone.app.settings.PrefsPresetStore
 import org.plainphone.app.settings.SettingsApplier
 import org.plainphone.app.sync.AppliedRulesReceipt
 import org.plainphone.app.sync.EffectivePolicy
+import org.plainphone.app.sync.LiftedPolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
 import org.plainphone.app.sync.StatusNotices
@@ -304,6 +305,7 @@ object Lock {
             webFilterActive = rules?.dnsHost?.takeIf { rules.healthBoardEnabled && rules.dnsReady }?.let { host ->
                 Protections.webFilterActive(context, host, owner)
             },
+            liftedPolicies = LiftedPolicy.read(context, owner),
         )
     }
 

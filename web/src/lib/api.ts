@@ -63,6 +63,8 @@ export interface PhoneStatus {
   maintenance: boolean;
   /** Names of the lock steps that failed. */
   failedPolicies: string[];
+  /** Lock steps lifted on purpose for a parent-approved window; the lock still counts as intact until `until`. */
+  liftedPolicies?: { name: string; until: string }[];
   rulesEtag: string | null;
   webFilterActive?: boolean | null;
   rulesAppliedAt: string | null;

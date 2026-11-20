@@ -1418,6 +1418,16 @@ components:
           maxItems: 50
           description: Names of the lock steps that failed.
           items: { type: string, minLength: 1, maxLength: 200 }
+        liftedPolicies:
+          type: array
+          maxItems: 10
+          description: Lock steps lifted on purpose for a parent-approved window, each with the deadline by which the phone puts it back (today only "restriction no_modify_accounts" during an approved Google sign-in). The phone still reports lockIntact true and leaves the step out of failedPolicies. The server only makes this stricter. An entry more than 2 minutes past its deadline is stored as a failed step with lockIntact false, so the usual protection alert fires. If the phone has not reported 10 minutes after a deadline, the sweeper tells the parents once.
+          items:
+            type: object
+            required: [name, until]
+            properties:
+              name: { type: string, minLength: 1, maxLength: 200 }
+              until: { type: string, format: date-time }
         installOverrunSequence:
           type: integer
           minimum: 1

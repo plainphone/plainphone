@@ -649,6 +649,8 @@ export const da: Messages = {
   "phone.callRoleActionNeeded": "Åbn Plainphone på telefonen og tryk Tillad",
   "phone.parallelAppsRemoved": "Parallelle apps er fjernet.",
   "phone.lateGoogleAccount": "Der blev registreret en uventet kontoændring under eller efter appinstallation",
+  "phone.liftedOpen": "Kontoændringer er tilladt til et godkendt login indtil kl. {time}.",
+  "phone.liftedOverdue": "Kontoændringer var tilladt til et login indtil kl. {time}. Telefonen har ikke meldt sig siden.",
   "phone.accountTypes": "Konti på telefonen: {types}",
   "phone.attVerified": "Systemet er uændret (tjekket af telefonens sikkerhedschip)",
   "phone.attUnlocked": "Telefonen er låst op, så der kan installeres et andet system. Plainphone kan ikke garantere låsen eller beskytte telefonen efter en nulstilling.",
