@@ -13,18 +13,28 @@ import { createRequest, RequestError } from "./requests.js";
 
 type Phone = typeof phones.$inferSelect;
 
+/** Apps of [report] the server has not turned into requests yet; the same window can catch more later. */
+function unrecorded(phone: Phone, report: AppUpdateWindowReport): string[] {
+  const seen = phone.appUpdatesReportedWindow === report.id ? new Set(phone.appUpdatesRecordedApps) : new Set<string>();
+  return [...new Set(report.caught)].filter((p) => !seen.has(p));
+}
+
 /**
- * Turns the new apps a window caught into app requests, once per window. In open mode, where
- * new apps are allowed by default, they are blocked until a parent approves the request.
- * Then the rules carry the window id, so the phone stops holding the apps back itself.
+ * Turns the new apps a window caught into app requests, once per app and window. In open mode,
+ * where new apps are allowed by default, they are blocked until a parent approves the request.
+ * Then the rules list the recorded apps, so the phone stops holding exactly those back itself.
+ * An app the phone held back from an earlier window rides along in a later report.
  */
 export async function recordAppUpdateWindow(ctx: Ctx, phone: Phone, report: AppUpdateWindowReport | undefined) {
-  if (!report || report.caught.length === 0 || report.id === phone.appUpdatesReportedWindow) return;
+  if (!report || unrecorded(phone, report).length === 0) return;
   const toRequest = await ctx.db.transaction(async (tx) => {
     const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-    if (!fresh || fresh.appUpdatesReportedWindow === report.id) return null;
+    if (!fresh) return null;
+    const fresher = unrecorded(fresh, report);
+    if (fresher.length === 0) return null;
+    const recorded = fresh.appUpdatesReportedWindow === report.id ? fresh.appUpdatesRecordedApps : [];
     const out: string[] = [];
-    for (const packageName of report.caught) {
+    for (const packageName of fresher) {
       const [app] = await tx.select().from(phoneApps)
         .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, packageName)));
       if (!app) {
@@ -45,8 +55,11 @@ export async function recordAppUpdateWindow(ctx: Ctx, phone: Phone, report: AppU
       }
       // An app the parents allowed before (installed again) stays allowed.
     }
-    await tx.update(phones).set({ appUpdatesReportedWindow: report.id, ...nextRulesRevision() })
-      .where(eq(phones.id, phone.id));
+    await tx.update(phones).set({
+      appUpdatesReportedWindow: report.id,
+      appUpdatesRecordedApps: [...recorded, ...fresher].sort(),
+      ...nextRulesRevision(),
+    }).where(eq(phones.id, phone.id));
     return out;
   });
   if (toRequest === null) return;

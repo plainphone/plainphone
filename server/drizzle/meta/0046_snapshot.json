@@ -1,5 +1,5 @@
 {
-  "id": "b06e1e98-e9ef-4c2f-8cd2-904730aacdc8",
+  "id": "a1065c2e-7d0b-4a0a-b80b-f92f847087ed",
   "prevId": "ab7c8d45-cd5d-4274-9df4-15da5284fc50",
   "version": "7",
   "dialect": "postgresql",
@@ -2558,6 +2558,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "app_updates_recorded_apps": {
+          "name": "app_updates_recorded_apps",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
         },
         "rules_revision": {
           "name": "rules_revision",

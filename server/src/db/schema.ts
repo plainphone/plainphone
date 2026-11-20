@@ -333,6 +333,8 @@ export const phones = pgTable(
     appUpdatesRequestedAt: timestamp("app_updates_requested_at", { withTimezone: true }),
     /** The last app update window the server recorded; the phone stops holding back new apps once it sees it. */
     appUpdatesReportedWindow: text("app_updates_reported_window"),
+    /** The new apps of that window the server has turned into requests: the phone lets go of exactly these. */
+    appUpdatesRecordedApps: text("app_updates_recorded_apps").array().notNull().default(sql`'{}'::text[]`),
     rulesRevision: integer("rules_revision").notNull().default(0),
     rulesAwaitDns: boolean("rules_await_dns").notNull().default(false),
     createdAt: createdAt(),

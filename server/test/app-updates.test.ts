@@ -51,7 +51,7 @@ async function setup(openMode = false) {
 describe("app updates in strong mode", () => {
   it("is on by default and the parent can switch the nightly window off", async () => {
     const { mum, phoneId, device } = await setup();
-    expect((await device.get("/api/device/rules")).json.appUpdates).toEqual({ automatic: true, requestedAt: null, reportedWindow: null });
+    expect((await device.get("/api/device/rules")).json.appUpdates).toEqual({ automatic: true, requestedAt: null, reportedWindow: null, recordedApps: [] });
     expect((await mum.get(`/api/phones/${phoneId}`)).json).toMatchObject({ appUpdatesEnabled: true, appUpdatesRequestedAt: null });
     const off = await mum.patch(`/api/phones/${phoneId}`, { appUpdatesEnabled: false });
     expect(off.json.appUpdatesEnabled).toBe(false);
@@ -91,6 +91,7 @@ describe("app updates in strong mode", () => {
     expect(h.parentPush.sent.filter((s) => s.msg.title === "Alma asks for an app")).toHaveLength(2);
     const rules = (await device.get("/api/device/rules")).json;
     expect(rules.appUpdates.reportedWindow).toBe("w1");
+    expect(rules.appUpdates.recordedApps).toEqual(["com.example.game", "com.example.unlisted"]);
     expect(rules.apps.hidden).toEqual(expect.arrayContaining(["com.example.game", "com.example.unlisted"]));
     // The same report again changes nothing.
     await device.put("/api/device/status", report(caught));
@@ -114,5 +115,27 @@ describe("app updates in strong mode", () => {
     await device.put("/api/device/status", report(window({ caught: ["com.google.android.apps.maps"] })));
     expect((await mum.get(`/api/phones/${phoneId}/requests`)).json.requests).toEqual([]);
     expect((await device.get("/api/device/rules")).json.apps.allowed).toContain("com.google.android.apps.maps");
+  });
+
+  it("records an app caught later in the same window", async () => {
+    const { mum, phoneId, device } = await setup();
+    await device.put("/api/device/status", report(window({ caught: ["com.example.game"] })));
+    await device.put("/api/device/status", report(window({ caught: ["com.example.game", "com.example.unlisted"] })));
+    const requests = (await mum.get(`/api/phones/${phoneId}/requests`)).json.requests;
+    expect(requests.map((r: { packageName: string }) => r.packageName).sort())
+      .toEqual(["com.example.game", "com.example.unlisted"]);
+    expect((await device.get("/api/device/rules")).json.appUpdates.recordedApps)
+      .toEqual(["com.example.game", "com.example.unlisted"]);
+  });
+
+  it("records an app held back from a window the server never heard about under the next one", async () => {
+    const { mum, phoneId, device } = await setup();
+    // w1 reached the server before the guard caught the game; the phone carries it over into w2.
+    await device.put("/api/device/status", report(window()));
+    await device.put("/api/device/status", report(window({ id: "w2", trigger: "parent", caught: ["com.example.game"] })));
+    const [request] = (await mum.get(`/api/phones/${phoneId}/requests`)).json.requests;
+    expect(request.packageName).toBe("com.example.game");
+    const rules = (await device.get("/api/device/rules")).json;
+    expect(rules.appUpdates).toMatchObject({ reportedWindow: "w2", recordedApps: ["com.example.game"] });
   });
 });
