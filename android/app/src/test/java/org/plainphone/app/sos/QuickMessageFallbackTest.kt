@@ -7,23 +7,30 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import org.junit.Test
 import org.plainphone.app.sync.HttpError
+import org.plainphone.app.sync.QuickSendAnswer
 
 class QuickMessageFallbackTest {
     @Test
     fun `a push to at least one parent device is enough`() {
-        assertThat(quickMessageFallback(1, null)).isEqualTo(QuickFallback.DONE)
-        assertThat(quickMessageFallback(3, null)).isEqualTo(QuickFallback.DONE)
+        assertThat(quickMessageFallback(QuickSendAnswer(1), null)).isEqualTo(QuickFallback.DONE)
+        assertThat(quickMessageFallback(QuickSendAnswer(3), null)).isEqualTo(QuickFallback.DONE)
     }
 
     @Test
     fun `no parent device reached, no network or a server error sends an SMS`() {
-        assertThat(quickMessageFallback(0, null)).isEqualTo(QuickFallback.SMS)
+        assertThat(quickMessageFallback(QuickSendAnswer(0), null)).isEqualTo(QuickFallback.SMS)
         assertThat(quickMessageFallback(null, IOException("no network"))).isEqualTo(QuickFallback.SMS)
         assertThat(quickMessageFallback(null, SocketTimeoutException())).isEqualTo(QuickFallback.SMS)
         assertThat(quickMessageFallback(null, HttpError(503, ""))).isEqualTo(QuickFallback.SMS)
         assertThat(quickMessageFallback(null, HttpError(500, ""))).isEqualTo(QuickFallback.SMS)
         // A server without the endpoint.
         assertThat(quickMessageFallback(null, HttpError(404, ""))).isEqualTo(QuickFallback.SMS)
+    }
+
+    @Test
+    fun `over the server's limit it stays quiet, and a send still in progress is asked again`() {
+        assertThat(quickMessageFallback(QuickSendAnswer(0, limited = true), null)).isEqualTo(QuickFallback.DONE)
+        assertThat(quickMessageFallback(QuickSendAnswer(0, pending = true), null)).isEqualTo(QuickFallback.RETRY)
     }
 
     @Test

@@ -73,30 +73,53 @@ async function parentIds(ctx: Ctx, householdId: string) {
   return rows.map((r) => r.id);
 }
 
+/** `quick_message_sends.notified` while the first call is still notifying. */
+const NOTIFY_PENDING = -2;
+/** `quick_message_sends.notified` for a send over the limit: recorded but quiet. */
+const NOTIFY_LIMITED = -1;
+/** A send still pending after this long is taken to have failed (the server stopped mid-way). */
+const PENDING_MS = 60_000;
+
+type SendAnswer = { notified: number; limited?: true; pending?: true };
+
+function sendAnswer(notified: number): SendAnswer {
+  if (notified === NOTIFY_LIMITED) return { notified: 0, limited: true };
+  if (notified === NOTIFY_PENDING) return { notified: 0, pending: true };
+  return { notified };
+}
+
 /**
  * An ordinary quick message the phone sent online. The phone has already sent it, so it is
  * always accepted; `notified` is how many parent devices got a push. With 0 the phone sends
- * it by SMS instead. A repeated id returns the first answer without notifying again.
+ * it by SMS instead, unless `limited` (over the limit: recorded but quiet, no SMS either) or
+ * `pending` (a repeat while the first call is still notifying: ask again). A repeated id
+ * returns the first answer without notifying again.
  */
-export async function sendQuickMessage(ctx: Ctx, phone: Phone, input: { id: string; text: string }) {
+export async function sendQuickMessage(ctx: Ctx, phone: Phone, input: { id: string; text: string }): Promise<SendAnswer> {
   const now = ctx.now();
-  const [claimed] = await ctx.db.insert(quickMessageSends).values({ phoneId: phone.id, id: input.id, createdAt: now })
+  const row = and(eq(quickMessageSends.phoneId, phone.id), eq(quickMessageSends.id, input.id));
+  const [claimed] = await ctx.db.insert(quickMessageSends)
+    .values({ phoneId: phone.id, id: input.id, createdAt: now, notified: NOTIFY_PENDING })
     .onConflictDoNothing().returning();
   if (!claimed) {
-    const [first] = await ctx.db.select().from(quickMessageSends)
-      .where(and(eq(quickMessageSends.phoneId, phone.id), eq(quickMessageSends.id, input.id)));
-    return { notified: first?.notified ?? 0 };
+    const [first] = await ctx.db.select().from(quickMessageSends).where(row);
+    if (!first) return { notified: 0 };
+    if (first.notified === NOTIFY_PENDING && now.getTime() - first.createdAt.getTime() > PENDING_MS) return { notified: 0 };
+    return sendAnswer(first.notified);
   }
   const [recent] = await ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
     eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),
   ));
-  if (phone.releaseRequestedAt || (recent?.total ?? 0) > SEND_LIMIT) return { notified: 0 };
-  const notified = await notifyUsers(ctx, await parentIds(ctx, phone.householdId), {
-    type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text,
-  }).catch(() => 0);
-  await ctx.db.update(quickMessageSends).set({ notified })
-    .where(and(eq(quickMessageSends.phoneId, phone.id), eq(quickMessageSends.id, input.id)));
-  return { notified };
+  let notified: number;
+  if ((recent?.total ?? 0) > SEND_LIMIT) notified = NOTIFY_LIMITED;
+  else if (phone.releaseRequestedAt) notified = 0;
+  else {
+    notified = await notifyUsers(ctx, await parentIds(ctx, phone.householdId), {
+      type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text,
+    }).catch(() => 0);
+  }
+  await ctx.db.update(quickMessageSends).set({ notified }).where(row);
+  return sendAnswer(notified);
 }
 
 /** The child suggests a new quick message; a parent approves or declines it. */

@@ -56,6 +56,9 @@ internal const val QUICK_TEXT_MAX = 60
 /** How long "Sent to your parents" stays. */
 private const val SENT_SHOWN_MS = 6_000L
 
+/** How often the panel checks whether a sent message failed after all. */
+private const val FAILED_POLL_MS = 1_000L
+
 /** A second tap this soon after the first is taken as the same tap. */
 private const val DOUBLE_TAP_MS = 1_500L
 
@@ -95,6 +98,7 @@ internal fun ChildQuickMessages(withSuggest: Boolean, modifier: Modifier = Modif
         quick.items,
         quick.suggest,
         onSend = { QuickMessageDelivery.send(context, it) },
+        failed = { QuickMessageDelivery.failed(context, it) },
         onSuggest = { text -> withContext(Dispatchers.IO) { suggestQuickMessage(context, text) } },
         modifier = modifier,
     )
@@ -102,21 +106,25 @@ internal fun ChildQuickMessages(withSuggest: Boolean, modifier: Modifier = Modif
 
 /**
  * One tap sends a message. A code word looks and answers exactly like any other message: the
- * child's screen never says SOS for it (docs/sos.md).
+ * child's screen never says SOS for it (docs/sos.md). [onSend] returns a key for [failed], or null
+ * when the message could not be queued; "Sent to your parents" turns into "could not be sent"
+ * as soon as [failed] says so.
  */
 @Composable
 internal fun QuickMessagesPanel(
     items: List<QuickMessage>,
     suggest: Boolean,
-    onSend: (QuickMessage) -> Boolean,
+    onSend: (QuickMessage) -> String?,
     onSuggest: suspend (String) -> SuggestResult,
     modifier: Modifier = Modifier,
+    failed: (String) -> Boolean = { false },
     /** Opens the suggestion form with this text; for previews and tests. */
     initialSuggestion: String? = null,
 ) {
     val scope = rememberCoroutineScope()
     var sent by remember { mutableStateOf<Boolean?>(null) }
     var sentCount by remember { mutableIntStateOf(0) }
+    var sentKey by remember { mutableStateOf<String?>(null) }
     var lastTap by remember { mutableLongStateOf(0L) }
     var editing by rememberSaveable { mutableStateOf(initialSuggestion != null) }
     var draft by rememberSaveable { mutableStateOf(initialSuggestion.orEmpty()) }
@@ -124,9 +132,19 @@ internal fun QuickMessagesPanel(
     var result by remember { mutableStateOf<SuggestResult?>(null) }
 
     LaunchedEffect(sentCount) {
-        if (sentCount == 0) return@LaunchedEffect
-        delay(SENT_SHOWN_MS)
-        sent = null
+        val key = sentKey
+        if (sentCount == 0 || key == null) return@LaunchedEffect
+        // Watch until the worker gives up; a failure stays on screen until the next tap.
+        var waited = 0L
+        while (waited <= QuickMessageDelivery.GIVE_UP_MS + 60_000L) {
+            if (failed(key)) {
+                sent = false
+                return@LaunchedEffect
+            }
+            if (waited >= SENT_SHOWN_MS && sent == true) sent = null
+            delay(FAILED_POLL_MS)
+            waited += FAILED_POLL_MS
+        }
     }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (items.isNotEmpty() || suggest) {
@@ -144,7 +162,8 @@ internal fun QuickMessagesPanel(
                             val now = SystemClock.elapsedRealtime()
                             if (now - lastTap < DOUBLE_TAP_MS && lastTap != 0L) return@FilledTonalButton
                             lastTap = now
-                            sent = onSend(item)
+                            sentKey = onSend(item)
+                            sent = sentKey != null
                             sentCount++
                         },
                         modifier = Modifier.heightIn(min = 48.dp),

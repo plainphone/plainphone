@@ -72,7 +72,8 @@ export function parentQuickMessageRoutes<E extends { Variables: { user: { id: st
 
   app.patch("/phones/:pid/quick-messages/:id", async (c) => {
     const phone = await childPhone(c);
-    const input = await body(c, z.strictObject({ text: text.optional(), meansSos: z.boolean().optional() }));
+    const input = await body(c, z.strictObject({ text: text.optional(), meansSos: z.boolean().optional() })
+      .refine((v) => v.text !== undefined || v.meansSos !== undefined, { message: "nothing to change" }));
     const [row] = await ctx.db.update(quickMessages).set(input)
       .where(and(key(phone.id, param(c, "id")), eq(quickMessages.status, "active"))).returning();
     if (!row) throw new HTTPException(404, { message: "quick message not found" });

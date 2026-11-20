@@ -73,6 +73,7 @@ class QuickMessagesScreenshotTest(private val name: String, private val variant:
         when (name) {
             "sos-screen" -> sosScreen()
             "code-word-sent" -> codeWordSent()
+            "send-failed" -> sendFailed()
             "suggest-form" -> suggestForm()
             "suggest-waiting" -> suggestWaiting()
             "sharing-hidden" -> sharing()
@@ -100,7 +101,7 @@ class QuickMessagesScreenshotTest(private val name: String, private val variant:
 
     private fun codeWordSent() {
         val sent = mutableListOf<QuickMessage>()
-        show { QuickMessagesPanel(items, suggest = false, onSend = { sent += it; true }, onSuggest = { SuggestResult.SENT }, Modifier.padding(24.dp)) }
+        show { QuickMessagesPanel(items, suggest = false, onSend = { sent += it; "key" }, onSuggest = { SuggestResult.SENT }, Modifier.padding(24.dp)) }
         compose.onNodeWithText("Is the blue bike home?").performClick()
         // A code word looks exactly like any message: the same words, and nothing about SOS.
         compose.onNodeWithText("Sent to your parents").assertIsDisplayed()
@@ -108,10 +109,26 @@ class QuickMessagesScreenshotTest(private val name: String, private val variant:
         assertThat(sent.single().meansSos).isTrue()
     }
 
+    private fun sendFailed() {
+        var failed = false
+        show {
+            QuickMessagesPanel(
+                items, suggest = false, onSend = { "key" }, onSuggest = { SuggestResult.SENT },
+                Modifier.padding(24.dp), failed = { failed },
+            )
+        }
+        compose.onNodeWithText("Pick me up").performClick()
+        compose.onNodeWithText("Sent to your parents").assertIsDisplayed()
+        // The worker found that nobody can get it: the child is told.
+        failed = true
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithText("The message could not be sent. Call or text your parents yourself.").assertIsDisplayed()
+    }
+
     private fun suggestForm() {
         show {
             QuickMessagesPanel(
-                items.take(3), suggest = true, onSend = { true }, onSuggest = { SuggestResult.SENT },
+                items.take(3), suggest = true, onSend = { "key" }, onSuggest = { SuggestResult.SENT },
                 Modifier.padding(24.dp), initialSuggestion = "Can we have pizza tonight?",
             )
         }
@@ -123,7 +140,7 @@ class QuickMessagesScreenshotTest(private val name: String, private val variant:
     private fun suggestWaiting() {
         show {
             QuickMessagesPanel(
-                items.take(3), suggest = true, onSend = { true }, onSuggest = { SuggestResult.WAITING },
+                items.take(3), suggest = true, onSend = { "key" }, onSuggest = { SuggestResult.WAITING },
                 Modifier.padding(24.dp), initialSuggestion = "Can we have pizza tonight?",
             )
         }
@@ -155,7 +172,7 @@ class QuickMessagesScreenshotTest(private val name: String, private val variant:
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
-        fun cases(): List<Array<Any>> = listOf("sos-screen", "code-word-sent", "suggest-form", "suggest-waiting", "sharing-hidden")
+        fun cases(): List<Array<Any>> = listOf("sos-screen", "code-word-sent", "send-failed", "suggest-form", "suggest-waiting", "sharing-hidden")
             .flatMap { name -> listOf("light", "dark", "large-text").map { arrayOf<Any>(name, it) } }
     }
 }

@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Send an ordinary quick message to the parents as push
-         * @description Always accepted. With `notified` 0 no parent device got a push and the phone sends an SMS instead. A repeated id is answered from the first send.
+         * @description Always accepted. With `notified` 0 no parent device got a push and the phone sends an SMS instead, unless `limited` (over the limit of ten in ten minutes; recorded but quiet) or `pending` (a repeat while the first send is still notifying; ask again). A repeated id is answered from the first send.
          */
         post: operations["sendQuickMessage"];
         delete?: never;
@@ -3704,6 +3704,10 @@ export interface operations {
                     "application/json": {
                         /** @description Parent devices that got a push */
                         notified: number;
+                        /** @description Over the send limit; the phone sends no SMS either */
+                        limited?: boolean;
+                        /** @description The first send with this id is still notifying */
+                        pending?: boolean;
                     };
                 };
             };

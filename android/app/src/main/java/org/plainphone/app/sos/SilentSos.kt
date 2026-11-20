@@ -60,13 +60,16 @@ object SilentSos {
         rules?.sos?.takeIf { rules.profile == "child" && !rules.release }
 
     /** Sends a silent SOS. False when the phone is not a paired child phone. */
-    fun send(context: Context, trigger: String, message: String? = null): Boolean {
+    fun send(context: Context, trigger: String, message: String? = null): Boolean = queue(context, trigger, message) != null
+
+    /** Like [send], but returns the SOS id (for [SosDelivery.status]), or null when it was not queued. */
+    fun queue(context: Context, trigger: String, message: String? = null): String? {
         val sync = SyncStore(context)
-        val phoneId = sync.phoneId ?: return false
-        childSos(sync.rules()) ?: return false
+        val phoneId = sync.phoneId ?: return null
+        childSos(sync.rules()) ?: return null
         return runCatching { SosDelivery.enqueue(context, phoneId, SosKind.URGENT, trigger, message) }
             .onFailure { Log.e(TAG, "silent SOS could not be queued", it) }
-            .isSuccess
+            .getOrNull()
     }
 
     /** The clock on the home screen was held. Does nothing when the parents have not switched it on. */

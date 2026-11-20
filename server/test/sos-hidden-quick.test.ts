@@ -98,6 +98,7 @@ describe("quick messages", () => {
     expect(items).toHaveLength(6);
     expect(items[1]).toEqual({ id: code.id, text: "Call me", meansSos: true });
     expect((await parent.patch(`${path}/${first.json.id}`, { meansSos: true })).json.meansSos).toBe(true);
+    expect((await parent.patch(`${path}/${first.json.id}`, {})).status).toBe(400);
     expect((await parent.del(`${path}/${code.id}`)).status).toBe(204);
     expect((await parent.get(path)).json.messages).toHaveLength(5);
     // Switched off, the phone gets no messages and cannot suggest.
@@ -129,7 +130,20 @@ describe("quick messages", () => {
     for (let i = 0; i < 10; i++) {
       expect((await device.post("/api/device/quick-messages/send", { id: randomUUID(), text: "Hi" })).json.notified).toBe(1);
     }
-    expect((await device.post("/api/device/quick-messages/send", { id: randomUUID(), text: "Hi" })).json.notified).toBe(0);
+    // Over the limit the answer says so, so the phone does not send an SMS instead.
+    const over = randomUUID();
+    expect((await device.post("/api/device/quick-messages/send", { id: over, text: "Hi" })).json).toEqual({ notified: 0, limited: true });
+    expect((await device.post("/api/device/quick-messages/send", { id: over, text: "Hi" })).json).toEqual({ notified: 0, limited: true });
+    expect(h.parentPush.sent).toHaveLength(10);
+  });
+
+  it("answers a repeat during the first send with pending, and gives up on a stale one", async () => {
+    const { phoneId, device } = await setup();
+    const id = randomUUID();
+    await h.ctx.db.insert(quickMessageSends).values({ phoneId, id, createdAt: h.ctx.now(), notified: -2 });
+    expect((await device.post("/api/device/quick-messages/send", { id, text: "Hi" })).json).toEqual({ notified: 0, pending: true });
+    h.clock.advance(61_000);
+    expect((await device.post("/api/device/quick-messages/send", { id, text: "Hi" })).json).toEqual({ notified: 0 });
   });
 
   it("lets the child suggest one and a parent approve or decline it", async () => {

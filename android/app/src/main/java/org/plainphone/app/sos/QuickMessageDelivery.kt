@@ -15,18 +15,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.plainphone.app.sync.HttpError
 import org.plainphone.app.sync.QuickMessage
+import org.plainphone.app.sync.QuickSendAnswer
 import org.plainphone.app.sync.SyncStore
 
 /** What happens after the online attempt for an ordinary quick message. */
-internal enum class QuickFallback { DONE, SMS, GIVE_UP }
+internal enum class QuickFallback { DONE, SMS, RETRY, GIVE_UP }
 
 /**
- * The contract (docs/sos.md): no parent device got a push ([notified] 0), the server could not be
- * reached, or it failed (5xx, or 404 from a server without the endpoint): send the text by SMS.
- * Another client error means the message cannot be delivered online; then it is not sent at all.
+ * The contract (docs/sos.md): no parent device got a push ([QuickSendAnswer.notified] 0), the server
+ * could not be reached, or it failed (5xx, or 404 from a server without the endpoint): send the text
+ * by SMS. Over the server's limit it is recorded but quiet, so no SMS either; while the first send
+ * with the same id is still notifying, ask again. Another client error means the message cannot be
+ * delivered online; then it is not sent at all.
  */
-internal fun quickMessageFallback(notified: Int?, error: Throwable?): QuickFallback = when {
-    notified != null -> if (notified > 0) QuickFallback.DONE else QuickFallback.SMS
+internal fun quickMessageFallback(answer: QuickSendAnswer?, error: Throwable?): QuickFallback = when {
+    answer != null -> when {
+        answer.limited || answer.notified > 0 -> QuickFallback.DONE
+        answer.pending -> QuickFallback.RETRY
+        else -> QuickFallback.SMS
+    }
     error is HttpError -> if (error.status >= 500 || error.status == 404) QuickFallback.SMS else QuickFallback.GIVE_UP
     error is IOException -> QuickFallback.SMS
     else -> QuickFallback.GIVE_UP
@@ -38,13 +45,16 @@ internal fun quickMessageFallback(notified: Int?, error: Throwable?): QuickFallb
  */
 internal object QuickMessageDelivery {
     /** A quick message older than this is not worth sending any more. */
-    private const val GIVE_UP_MS = 30 * 60_000L
+    internal const val GIVE_UP_MS = 30 * 60_000L
 
-    fun send(context: Context, message: QuickMessage): Boolean {
-        if (message.meansSos) return SilentSos.send(context, "code", message.text)
+    /**
+     * Queues the message and returns a key for [failed], or null when it could not be queued.
+     */
+    fun send(context: Context, message: QuickMessage): String? {
+        if (message.meansSos) return SilentSos.queue(context, "code", message.text)?.let { "sos:$it" }
         val sync = SyncStore(context)
-        val phoneId = sync.phoneId ?: return false
-        SilentSos.childSos(sync.rules()) ?: return false
+        val phoneId = sync.phoneId ?: return null
+        SilentSos.childSos(sync.rules()) ?: return null
         val prefs = prefs(context)
         val now = System.currentTimeMillis()
         val prune = prefs.edit()
@@ -55,7 +65,14 @@ internal object QuickMessageDelivery {
             .setInputData(workDataOf("id" to id, "phone" to phoneId, "text" to message.text, "at" to now))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork("quick-$id", ExistingWorkPolicy.KEEP, request)
-        return true
+        return "quick:$id"
+    }
+
+    /** True once the message behind [key] (from [send]) is known not to reach the parents. */
+    fun failed(context: Context, key: String): Boolean = when {
+        key.startsWith("quick:") -> prefs(context).contains("failed:${key.removePrefix("quick:")}")
+        key.startsWith("sos:") -> SosDelivery.status(context, key.removePrefix("sos:")) == "failed"
+        else -> false
     }
 
     fun prefs(context: Context) = context.getSharedPreferences("plainphone_quick_messages", Context.MODE_PRIVATE)
@@ -73,19 +90,25 @@ class QuickMessageWorker(context: Context, params: WorkerParameters) : Coroutine
         val sos = SilentSos.childSos(sync.rules())
         val token = sync.deviceToken()
         val prefs = QuickMessageDelivery.prefs(context)
+        // The child is told when a message does not reach the parents. A Long, so the daily prune clears it.
+        fun failure(): Result {
+            prefs.edit().putLong("failed:$id", System.currentTimeMillis()).apply()
+            return Result.failure()
+        }
         if (inputData.getString("phone") != sync.phoneId || token == null || sos == null ||
             QuickMessageDelivery.expired(at, System.currentTimeMillis())
-        ) return@withContext Result.failure()
-        var notified: Int? = null
+        ) return@withContext failure()
+        var answer: QuickSendAnswer? = null
         var error: Throwable? = null
         try {
-            notified = SosDelivery.api(context).sendQuickMessage(token, id, text)
+            answer = SosDelivery.api(context).sendQuickMessage(token, id, text)
         } catch (e: IOException) {
             error = e
         }
-        when (quickMessageFallback(notified, error)) {
+        when (quickMessageFallback(answer, error)) {
             QuickFallback.DONE -> Result.success()
-            QuickFallback.GIVE_UP -> Result.failure()
+            QuickFallback.RETRY -> Result.retry()
+            QuickFallback.GIVE_UP -> failure()
             QuickFallback.SMS -> {
                 val submitted = if (canSendSms(context)) {
                     submitSosFallback(prefs, id, at, sos.parents) { number -> submitSosSms(context, number, text) }
@@ -93,7 +116,7 @@ class QuickMessageWorker(context: Context, params: WorkerParameters) : Coroutine
                 when {
                     submitted.isNotEmpty() -> Result.success()
                     // The server answered, so trying again online would only get the same answer.
-                    notified != null -> Result.failure()
+                    answer != null -> failure()
                     else -> Result.retry()
                 }
             }

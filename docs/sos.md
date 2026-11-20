@@ -67,6 +67,9 @@ gesture on the child's phone together.
 with ("Pick me up", "I'm okay", "Call me"). An ordinary quick message goes to the
 parents' devices as a normal push when the phone is online. If no parent device got
 the push, or the phone is offline, it goes as an ordinary SMS to the SOS parents.
+More than ten quick messages in ten minutes are recorded but quiet: no push and no
+SMS. The child sees "Sent to your parents" at once; if the message turns out not to
+reach anyone (no push, and no SMS could be sent), that changes to "The message could not be sent".
 
 **Code words.** A parent can mark a quick message as a code word. On the child's
 phone it looks and behaves exactly like any other quick message. The parents get an
@@ -81,6 +84,10 @@ suggestion is deleted.
 Privacy: quick messages themselves are not stored as history. The server keeps only
 the id of an online quick message for a day, to recognise a retry. A hidden SOS is
 an SOS event like the others (30 days), with how it was sent and a code word's text.
+
+Self-hosting: update the server before the phone app. An older server rejects the
+`trigger` and `message` fields of a hidden SOS report, and the phone does not fall
+back to SMS after a rejection.
 
 
 ## Set up recipients

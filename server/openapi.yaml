@@ -1313,7 +1313,7 @@ paths:
     post:
       operationId: sendQuickMessage
       summary: Send an ordinary quick message to the parents as push
-      description: Always accepted. With `notified` 0 no parent device got a push and the phone sends an SMS instead. A repeated id is answered from the first send.
+      description: Always accepted. With `notified` 0 no parent device got a push and the phone sends an SMS instead, unless `limited` (over the limit of ten in ten minutes; recorded but quiet) or `pending` (a repeat while the first send is still notifying; ask again). A repeated id is answered from the first send.
       tags: [device]
       security: [{ device: [] }]
       requestBody:
@@ -1336,6 +1336,8 @@ paths:
                 required: [notified]
                 properties:
                   notified: { type: integer, description: Parent devices that got a push }
+                  limited: { type: boolean, description: Over the send limit; the phone sends no SMS either }
+                  pending: { type: boolean, description: The first send with this id is still notifying }
         "404": { description: Not a Child phone }
   /device/quick-messages/suggest:
     post:

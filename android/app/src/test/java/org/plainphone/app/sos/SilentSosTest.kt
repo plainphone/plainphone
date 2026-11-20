@@ -144,7 +144,7 @@ class SilentSosTest {
         val shown = SosDelivery.enqueue(context, "test-phone", SosKind.HELP)
         assertThat(prefs.getString("last:test-phone", null)).isEqualTo(shown)
         assertThat(SilentSos.send(context, "clock")).isTrue()
-        assertThat(QuickMessageDelivery.send(context, QuickMessage("q", "Blue bike", meansSos = true))).isTrue()
+        assertThat(QuickMessageDelivery.send(context, QuickMessage("q", "Blue bike", meansSos = true))).startsWith("sos:")
         assertThat(prefs.getString("last:test-phone", null)).isEqualTo(shown)
     }
 
@@ -181,5 +181,37 @@ class SilentSosTest {
             }
         }
         assertThat(shadowOf(Compat.smsManager(context)).lastSentMultipartTextMessageParams).isNull()
+    }
+
+    @Test
+    fun `a quick message over the server's limit sends no SMS either`(): Unit = runBlocking {
+        saveRules()
+        allowSms()
+        serve(200, """{"notified":0,"limited":true}""") {
+            runBlocking {
+                val result = work<QuickMessageWorker>(
+                    "id" to "q3", "phone" to "test-phone", "text" to "Hi", "at" to System.currentTimeMillis(),
+                )
+                assertThat(result).isEqualTo(ListenableWorker.Result.success())
+            }
+        }
+        assertThat(shadowOf(Compat.smsManager(context)).lastSentMultipartTextMessageParams).isNull()
+        assertThat(QuickMessageDelivery.failed(context, "quick:q3")).isFalse()
+    }
+
+    @Test
+    fun `a quick message nobody can get is marked failed for the child`(): Unit = runBlocking {
+        saveRules()
+        // No SMS role or permission, and no parent device got the push.
+        serve(200, """{"notified":0}""") {
+            runBlocking {
+                val result = work<QuickMessageWorker>(
+                    "id" to "q4", "phone" to "test-phone", "text" to "Pick me up", "at" to System.currentTimeMillis(),
+                )
+                assertThat(result).isEqualTo(ListenableWorker.Result.failure())
+            }
+        }
+        assertThat(QuickMessageDelivery.failed(context, "quick:q4")).isTrue()
+        assertThat(QuickMessageDelivery.failed(context, "quick:other")).isFalse()
     }
 }
