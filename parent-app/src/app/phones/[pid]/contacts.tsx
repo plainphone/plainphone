@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { isIphone } from "../../../shared/lib/platform";
 import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { View } from "react-native";
@@ -20,7 +21,8 @@ function ContactsList() {
   const { t } = useI18n();
   const { phone, run, pending, notify } = usePhone();
   const self = phone.profile === "self";
-  const lightChild = !self && phone.mode === "light";
+  // An iPhone is light but has no Android contact restriction (docs/ios/architecture.md).
+  const lightChild = !self && phone.mode === "light" && !isIphone(phone);
   const res = useLoad(
     () => unwrap<{ contacts: Contact[]; selfScheduleContacts?: boolean | null; suggestDeviceContacts?: boolean; lightContactRestriction?: boolean }>(
       client.GET("/phones/{pid}/contacts", { params: { path: { pid: phone.id } } }),
