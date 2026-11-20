@@ -61,6 +61,8 @@ export interface PhoneStatus {
   protections?: Partial<Record<Protection, boolean>>;
   /** Minutes used today per limited package; "*" is the total. */
   timeUsed?: Record<string, number>;
+  /** The last app update window in strong mode (docs/policies.md, "App updates"). */
+  appUpdates?: import("./app-updates").AppUpdateWindow;
   /** When the server received the report. */
   reportedAt: string;
 }
@@ -134,6 +136,9 @@ export interface Phone {
   silentBedtime?: boolean;
   /** A parent may approve a request on the phone with the parent PIN. Missing on old servers (treated as on). */
   pinApprovalEnabled?: boolean;
+  /** Strong mode: the nightly app update window. Missing on old servers (treated as on). */
+  appUpdatesEnabled?: boolean;
+  appUpdatesRequestedAt?: string | null;
   ruleReceipt?: import("./phone-health").RuleReceipt | null;
 }
 

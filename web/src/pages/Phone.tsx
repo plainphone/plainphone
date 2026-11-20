@@ -32,6 +32,7 @@ import { ServerMoveToggle } from "../components/ServerMoveToggle";
 import { MoreTimeSection } from "../components/MoreTimeSection";
 import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
+import { AppUpdates } from "../components/AppUpdates";
 import { healthRows, receiptText } from "../lib/phone-health";
 
 interface PhoneCtx {
@@ -617,6 +618,7 @@ export function PhoneOverview() {
 
       {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
+      {phone.pairedAt && <AppUpdates phone={phone} setPhone={setPhone} notify={notify} />}
       <PhoneDisplayPreferences />
       {phone.profile === "child" && phone.pairedAt && (
         <section className="section" aria-label={t("pin.toggle")}>
