@@ -4,7 +4,7 @@ import { householdMembers, phones, pushSubscriptions, setupUndoNotices, users } 
 import { toLocale } from "../lib/locale.js";
 import { phoneAlertMail } from "../lib/mail-templates.js";
 import { parentPushEnabled } from "../providers/parent-push.js";
-import { deliverablePushSubscription, discardGonePushSubscription } from "./push-subscriptions.js";
+import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";
 import { phoneAlertRecipients, pushMessage } from "./notifications.js";
 
@@ -98,7 +98,11 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
           if (!parentPushEnabled(ctx.parentPush, recipient.sub.platform)) throw new Error("push unavailable");
           const result = await ctx.parentPush.send(recipient.sub, pushMessage({ type: "protection", ...event }, locale), { urgent: true });
           if (result === "gone") await discardGonePushSubscription(ctx, recipient.sub);
-          if (result === "failed") throw new Error("push delivery failed");
+          if (result === "failed") {
+            // Counted like any other push, so a Web Push endpoint that keeps failing is dropped and the notice with it.
+            await recordFailedPush(ctx, recipient.sub);
+            throw new Error("push delivery failed");
+          }
         } else {
           if (!ctx.mail.canSend) throw new Error("mail unavailable");
           await ctx.mail.send(phoneAlertMail(recipient.email, locale, ctx.cfg.PUBLIC_URL, { kind: "protection", ...event }));

@@ -224,6 +224,34 @@ describe("onboarding safety", () => {
     expect(h.parentPush.sent).toHaveLength(0);
   });
 
+  it("stops retrying a push notice once the endpoint has failed twenty times", async () => {
+    const { parent, device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await parent.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/broken", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
+    })).status).toBe(201);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    const send = vi.spyOn(h.parentPush, "send").mockResolvedValue("failed");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 19; i++) {
+        await deliverSetupUndoNotices(h.ctx);
+        h.clock.advance(60_000);
+      }
+      expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(1);
+      await deliverSetupUndoNotices(h.ctx);
+      h.clock.advance(60_000);
+      await deliverSetupUndoNotices(h.ctx);
+      expect(send).toHaveBeenCalledTimes(20);
+      expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+    } finally {
+      send.mockRestore();
+      log.mockRestore();
+    }
+  });
+
   it("delivers at most ten undo notices per sweep", async () => {
     const { device, decide, claim } = await start();
     const before = h.mail.outbox.length;

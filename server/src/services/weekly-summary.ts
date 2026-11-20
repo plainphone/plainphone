@@ -5,6 +5,7 @@
 // time arrive and delivers it once, by mail and/or push. What goes in is only what the
 // parents can already see: numbers, and app names from the phone's own list.
 
+import { errorSummary } from "../lib/log.js";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import {
   householdMembers,
@@ -220,7 +221,7 @@ export async function sweepSummaries(ctx: Ctx): Promise<{ built: number; deliver
       if (inserted.length > 0) built += 1;
     } catch (err) {
       // One household must not stop the others or the sweeps after this one; the next pass retries.
-      console.error(`weekly summary not built: ${(err as Error).message}`);
+      console.error(`weekly summary not built: ${errorSummary(err)}`);
     }
   }
   const delivered = await deliverSummaries(ctx);
@@ -244,7 +245,7 @@ async function deliverSummaries(ctx: Ctx): Promise<number> {
     try {
       await deliverOne(ctx, s);
     } catch (err) {
-      console.error(`weekly summary delivery failed: ${(err as Error).message}`);
+      console.error(`weekly summary delivery failed: ${errorSummary(err)}`);
     }
   }
   return claimed.length;
@@ -266,7 +267,7 @@ async function deliverOne(ctx: Ctx, s: typeof householdSummaries.$inferSelect): 
       try {
         await ctx.mail.send(weeklySummaryMail(m.email, toLocale(m.locale), ctx.cfg.PUBLIC_URL, s.id, data));
       } catch (err) {
-        console.error(`summary mail failed: ${(err as Error).message}`);
+        console.error(`summary mail failed: ${errorSummary(err)}`);
       }
     }
   }
