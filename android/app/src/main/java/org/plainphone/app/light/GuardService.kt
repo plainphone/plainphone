@@ -336,6 +336,8 @@ class GuardService : AccessibilityService() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastBlockAt < BLOCK_GAP_MS) {
             // Dropped for now, not forgotten: a quick switch back to the app would otherwise keep it open.
+            // The retry repeats the app check only. A dropped Settings or VPN-dialog block is left to the
+            // Settings watch: its next content event, scheduled re-check or VPN retry runs it again.
             main.removeCallbacks(reguard)
             main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))
             return
