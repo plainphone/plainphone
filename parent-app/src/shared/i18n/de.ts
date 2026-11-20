@@ -1247,7 +1247,7 @@ export const de: Messages = {
   "sos.triggerCode": "Codewort «{text}»",
   "key.level.mild": "Mild",
   "key.level.mildHelp": "Eine lockerere Regel wartet 1 Stunde.",
-  "key.level.firm": "Bestimmt",
+  "key.level.firm": "Fest",
   "key.level.firmHelp": "Eine lockerere Regel wartet 24 Stunden.",
   "key.level.strict": "Streng",
   "key.level.strictHelp": "Eine lockerere Regel braucht das Ja einer Person, der Sie vertrauen.",
