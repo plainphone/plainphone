@@ -291,7 +291,14 @@ class SyncRunner(
             readContactSuggestions(now)?.let { pendingContactSuggestions = PendingContactSuggestions(token, it) }
         }
         val pending = pendingContactSuggestions ?: return
-        api.reportContactSuggestions(token, pending.contacts)
+        try {
+            api.reportContactSuggestions(token, pending.contacts)
+        } catch (e: HttpError) {
+            // A rejection that repeats (400 and the like) would resend up to 4 MiB at every sync;
+            // 408, 429 and server trouble are temporary, so those keep the list for the next try.
+            if (e.status in 400..499 && e.status != 408 && e.status != 429) pendingContactSuggestions = null
+            throw e
+        }
         pendingContactSuggestions = null
     }
 

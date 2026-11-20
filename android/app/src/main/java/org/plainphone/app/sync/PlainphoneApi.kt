@@ -569,7 +569,7 @@ class PlainphoneApi private constructor(
         val entries = JSONArray()
         contacts.forEach { entries.put(JSONObject().put("name", it.name).put("numbers", JSONArray(it.numbers))) }
         val result = call("PUT", "/device/contact-suggestions", token, JSONObject().put("contacts", entries))
-        if (result.status != 204) throw IOException("contact suggestions returned HTTP ${result.status}")
+        if (result.status != 204) throw HttpError(result.status, result.body)
     }
 
     override fun reportApps(token: String, apps: List<InstalledApp>) {

@@ -5,10 +5,15 @@ import type { ChangeResult, Contact } from "../../../api/models";
 import { ContactSuggestions, loadContactSuggestions } from "../../../components/ContactSuggestions";
 import { ItemRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
+import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { cleanNumber, NUMBER_RE } from "../../../lib/validate";
+
+interface ContactSettings {
+  suggestDeviceContacts?: boolean;
+  lightContactRestriction?: boolean;
+}
 
 function ContactsList() {
   const { t } = useI18n();
@@ -32,6 +37,7 @@ function ContactsList() {
   const [marking, setMarking] = useState(false);
   const [sosError, setSosError] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
   const waitingAdds = pending.flatMap((c) => (c.op.type === "contact.add" ? [c.op] : []));
 
   async function markParent(contact: Contact) {
@@ -47,6 +53,30 @@ function ContactsList() {
       setSosError(true);
     } finally {
       setMarking(false);
+    }
+  }
+
+  async function changeSettings(settings: ContactSettings) {
+    setSavingSettings(true);
+    try {
+      const { before, after } = await unwrap<{ before: ContactSettings; after: ContactSettings }>(
+        client.PATCH("/phones/{pid}/contacts", { params: { path: { pid: phone.id } }, body: settings }),
+      );
+      const restriction = settings.lightContactRestriction !== undefined;
+      const key = restriction ? "lightContactRestriction" : "suggestDeviceContacts";
+      res.setData((data) => data && { ...data, ...after });
+      notify({
+        tone: "success",
+        text: t("contacts.settingChanged", {
+          setting: t(restriction ? "contacts.lightRestrict" : "contacts.suggestFromPhone"),
+          from: t(before[key] ? "contacts.settingOn" : "contacts.settingOff"),
+          to: t(after[key] ? "contacts.settingOn" : "contacts.settingOff"),
+        }),
+      });
+    } catch {
+      notify({ tone: "error", text: t("contacts.settingsError") });
+    } finally {
+      setSavingSettings(false);
     }
   }
 
@@ -107,6 +137,21 @@ function ContactsList() {
     >
       <PageTitle sub={self ? selfIntro : lightChild ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
       {!self && <Notice tone="info" text={t("contacts.otherApps")} />}
+
+      {!self && res.data && (
+        <VStack gap={space.sm}>
+          {lightChild && (
+            <Switch testID="light-contact-restriction" label={t("contacts.lightRestrict")}
+              value={res.data.lightContactRestriction === true}
+              disabled={savingSettings || res.data.lightContactRestriction === undefined}
+              onValueChange={(on) => void changeSettings({ lightContactRestriction: on })} />
+          )}
+          <Switch testID="suggest-device-contacts" label={t("contacts.suggestFromPhone")} help={t("contacts.suggestSharing")}
+            value={res.data.suggestDeviceContacts === true}
+            disabled={savingSettings || res.data.suggestDeviceContacts === undefined}
+            onValueChange={(on) => void changeSettings({ suggestDeviceContacts: on })} />
+        </VStack>
+      )}
 
       {lightChild && res.data?.lightContactRestriction && res.data.contacts.length === 0 && (
         <Notice tone="info" text={t("contacts.lightEmptyWarning")} />

@@ -77,9 +77,11 @@ data class ServerRules(
     val ring: RingRequest? = null,
     /** An open "Are you okay?"; null means close it. */
     val checkIn: CheckInRequest? = null,
-    /** Null (also in cached rules without this field) keeps the previous contact policy. */
+    /** The phone reads its contacts and suggests them to the parents. */
     val suggestDeviceContacts: Boolean = false,
+    /** Light phone: only approved contacts can call and text. */
     val lightContactRestriction: Boolean = false,
+    /** Null (also in cached rules without this field) keeps the previous contact policy. */
     val selfScheduleContacts: Boolean? = null,
     val changeReceiptsEnabled: Boolean = true,
     // Old servers reject unknown protection keys and do not advertise this feature.
