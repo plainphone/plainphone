@@ -1025,6 +1025,44 @@ input[type="radio"] {
   margin-bottom: 0.5rem;
 }
 
+/* The family inbox thread: the child's messages on the left, a parent's replies on the right,
+   like the parent's own messaging apps. Ink text on surface or bg, never colour alone for state. */
+.inbox-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inbox-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: min(28rem, 85%);
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.inbox-parent {
+  align-self: flex-end;
+  background: var(--bg);
+}
+
+.inbox-text {
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.inbox-message .row-meta {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
 .sched-list + .form-card,
 .list + p,
 .form-card + p {

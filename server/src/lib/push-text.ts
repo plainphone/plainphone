@@ -308,6 +308,15 @@ const quickSuggestion = {
   de: (e) => ({ title: `${e.phoneName} schlägt eine Schnellnachricht vor`, body: `„${e.text}“. Öffnen Sie die App, um zuzustimmen oder abzulehnen.` }),
 } satisfies Record<Locale, (e: PushFacts["quickMessage"]) => Words>;
 
+/** "I'm home" from the family inbox, without a position (docs/family-inbox.md). */
+const checkIn = {
+  en: (e) => ({ title: `${e.phoneName}: I'm home`, body: "Check-in from the family inbox." }),
+  da: (e) => ({ title: `${e.phoneName}: Jeg er hjemme`, body: "Tjek ind fra familieindbakken." }),
+  sv: (e) => ({ title: `${e.phoneName}: Jag är hemma`, body: "Incheckning från familjens inkorg." }),
+  nb: (e) => ({ title: `${e.phoneName}: Jeg er hjemme`, body: "Innsjekk fra familieinnboksen." }),
+  de: (e) => ({ title: `${e.phoneName}: Ich bin zu Hause`, body: "Check-in aus dem Familienpostfach." }),
+} satisfies Record<Locale, (e: { phoneName: string }) => Words>;
+
 const test = {
   en: { title: "Notifications work", body: "This device will get Plainphone notifications." },
   da: { title: "Notifikationer virker", body: "Denne enhed får notifikationer fra Plainphone." },
@@ -317,7 +326,7 @@ const test = {
 } satisfies Record<Locale, Words>;
 
 /** Every push message, one table each. The completeness test walks this. */
-export const pushTables = { protection, offline, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, test };
+export const pushTables = { protection, offline, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, checkIn, test };
 
 export const pushWords = {
   protection: (e: PushFacts["protection"], l: Locale): Words => protection[l](e),
@@ -329,6 +338,7 @@ export const pushWords = {
   sos: (e: PushFacts["sos"], l: Locale): Words => sos[l](e),
   quickMessage: (e: PushFacts["quickMessage"], l: Locale): Words => quickMessage[l](e),
   quickSuggestion: (e: PushFacts["quickMessage"], l: Locale): Words => quickSuggestion[l](e),
+  checkIn: (e: { phoneName: string }, l: Locale): Words => checkIn[l](e),
   test: (l: Locale): Words => test[l],
   moreTime: (e: { phoneName: string; what: string | null; reason: string | null }, l: Locale): Words => {
     const m = moreTime[l];

@@ -114,16 +114,16 @@ describe("hidden SOS", () => {
 });
 
 describe("quick messages", () => {
-  it("shows both switches on by default and saves them", async () => {
+  it("starts with quick messages off (suggestions on for when they are) and saves both", async () => {
     const { api } = serve();
     await open("quick-messages-toggle");
-    expect(checked("qm-enabled")).toBe(true);
+    expect(checked("qm-enabled")).toBe(false);
     expect(checked("qm-suggest")).toBe(true);
     await fireEvent.press(screen.getByTestId("qm-enabled"));
-    await waitFor(() => expect(checked("qm-enabled")).toBe(false));
+    await waitFor(() => expect(checked("qm-enabled")).toBe(true));
     await fireEvent.press(screen.getByTestId("qm-suggest"));
     await waitFor(() => expect(checked("qm-suggest")).toBe(false));
-    expect(sent(api, "PUT").map((c) => c.body)).toEqual([{ quickMessagesEnabled: false }, { quickSuggestionsEnabled: false }]);
+    expect(sent(api, "PUT").map((c) => c.body)).toEqual([{ quickMessagesEnabled: true }, { quickSuggestionsEnabled: false }]);
   });
 
   it("offers the three starters while the list is empty and adds one with one tap", async () => {
@@ -234,5 +234,42 @@ describe("push", () => {
     expect(routeForPush({ type: "quick-message", phoneId: PHONE.id })).toEqual(target);
     expect(routeForPush({ type: "quick-suggestion", phoneId: PHONE.id })).toEqual(target);
     expect(routeForPush({ type: "quick-message", phoneId: "../../settings" })).toBe("/");
+    expect(routeForPush({ type: "check-in", phoneId: PHONE.id })).toEqual(target);
+  });
+});
+
+describe("family inbox", () => {
+  const INBOX = `/phones/${PHONE.id}/inbox`;
+  const thread = {
+    familyInbox: true, quickMessages: false, checkIns: true, recipients: ["Alex"],
+    messages: [
+      { id: ID(1), from: "child", kind: "checkin", text: "Jeg er hjemme", sentAt: "2026-11-19T15:00:00Z", delivered: 1 },
+      { id: ID(2), from: "parent", kind: "reply", text: "On my way", sentAt: "2026-11-19T15:01:00Z", author: "Alex", receivedAt: "2026-11-19T15:02:00Z" },
+    ],
+  };
+
+  it("starts with every switch off and no thread", async () => {
+    const { api } = serve();
+    await open("family-inbox-toggle");
+    expect(checked("inbox-enabled")).toBe(false);
+    expect(checked("inbox-check-ins")).toBe(false);
+    expect(screen.queryByTestId("inbox-reply")).toBeNull();
+    await fireEvent.press(screen.getByTestId("inbox-enabled"));
+    await waitFor(() => expect(checked("inbox-enabled")).toBe(true));
+    expect(sent(api, "PUT").map((c) => c.body)).toEqual([{ familyInbox: true }]);
+  });
+
+  it("shows the thread in the parent's language and sends a short reply", async () => {
+    const { api } = serve({ settings: { familyInbox: true, checkIns: true } }, {
+      [`GET ${INBOX}`]: { body: thread },
+      [`POST ${INBOX}`]: ({ body }) => ({ status: 201, body: { id: ID(3), from: "parent", kind: "reply", sentAt: "2026-11-19T15:05:00Z", ...(body as object) } }),
+    });
+    await renderRouter(routes, { initialUrl: `/phones/${PHONE.id}` });
+    expect(await screen.findByText("I’m home")).toBeTruthy();
+    expect(screen.getByText("On my way")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("inbox-reply"), "Dinner at 18");
+    await fireEvent.press(screen.getByTestId("inbox-send"));
+    await waitFor(() => expect(sent(api, "POST")).toHaveLength(1));
+    expect(sent(api, "POST")[0]).toMatchObject({ path: INBOX, body: { text: "Dinner at 18" } });
   });
 });

@@ -254,7 +254,9 @@ class HelplinesTest {
 
         SyncStore(context, FakeSecretBox()).saveRules("test", body, now.toEpochMilli())
         Robolectric.buildActivity(screen).setup().use { controller ->
-            compose.onNodeWithText(context.getString(R.string.help_lines_title)).performClick()
+            // The phone app has a "Help lines" button next to 112; the home screens link with the question.
+            val entry = if (screen == PhoneActivity::class.java) R.string.reach_help else R.string.help_lines_title
+            compose.onNodeWithText(context.getString(entry)).performClick()
             val launched = shadowOf(controller.get()).nextStartedActivity
             assertThat(launched.component?.className).isEqualTo(HelpActivity::class.java.name)
             Robolectric.buildActivity(HelpActivity::class.java, launched).setup().use { help ->

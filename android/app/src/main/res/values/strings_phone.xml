@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Phone and Messages apps and the family inbox (docs/family-inbox.md). -->
+<resources>
+    <string name="when_today">Today</string>
+    <string name="when_yesterday">Yesterday</string>
+
+    <string name="reach_title">Always reachable</string>
+    <string name="reach_help">Help lines</string>
+    <string name="reach_footnote">You can always call your parents and 112. Plainphone does not show your parents that you used a help line.</string>
+    <string name="missed_notice">You missed a call from %1$s at %2$s.</string>
+    <string name="missed_call_back">Call back</string>
+
+    <string name="contacts_parent">Parent</string>
+    <string name="contacts_approved">Approved contacts</string>
+    <string name="contacts_all">Contacts</string>
+    <string name="contacts_empty_title">No contacts yet</string>
+    <string name="contacts_not_now">Not available right now because of a rule.</string>
+
+    <string name="history_loading">Loading…</string>
+    <string name="recents_empty_hint">Calls you make and get show up here.</string>
+    <string name="recent_declined">Declined</string>
+    <string name="recent_blocked">Blocked</string>
+    <string name="recent_not_approved">Not an approved contact</string>
+    <string name="action_call_back">Call %1$s back</string>
+
+    <string name="messages_empty_hint">Messages from your approved contacts show up here.</string>
+    <string name="messages_new">New message</string>
+    <string name="message_hint_to">Message to %1$s</string>
+    <string name="message_sending">Sending…</string>
+    <string name="message_sent_at">Sent %1$s</string>
+    <string name="conversation_read_only_unknown">You can read this, but not answer. Only people your parents have approved can text you.</string>
+    <string name="conversation_read_only_help">This conversation can only be read here. Open Help lines to contact them.</string>
+    <string name="conversation_read_only_mms">Pictures and group messages cannot be shown or answered here.</string>
+
+    <string name="inbox_title">Family</string>
+    <string name="inbox_row_hint">Send a quick message to your parents</string>
+    <string name="inbox_to">To %1$s</string>
+    <string name="inbox_to_parents">To your parents</string>
+    <string name="inbox_empty_title">Nothing here yet</string>
+    <string name="inbox_empty">Your messages to your parents show up here. They can answer here too.</string>
+    <string name="inbox_who_reads">Your parents can read this conversation. The Plainphone server can read it too, and deletes it after 30 days.</string>
+    <string name="inbox_check_in">I\'m home</string>
+    <string name="inbox_check_in_text">I\'m home</string>
+    <string name="inbox_nothing_to_send">Your parents have not added any quick messages yet.</string>
+    <string name="inbox_state_sent">Sent %1$s</string>
+    <string name="inbox_state_delivered">Delivered %1$s</string>
+    <string name="inbox_state_sms">Sent as SMS %1$s</string>
+    <string name="inbox_notification_from">%1$s in Family</string>
+
+    <string name="sharing_inbox">Family inbox is on. Your parents see the messages you send there, and the Plainphone server keeps them for 30 days.</string>
+    <string name="sharing_inbox_check_in">\"I\'m home\" sends no location.</string>
+</resources>
