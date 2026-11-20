@@ -56,6 +56,8 @@ internal fun <T> runUpdateCheck(
     try {
         recoverInstall()
     } catch (e: Exception) {
+        // Known choice: no Result.retry() for this alone. InstallRecoveryWorker, the watchdog, the alarm
+        // and recovery on app start all run the same recovery again, and the update check goes on.
         Log.e("Plainphone", "could not recover the previous install before the update check", e)
     }
     try {

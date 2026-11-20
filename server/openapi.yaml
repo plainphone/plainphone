@@ -2062,6 +2062,7 @@ paths:
                     only if recorded at or after the Find request.
       responses:
         "204": { description: "Accepted. A check-in fix is held for publication after the reply grace period." }
+        "400": { description: "Invalid fix: recorded in the future, at or before the check-in was created, or (with a check-in purpose) before its reply deadline." }
         "409": { description: "Location is off for this phone, or no position was asked for; stop reporting." }
 
   /device/safety/{rid}:

@@ -427,6 +427,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                     purpose = purpose,
                     attemptedAtMs = json.getLong("attemptedAtMs"),
                     conflict = json.optBoolean("conflict"),
+                    uncertain = json.optBoolean("uncertain"),
                 )
             }.getOrNull()
         }
@@ -441,6 +442,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
             .put("purpose", pending.purpose)
             .put("attemptedAtMs", pending.attemptedAtMs)
             .put("conflict", pending.conflict)
+            .put("uncertain", pending.uncertain)
         return prefs.edit().putString(pendingLocationKey(pending.purpose.startsWith("checkin:")), box.seal(json.toString())).commit()
     }
 
@@ -536,4 +538,6 @@ internal data class PendingLocation(
     val purpose: String,
     val attemptedAtMs: Long,
     val conflict: Boolean = false,
+    /** An upload ended in a network error, so the server may have stored this fix without us hearing. */
+    val uncertain: Boolean = false,
 )

@@ -99,8 +99,30 @@ attempts and counts the rejection toward the retry schedule.
 
 The server holds a check-in fix privately for at least one second after both receipt
 and the server deadline. The next sweeper pass publishes it if the check-in still
-has no answer and has not been cancelled. Find and regular positions remain available
-as soon as the server accepts them.
+has no answer and has not been cancelled. Its `locatedAt` is the later of the time the
+fix was received and the reply deadline, so an older app that uploads a few seconds early
+never shows a position from before the deadline. Find and regular positions remain available
+as soon as the server accepts them. A fix tagged `checkin:<id>` that was recorded before the
+deadline is refused with `400` (a `409` would make the phone keep and resend it).
+
+When Find and a due check-in are open together, the phone makes one precise lookup and
+uploads its fix for both, as long as the fix is new enough for each (recorded after the Find
+request, and after the check-in deadline and creation). A fix that is too old for one request
+does not answer it, and that request gets its own lookup.
+
+If the server says the position is due but the phone's clock has not reached the deadline
+yet (up to 2 minutes behind), the phone shortens its next poll to the time left instead of
+waiting for the normal 60 seconds, because a fix recorded earlier would be refused.
+
+If an upload fails with a network error, the server may have stored the fix without the
+phone hearing. The phone marks that saved fix, and a `409` on its retry then counts as
+sent: Find and check-in are marked answered and the "position sent" notice is shown. A
+`409` for a fix that never had a lost answer is still a refusal. The same goes for the
+automatic retry inside one upload on a fresh connection.
+
+Precise lookups give fused a 15 second head start. If fused fails to start, is turned off or
+answers without a good fix before then, GPS and network start straight away and keep the rest
+of the 30 second budget.
 
 Find can start when the phone clock is up to 2 minutes behind, and the phone keeps a pending
 upload for up to 2 extra minutes in case its clock is ahead. Between Find attempts, a due

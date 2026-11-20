@@ -249,7 +249,8 @@ class PlainphoneApi private constructor(
 
     private val base = baseUrl.trimEnd('/') + "/api"
 
-    private class Response(val status: Int, val body: String, val etag: String?)
+    /** [replayed]: the first attempt failed with a network error and this is the answer to the second. */
+    private class Response(val status: Int, val body: String, val etag: String?, val replayed: Boolean = false)
 
     private fun call(
         method: String,
@@ -276,7 +277,9 @@ class PlainphoneApi private constructor(
                 e is UnknownHostException || e is ConnectException || e is NoRouteToHostException ||
                 e is BindException || e is SSLHandshakeException || e is SSLPeerUnverifiedException
             ) throw e
-            exchange(openFreshConnection(url), method, token, payload, headers, readTimeoutMs, cancellation, true, streamBody)
+            exchange(openFreshConnection(url), method, token, payload, headers, readTimeoutMs, cancellation, true, streamBody).let {
+                Response(it.status, it.body, it.etag, replayed = true)
+            }
         }
     }
 
@@ -575,7 +578,8 @@ class PlainphoneApi private constructor(
         val r = call("PUT", "/device/location", token, body, replayable = requested)
         return when (r.status) {
             204 -> true
-            409 -> false
+            // A replay that meets 409 means the first attempt stored the fix and only its answer was lost.
+            409 -> requested && r.replayed
             else -> throw HttpError(r.status, r.body)
         }
     }

@@ -142,6 +142,100 @@ class PlainphoneApiKeepAliveTest {
         }
     }
 
+    @Test
+    fun `a location upload that is replayed and answered 409 counts as stored`() {
+        for (purpose in listOf("find:123", "checkin:00000000-0000-0000-0000-000000000001")) {
+            checkRetryOnFreshConnection("PUT /api/device/location", "", retryStatus = "409 Conflict") { api ->
+                // The first attempt reached the server and stored the fix; only the answer was lost.
+                assertThat(api.reportLocation("test", LocationFix(55.0, 12.0, 10f, 456), purpose)).isTrue()
+            }
+        }
+    }
+
+    @Test
+    fun `a plain 409 on a location upload is still a refusal`() {
+        val api = PlainphoneApi("http://unused.test") { url ->
+            object : HttpURLConnection(url) {
+                override fun connect() = Unit
+                override fun usingProxy() = false
+                override fun disconnect() = Unit
+                override fun getOutputStream() = java.io.ByteArrayOutputStream()
+                override fun getResponseCode() = 409
+                override fun getErrorStream() = ByteArrayInputStream("{}".toByteArray())
+            }
+        }
+        assertThat(api.reportLocation("test", LocationFix(55.0, 12.0, 10f, 456), "find:123")).isFalse()
+    }
+
+    @Test
+    fun `enrollment and pairing creation use a fresh connection that closes`() {
+        checkNotReplayed(fresh = true) { it.enroll("token", "install", emptyMap()) }
+        checkNotReplayed(fresh = true) { it.startPairing("strong", emptyMap()) }
+    }
+
+    @Test
+    fun `a pairing poll uses a fresh connection and is not retried`() {
+        // An EOF before any header would let the JDK retry a GET by itself, so cut the body instead.
+        val cutBody = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{"
+        checkNotReplayed(fresh = true, partialResponse = cutBody) { it.pollPairing("00000000-0000-0000-0000-000000000001", "secret") }
+    }
+
+    @Test
+    fun `a scheduled always location upload is never retried`() {
+        checkNotReplayed(fresh = false) { it.reportLocation("test", LocationFix(55.0, 12.0, 10f, 456), "always") }
+    }
+
+    /**
+     * Serves one rules read on a pooled connection, then drops the call under test without an answer.
+     * The call must fail and must not be sent again, on a fresh connection or by the JDK itself.
+     */
+    private fun checkNotReplayed(fresh: Boolean, partialResponse: String = "", call: (PlainphoneApi) -> Unit) {
+        ServerSocket(0, 2, InetAddress.getByName("127.0.0.1")).use { server ->
+            server.soTimeout = 3_000
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val observed = executor.submit<Request> {
+                    server.accept().use { pooled ->
+                        pooled.soTimeout = 3_000
+                        val input = pooled.getInputStream().bufferedReader()
+                        assertThat(readRequest(input).line).startsWith("GET /api/device/rules ")
+                        // Robolectric's fresh network shares the JDK's connection cache, so a kept-alive socket would
+                        // be picked up again. Closing this one makes a fresh connection observable as a new accept.
+                        val keepAlive = if (fresh) "Connection: close\r\n" else ""
+                        pooled.getOutputStream().write("HTTP/1.1 200 OK\r\nETag: e1\r\n${keepAlive}Content-Length: 2\r\n\r\n{}".toByteArray())
+                        val request = if (fresh) {
+                            server.accept().use { socket ->
+                                socket.soTimeout = 3_000
+                                readRequest(socket.getInputStream().bufferedReader()).also {
+                                    socket.getOutputStream().write(partialResponse.toByteArray())
+                                }
+                            }
+                        } else readRequest(input)
+                        server.soTimeout = 1_500
+                        assertThrows(SocketTimeoutException::class.java) { server.accept().close() }
+                        request
+                    }
+                }
+                val app = RuntimeEnvironment.getApplication()
+                val manager = app.getSystemService(ConnectivityManager::class.java)
+                check(manager.bindProcessToNetwork(ShadowNetwork.newInstance(100)))
+                try {
+                    val api = PlainphoneApi("http://127.0.0.1:${server.localPort}", app)
+                    freshOpens = 0
+                    assertThat(api.fetchRules("test", null)).isEqualTo(RulesResult.Changed("e1", "{}"))
+                    assertThrows(IOException::class.java) { call(api) }
+                    assertThat(freshOpens).isEqualTo(if (fresh) 1 else 0)
+                    val request = observed.get(10, TimeUnit.SECONDS)
+                    if (fresh) assertThat(request.headers["connection"]).isEqualTo("close")
+                } finally {
+                    manager.bindProcessToNetwork(null)
+                }
+            } finally {
+                executor.shutdownNow()
+            }
+        }
+    }
+
     companion object {
         private var freshOpens = 0
     }
@@ -165,6 +259,7 @@ class PlainphoneApiKeepAliveTest {
     private fun checkRetryOnFreshConnection(
         failedRequest: String,
         partialResponse: String,
+        retryStatus: String? = null,
         call: (PlainphoneApi) -> Unit,
     ) {
         ServerSocket(0, 2, InetAddress.getByName("127.0.0.1")).use { server ->
@@ -188,7 +283,7 @@ class PlainphoneApiKeepAliveTest {
                         socket.soTimeout = 3_000
                         val retry = readRequest(socket.getInputStream().bufferedReader())
                         assertThat(retry).isEqualTo(failed.copy(headers = failed.headers + ("connection" to "close")))
-                        val status = if (failedRequest.startsWith("GET")) "304 Not Modified" else "204 No Content"
+                        val status = retryStatus ?: if (failedRequest.startsWith("GET")) "304 Not Modified" else "204 No Content"
                         socket.getOutputStream().write("HTTP/1.1 $status\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
                     }
                 }

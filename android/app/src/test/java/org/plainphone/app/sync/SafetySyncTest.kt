@@ -381,7 +381,8 @@ class SafetySyncTest {
 
         runner.run("local check-in window expires during Find")
 
-        assertThat(device.freshLocationRequests).containsExactly(false, true).inOrder()
+        // The slow Find lookup also answers the check-in, whose window is still open for its upload.
+        assertThat(device.freshLocationRequests).containsExactly(false)
         assertThat(api.locationPurposes).containsExactly("find:$requested", "checkin:$id").inOrder()
     }
 
@@ -433,7 +434,8 @@ class SafetySyncTest {
 
         runner.run("both lookups due")
 
-        assertThat(device.freshLocationRequests).containsExactly(!findFirst, findFirst).inOrder()
+        // One precise lookup, made for whichever request expires first, serves both.
+        assertThat(device.freshLocationRequests).containsExactly(!findFirst)
         assertThat(api.locationPurposes).containsExactlyElementsIn(expected).inOrder()
     }
 
@@ -514,6 +516,94 @@ class SafetySyncTest {
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", checkIn = checkIn(deadline, sendLocation = false)))
         runner.run("late")
         assertThat(api.locations).isEmpty()
+    }
+
+    @Test
+    fun `Find and a due check-in share one precise lookup`() {
+        val requested = device.now - 60_000L
+        val deadline = device.now - 10_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested), checkIn = checkIn(deadline, locationDue = true),
+        ))
+        runner.run("both open")
+        assertThat(device.locationRequests).hasSize(1)
+        assertThat(api.locationPurposes).containsExactly("find:$requested", "checkin:$id")
+        assertThat(api.locations.map { it.recordedAtMs }.distinct()).hasSize(1)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+        assertThat(store.locatedCheckInId).isEqualTo(id)
+    }
+
+    @Test
+    fun `a Find fix taken before the check-in deadline is not reused for the check-in`() {
+        val requested = device.now - 60_000L
+        val deadline = device.now + 5_000L
+        device.fixAgeMs = 30_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested), checkIn = checkIn(deadline, locationDue = true),
+        ))
+        runner.run("find first")
+        // The Find fix is older than the deadline, so it cannot answer the check-in.
+        assertThat(api.locationPurposes).containsExactly("find:$requested")
+        assertThat(store.locatedCheckInId).isNull()
+    }
+
+    @Test
+    fun `a phone clock behind the server polls again when its deadline arrives`() {
+        val deadline = device.now + 20_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", checkIn = checkIn(deadline, locationDue = true),
+        ))
+        val out = runner.run("server says due")
+        assertThat(out).isEqualTo(SyncRunner.Outcome.Synced(changed = true, pollSeconds = 21))
+        assertThat(api.locations).isEmpty()
+
+        device.now = deadline + 1_000L
+        api.rules = RulesResult.Unchanged
+        val next = runner.run("clock caught up")
+        assertThat(api.locationPurposes).containsExactly("checkin:$id")
+        assertThat(next).isEqualTo(SyncRunner.Outcome.Synced(changed = false, pollSeconds = 60))
+    }
+
+    @Test
+    fun `a check-in that is not due yet keeps the normal poll`() {
+        val out = run {
+            api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+                locationMode = "checkin", checkIn = checkIn(device.now + 20_000L, locationDue = false),
+            ))
+            runner.run("waiting")
+        }
+        assertThat(out).isEqualTo(SyncRunner.Outcome.Synced(changed = true, pollSeconds = 60))
+    }
+
+    @Test
+    fun `a 409 after an upload whose answer was lost counts as sent`() {
+        val requested = device.now - 10_000L
+        val deadline = device.now - 5_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested), checkIn = checkIn(deadline, locationDue = true),
+        ))
+        api.locationFailure = IOException("connection reset")
+        runner.run("answer lost")
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+
+        // The retry meets 409: the first attempt had stored both fixes.
+        api.locationFailure = null
+        api.locationAccepted = false
+        api.rules = RulesResult.Unchanged
+        runner.run("retry")
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+        assertThat(store.locatedCheckInId).isEqualTo(id)
+        assertThat(device.positionsShown).containsExactly("checkin", "find")
+    }
+
+    @Test
+    fun `a 409 without an earlier lost answer is still a refusal`() {
+        val requested = device.now - 10_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(requested)))
+        api.locationAccepted = false
+        runner.run("refused")
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+        assertThat(device.positionsShown).isEmpty()
     }
 
     @Test
