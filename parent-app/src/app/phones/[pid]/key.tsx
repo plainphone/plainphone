@@ -162,7 +162,8 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           value={shownHours}
           onChangeText={(value) => {
             setHours(value);
-            setChoice(value === "1" ? "mild" : value === "24" ? "firm" : "custom");
+            // Strict keeps its trusted person; the hours are only its fallback wait.
+            if (choice !== "strict") setChoice(value === "1" ? "mild" : value === "24" ? "firm" : "custom");
           }}
           keyboardType="number-pad"
           maxLength={2}

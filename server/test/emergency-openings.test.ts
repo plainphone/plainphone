@@ -265,6 +265,18 @@ describe("emergency openings: the trusted person is told", () => {
     void helper;
   });
 
+  it("tells the helper the month and length of the opening, not of the report", async () => {
+    const { phoneId, device } = await selfPhone();
+    await withTrustedPerson(phoneId);
+    await h.ctx.db.update(selfKeys).set({ emergencyEnabled: false, emergencyAllowance: 3 }).where(eq(selfKeys.phoneId, phoneId));
+    h.clock.now = new Date("2026-12-02T10:00:00Z");
+    await report(device, { openedAt: new Date("2026-11-29T10:00:00Z").toISOString(), minutes: 10 });
+    const sent = h.parentPush.sent.filter((s) => s.msg.tag === `emergency-${phoneId}`);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.msg.body).toContain("1 of 3 used this month");
+    expect(sent[0]!.msg.body).toContain("10");
+  });
+
   it("shows the helper the switch, the count and the openings under People I help, and nobody else", async () => {
     const { me, phoneId, device } = await selfPhone();
     const helper = await withTrustedPerson(phoneId);

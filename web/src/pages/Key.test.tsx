@@ -174,6 +174,16 @@ it("picks a custom number of hours under Advanced, and names 1 and 24 hours as M
   expect(checkedLevels()).toEqual(["mild"]);
 });
 
+it("keeps Strict when the fallback hours are changed under Advanced", async () => {
+  key = { ...baseKey, keyType: "trusted", trustedEmail: "helper@example.test", delayHours: 24, level: "strict" };
+  await mount();
+  expect(checkedLevels()).toEqual(["strict"]);
+  await choose(hoursSelect(), "12");
+  expect(checkedLevels()).toEqual(["strict"]);
+  await submit(keyForm());
+  expect(puts()[0]!.body).toMatchObject({ keyType: "trusted", trustedEmail: "helper@example.test", delayHours: 12 });
+});
+
 it("shows the emergency section off by default, without the allowance until it is switched on", async () => {
   await mount();
   expect(container.textContent).toContain(t("emergency.title"));

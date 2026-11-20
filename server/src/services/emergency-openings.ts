@@ -8,7 +8,7 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { emergencyOpenings, householdMembers, phoneApps, phones, selfKeys } from "../db/schema.js";
-import { DEFAULT_EMERGENCY_ALLOWANCE, effectiveAllowance, EMERGENCY_MINUTES, MAX_EMERGENCY_ALLOWANCE } from "../lib/self-level.js";
+import { DEFAULT_EMERGENCY_ALLOWANCE, EMERGENCY_MINUTES, MAX_EMERGENCY_ALLOWANCE } from "../lib/self-level.js";
 import { localTime } from "../lib/zoned-time.js";
 import { packageName } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
@@ -117,11 +117,11 @@ export async function recordOpening(ctx: Ctx, phone: Phone, report: z.infer<type
     .onConflictDoNothing()
     .returning({ id: emergencyOpenings.id });
   if (inserted.length === 0) return { recorded: false };
-  await tellTrustedPerson(ctx, phone, report.packageName, now);
+  await tellTrustedPerson(ctx, phone, report.packageName, openedAt, report.minutes);
   return { recorded: true };
 }
 
-async function tellTrustedPerson(ctx: Ctx, phone: Phone, pkg: string, now: Date) {
+async function tellTrustedPerson(ctx: Ctx, phone: Phone, pkg: string, openedAt: Date, minutes: number) {
   try {
     const [key] = await ctx.db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
     const helper = key?.keyType === "trusted" ? key.trustedUserId : null;
@@ -132,15 +132,15 @@ async function tellTrustedPerson(ctx: Ctx, phone: Phone, pkg: string, now: Date)
     if (member) return;
     const [app] = await ctx.db.select({ label: phoneApps.label }).from(phoneApps)
       .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, pkg)));
-    const used = await usedThisMonth(ctx.db, phone, now);
+    const used = await usedThisMonth(ctx.db, phone, openedAt);
     await notifyUsers(ctx, [helper], {
       type: "emergencyOpening",
       phoneId: phone.id,
       phoneName: phone.name,
       appName: app?.label ?? null,
-      minutes: EMERGENCY_MINUTES,
+      minutes,
       used: used.count,
-      allowance: effectiveAllowance(key!),
+      allowance: key!.emergencyAllowance,
     }, { respectMuteFor: phone.id });
   } catch (err) {
     // A failed push never fails the report: the phone has already opened the app.
