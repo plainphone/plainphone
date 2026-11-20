@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, inject, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
-import { createDb, runMigrations } from "../src/db/client.js";
+import { createDb } from "../src/db/client.js";
+import { createTestDatabase } from "./db.js";
 import { sosEvents } from "../src/db/schema.js";
 import { MockDnsProvider } from "../src/providers/dns.js";
 import { MemoryMailProvider } from "../src/providers/mail.js";
@@ -29,9 +30,15 @@ export function useHarness(): Harness {
   let close: () => Promise<void>;
 
   beforeAll(async () => {
-    const { db, sql: client } = createDb(inject("databaseUrl"));
-    await runMigrations(db);
-    close = () => client.end();
+    const copy = await createTestDatabase();
+    const { db, sql: client } = createDb(copy.url);
+    close = async () => {
+      try {
+        await client.end();
+      } finally {
+        await copy.drop();
+      }
+    };
     h.ctx = { db } as Ctx;
   });
 
