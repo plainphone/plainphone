@@ -6,6 +6,7 @@
 import { ageEn } from "./age";
 import { appUpdatesEn } from "./app-updates";
 import { platformEn } from "./platform";
+import { callbackEn } from "./callback";
 import { modesEn } from "./modes";
 import { statusEn } from "./status";
 
@@ -20,6 +21,7 @@ export const en = {
   ...ageEn,
   ...platformEn,
   ...modesEn,
+  ...callbackEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",

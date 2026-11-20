@@ -9,7 +9,7 @@ import {
   type QuickMessage,
   type QuickMessages as QuickMessageList,
   type SosSettings,
-  STARTER_MESSAGES,
+  starterMessages,
 } from "../lib/sos-options";
 import { Field, Switch, useLoad } from "./ui";
 
@@ -166,7 +166,7 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
               <div className="stack">
                 <p className="help">{t("qm.emptyIntro")}</p>
                 <div className="actions">
-                  {STARTER_MESSAGES.map((key) => (
+                  {starterMessages(settings).map((key) => (
                     <button key={key} type="button" className="btn btn-secondary" disabled={busy}
                       onClick={() => void add(t(key))}>{t(key)}</button>
                   ))}

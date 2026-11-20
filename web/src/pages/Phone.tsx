@@ -3,6 +3,7 @@ import { messageLanguage } from "../lib/phone-language";
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, Switch, useLoad, useNow } from "../components/ui";
+import { CallbackRequests } from "../components/CallbackRequests";
 import { SosOptions } from "../components/SosOptions";
 import { SosPanel } from "../components/SosPanel";
 import { PhoneSwitch } from "../components/BedtimeSettings";
@@ -208,6 +209,7 @@ export function PhoneLayout() {
       </p>
       {!atOverview && <RuleReceipt phone={value.phone} />}
       {atOverview && value.phone.profile === "child" && <SosPanel key={value.phone.id} pid={value.phone.id} />}
+      {atOverview && value.phone.profile === "child" && <CallbackRequests key={`callbacks-${value.phone.id}`} pid={value.phone.id} />}
       {atOverview && value.phone.profile === "child" && <SosOptions key={`sos-options-${value.phone.id}`} pid={value.phone.id} />}
       <Outlet />
       <ChangeBar

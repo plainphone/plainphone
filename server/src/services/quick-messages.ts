@@ -3,6 +3,7 @@
 import { and, asc, count, eq, gt, lt } from "drizzle-orm";
 import { householdMembers, phones, quickMessageSends, quickMessages } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+import { callbackEnabled } from "./callback-requests.js";
 import { markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
 import { notifyUsers } from "./notifications.js";
 
@@ -29,6 +30,8 @@ export function sosSettingsJson(phone: Phone) {
     quickSuggestionsEnabled: phone.quickSuggestionsEnabled,
     familyInbox: phone.familyInboxEnabled,
     checkIns: phone.checkInsEnabled,
+    callbackRequests: callbackEnabled(phone),
+    callbackConfirmed: phone.sosCallbackNumber !== null && phone.sosCallbackSetAt !== null,
   };
 }
 
@@ -50,6 +53,8 @@ export async function sosRulesExtras(ctx: Ctx, phone: Phone) {
   if (phone.profile !== "child") return {};
   const { messages } = phone.quickMessagesEnabled ? await listQuickMessages(ctx.db, phone.id) : { messages: [] };
   return {
+    // Only the switch: the number stays with the parents, the phone never supplies or shows one.
+    callback: { enabled: callbackEnabled(phone) },
     hidden: {
       power: phone.hiddenSosPower,
       presses: phone.hiddenSosPresses,

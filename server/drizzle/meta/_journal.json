@@ -281,6 +281,13 @@
       "when": 1795204510326,
       "tag": "0051_age_agreement",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795208744626,
+      "tag": "0052_sos_callback",
+      "breakpoints": true
     }
   ]
 }

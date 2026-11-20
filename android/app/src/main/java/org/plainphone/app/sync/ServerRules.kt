@@ -210,7 +210,8 @@ data class ServerRules(
                     SosRules(sos.getString("name"), List(parents.length()) { i ->
                         val contact = parents.getJSONObject(i)
                         ApprovedContact(contact.getString("name"), contact.getString("number"))
-                    }, HiddenSos.parse(sos.optJSONObject("hidden")), QuickMessages.parse(sos.optJSONObject("quickMessages")))
+                    }, HiddenSos.parse(sos.optJSONObject("hidden")), QuickMessages.parse(sos.optJSONObject("quickMessages")),
+                        CallbackRules.parse(sos.optJSONObject("callback")))
                 },
                 inbox = InboxRules.parse(j.optJSONObject("inbox")),
                 agreement = AgreementRules.parse(j.optJSONObject("ageAgreement")),
@@ -300,12 +301,13 @@ data class CheckInRequest(
     val locationDue: Boolean? = null,
 )
 
-/** [hidden] and [quickMessages] live in SosExtras.kt; older servers send neither (off, none). */
+/** [hidden], [quickMessages] and [callback] live in SosExtras.kt; older servers send none of them (off, none). */
 data class SosRules(
     val name: String,
     val parents: List<ApprovedContact>,
     val hidden: HiddenSos = HiddenSos.OFF,
     val quickMessages: QuickMessages = QuickMessages.NONE,
+    val callback: CallbackRules = CallbackRules.OFF,
 )
 
 /**

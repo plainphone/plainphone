@@ -189,7 +189,7 @@ it("edits a message with PATCH and deletes another", async () => {
 it("stops offering to add at six messages", async () => {
   serve({ ...empty(), messages: [1, 2, 3, 4, 5, 6].map((n) => message(n, `Message ${n}`)) });
   const m = await mount();
-  expect(m.container.querySelector("form")).toBeNull();
+  expect(Array.from(m.container.querySelectorAll("form")).filter((f) => !f.closest("#callback-settings"))).toEqual([]);
   expect(m.container.textContent).toContain(t("qm.max", { max: 6, chars: 60 }));
   await m.unmount();
 });
@@ -220,5 +220,46 @@ it("says so when six messages already exist on approval", async () => {
   const m = await mount();
   await m.click(Array.from(m.container.querySelectorAll("button")).find((b) => b.textContent === t("qm.approve")));
   expect(m.container.querySelector('[role="alert"]')!.textContent).toBe(t("qm.full", { max: 6 }));
+  await m.unmount();
+});
+
+// Synthetic number.
+const CALLBACK = "+4500000001";
+
+it("keeps Ask for a callback off and unusable until the number is confirmed, then saves number and confirmation together", async () => {
+  serve(empty());
+  const m = await mount();
+  const sw = () => m.sw(t("cb.title"))!;
+  expect(sw().getAttribute("aria-checked")).toBe("false");
+  expect(sw().disabled).toBe(true);
+  expect(m.container.textContent).toContain(t("cb.help"));
+  expect(m.container.textContent).toContain(t("cb.needNumber"));
+  const input = m.container.querySelector<HTMLInputElement>('#callback-settings input[type="tel"]')!;
+  const sure = m.container.querySelector<HTMLInputElement>('#callback-settings input[type="checkbox"]')!;
+  const save = m.button(t("cb.saveNumber"))!;
+  await m.type(input, CALLBACK);
+  // Typing is not enough: the parent has to say it is the phone's number.
+  expect(save.disabled).toBe(true);
+  await m.click(sure);
+  expect(save.disabled).toBe(false);
+  await m.submit(input.form!);
+  expect(puts().map((c) => c.body)).toEqual([{ callbackNumber: CALLBACK, callbackConfirmed: true }]);
+  await m.unmount();
+});
+
+it("turns Ask for a callback on with the right PUT body once the number is confirmed", async () => {
+  serve({ ...empty(), settings: { callbackConfirmed: true } });
+  const m = await mount();
+  expect(m.sw(t("cb.title"))!.disabled).toBe(false);
+  await m.click(m.sw(t("cb.title")));
+  expect(puts().map((c) => c.body)).toEqual([{ callbackRequests: true }]);
+  await m.unmount();
+});
+
+it("stops offering Call me as a text-only starter while callbacks are on", async () => {
+  serve({ ...empty(), settings: { callbackConfirmed: true, callbackRequests: true, quickMessagesEnabled: true } });
+  const m = await mount();
+  expect(m.button(t("qm.pick1"))).toBeDefined();
+  expect(m.button(t("qm.pick3"))).toBeUndefined();
   await m.unmount();
 });
