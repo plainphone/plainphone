@@ -98,6 +98,132 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/extended/{cid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        /** The conversation with one extended contact */
+        get: operations["deviceExtendedThread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/extended/{cid}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The child says yes or no to an invitation */
+        post: operations["deviceExtendedAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/extended/{cid}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The child blocks a person
+         * @description Their link and session stop working at once. Possible also while the feature is off.
+         */
+        post: operations["deviceExtendedBlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/extended/{cid}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A quick message the child sent to an extended contact
+         * @description Recorded while the person is a member; a repeated id keeps the first. `gone` when the person was removed, blocked or never joined.
+         */
+        post: operations["deviceExtendedSend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/extended/{cid}/received": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The device receipt for a contact's replies */
+        post: operations["deviceExtendedReceived"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/location-snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A location snapshot the child confirmed
+         * @description The line is always recorded in the recipient's conversation. The position is kept for one hour, for that recipient only, while snapshots are switched on; a newer snapshot replaces it.
+         */
+        post: operations["deviceLocationSnapshot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/sos/{id}": {
         parameters: {
             query?: never;
@@ -155,6 +281,167 @@ export interface paths {
          * @description The server can read the reply, like the quick messages (docs/family-inbox.md). Wakes the phone.
          */
         post: operations["replyFamilyInbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/extended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The extended family roster of a Child phone
+         * @description Who is on it and their state. Parents do not read the conversations (docs/extended-family.md).
+         */
+        get: operations["getExtendedRoster"];
+        put?: never;
+        /**
+         * Invite a named person with a single-use link
+         * @description The person joins only after the child says yes on the phone and the person accepts the link.
+         */
+        post: operations["inviteExtendedContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/extended/{cid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove the person, with their session and conversation */
+        delete: operations["removeExtendedContact"];
+        options?: never;
+        head?: never;
+        /** Put the person in a contact group for modes */
+        patch: operations["updateExtendedContact"];
+        trace?: never;
+    };
+    "/phones/{pid}/extended/{cid}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A new single-use link for the same person
+         * @description Ends the old session and conversation, and the child has to say yes again.
+         */
+        post: operations["renewExtendedLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/family-contact/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** What an invitation link is for, without using it up */
+        post: operations["previewFamilyInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/family-contact/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept the invitation; the link is used up */
+        post: operations["acceptFamilyInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/family-contact/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Say no to the invitation */
+        post: operations["declineFamilyInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/family-contact/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The contact's conversation with the child
+         * @description Marks the child's messages as received on this device.
+         */
+        get: operations["familyContactView"];
+        put?: never;
+        post?: never;
+        /** Leave the child's roster */
+        delete: operations["familyContactLeave"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/family-contact/me/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A short reply to the child */
+        post: operations["familyContactReply"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2894,6 +3181,80 @@ export interface components {
              * @default false
              */
             checkIns: boolean;
+            /**
+             * @description Named, mutually approved family contacts (docs/extended-family.md). Needs the inbox
+             * @default false
+             */
+            extendedFamily: boolean;
+            /**
+             * @description The child may share a one-time location snapshot in a conversation. Needs the inbox
+             * @default false
+             */
+            locationSnapshots: boolean;
+        };
+        /** @description A position the child chose to share once (docs/extended-family.md). Only while it has not expired. */
+        LocationSnapshot: {
+            lat: number;
+            lon: number;
+            accuracyM: number | null;
+            /** Format: date-time */
+            recordedAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @description A named person on a Child phone's extended family roster (docs/extended-family.md). */
+        ExtendedContact: {
+            /** Format: uuid */
+            id: string;
+            /** @description The name the child knows the person by */
+            name: string;
+            /**
+             * @description The contact group the person counts as in modes
+             * @enum {unknown}
+             */
+            group: "family" | "friends" | "others";
+            /** @enum {unknown} */
+            status: "waitingForChild" | "waitingForContact" | "active" | "blocked" | "declinedByChild" | "declinedByContact" | "expired";
+            childApproved: boolean;
+            contactAccepted: boolean;
+            /**
+             * Format: date-time
+             * @description While the invitation is open
+             */
+            linkExpiresAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ExtendedRoster: {
+            enabled: boolean;
+            locationSnapshots: boolean;
+            contacts: components["schemas"]["ExtendedContact"][];
+        };
+        ExtendedInvite: {
+            contact: components["schemas"]["ExtendedContact"];
+            /** @description The single-use link. Shown once; only its hash is kept */
+            link: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @description One line of a conversation between a child and an extended contact. */
+        ExtendedMessage: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            from: "child" | "contact";
+            /** @enum {unknown} */
+            kind: "quick" | "reply" | "snapshot";
+            text: string;
+            /** Format: date-time */
+            sentAt: string;
+            /**
+             * Format: date-time
+             * @description When the other side's device got it
+             */
+            receivedAt: string | null;
+            /** @description Snapshots only, while live */
+            location?: components["schemas"]["LocationSnapshot"] | null;
         };
         /** @description One message of the family inbox (docs/family-inbox.md). Code words never appear here. */
         FamilyMessage: {
@@ -2902,7 +3263,7 @@ export interface components {
             /** @enum {unknown} */
             from: "child" | "parent";
             /** @enum {unknown} */
-            kind: "quick" | "checkin" | "reply";
+            kind: "quick" | "checkin" | "reply" | "snapshot";
             text: string;
             /**
              * Format: date-time
@@ -2918,6 +3279,12 @@ export interface components {
              * @description Parent replies: when the child's phone got it (the device receipt)
              */
             receivedAt?: string | null;
+            /** @description Snapshots only: the position while it is live; null after it expired or was replaced */
+            location?: components["schemas"]["LocationSnapshot"] | null;
+        };
+        FamilyInviteToken: {
+            /** @description `pp_fi_…` from the link's fragment */
+            token: string;
         };
         FamilyInbox: {
             familyInbox: boolean;
@@ -3496,6 +3863,31 @@ export interface components {
                  * @description The newest parent reply; when it changes
                  */
                 latest: string | null;
+            };
+            /** @description Extended family contacts (docs/extended-family.md). Left out while off. */
+            extended?: {
+                /** @enum {boolean} */
+                enabled: true;
+                /** @description The child can send the quick messages to an active contact */
+                quickMessages: boolean;
+                contacts: {
+                    /** Format: uuid */
+                    id: string;
+                    name: string;
+                    /** @enum {unknown} */
+                    status: "waitingForChild" | "waitingForContact" | "active" | "blocked";
+                    /** @enum {unknown} */
+                    group: "family" | "friends" | "others";
+                    /** @description When it changes, the phone fetches GET /device/extended/{cid} */
+                    rev: number;
+                }[];
+            };
+            /** @description The child may share a one-time location snapshot. Left out while off. */
+            locationSnapshot?: {
+                /** @enum {boolean} */
+                enabled: true;
+                /** @description How long the recipients can see it */
+                minutes: number;
             };
             /** @description The family agreement of a Child phone (docs/family-agreement.md), in the family's own words. Left out while it is off or empty; old phones ignore it. */
             ageAgreement?: {
@@ -4302,6 +4694,8 @@ export interface components {
         phoneId: string;
         changeId: string;
         householdId: string;
+        /** @description An extended contact */
+        contactId: string;
     };
     requestBodies: never;
     headers: never;
@@ -4517,6 +4911,223 @@ export interface operations {
             };
         };
     };
+    deviceExtendedThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The contact and the newest 30 lines */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        contact: {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            status: string;
+                            rev: number;
+                        };
+                        messages: components["schemas"]["ExtendedMessage"][];
+                    };
+                };
+            };
+            /** @description Not on this phone's roster */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deviceExtendedAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    allow: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded; repeating the same answer changes nothing */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not on this phone's roster */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The invitation is not waiting for the child */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deviceExtendedBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Blocked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not on this phone's roster */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deviceExtendedSend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    text: string;
+                    /** Format: date-time */
+                    sentAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded, or gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        stored: boolean;
+                        gone?: boolean;
+                    };
+                };
+            };
+        };
+    };
+    deviceExtendedReceived: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deviceLocationSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    /** @description `parents`, or the id of an active extended contact */
+                    to: string;
+                    lat: number;
+                    lon: number;
+                    accuracyM?: number | null;
+                    /** Format: date-time */
+                    recordedAt: string;
+                    /** Format: date-time */
+                    sentAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description What happened to it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        stored: boolean;
+                        /** @description The position is visible to the recipient */
+                        kept: boolean;
+                        /** @description The contact is no longer a member */
+                        gone?: boolean;
+                        /** Format: date-time */
+                        expiresAt?: string;
+                        /** @description Parent devices that got a push */
+                        notified?: number;
+                    };
+                };
+            };
+        };
+    };
     getDeviceSos: {
         parameters: {
             query?: never;
@@ -4688,6 +5299,424 @@ export interface operations {
             };
             /** @description Not a Child phone */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getExtendedRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The roster */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendedRoster"];
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    inviteExtendedContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Invited */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendedInvite"];
+                };
+            };
+            /** @description Extended family contacts are off for this phone */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The phone has ten contacts already */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    removeExtendedContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateExtendedContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    group: "family" | "friends" | "others";
+                };
+            };
+        };
+        responses: {
+            /** @description Changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendedContact"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    renewExtendedLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                /** @description An extended contact */
+                cid: components["parameters"]["contactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new link */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendedInvite"];
+                };
+            };
+            /** @description Extended family contacts are off for this phone */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The child declined or blocked this person */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    previewFamilyInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FamilyInviteToken"];
+            };
+        };
+        responses: {
+            /** @description The invitation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        childName: string;
+                        contactName: string;
+                        childApproved: boolean;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+            /** @description Unknown or used link */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    acceptFamilyInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FamilyInviteToken"];
+            };
+        };
+        responses: {
+            /** @description The session for this browser */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description `pp_fc_…` */
+                        session: string;
+                    };
+                };
+            };
+            /** @description Unknown or used link */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    declineFamilyInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FamilyInviteToken"];
+            };
+        };
+        responses: {
+            /** @description Declined */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown or used link */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    familyContactView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        childName: string;
+                        name: string;
+                        status: string;
+                        /** @description The parents switched the feature off */
+                        paused: boolean;
+                        canReply: boolean;
+                        messages: components["schemas"]["ExtendedMessage"][];
+                    };
+                };
+            };
+            /** @description The session no longer works (blocked */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    familyContactLeave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Left */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The session no longer works */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    familyContactReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendedMessage"];
+                };
+            };
+            /** @description The session no longer works */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not active yet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many replies this hour */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

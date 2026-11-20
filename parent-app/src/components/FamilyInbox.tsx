@@ -12,6 +12,8 @@ import { space, useColors } from "../lib/theme";
 import { formatDateTime } from "../shared/lib/format";
 import type { MessageKey } from "../shared/i18n/translate";
 import { type FamilyInboxThread, familyState, REPLY_LENGTH, type SosSettings } from "../shared/lib/sos-options";
+import { ExtendedFamily } from "./ExtendedFamily";
+import { SnapshotLine } from "./SnapshotLine";
 import { Button, Card, Field, Stack as VStack, Switch, Text, useLoad } from "./ui";
 
 /** The name a parent signs replies with, kept on this device only. */
@@ -35,9 +37,16 @@ export function FamilyInbox({ pid, settings, saving, onSetting }: {
           <Switch testID="inbox-check-ins" label={t("inbox.checkIns")}
             help={settings.familyInbox ? t("inbox.checkInsHelp") : `${t("inbox.checkInsHelp")} ${t("inbox.needsInbox")}`}
             value={settings.checkIns} disabled={saving} onValueChange={(on) => onSetting({ checkIns: on })} />
+          <Switch testID="inbox-extended" label={t("ext.switch")}
+            help={settings.familyInbox ? t("ext.switchHelp") : `${t("ext.switchHelp")} ${t("inbox.needsInbox")}`}
+            value={settings.extendedFamily} disabled={saving} onValueChange={(on) => onSetting({ extendedFamily: on })} />
+          <Switch testID="inbox-snapshots" label={t("ext.snapSwitch")}
+            help={settings.familyInbox ? t("ext.snapSwitchHelp") : `${t("ext.snapSwitchHelp")} ${t("inbox.needsInbox")}`}
+            value={settings.locationSnapshots} disabled={saving} onValueChange={(on) => onSetting({ locationSnapshots: on })} />
           <Text variant="small">{t("inbox.quickNote")}</Text>
           <Text variant="small">{t("inbox.privacy")}</Text>
           {settings.familyInbox ? <Thread pid={pid} /> : null}
+          {settings.familyInbox && settings.extendedFamily ? <ExtendedFamily pid={pid} /> : null}
         </VStack>
       ) : null}
     </Card>
@@ -95,7 +104,7 @@ function Thread({ pid }: { pid: string }) {
               backgroundColor: m.from === "parent" ? c.bg : c.surface,
             }}>
             <Text variant="small">{who} · {formatDateTime(m.sentAt, locale)}</Text>
-            <Text>{m.kind === "checkin" ? t("inbox.checkIn") : m.text}</Text>
+            {m.kind === "snapshot" ? <SnapshotLine location={m.location} /> : <Text>{m.kind === "checkin" ? t("inbox.checkIn") : m.text}</Text>}
             <Text variant="small">{t(state.key, state.at ? { time: formatDateTime(state.at, locale) } : undefined)}</Text>
           </View>
         );

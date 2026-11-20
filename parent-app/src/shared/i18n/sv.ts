@@ -5,6 +5,7 @@ import { ageSv } from "./age";
 import { appUpdatesSv } from "./app-updates";
 import { platformSv } from "./platform";
 import { modesSv } from "./modes";
+import { extendedSv } from "./extended";
 import { statusEn } from "./status";
 
 export const sv: Messages = {
@@ -13,6 +14,7 @@ export const sv: Messages = {
   ...ageSv,
   ...platformSv,
   ...modesSv,
+  ...extendedSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",
   "status.never.title": "Ännu inte ansluten",
   "status.stale.title": "Senast online {when}",
