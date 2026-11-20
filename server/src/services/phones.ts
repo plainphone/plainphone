@@ -490,9 +490,9 @@ function summaryStatus(phone: Phone, now: Date) {
     lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
-  const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
-  // Reserve room based on the phone report before adding server-side attestation.
-  if (showOverrun && failedPolicies.length < 50) failedPolicies.unshift(overrun.policy);
+  let failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
+  // Reserve a slot based on the phone report before adding server-side attestation.
+  if (showOverrun) failedPolicies = [overrun.policy, ...failedPolicies.slice(0, 49)];
   return {
     ...withAttestation({ ...status, failedPolicies }, phone.attestation),
     parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
