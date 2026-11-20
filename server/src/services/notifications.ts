@@ -320,13 +320,13 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
 
 /** The phones are already claimed: one phone's failed alert must not cost the others theirs. */
 async function notifyClaimed(ctx: Ctx, phoneId: string, e: NotifyEvent) {
-  // Open dashboards show the phone as quiet now, also for parents who muted it.
-  await publishForPhone(ctx, phoneId, "phone.status");
   try {
     await notifyHousehold(ctx, phoneId, e);
   } catch (err) {
     console.error(`${e.type} alert failed: ${errorSummary(err)}`);
   }
+  // Open dashboards show the phone as quiet now, also for parents who muted it. Not urgent, so after the alert.
+  await publishForPhone(ctx, phoneId, "phone.status");
 }
 
 /** A confirmed light phone that never connected has no last contact to go quiet from: remind once after two days. */

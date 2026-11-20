@@ -2,12 +2,13 @@
 // Live updates over server-sent events (docs/live-updates.md). The harness clock is fixed.
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { createDb } from "../src/db/client.js";
-import { householdMembers } from "../src/db/schema.js";
+import { householdMembers, sosEvents } from "../src/db/schema.js";
 import { type LiveEvent, parseLiveEvent, PostgresEventBus } from "../src/services/live-events.js";
 import { LiveHub, type LiveHubOptions } from "../src/services/live-hub.js";
+import { alertOfflinePhones } from "../src/services/notifications.js";
 import { statusVisiblyChanged } from "../src/services/live-status.js";
 import { createTestDatabase } from "./db.js";
 import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
@@ -99,6 +100,11 @@ class Stream {
 const streams: Stream[] = [];
 afterEach(async () => {
   await Promise.all(streams.splice(0).map((s) => s.close()));
+  // An SOS is delivered in the background: let it finish before the next test empties the tables.
+  await vi.waitFor(async () => {
+    const open = (await h.ctx.db.select().from(sosEvents)).filter((e) => !e.notificationClaimedAt);
+    expect(open).toEqual([]);
+  });
 });
 
 async function open(client: Client | null, headers: Record<string, string> = {}, path = "/api/events") {
@@ -372,6 +378,17 @@ describe("events from the places that push", () => {
     const { device } = await pairPhone(h, parent);
     await device.get("/api/device/rules");
     expect((await stream.drain()).map((e) => e.event)).toContain("phone.status");
+  });
+
+  it("phone status: gone quiet, and back again", async () => {
+    const { parent, phoneId, device } = await household("a@example.org");
+    await device.get("/api/device/rules");
+    h.clock.advance(13 * 3_600_000);
+    const stream = await connect(parent);
+    expect(await alertOfflinePhones(h.ctx)).toBe(1);
+    expect((await stream.until("phone.status")).data).toEqual({ type: "phone.status", phoneId });
+    await device.get("/api/device/rules");
+    expect((await stream.until("phone.status")).data).toEqual({ type: "phone.status", phoneId });
   });
 });
 
