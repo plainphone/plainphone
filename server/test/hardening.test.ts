@@ -37,12 +37,14 @@ describe("request size and rate limiter memory", () => {
     expect((await post(`/api/phones/${crypto.randomUUID()}/contact-suggestions`)).status).toBe(401);
   });
 
-  it("keeps a bounded number of keys and still limits a known key", () => {
+  it("keeps a bounded number of keys and still limits keys added after a flood", () => {
     const limiter = new RateLimiter(3, 60_000, 100);
     const now = 1_000_000;
     for (let i = 0; i < 3; i++) expect(limiter.take("phone", now)).toBe(true);
     for (let i = 0; i < 1000; i++) limiter.take(`made-up-${i}`, now);
     expect(limiter.size).toBeLessThanOrEqual(100);
+    // The accepted trade-off: the oldest key was evicted, so its count starts over.
+    expect(limiter.take("phone", now)).toBe(true);
     expect(limiter.take("fresh", now)).toBe(true);
     expect(limiter.take("fresh", now)).toBe(true);
     expect(limiter.take("fresh", now)).toBe(true);

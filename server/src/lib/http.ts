@@ -63,7 +63,11 @@ export class RateLimiter {
     return this.hits.size;
   }
 
-  /** Drops expired keys, then the oldest ones, down to 90 % so the scan is not repeated per request. */
+  /**
+   * Drops expired keys, then the oldest ones, down to 90 % so the scan is not repeated per request.
+   * Trade-off: a client that can mint enough new keys also evicts its own key and so resets its
+   * count. Bounded memory wins here; a limiter whose keys a client controls needs a per-IP limit too.
+   */
   private prune(now: number) {
     for (const [k, v] of this.hits) if (v.resetAt <= now) this.hits.delete(k);
     const target = Math.floor(this.maxKeys * 0.9);
