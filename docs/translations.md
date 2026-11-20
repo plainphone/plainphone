@@ -26,7 +26,8 @@ Website copy lives in `site/content/`. See the [site README](../site/README.md)
 for build and check commands.
 
 
-The weekly summary mail and push are written in all five languages (`server/src/lib/summary-text.ts`); the other server mails and pushes are English and Danish only.
+Every text the server writes itself is in all five languages, chosen from the parent's language (English only when it is unknown): pushes in `server/src/lib/push-text.ts`, mails in `server/src/lib/mail-templates.ts` and the weekly summary in `server/src/lib/summary-text.ts`. Each message is one table keyed by language, and `server/test/locale-completeness.test.ts` fails if a language is missing. The Swedish, Norwegian and German server texts need native review. Mails in all five languages, light and dark: `docs/screenshots/mail-locales/` (made by `scripts/screenshot-mail-locales.sh`).
+The approval summary shown inside the apps (`approval-summary.ts`) is still English and Danish; it is neither a push nor a mail.
 
 The Android app, web dashboard and parent app also include these five languages.
 Swedish, Norwegian Bokmål and German need native review there as well. Prioritize

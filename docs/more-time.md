@@ -118,8 +118,8 @@ Contract: [`server/openapi.yaml`](../server/openapi.yaml). Server code: `service
 
 - The new migration is additive. Nothing to configure.
 - The "more time" notification text and its buttons are in English, Danish, Swedish, Norwegian
-  and German (the parent's language). The other alerts are still English and Danish only, and
-  fall back to English for the rest. The parent app and the dashboard show all five languages
+  and German (the parent's language). All other alerts and mails are too (`server/src/lib/push-text.ts`), and
+  fall back to English only when the language is unknown. The parent app and the dashboard show all five languages
   once opened.
 - Without Web Push, FCM or APNs configured ([push setup](push-setup.md)) the request still shows
   in the dashboard and the parent app; there is just no notification.

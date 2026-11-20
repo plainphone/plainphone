@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { householdMembers, householdSummaries, households, moreTimeRequests, phoneRequests, phones, phoneUsageDays, summaryEvents } from "../src/db/schema.js";
 import { weeklySummaryMail } from "../src/lib/summary-mail.js";
-import { toSummaryLocale } from "../src/lib/summary-text.js";
 import { alertClass, batchedIntoSummary, CAN_WAIT } from "../src/services/alert-policy.js";
 import { sweep } from "../src/services/sweeper.js";
 import { type SummaryData, sweepSummaries } from "../src/services/weekly-summary.js";
@@ -518,10 +517,6 @@ describe("summary mail", () => {
         expect(mail.html).toContain(`lang="${locale}"`);
       }
     }
-    expect(toSummaryLocale("nb-NO")).toBe("nb");
-    expect(toSummaryLocale("no")).toBe("nb");
-    expect(toSummaryLocale("fr")).toBe("en");
-    expect(toSummaryLocale(undefined)).toBe("en");
   });
 
   it("sends each parent the mail in their own language", async () => {

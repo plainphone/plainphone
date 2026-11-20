@@ -2,7 +2,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { householdMembers, pendingChanges, phones, selfKeys, users } from "../db/schema.js";
-import { inviteMail, toLocale } from "../lib/mail-templates.js";
+import { inviteMail } from "../lib/mail-templates.js";
+import { toLocale } from "../lib/locale.js";
 import { email } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 

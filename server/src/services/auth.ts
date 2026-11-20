@@ -2,7 +2,8 @@
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { householdMembers, households, magicLinks, selfKeys, sessions, users } from "../db/schema.js";
 import { randomToken, sha256 } from "../lib/crypto.js";
-import { loginMail, type Locale } from "../lib/mail-templates.js";
+import type { Locale } from "../lib/locale.js";
+import { loginMail } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
 
 export const MAGIC_LINK_MINUTES = 15;
