@@ -1928,7 +1928,11 @@ export interface paths {
         delete: operations["deletePhonesContacts"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Move a contact to Family, Friends or Others
+         * @description Child phones only. A contact marked as a parent is always Family.
+         */
+        patch: operations["setContactGroup"];
         trace?: never;
     };
     "/phones/{pid}/dns": {
@@ -2058,6 +2062,75 @@ export interface paths {
         post?: never;
         /** Delete phones schedules */
         delete: operations["deletePhonesSchedules"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/modes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The phone's modes and weekly schedule
+         * @description Child phones only (404 on a Self phone). See docs/modes.md.
+         */
+        get: operations["getPhoneModes"];
+        put?: never;
+        /** Add a mode */
+        post: operations["createPhoneMode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/modes/{mid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                mid: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a mode
+         * @description The default mode only takes `{ name }`.
+         */
+        put: operations["updatePhoneMode"];
+        post?: never;
+        /** Delete a mode and its slots */
+        delete: operations["deletePhoneMode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/mode-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the weekly schedule of modes
+         * @description Slots may not overlap (400 `overlap`) and may not use the default mode, which applies outside them.
+         */
+        put: operations["setPhoneModeSchedule"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3272,6 +3345,8 @@ export interface components {
             contacts: {
                 name?: string;
                 number?: components["schemas"]["E164"];
+                /** @description Only while modes are on. A parent is always family. */
+                group?: components["schemas"]["ContactGroup"];
             }[];
             /** @description During a window only phone, SMS (approved contacts) and those allowedPackages that are also in apps.allowed work; a hidden app stays hidden. `end` before `start` means the window crosses midnight into the next day. */
             schedules: {
@@ -3287,6 +3362,33 @@ export interface components {
                 end?: string;
                 allowedPackages?: components["schemas"]["PackageName"][];
             }[];
+            /** @description Only while modes are on (docs/modes.md). `schedules` is then built from the slots, so a phone that does not know modes still follows each slot's apps and quiet. A phone that knows modes takes the mode's name and contact groups from here; outside every slot the default mode applies. Parents, 112 and help lines are never narrowed by a mode. */
+            modes?: {
+                enabled: boolean;
+                /** Format: uuid */
+                defaultModeId: string | null;
+                list: {
+                    /** Format: uuid */
+                    id: string;
+                    preset: components["schemas"]["ModePreset"];
+                    /** @description Null: show the preset's translated name. */
+                    name: string | null;
+                    allApps: boolean;
+                    allowedPackages: components["schemas"]["PackageName"][];
+                    contactGroups: components["schemas"]["ContactGroup"][];
+                    /** @description The mode is a bedtime: silent while silentBedtime is on. */
+                    quiet: boolean;
+                }[];
+                slots: {
+                    /** Format: uuid */
+                    id: string;
+                    /** Format: uuid */
+                    modeId: string;
+                    days: number[];
+                    start: string;
+                    end: string;
+                }[];
+            };
             dns: {
                 /**
                  * @description Private DNS (DNS-over-TLS) host to force with setGlobalPrivateDnsModeSpecifiedHost, but only when `ready` is true.
@@ -3632,6 +3734,8 @@ export interface components {
             weeklySummaryEnabled?: boolean;
             silentBedtime?: boolean;
             pinApprovalEnabled?: boolean;
+            /** @description Modes on one weekly schedule (docs/modes.md). Always false on a Self phone. */
+            modesEnabled?: boolean;
             /** @description Strong mode: the nightly window in which Play may update approved apps. */
             appUpdatesEnabled?: boolean;
             /**
@@ -3781,6 +3885,44 @@ export interface components {
             reportedAt: string;
             /** @description The phone detected an unexpected account change during catalog fallback or a late Google sign-in. */
             lateGoogleAccount?: boolean;
+        };
+        /** @enum {string} */
+        ContactGroup: "family" | "friends" | "others";
+        /** @enum {string} */
+        ModePreset: "school" | "homework" | "free" | "night" | "custom";
+        Mode: {
+            /** Format: uuid */
+            id: string;
+            preset: components["schemas"]["ModePreset"];
+            /** @description Null: the preset's translated name. */
+            name: string | null;
+            /** @description Every app the parent allows anyway. Otherwise only allowedPackages and the core apps. */
+            allApps: boolean;
+            allowedPackages: components["schemas"]["PackageName"][];
+            /** @description The groups that can call and text during the mode. Parents are always reachable. */
+            contactGroups: components["schemas"]["ContactGroup"][];
+            /** @description A bedtime: silent while silentBedtime is on. */
+            quiet: boolean;
+            /** @description Applies outside the schedule. Only its name can change. */
+            isDefault: boolean;
+        };
+        ModeInput: {
+            preset: components["schemas"]["ModePreset"];
+            name?: string | null;
+            allApps: boolean;
+            allowedPackages?: components["schemas"]["PackageName"][];
+            contactGroups: components["schemas"]["ContactGroup"][];
+            quiet?: boolean;
+        };
+        ModeSlot: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            modeId: string;
+            days: number[];
+            startMinute: number;
+            /** @description Before startMinute: the slot crosses midnight. */
+            endMinute: number;
         };
         ScheduleInput: {
             /** @enum {unknown} */
@@ -6738,6 +6880,8 @@ export interface operations {
                     pinApprovalEnabled?: boolean;
                     /** @description Strong mode: update approved apps in a nightly window (default on). */
                     appUpdatesEnabled?: boolean;
+                    /** @description Child phones only (409 on a Self phone). Turning it on the first time makes the modes from school time and bedtime. */
+                    modesEnabled?: boolean;
                     pushWakeups?: boolean;
                     preferUnifiedPush?: boolean;
                     language?: components["schemas"]["PhoneLanguage"];
@@ -7780,6 +7924,7 @@ export interface operations {
                             name: string;
                             number: components["schemas"]["E164"];
                             sosParent?: boolean;
+                            group?: components["schemas"]["ContactGroup"];
                         }[];
                         selfScheduleContacts?: boolean | null;
                         suggestDeviceContacts?: boolean;
@@ -7868,6 +8013,57 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Change"];
+        };
+    };
+    setContactGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                /** @description Contact id */
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    group: components["schemas"]["ContactGroup"];
+                };
+            };
+        };
+        responses: {
+            /** @description The contact */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        name: string;
+                        number: components["schemas"]["E164"];
+                        group: components["schemas"]["ContactGroup"];
+                        sosParent?: boolean;
+                    };
+                };
+            };
+            /** @description A parent outside Family, or an invalid group */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Contact or child phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getPhonesDns: {
@@ -8051,6 +8247,197 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+        };
+    };
+    getPhoneModes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Modes, slots and the mode on now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        /** @description False: no contact is marked as a parent, so contact groups do not narrow the list. */
+                        parentsMarked: boolean;
+                        timezone: string;
+                        modes: components["schemas"]["Mode"][];
+                        slots: components["schemas"]["ModeSlot"][];
+                        /** @description Null while modes are off. */
+                        current: {
+                            /** Format: uuid */
+                            modeId: string;
+                            /** @description HH:MM local time the slot ends; null for the default mode. */
+                            until: string | null;
+                        } | null;
+                    };
+                };
+            };
+            /** @description Not a child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createPhoneMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModeInput"];
+            };
+        };
+        responses: {
+            /** @description The new mode */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mode"];
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Not a child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updatePhoneMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModeInput"];
+            };
+        };
+        responses: {
+            /** @description The mode */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mode"];
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Mode not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhoneMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mode not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The default mode cannot be deleted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setPhoneModeSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    slots: {
+                        /** Format: uuid */
+                        modeId: string;
+                        days: number[];
+                        startMinute: number;
+                        endMinute: number;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description The saved slots */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        slots: components["schemas"]["ModeSlot"][];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Not a child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     putPhoneNotifications: {
