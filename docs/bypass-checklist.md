@@ -85,6 +85,7 @@ For future hardening, consider `AccountManager.getAuthenticatorTypes()`, which i
 | N10 | Network that blocks port 853 | **Known weak spot:** with a forced host, Android does not fall back to plain DNS, so the internet stops working rather than becoming unfiltered. Note what happens | Use a network that blocks DoT, if available |
 | N11 | Install a user CA certificate (for a filtering proxy) | Not allowed | Settings → Security → Encryption & credentials → Install a certificate |
 | N12 | Manual Wi-Fi proxy | Possible, but needs a proxy server; private DNS still applies to name lookups. Note result | Wi-Fi → Edit → Proxy → Manual |
+| N15 | Light mode with the VPN filter: add a VPN while Settings is on a protected screen (split screen, or open the VPN screen right after a protected Settings page) | The Settings screen is sent back and the VPN consent dialog is closed within about a second, not left open. While the Settings screen is being sent back, closing the VPN dialog does not succeed at once; the VPN retries (50/150/300 ms) then close it | Light-mode phone, VPN filter active: open Settings → Apps → Plainphone → Force stop, then tap an app's "VPN" prompt or Settings → Network → VPN → add, and watch both close |
 
 ## Calls and messages (phase 2)
 

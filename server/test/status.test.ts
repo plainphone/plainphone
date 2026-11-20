@@ -251,6 +251,17 @@ it("keeps the install overrun when a negative attestation adds a failure", async
   expect(status.failedPolicies).toEqual([notice, ...failedPolicies, "hardware attestation: unlocked"]);
 });
 
+it("reserves a slot for the install overrun when a later report lists 50 failures", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent);
+  const notice = "install window overran: 45s";
+  const failedPolicies = Array.from({ length: 50 }, (_, index) => `failed step ${index}`);
+  expect((await device.put("/api/device/status", report({ failedPolicies: [notice] }))).status).toBe(204);
+  expect((await device.put("/api/device/status", report({ failedPolicies }))).status).toBe(204);
+  const shown = (await parent.get(`/api/phones/${phoneId}`)).json.status.failedPolicies;
+  expect(shown).toEqual([notice, ...failedPolicies.slice(0, 49)]);
+});
+
 it("gives equal-duration overruns separate expiries without extending retries", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent);

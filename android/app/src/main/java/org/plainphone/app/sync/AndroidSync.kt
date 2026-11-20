@@ -159,6 +159,9 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun appUpdatesReport() = org.plainphone.app.update.AppUpdateWindow.report(context)
 
+    override fun appUpdatesReported(report: org.plainphone.app.update.AppUpdateLog.Report) =
+        org.plainphone.app.update.AppUpdateWindow.onReported(context, report)
+
     override fun refreshPhoneLanguage() {
         (context.applicationContext as? org.plainphone.app.PlainphoneApplication)?.refreshPhoneLanguage()
     }
@@ -440,8 +443,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
             }
             is SyncRunner.Outcome.Failed ->
                 SyncStore(applicationContext).let { store ->
+                    // WorkManager's exponential backoff spaces the retries out; the close of an app update
+                    // window keeps retrying until the server has it.
                     if (runAttemptCount < 3 || store.setupUndoPending ||
-                        LightSetup.pendingCompletion(applicationContext, store.phoneId) != null
+                        LightSetup.pendingCompletion(applicationContext, store.phoneId) != null ||
+                        org.plainphone.app.update.AppUpdateWindow.closeReportPending(applicationContext)
                     ) Result.retry() else Result.success()
                 }
             SyncRunner.Outcome.NotPaired, SyncRunner.Outcome.Removed -> Result.success()

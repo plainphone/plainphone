@@ -154,10 +154,15 @@ object AppUpdateWindow {
         handledRequestMs: Long,
         openTrigger: AppUpdateLog.Trigger?,
         nowMs: Long,
+        /** The window the phone reports now: the server's recorded apps count only once it holds this one. */
+        currentWindowId: String? = null,
     ): RulesPlan {
         val requested = rules.requestedAt?.toEpochMilli()?.takeIf { it > handledRequestMs }
+        // recordedApps of an earlier window can list an app that was installed again: its request
+        // has not been made yet, so it stays held back until the server has recorded this window.
+        val recorded = if (currentWindowId != null && rules.reportedWindow == currentWindowId) rules.recordedApps else emptySet()
         return RulesPlan(
-            letGo = heldBack intersect rules.recordedApps,
+            letGo = heldBack intersect recorded,
             closeNightly = !rules.automatic && openTrigger == AppUpdateLog.Trigger.NIGHT,
             handleRequest = requested,
             openForParent = requested != null && nowMs - requested <= REQUEST_MAX_AGE_MS,
@@ -173,8 +178,9 @@ object AppUpdateWindow {
         val app = context.applicationContext
         val rules = SyncStore(app).rules()?.appUpdates ?: return
         val p = prefs(app)
-        val openTrigger = if (isOpen(app)) log(app).current()?.trigger else null
-        val plan = plan(rules, heldBack(app), p.getLong(HANDLED_REQUEST, 0L), openTrigger, nowMs)
+        val window = log(app).current()
+        val openTrigger = if (isOpen(app)) window?.trigger else null
+        val plan = plan(rules, heldBack(app), p.getLong(HANDLED_REQUEST, 0L), openTrigger, nowMs, window?.id)
         if (plan.letGo.isNotEmpty()) {
             letGo(app, plan.letGo)
             Lock.applyAsync(app, "new apps from the app update window reached the parents")
@@ -196,9 +202,37 @@ object AppUpdateWindow {
         val p = prefs(app)
         synchronized(this) {
             if (p.getString(CLOSE_REPORTED, null) == id) return
-            p.edit().putString(CLOSE_REPORTED, id).apply()
+            // Pending until the server has the report: a sync that fails offline is retried with backoff.
+            p.edit().putString(CLOSE_REPORTED, id).putString(CLOSE_PENDING, id).apply()
         }
+        runCatching { catchMissed(app) }.onFailure { Log.w(TAG, "could not look for apps installed unseen", it) }
         SyncScheduler.appUpdates(app, "app update window closed")
+    }
+
+    /** Apps installed while the process was dead never reached the guard: hide them and make them requests too. */
+    private fun catchMissed(app: Context) {
+        if (!Mode.isStrong(app)) return
+        val rules = SyncStore(app).rules()
+        val missed = log(app).missed(installedPackages(app), System.currentTimeMillis()) { pkg ->
+            pkg == app.packageName || (rules != null && !rules.openApps && pkg in rules.allowedApps)
+        }
+        if (missed.isEmpty()) return
+        missed.forEach { pkg ->
+            holdBack(app, pkg)
+            if (!Lock.hideNewApp(app, pkg)) Log.i(TAG, "new app $pkg has no icon to hide")
+        }
+        Lock.applyAsync(app, "new app installed unseen during the app update window")
+    }
+
+    /** Whether the close of the last window still has to reach the server (SyncWorker retries until it has). */
+    fun closeReportPending(context: Context): Boolean = prefs(context).getString(CLOSE_PENDING, null) != null
+
+    /** The server accepted a status report: a closed window in it ends the pending retry. */
+    fun onReported(context: Context, report: AppUpdateLog.Report) {
+        val p = prefs(context)
+        val pending = p.getString(CLOSE_PENDING, null) ?: return
+        // A report about another window means a newer window has opened: stop retrying the old close.
+        if (report.id != pending || report.closedAtMs != null) p.edit().remove(CLOSE_PENDING).apply()
     }
 
     /** The nightly check (AppUpdateWorker). Returns whether a window opened. */
@@ -240,6 +274,7 @@ object AppUpdateWindow {
 
     private const val HELD_BACK = "held_back"
     private const val CLOSE_REPORTED = "close_reported"
+    private const val CLOSE_PENDING = "close_pending"
     private const val HANDLED_REQUEST = "handled_request"
     private const val LAST_NIGHT = "last_night"
 

@@ -50,7 +50,7 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 
 `DISALLOW_MODIFY_ACCOUNTS` is set in strong mode (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock or the parent-PIN catalog install option. Which account types are on the phone (types only, no names) is reported to the dashboard.
 
-If sign-in fails, **Allow accounts briefly** retries it using the same daily quota reservation. Account changes are allowed for at most three minutes from the button tap and only while the catalog window is still open. The same watchdog and startup recovery restore the restriction. The restriction also returns when sign-in reports a result or when Android reports any change to the accounts visible to Plainphone. Exactly one new Google account with no other change is the expected result. Other changes visible when the fallback relocks trigger a dashboard warning. Once relocked, subsequent account changes are outside the fallback window. The initial restricted sign-in still warns if a visible Google account is added after the catalog window closes. Plainphone keeps account fingerprints on the phone and sends only the warning. Sign-in markers expire 15 minutes after the original install deadline.
+If sign-in fails, **Allow accounts briefly** retries it using the same daily quota reservation. Account changes are allowed for at most three minutes from the button tap and only while the catalog window is still open. The same watchdog and startup recovery restore the restriction. The restriction also returns when sign-in reports a result or when Android reports any change to the accounts visible to Plainphone. Exactly one new Google account with no other change is the expected result. Other changes visible when the fallback relocks trigger a dashboard warning. Once relocked, subsequent account changes are outside the fallback window. The initial restricted sign-in still warns if a visible Google account is added after the catalog window closes. Plainphone keeps account fingerprints on the phone and sends only the warning. Sign-in markers expire 15 minutes after the original install deadline; within one boot the monotonic clock decides, so a wall-clock correction does not drop a marker. An approved sign-in that takes over from an expired fallback does not end the fallback's tracking: its login can still finish, and any new account of any type after the relock is reported, unless it appears while an approved sign-in is open or during a maintenance unlock (accounts the parents add then are not late ones). If a release is asked for and withdrawn while the accounts restriction is lifted, the next lock run puts it back.
 
 Android can hide accounts from Plainphone. A hidden account change can leave the fallback open until sign-in ends or the watchdog relocks it, without a dashboard warning. This is a known residual risk. [AccountManager visibility rules](https://developer.android.com/reference/android/accounts/AccountManager#getAccounts())
 
@@ -242,13 +242,16 @@ therefore opens an **app update window**
 - **The guard:** an update of an installed app (`ACTION_PACKAGE_ADDED` with `EXTRA_REPLACING`) is
   allowed and counted. A package that was not on the phone when the window opened is hidden at once
   if it has an icon, and held back until the server lists it in the rules as recorded
-  (`recordedApps`): then it is an app request for the parents (in open mode it is also put on the
+  (`recordedApps`) for the window the phone reports now (`reportedWindow`; an app listed from an
+  earlier window stays held back until this one is recorded): then it is an app request for the parents (in open mode it is also put on the
   block list until a parent approves). The phone syncs right after it catches an app and right
   after a window closes, so the parents see both at once. An app the parents already approved
   (a catalog install that finishes during or just after the window) is left alone. Packages without an
   icon, such as libraries Play installs with an update, are left alone so the updated app keeps
-  working. Packages installed while Plainphone's process was not running are still hidden by the
-  next policy run, as any unapproved app, but are not turned into a request.
+  working. Packages installed while Plainphone's process was not running are found when the window
+  ends (compared with the packages present when it opened, for a window that ended within the last
+  30 minutes), hidden, and turned into a request like any other. The close of a window is retried
+  with backoff until the server has the report.
 - **Toggle:** "Update approved apps automatically" per phone, on by default (`appUpdatesEnabled`).
   Off stops the nightly window and closes one that is open; "Update apps now" still works.
 - **What the parents see:** the last window (opened, closed, number of apps updated, new apps kept
