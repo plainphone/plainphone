@@ -118,7 +118,7 @@ fn encrypt_decrypt() -> Res {
         pa.group().epoch().as_u64()
     ));
     notes.push(format!(
-        "ciphersuite {:?}: the same X25519/Ed25519/AES-GCM primitives as docs/encryption.md",
+        "ciphersuite {:?}: X25519 and Ed25519 as in docs/encryption.md, but AES-128-GCM where the spec uses AES-256-GCM (RFC 9420 has no X25519 + AES-256 suite)",
         CIPHERSUITE
     ));
     Ok(notes)
