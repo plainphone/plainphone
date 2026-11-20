@@ -102,10 +102,11 @@ from the child's phone without a line saying so.
   may not be in the same hands. This is the only "account recovery" there is.
 - **Leave** (the person, on their page): as if a parent removed them.
 
-**Removal while the phone is offline.** The phone keeps sending what it queued. The server answers
-`gone: true`, because there is nobody to keep the message for, and the phone marks it
-**Not delivered**. The next rules drop the person from the roster, and the phone deletes its copy of
-the conversation and adds a line to the change list.
+**Removal while the phone is offline.** When the phone is back, the new rules no longer list the
+person: the phone adds a line to the change list, deletes its copy of the conversation and drops
+what it had queued for them. If a queued message reaches the server before the phone has seen the
+new rules, the server answers `gone: true`, because there is nobody to keep it for, and nothing is
+stored.
 
 ## Conversations
 
@@ -124,7 +125,9 @@ every other person. On the phone they sit under **Family** in Messages.
 
 **Delivery and retry.** Like the family inbox: the phone gives each message an id, and a retry with
 the same id never adds a second line. There is no SMS fallback, because Plainphone does not know
-the person's number; the phone retries for a day and then says **Not delivered**.
+the person's number; the phone retries for a day and then says **Not delivered**. While the parents
+have the feature switched off, messages wait on the phone. The child's **Yes**, **No thanks** and
+**Block** show at once and reach the server on the next sync.
 
 ## Modes
 
@@ -154,6 +157,8 @@ same lookup as Find ([location](location.md#location-time-and-accuracy)), and se
   is not kept.
 - **The child sees it.** Each snapshot adds a line to the phone's own location log on **What can my
   parents see?**: "You shared your location with Grandma at 16:40, until 17:40".
+- **Retry.** The phone retries a snapshot with the same id for at most one hour, so it never sends
+  a position that would already have expired. After that it shows **Not sent**.
 - **Location permission.** If the phone cannot get a position (permission denied in light mode,
   location off in the system settings, or no fix within 30 seconds), nothing is sent and the
   child is told why. In strong mode Plainphone holds the permission as device owner; in light mode
