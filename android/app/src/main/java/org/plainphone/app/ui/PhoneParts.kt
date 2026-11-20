@@ -193,9 +193,9 @@ fun MessageButton(description: String, onClick: () -> Unit) {
 
 /** A friendly empty state: one line of what is here, one line of what to do. */
 @Composable
-fun EmptyState(title: String, text: String? = null, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+fun EmptyState(title: String, text: String? = null, action: (@Composable () -> Unit)? = null) {
     Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

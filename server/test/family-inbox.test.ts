@@ -21,7 +21,7 @@ async function subscribe(userId: string) {
 }
 
 const switches = (phoneId: string) => `/api/phones/${phoneId}/sos`;
-const send = (body: Record<string, unknown>) => ({ id: randomUUID(), text: "Pick me up", inbox: true, ...body });
+const send = <T extends Record<string, unknown>>(body: T) => ({ id: randomUUID(), text: "Pick me up", inbox: true, ...body });
 
 describe("family inbox switches", () => {
   it("are all off for a new phone, keep the inbox out of the rules and switch independently", async () => {
