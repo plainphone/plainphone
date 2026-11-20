@@ -531,7 +531,7 @@ class SyncRunner(
             throw e
         } catch (e: IOException) {
             // The answer may have been lost after the server stored the fix: a 409 on the retry is then success.
-            if (!pending.uncertain) savePendingLocation(pending.copy(uncertain = true))
+            if (!pending.uncertain && !neverReachedServer(e)) savePendingLocation(pending.copy(uncertain = true))
             throw e
         }
         // A 409 leaves the fix pending until the next rules show the request is inactive,

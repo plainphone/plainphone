@@ -114,11 +114,14 @@ If the server says the position is due but the phone's clock has not reached the
 yet (up to 2 minutes behind), the phone shortens its next poll to the time left instead of
 waiting for the normal 60 seconds, because a fix recorded earlier would be refused.
 
-If an upload fails with a network error, the server may have stored the fix without the
-phone hearing. The phone marks that saved fix, and a `409` on its retry then counts as
+If an upload fails after the request may have been sent (for example a reset or a timeout
+while waiting for the answer), the server may have stored the fix without the phone hearing.
+Failures that show the request never got through (no DNS, refused or unreachable connection,
+TLS errors) do not count. The phone marks that saved fix, and a `409` on its retry then counts as
 sent: Find and check-in are marked answered and the "position sent" notice is shown. A
 `409` for a fix that never had a lost answer is still a refusal. The same goes for the
-automatic retry inside one upload on a fresh connection.
+automatic retry inside one upload on a fresh connection (known limit: that retry can follow a
+stale reused socket that never carried the first attempt).
 
 Precise lookups give fused a 15 second head start. If fused fails to start, is turned off or
 answers without a good fix before then, GPS and network start straight away and keep the rest

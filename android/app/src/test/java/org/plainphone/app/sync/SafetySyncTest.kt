@@ -597,6 +597,20 @@ class SafetySyncTest {
     }
 
     @Test
+    fun `a 409 after a failure that never reached the server is still a refusal`() {
+        val requested = device.now - 10_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(requested)))
+        api.locationFailure = java.net.ConnectException("no route")
+        runner.run("offline")
+        api.locationFailure = null
+        api.locationAccepted = false
+        api.rules = RulesResult.Unchanged
+        runner.run("retry")
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+        assertThat(device.positionsShown).isEmpty()
+    }
+
+    @Test
     fun `a 409 without an earlier lost answer is still a refusal`() {
         val requested = device.now - 10_000L
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(requested)))
