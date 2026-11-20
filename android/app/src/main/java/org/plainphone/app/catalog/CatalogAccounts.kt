@@ -176,7 +176,8 @@ internal object CatalogAccounts {
     @Synchronized
     private fun accountsUpdated(context: Context) {
         // Decide before reconciling, which ends a fallback as soon as its account arrives.
-        val signInOpen = approvedOpen(context, trackedMarkers(context))
+        val markers = trackedMarkers(context)
+        val signInOpen = approvedOpen(context, markers) || legacyExpected(context, markers)
         try {
             reconcile(context)
         } finally {
@@ -190,6 +191,14 @@ internal object CatalogAccounts {
     // An open approved sign-in or an open fallback (no outcome yet) expects its own new account.
     private fun approvedOpen(context: Context, markers: Map<String, JSONArray>) = markers.any { (_, m) ->
         if (m.optBoolean(5)) !m.hasOutcome() else isOpen(context, m.getString(2), m.getString(0))
+    }
+
+    // A successful outcome written before the relock set existed accepts its one Google account (hasLateAddition).
+    private fun legacyExpected(context: Context, markers: Map<String, JSONArray>): Boolean {
+        val legacy = markers.values.filter { it.optBoolean(5) && it.hasOutcome() && it.optBoolean(6) && it.isNull(7) }
+        if (legacy.isEmpty()) return false
+        val current = fingerprints(context, allTypes = true)
+        return legacy.any { expectedGoogleAddition(baseline(it), current) }
     }
 
     private fun reconcile(context: Context) {
