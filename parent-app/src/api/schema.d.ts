@@ -4476,7 +4476,10 @@ export interface operations {
     reportSos: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Milliseconds since the press on the phone's monotonic clock, for the delivery timing (docs/latency.md). A header, so older servers ignore it. Also accepted on `POST /device/quick-messages/send`. */
+                "X-Plainphone-Elapsed-Ms"?: string;
+            };
             path?: never;
             cookie?: never;
         };
