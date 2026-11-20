@@ -12,14 +12,17 @@ type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
 export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phones.$inferSelect, reportedLate: boolean) {
   const recipients = await phoneAlertRecipients(tx, phone.id, phone.householdId);
-  if (recipients.length === 0) return;
   const notice = { householdId: phone.householdId, phoneId: phone.id, phoneName: phone.name, reportedLate, nextAttemptAt: ctx.now() };
   const deliveries: (typeof setupUndoNotices.$inferInsert)[] = [];
+  // Protection removed is not something a mute may hide, and an undo has no time bound: every
+  // household member gets the mail. Push still follows the parent's mute for the phone.
   if (ctx.mail.canSend) {
-    for (const { id } of recipients) deliveries.push({ ...notice, userId: id });
+    const members = await tx.select({ id: householdMembers.userId }).from(householdMembers)
+      .where(eq(householdMembers.householdId, phone.householdId));
+    for (const { id } of members) deliveries.push({ ...notice, userId: id });
   }
   const platforms = (["web", "apns", "fcm"] as const).filter((platform) => parentPushEnabled(ctx.parentPush, platform));
-  if (platforms.length) {
+  if (platforms.length && recipients.length) {
     const subscriptions = await tx.select({ id: pushSubscriptions.id, userId: pushSubscriptions.userId })
       .from(pushSubscriptions).where(and(deliverablePushSubscription(), inArray(pushSubscriptions.platform, platforms),
         inArray(pushSubscriptions.userId, recipients.map(({ id }) => id))));

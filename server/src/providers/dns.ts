@@ -87,12 +87,12 @@ export class HttpDnsProvider implements DnsProvider {
     if (res.status === 404) {
       res = await this.call("POST", "v1/clients", { client_id: config.clientId, ...payload });
     }
-    if (!res.ok) throw new Error(`DNS service upsert ${config.clientId} failed: ${res.status}`);
+    if (!res.ok) throw new Error(`DNS service upsert failed: ${res.status}`);
   }
 
   async deleteClient(clientId: string) {
     const res = await this.call("DELETE", `v1/clients/${encodeURIComponent(clientId)}`);
-    if (!res.ok && res.status !== 404) throw new Error(`DNS service delete ${clientId} failed: ${res.status}`);
+    if (!res.ok && res.status !== 404) throw new Error(`DNS service delete failed: ${res.status}`);
   }
 
   async healthy() {

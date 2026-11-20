@@ -105,6 +105,20 @@ describe("onboarding safety", () => {
       .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
   });
 
+  it("mails the setup-undo notice even when the parent muted the phone", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
+    const claimed = await claim();
+    expect((await parent.put(`/api/phones/${claimed.json.id}/notifications`, { enabled: false })).status).toBe(204);
+    device.token = (await decide("confirm")).json.deviceToken;
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    await sweep(h.ctx);
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.to).toBe("claimer@example.org");
+    expect(notices[0]?.text).toContain("Set-up was undone on the phone");
+  });
+
   it.each([true, false])("accepts undo and distinguishes reports within the grace period: %s", async (withinGrace) => {
     const { parent, device, decide, claim } = await start(undefined, "light", "child");
     const claimed = await claim();
@@ -127,6 +141,19 @@ describe("onboarding safety", () => {
     expect(notices).toHaveLength(1);
     expect(notices[0]?.text).toContain("Set-up was undone on the phone");
     expect(notices[0]?.text.includes("reported late")).toBe(!withinGrace);
+  });
+
+  it.each([[1, false], [8, true]])("when completion never reached the server, an undo after %s days is late: %s", async (days, late) => {
+    const { device, decide, claim } = await start(undefined, "light", "child");
+    await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    h.clock.advance(days * 24 * 60 * 60_000);
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    await sweep(h.ctx);
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.text.includes("reported late")).toBe(late);
   });
 
   it.each([null, 365 * 24 * 60 * 60_000])("accepts undo with unknown or oversized completion age: %s", async (elapsedMs) => {

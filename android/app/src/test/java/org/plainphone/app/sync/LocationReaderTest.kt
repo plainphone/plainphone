@@ -164,6 +164,68 @@ class LocationReaderTest {
 
     @Test
     @Config(sdk = [31])
+    fun `a fused provider that stops at once does not hold back GPS and network`() {
+        val fused = LocationManager.FUSED_PROVIDER
+        manager.setProviderEnabled(fused, true)
+        var now = 0L
+        var polls = 0
+        val reader = LocationReader(context, nanoTime = { now }, poll = { results, remaining ->
+            if (polls++ == 0) {
+                // Fused is registered; it now reports that it is off.
+                manager.setProviderEnabled(fused, false)
+            } else {
+                // GPS and network start with the whole budget, not what is left after a 15 s wait.
+                for (provider in listOf(gps, network)) {
+                    assertThat(manager.getLocationRequests(provider).single().durationMillis).isEqualTo(30_000L)
+                }
+                manager.simulateLocation(fix(gps, 50f))
+            }
+            results.poll() ?: run {
+                now += remaining
+                null
+            }
+        })
+
+        assertThat(reader.current(precise = true)?.accuracyM).isEqualTo(50f)
+        assertThat(now).isEqualTo(0L)
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `a fused fix within 100 m in the second phase wins over GPS and network`() {
+        val fused = LocationManager.FUSED_PROVIDER
+        manager.setProviderEnabled(fused, true)
+        var now = 0L
+        val reader = LocationReader(context, nanoTime = { now }, poll = { results, remaining ->
+            if (manager.getLocationRequests(gps).isEmpty()) {
+                // Fused stays silent through its 15 second head start.
+                now += remaining
+                null
+            } else {
+                manager.simulateLocation(fix(fused, 80f))
+                manager.simulateLocation(fix(gps, 150f))
+                manager.simulateLocation(fix(network, 200f))
+                results.poll()
+            }
+        })
+
+        assertThat(reader.current(precise = true)?.accuracyM).isEqualTo(80f)
+    }
+
+    @Test
+    fun `the cached precise position is the newest one, whichever provider has it`() {
+        val base = System.currentTimeMillis()
+        for ((older, newer) in listOf(gps to network, network to gps)) {
+            manager.simulateLocation(fix(older, 50f).apply { time = base })
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+            manager.simulateLocation(fix(newer, 60f).apply { time = base + 10_000 })
+            assertThat(AndroidSyncDevice(context).cachedPreciseLocation(0)?.recordedAtMs).isEqualTo(base + 10_000)
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+        }
+    }
+
+    @Test
+    @Config(sdk = [31])
     fun `Find reads a fresh GPS cache without starting a lookup when fused cache is empty`() {
         val fused = LocationManager.FUSED_PROVIDER
         manager.setProviderEnabled(fused, true)

@@ -90,6 +90,7 @@ export async function createPhone(
       language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
+      createdAt: ctx.now(),
     })
     .returning();
   // Spec 6: every category is blocked by default.
@@ -496,9 +497,9 @@ function summaryStatus(phone: Phone, now: Date) {
     lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
-  const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
-  // Reserve room based on the phone report before adding server-side attestation.
-  if (showOverrun && failedPolicies.length < 50) failedPolicies.unshift(overrun.policy);
+  let failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
+  // Reserve a slot based on the phone report before adding server-side attestation.
+  if (showOverrun) failedPolicies = [overrun.policy, ...failedPolicies.slice(0, 49)];
   return {
     ...withAttestation({ ...status, failedPolicies }, phone.attestation),
     parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
@@ -536,10 +537,13 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     limitWarningEnabled: phone.limitWarningEnabled,
     androidVersion: phone.supportEnabled ? phone.deviceStatus?.androidVersion ?? phone.deviceInfo?.android ?? null : null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
-    dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+    // The address is only shown once the resolver confirmed it (`dnsReady`); the phone itself is
+    // filtered as soon as `rulesDnsReady`, so "waiting" texts follow that one.
+    dnsHost: isDnsReady(ctx, phone) ? `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}` : null,
     dnsSynced: !phone.dnsDirty,
     dnsConfigured: ctx.cfg.DNS_PROVIDER === "http",
     dnsReady: isDnsReady(ctx, phone),
+    rulesDnsReady: isRulesDnsReady(ctx, phone),
     hasLocation: phone.locationMode !== "off" && hasLocation,
     // Hardware attestation of the boot state (#23); null until the phone attested once.
     attestation: phone.attestation

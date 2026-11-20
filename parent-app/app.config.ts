@@ -2,13 +2,13 @@
 //
 // Expo config for the Plainphone parent app (iOS and Android).
 // Self-hosting: build with PLAINPHONE_SERVER_URL=https://your.server and your own
-// bundle id/team (PLAINPHONE_BUNDLE_ID, PLAINPHONE_APPLE_TEAM_ID); then set the
+// iOS bundle ID/team (PLAINPHONE_BUNDLE_ID, PLAINPHONE_APPLE_TEAM_ID) and
+// Android package (PLAINPHONE_ANDROID_PACKAGE); then set the
 // matching APPLE_APP_IDS and ANDROID_APP_* on the server (docs/parent-app.md).
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const SERVER_URL = (process.env.PLAINPHONE_SERVER_URL ?? "https://app.plainphone.org").replace(/\/+$/, "");
 const HOST = new URL(SERVER_URL).host;
-const BUNDLE_ID = process.env.PLAINPHONE_BUNDLE_ID ?? "org.plainphone.parent";
 const APPLE_TEAM_ID = process.env.PLAINPHONE_APPLE_TEAM_ID ?? "P7698GU4AV";
 /** Paths the app opens. Keep in sync with APP_LINK_PATHS in server/src/app.ts. */
 const LINK_PATHS = ["/auth/app", "/pair", "/invite"];
@@ -26,7 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   backgroundColor: "#f5f5f3",
   locales: { en: "./locales/en.json", da: "./locales/da.json", sv: "./locales/sv.json", nb: "./locales/nb.json", de: "./locales/de.json" },
   ios: {
-    bundleIdentifier: BUNDLE_ID,
+    bundleIdentifier: process.env.PLAINPHONE_BUNDLE_ID ?? "org.plainphone.app",
     appleTeamId: APPLE_TEAM_ID,
     buildNumber: "1",
     entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
@@ -45,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    package: BUNDLE_ID,
+    package: process.env.PLAINPHONE_ANDROID_PACKAGE ?? "org.plainphone.parent",
     googleServicesFile: process.env.PLAINPHONE_PARENT_GOOGLE_SERVICES_FILE,
     versionCode: 1,
     adaptiveIcon: {

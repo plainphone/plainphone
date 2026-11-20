@@ -10,8 +10,12 @@ import org.junit.Test
 class WakeupInventoryTest {
     private val calls = Regex(
         """(?:\b(?:set(?:Exact)?AndAllowWhileIdle|setExact|setRepeating|setInexactRepeating|setAlarmClock|setWindow|""" +
-            """(?:OneTime|Periodic)WorkRequestBuilder|enqueueUnique\w*|registerReceiver|postDelayed|""" +
-            """newWakeLock|register(?:Default)?NetworkCallback|requestLocationUpdates|requestSingleUpdate|getCurrentLocation|set|acquire|enqueue))\s*[<(]"""
+            """(?:OneTime|Periodic)WorkRequestBuilder|(?:OneTime|Periodic)WorkRequest\.Builder|enqueueUnique\w*|registerReceiver|postDelayed|""" +
+            """postAtTime|postAtFrontOfQueue|sendMessageDelayed|sendMessageAtTime|sendEmptyMessageDelayed|startForegroundService|""" +
+            """scheduleAtFixedRate|scheduleWithFixedDelay|newScheduledThreadPool|newSingleThreadScheduledExecutor|fixedRateTimer|Timer|CountDownTimer|""" +
+            """newWakeLock|register(?:Default)?NetworkCallback|requestLocationUpdates|requestSingleUpdate|getCurrentLocation|set|acquire|enqueue))\s*[<(]""" +
+            // schedule is a common name; only these receivers are wakeups (own helpers end in enqueueUnique*).
+            """|\b(?:[Jj]obScheduler|[Ee]xecutor\w*|[Tt]imer)\??\.schedule\s*\("""
     )
 
     private val setter = Regex("""^set\(\w+\)\s*[{=]""")
@@ -45,6 +49,13 @@ class WakeupInventoryTest {
             "alarm.set(type, time, intent)", "alarm.setExact(type, time, intent)",
             "alarm.setRepeating(type, time, interval, intent)", "alarm.setInexactRepeating(type, time, interval, intent)",
             "alarm.setAlarmClock(info, intent)", "alarm.setWindow(type, time, window, intent)",
+            "OneTimeWorkRequest.Builder(Worker::class.java)", "PeriodicWorkRequest.Builder(Worker::class.java, 15, MINUTES)",
+            "jobScheduler.schedule(info)", "handler.postAtTime(task, uptime)", "handler.sendMessageDelayed(message, delay)",
+            "executor.scheduleAtFixedRate(task, 0, 1, SECONDS)", "scheduler.scheduleWithFixedDelay(task, 0, 1, SECONDS)",
+            "Executors.newScheduledThreadPool(1)", "executor.schedule(task, 5, SECONDS)", "Timer().schedule(task, 100)",
+            "context.startForegroundService(intent)", "object : CountDownTimer(1000, 100) {}",
+            "alarm.set(type, time, intent) // trailing comment", "val url = \"http://x\"; alarm.set(type, time, intent)",
+            "set(v) { alarm.set(type, time, intent) }", "/* note */ alarm.set(type, time, intent)",
         )
         for (call in undocumented) {
             val error = assertThrows(AssertionError::class.java) {
@@ -54,18 +65,65 @@ class WakeupInventoryTest {
         }
     }
 
+    @Test
+    fun `comments and setter declarations are not wakeup call sites`() {
+        val ignored = listOf(
+            "// alarm.set(type, time, intent)",
+            "/* alarm.set(type, time, intent) */",
+            "/**\n * Calls alarm.set(type, time, intent) later.\n */",
+            "    var level: Int\n        set(v) { field = v }",
+            "    set(value) = save(value)",
+            "fun set(type: Int) {}",
+        )
+        for (source in ignored) assertThat(callSites("Fixture.kt", source).toList()).isEmpty()
+    }
+
     private fun checkInventory(actual: List<Pair<String, String>>, documented: List<Pair<String, String>>) {
         assertThat(actual).containsExactlyElementsIn(documented)
     }
 
+    /** Replaces comments with spaces (offsets and line breaks stay), leaving string contents alone. */
+    private fun blankComments(source: String): String {
+        val out = StringBuilder(source)
+        var i = 0
+        fun blank(from: Int, to: Int) { for (k in from until to) if (out[k] != '\n') out[k] = ' ' }
+        while (i < source.length) {
+            when {
+                source.startsWith("//", i) -> {
+                    val end = source.indexOf('\n', i).takeIf { it >= 0 } ?: source.length
+                    blank(i, end)
+                    i = end
+                }
+                source.startsWith("/*", i) -> {
+                    val end = source.indexOf("*/", i + 2).let { if (it < 0) source.length else it + 2 }
+                    blank(i, end)
+                    i = end
+                }
+                source.startsWith("\"\"\"", i) -> {
+                    i = source.indexOf("\"\"\"", i + 3).let { if (it < 0) source.length else it + 3 }
+                }
+                source[i] == '"' || source[i] == '\'' -> {
+                    val quote = source[i]
+                    i++
+                    while (i < source.length && source[i] != quote && source[i] != '\n') i += if (source[i] == '\\') 2 else 1
+                    i++
+                }
+                else -> i++
+            }
+        }
+        return out.toString()
+    }
+
     private fun callSites(path: String, contents: String): Sequence<Pair<String, String>> {
-        return calls.findAll(contents).mapNotNull { match ->
+        val code = blankComments(contents)
+        return calls.findAll(code).mapNotNull { match ->
             val lineStart = contents.lastIndexOf('\n', match.range.first - 1) + 1
             val lineEnd = contents.indexOf('\n', match.range.first).takeIf { it >= 0 } ?: contents.length
             val line = contents.substring(lineStart, lineEnd).trim()
-            if (contents.indexOf("//", lineStart) in lineStart until match.range.first) return@mapNotNull null
-            val prefix = contents.substring(lineStart, match.range.first).trim()
-            if (setter.containsMatchIn(line) || prefix.substringAfterLast(' ') == "fun") return@mapNotNull null
+            val prefix = code.substring(lineStart, match.range.first).trim()
+            // A setter declaration starts at its own `set(v)`, not at a call later on the same line.
+            val declaration = prefix.isEmpty() && setter.containsMatchIn(code.substring(match.range.first, lineEnd))
+            if (declaration || prefix.substringAfterLast(' ') == "fun") return@mapNotNull null
             if (path == "settings/SettingsApplier.kt" && line == "set()") return@mapNotNull null
             // AlarmManager.set has a generic name. These two calls write a QR bit array.
             if (path == "ui/qr/BitBuffer.java" && line in setOf(

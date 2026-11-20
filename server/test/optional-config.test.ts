@@ -101,6 +101,13 @@ describe("APNs key formats", () => {
     expect(build({ APNS_KEY_P8: key, APNS_KEY_ID: "kid" }).degraded?.push).toEqual(["apns: incomplete configuration"]);
   });
 
+  it("reports a bundle ID without APNs credentials in health", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { status, json } = await health({ APNS_BUNDLE_ID: "org.example.app" });
+    expect(status).toBe(200);
+    expect(json.push).toMatchObject({ apns: false, errors: ["apns: incomplete configuration"] });
+  });
+
   it("reports FCM and APNs problems independently", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { json } = await health({ FCM_SERVICE_ACCOUNT_JSON: "x", APNS_KEY_P8: "y", ...apnsVars });

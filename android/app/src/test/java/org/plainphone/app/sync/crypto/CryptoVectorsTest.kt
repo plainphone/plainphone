@@ -143,7 +143,10 @@ class CryptoVectorsTest {
         val revisedWire = core.sealRecord(sampleHeader, revisedBody, sampleKey, seed)
         assertEquals(revisedBody, core.openRecord(revisedWire, sampleHeader, admin, sampleKey))
         assertEquals(null, rulesRejection(sampleHeader, "admin", accepted.digest, accepted))
-        for (v in listOf(null, JsonPrimitive("1"), JsonPrimitive(2))) {
+        // An in-memory header with a whole-number double is the same version as 1, as in TypeScript.
+        val doubleOne = sampleHeader.deepCopy().apply { add("v", JsonPrimitive(1.0)) }
+        assertEquals(null, rulesRejection(doubleOne, "admin", accepted.digest, accepted))
+        for (v in listOf(null, JsonPrimitive("1"), JsonPrimitive(2), JsonPrimitive(1.5))) {
             val invalidHeader = sampleHeader.deepCopy().apply {
                 if (v == null) remove("v") else add("v", v)
             }

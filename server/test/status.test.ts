@@ -251,6 +251,17 @@ it("keeps the install overrun when a negative attestation adds a failure", async
   expect(status.failedPolicies).toEqual([notice, ...failedPolicies, "hardware attestation: unlocked"]);
 });
 
+it("reserves a slot for the install overrun when a later report lists 50 failures", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent);
+  const notice = "install window overran: 45s";
+  const failedPolicies = Array.from({ length: 50 }, (_, index) => `failed step ${index}`);
+  expect((await device.put("/api/device/status", report({ failedPolicies: [notice] }))).status).toBe(204);
+  expect((await device.put("/api/device/status", report({ failedPolicies }))).status).toBe(204);
+  const shown = (await parent.get(`/api/phones/${phoneId}`)).json.status.failedPolicies;
+  expect(shown).toEqual([notice, ...failedPolicies.slice(0, 49)]);
+});
+
 it("gives equal-duration overruns separate expiries without extending retries", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent);
@@ -279,6 +290,20 @@ describe("DNS readiness", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("keeps the phone's ClientID out of the server log when the DNS service fails", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent);
+    const [row] = await h.ctx.db.select({ clientId: phones.dnsClientId }).from(phones).where(eq(phones.id, phoneId));
+    const request = useHttpDns();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    request.mockResolvedValue(new Response(null, { status: 503 }));
+    await sweep(h.ctx);
+    expect(log.mock.calls.length).toBeGreaterThan(0);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(row!.clientId);
+    // The status code stays: it is what makes the line useful.
+    expect(JSON.stringify(log.mock.calls)).toContain("503");
   });
 
   it("provisions a clean mock-confirmed phone after switching to HTTP", async () => {
@@ -489,6 +514,28 @@ describe("DNS readiness", () => {
     const { phoneId, device } = await pairPhone(h, parent);
     expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
     expect((await parent.get(`/api/phones/${phoneId}`)).json.dnsReady).toBe(true);
+  });
+
+  it("tells a legacy-confirmed phone apart from one still waiting, and only shows the address once re-tagged", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const waiting = await pairPhone(h, parent);
+    const waitingSummary = (await parent.get(`/api/phones/${waiting.phoneId}`)).json;
+    expect(waitingSummary).toMatchObject({ dnsReady: false, rulesDnsReady: false, dnsHost: null });
+    expect((await parent.get(`/api/phones/${waiting.phoneId}/dns`)).json).toMatchObject({ host: null, rulesReady: false });
+
+    // Confirmed before the confirmation was tagged with the resolver: the phone is filtered already.
+    const { phoneId } = await pairPhone(h, parent);
+    await h.ctx.db.update(phones).set({ dnsConfirmedProvider: "http" }).where(eq(phones.id, phoneId));
+    const legacy = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(legacy).toMatchObject({ dnsReady: false, rulesDnsReady: true, dnsHost: null });
+    expect((await parent.get(`/api/phones/${phoneId}/dns`)).json).toMatchObject({ host: null, rulesReady: true });
+
+    await sweep(h.ctx);
+    const tagged = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(tagged).toMatchObject({ dnsReady: true, rulesDnsReady: true });
+    expect(tagged.dnsHost).toMatch(/\.dns\.plainphone\.org$/);
   });
 
   it("keeps the first confirmation time when later syncs succeed", async () => {

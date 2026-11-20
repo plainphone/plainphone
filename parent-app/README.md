@@ -16,7 +16,7 @@ The native parent app for iOS and Android. It does the same as the parent web ap
 
 English and Danish, light and dark mode, screen readers and large text. No analytics, crash reporting or other tracking SDKs.
 
-Stack: Expo SDK 58, Expo Router, React Native 0.88, TypeScript. Bundle id and package name: `org.plainphone.parent`.
+Stack: Expo SDK 58, Expo Router, React Native 0.88, TypeScript. The iOS bundle ID is `org.plainphone.app`. The Android parent package is `org.plainphone.parent`. See the [parent app guide](../docs/parent-app.md) for build overrides.
 
 ## Develop
 

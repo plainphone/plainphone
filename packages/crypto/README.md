@@ -42,8 +42,9 @@ version 1 and its record ID must equal its phone ID. Equal revisions
 require equal digests.
 
 Use `hmacVerify(key, input, tag)` with the decoded 32-byte tag for enrollment
-and pairing MACs. The helper uses WebCrypto verification in TypeScript and
-a constant-time byte comparison in Kotlin.
+and pairing MACs. Both runtimes compare the recomputed MAC with a
+fixed-time XOR loop, so the result does not depend on how a WebCrypto provider
+implements `verify`.
 
 The callers own durable nonce budgets, replay state, epoch and revision
 tracking, device enrollment, storage and key lifecycle. F1 has no app or sync

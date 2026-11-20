@@ -16,13 +16,21 @@ class PairingController(
     private val mode: String = "strong",
     private val profile: String? = null,
     private val canRedeemEnrollment: () -> Boolean = { true },
+    private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     /** Starts a new pairing (or keeps showing the current one). */
     fun start(): Pairing = synchronized(enrollmentLock) {
         check(!store.isPaired) { "already paired" }
         check(!store.enrollmentOutdated) { "outdated setup QR" }
-        // The server can still recover a claimed pairing after the displayed code expires.
-        store.pairing()?.let { return it }
+        // The server can still recover a claimed pairing after the displayed code expires, so an
+        // expired code is only dropped when the server says so. Until it answers (it throws when
+        // offline), the phone must not show a code that may already be dead.
+        store.pairing()?.let { saved ->
+            if (saved.expiresAtMs > nowMs()) return saved
+            poll()
+            check(!store.isPaired) { "already paired" }
+            store.pairing()?.let { return it }
+        }
         return api.startConfirmedPairing(mode, deviceInfo, profile).also(store::savePairing)
     }
 
@@ -43,10 +51,16 @@ class PairingController(
         if (store.enrollmentOutdated) return EnrollResult.OutdatedQr
         if (!canRedeemEnrollment()) return null
         val token = store.enrollToken() ?: return null
+        val shownCode = store.pairing()
         val response = api.enroll(token, store.installId(), deviceInfo)
         val result = if (mode == "strong" && response == EnrollResult.Rejected) EnrollResult.OutdatedQr else response
         when (result) {
-            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" }, result.setupUndoMinutes)
+            is EnrollResult.Paired -> {
+                store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" }, result.setupUndoMinutes)
+                // A code shown while offline stays open on the server. Close it so a parent who types it
+                // later does not create a second phone that never syncs. Best effort: it expires anyway.
+                shownCode?.let { runCatching { api.decidePairing(it, false) } }
+            }
             EnrollResult.OutdatedQr -> store.markEnrollmentOutdated()
             EnrollResult.Rejected -> store.saveEnrollToken(null)
             EnrollResult.InvalidKey -> store.clearEnrollmentConfirmation()

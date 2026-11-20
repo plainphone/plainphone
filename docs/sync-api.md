@@ -18,8 +18,10 @@ can use this retry. Safety events only notify on the first recorded answer. Rele
 transactional and a repeated acknowledgement can return 401, which the phone already accepts.
 Find and check-in uploads replay the original fix and purpose; the server checks the matching
 request and can return 409 if it already consumed the upload. Enrollment rotates the device
-token on redemption, pairing creation allocates a new pairing, and the legacy pairing poll
-consumes the token. Those operations never use the immediate retry.
+token on redemption and pairing creation allocates a new pairing, so neither uses the
+immediate retry. The pairing poll can fetch the device token again for up to 24 hours or until
+the first rules sync, so a lost response is recoverable, but it still starts on a fresh
+connection and has no application-level retry.
 
 ## Light-mode code pairing and sync
 
@@ -282,7 +284,10 @@ To remove such a phone from the dashboard without releasing it, use `DELETE /api
 Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
 the phone and queues an undo notice when the authenticated report arrives, including after a
 long offline period or before the first rules sync. A report received more than 48 hours after
-a recorded undo window ends is marked late in the notice. The phone retries until the server
+a recorded undo window ends is marked late in the notice. Without a recorded completion, a
+report is late once the phone is more than 7 days old. The mail goes to every member of the
+household even if they muted the phone, because it reports protection removed; push follows
+the mute. The phone retries until the server
 acknowledges the report or confirms the pairing is gone with the unknown-device response.
 The separate `POST /api/device/setup-completion` report provides the dashboard deadline and
 the timing for the notice. Its elapsed age comes from the current boot and is capped at seven days on the server.

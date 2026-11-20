@@ -128,6 +128,30 @@ describe("app updates in strong mode", () => {
       .toEqual(["com.example.game", "com.example.unlisted"]);
   });
 
+  it("does not duplicate an open request when the same app is caught in two windows", async () => {
+    const { mum, phoneId, device } = await setup();
+    await device.put("/api/device/status", report(window({ caught: ["com.example.game"] })));
+    await device.put("/api/device/status", report(window({ id: "w2", trigger: "parent", caught: ["com.example.game"] })));
+    const requests = (await mum.get(`/api/phones/${phoneId}/requests`)).json.requests;
+    expect(requests.map((r: { packageName: string }) => r.packageName)).toEqual(["com.example.game"]);
+    expect(h.parentPush.sent.filter((s) => s.msg.title === "Alma asks for an app")).toHaveLength(1);
+    expect((await device.get("/api/device/rules")).json.appUpdates)
+      .toMatchObject({ reportedWindow: "w2", recordedApps: ["com.example.game"] });
+  });
+
+  it("asks again when an app the parents turned down is caught in a later window", async () => {
+    const { mum, phoneId, device } = await setup();
+    await device.put("/api/device/status", report(window({ caught: ["com.example.game"] })));
+    const [first] = (await mum.get(`/api/phones/${phoneId}/requests`)).json.requests;
+    expect((await mum.post(`/api/phones/${phoneId}/requests/${first.id}/reject`, {})).status).toBe(204);
+
+    await device.put("/api/device/status", report(window({ id: "w2", trigger: "parent", caught: ["com.example.game"] })));
+    const pending = (await mum.get(`/api/phones/${phoneId}/requests`)).json.requests
+      .filter((r: { status: string }) => r.status === "pending");
+    expect(pending.map((r: { packageName: string }) => r.packageName)).toEqual(["com.example.game"]);
+    expect(pending[0].id).not.toBe(first.id);
+  });
+
   it("records an app held back from a window the server never heard about under the next one", async () => {
     const { mum, phoneId, device } = await setup();
     // w1 reached the server before the guard caught the game; the phone carries it over into w2.

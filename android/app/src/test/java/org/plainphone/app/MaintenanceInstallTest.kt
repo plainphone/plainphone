@@ -293,6 +293,142 @@ class MaintenanceInstallTest {
         assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
     }
 
+    @Test
+    fun `a cancelled approved sign-in does not end tracking of an expired fallback`() {
+        expireFallback()
+        val retry = checkNotNull(CatalogAccounts.start(context, pkg))
+        assertThat(CatalogAccounts.complete(context, retry)).isFalse()
+
+        // The fallback's login was left open and finishes now.
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `a second fallback does not report its own account as late for an expired one`() {
+        expireFallback()
+        // A second fallback is open (its outcome is not recorded yet) next to the expired first one.
+        val prefs = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val first = JSONArray(prefs.all.values.single() as String)
+        val second = JSONArray(first.toString()).put(6, org.json.JSONObject.NULL).put(7, org.json.JSONObject.NULL)
+        prefs.edit().putString("second-fallback", second.toString()).commit()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("parent", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `an open sign-in keeps tracking across a maintenance unlock`() {
+        submit(installPrompt(), pin, expectAccountRequest = true)
+        val lifted = CountDownLatch(1)
+        Lock.liftAsync(context) { lifted.countDown() }
+        pumpUntil { lifted.count == 0L }
+        relockAfterUnlock()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+
+        // The window closes and the login left open before the unlock finishes afterwards.
+        InstallWindow.close(context, "test window end", pkg)
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `account listener warns about a new non Google account after fallback expiry`() {
+        expireFallback()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("other", "org.example"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `a Google account added during maintenance unlock after fallback expiry does not warn`() {
+        expireFallback()
+        val lifted = CountDownLatch(1)
+        Lock.liftAsync(context) { lifted.countDown() }
+        pumpUntil { lifted.count == 0L }
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("parent", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+
+        // The same account is not reported once the unlock has ended either.
+        relockAfterUnlock()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `an unlock account added while no listener ran is absorbed when the unlock ends`() {
+        val expired = expireFallback()
+        val lifted = CountDownLatch(1)
+        Lock.liftAsync(context) { lifted.countDown() }
+        pumpUntil { lifted.count == 0L }
+        val manager = AccountManager.get(context)
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        listeners.clear() // the process was dead while the parents added the account
+        try {
+            assertThat(manager.addAccountExplicitly(Account("parent", "com.google"), null, null)).isTrue()
+        } finally {
+            listeners.putAll(registered)
+        }
+        relockAfterUnlock()
+
+        assertThat(CatalogAccounts.complete(context, expired)).isFalse()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `a wall clock correction does not drop a login marker within the same boot`() {
+        android.provider.Settings.Global.putInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 7)
+        expireFallback()
+        val markers = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val (id, encoded) = markers.all.entries.single()
+        val marker = JSONArray(encoded as String)
+        marker.put(3, System.currentTimeMillis() - 1_000) // the wall clock was corrected forwards
+        markers.edit().putString(id, marker.toString()).commit()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `a withdrawn release locks accounts again at the next apply`() {
+        startFallback()
+        Lock.applyIfNeeded(context, "seed", 0)
+        context.getSharedPreferences(SyncStore.PREFS, Context.MODE_PRIVATE).edit()
+            .putString("phone_id", "7f1c2b9e-0000-4000-8000-000000000001").commit()
+        val rules = { release: Boolean -> SyncStore(context).saveRules("r", rulesJson(release = release), 0) }
+        rules(true)
+        InstallWindow.close(context, "test close", pkg)
+        pumpUntil { InstallWindow.current(context) == null }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(accountsBlocked()).isFalse()
+
+        rules(false)
+        Lock.applyIfNeeded(context, "release withdrawn", Long.MAX_VALUE)
+
+        assertThat(accountsBlocked()).isTrue()
+    }
+
+    private fun relockAfterUnlock() {
+        val done = CountDownLatch(1)
+        Lock.applyAsync(context, "unlock ended") { done.countDown() }
+        pumpUntil { done.count == 0L }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
     private fun expireFallback(): CatalogAccounts.Request {
         startFallback()
         val markers = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)

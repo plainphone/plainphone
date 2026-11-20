@@ -18,6 +18,10 @@ describes the phone's side. The API contract is [sync-api.md](sync-api.md) and
    code. This runs on the pairing screen right after setup and in a background job with backoff
    (`EnrollWorker`), so it also works if nobody looks at the screen or the network comes late. A
    refused token (unknown, used, expired after 24 hours) is dropped and the phone falls back to a code.
+   If the phone was already showing a code (it was offline when setup finished), it cancels that code
+   on the server once the token has paired it, so typing the old code in the dashboard no longer
+   creates a second phone entry. This is best effort: if the phone is offline again at that moment,
+   the code simply expires after 15 minutes.
 3. **Otherwise** (a QR code from the script, or the token was refused) the phone opens **Pair with
    a parent**: an 8-character code and a QR code. The parent scans it with their phone's camera (it
    opens the dashboard with the code filled in) or types the code under *Add phone*, *Type the code*.
@@ -61,8 +65,9 @@ for the scheduling call sites.
 
 Sync reuses HTTP connections. If an exchange fails with an I/O error, replayable reads,
 safety events, release acknowledgements, and enrollment with the same token and install ID
-get one retry on a fresh connection. The pairing poll can deliver a device token only once,
-so it starts on a fresh connection and has no application-level retry.
+get one retry on a fresh connection. The pairing poll can fetch the device token again for up
+to 24 hours or until the first rules sync, but it starts on a fresh connection and has no
+application-level retry.
 
 ## Never looser because of an error
 
