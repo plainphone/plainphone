@@ -112,7 +112,8 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 | `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
 | `PAYMENTS_ENABLED` | `false` | Experimental pay-to-unlock control. Payment processing is unavailable. Leave disabled when self-hosting. |
-| `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.parent` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
+| `APNS_BUNDLE_ID` | `org.plainphone.app` | APNs topic for iOS; override for custom builds ([push-setup.md](push-setup.md)) |
+| `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.app` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | | Optional. A Google OAuth client of type "Web application" for "Protect against reset" (factory reset protection with the parent's Google account). Create it in the Google Cloud console under Google Auth Platform → Clients, with the redirect URI `<PUBLIC_URL>/api/reset-protection/google/callback`. Enable **People API** for the Google Cloud project. Set both variables in the server environment. The server uses the `openid` and profile scopes to read only the numeric account ID from `people/me` and never requests an email address. Without it the dashboard says the feature is not set up |
 | `ANDROID_APP_CERT_SHA256` | | SHA-256 fingerprints of that app's signing certificates, comma separated. Empty serves no Android statement |

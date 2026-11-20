@@ -6,7 +6,7 @@ The native parent app lives in [`parent-app/`](../parent-app). This page covers 
 
 | | iOS | Android |
 |---|---|---|
-| Id | `org.plainphone.parent` | `org.plainphone.parent` |
+| Id | `org.plainphone.app` | `org.plainphone.parent` |
 | Team / signing | Apple team `P7698GU4AV` | Play App Signing, with an upload key |
 | Minimum OS | Expo SDK 58 default | Expo SDK 58 default |
 
@@ -28,7 +28,7 @@ If the app is not installed, the same links open the web app, which handles all 
 
 The server publishes the association files:
 
-- `GET /.well-known/apple-app-site-association` lists `APPLE_APP_IDS` (default `P7698GU4AV.org.plainphone.parent`).
+- `GET /.well-known/apple-app-site-association` lists `APPLE_APP_IDS` (default `P7698GU4AV.org.plainphone.app`). Update any explicit override that still points to the old iOS bundle ID.
 - `GET /.well-known/assetlinks.json` lists `ANDROID_APP_PACKAGE` (default `org.plainphone.parent`) with the certificate fingerprints in `ANDROID_APP_CERT_SHA256`. It is an empty list until a fingerprint is set.
 
 For Android app links to verify, `ANDROID_APP_CERT_SHA256` must hold the SHA-256 fingerprint of every certificate that signs a build people install: the Play App Signing key (shown in Play Console under Test and release > App integrity), and optionally the upload key for builds installed outside Play. Separate several with commas.
@@ -130,8 +130,12 @@ your own address and app identifiers:
 ```sh
 PLAINPHONE_SERVER_URL=https://plainphone.example.org \
 PLAINPHONE_BUNDLE_ID=org.example.plainphone \
+PLAINPHONE_ANDROID_PACKAGE=org.example.plainphone.parent \
 PLAINPHONE_APPLE_TEAM_ID=ABCDE12345 \
 npx expo prebuild
 ```
 
-and set on the server: `APPLE_APP_IDS=ABCDE12345.org.example.plainphone`, `ANDROID_APP_PACKAGE=org.example.plainphone` and `ANDROID_APP_CERT_SHA256=<your signing certificate's SHA-256>`.
+and set on the server: `APPLE_APP_IDS=ABCDE12345.org.example.plainphone`, `ANDROID_APP_PACKAGE=org.example.plainphone.parent` and `ANDROID_APP_CERT_SHA256=<your signing certificate's SHA-256>`.
+For a custom iOS build that uses APNs, also set `APNS_BUNDLE_ID=org.example.plainphone`.
+`PLAINPHONE_BUNDLE_ID` controls iOS. For Android test builds previously using that variable,
+move the package override to `PLAINPHONE_ANDROID_PACKAGE`.
