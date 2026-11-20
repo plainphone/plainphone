@@ -107,7 +107,8 @@ nothing changes for the child until the parent edits something:
   have no slots, so they do nothing until the parent puts them on the schedule.
 
 Turning modes off brings back the school time and bedtime the phone had before; the modes are kept for
-the next time. Turning them on again does not make them again.
+the next time. Turning them on again does not make them again (the server makes them while the phone has
+no default mode).
 
 ## Conflicts
 

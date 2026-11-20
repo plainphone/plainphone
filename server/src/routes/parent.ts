@@ -710,6 +710,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         modesEnabled: z.boolean().optional(),
       }),
     );
+    const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled, silentBedtime, pinApprovalEnabled, appUpdatesEnabled } = input;
+    const rulesField = changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined
+      || weeklySummaryEnabled !== undefined || silentBedtime !== undefined || pinApprovalEnabled !== undefined
+      || appUpdatesEnabled !== undefined;
+    if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+      return c.json({ error: "unknown time zone" }, 400);
+    }
     if (input.modesEnabled !== undefined) {
       // Child phones only; turning modes on the first time makes them (docs/modes.md).
       try {
@@ -719,13 +726,6 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         throw e;
       }
       if (input.modesEnabled !== phone.modesEnabled) await wakePhone(ctx, phone.id, "rules");
-    }
-    const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled, silentBedtime, pinApprovalEnabled, appUpdatesEnabled } = input;
-    const rulesField = changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined
-      || weeklySummaryEnabled !== undefined || silentBedtime !== undefined || pinApprovalEnabled !== undefined
-      || appUpdatesEnabled !== undefined;
-    if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
-      return c.json({ error: "unknown time zone" }, 400);
     }
     const fields = {
       ...(rulesField ? nextRulesRevision() : {}),

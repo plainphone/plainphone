@@ -144,8 +144,11 @@ export async function setModesEnabled(ctx: Ctx, phone: Phone, enabled: boolean) 
     const [current] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
     if (!current || current.modesEnabled === enabled) return;
     if (enabled) {
-      const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(modes).where(eq(modes.phoneId, phone.id)) as [{ n: number }];
-      if (n === 0) await seedModes(tx, phone.id);
+      // Keyed on the default mode, not on "no modes": a mode added through the API while modes were
+      // off must not stop school time and bedtime from becoming modes.
+      const [fallback] = await tx.select({ id: modes.id }).from(modes)
+        .where(and(eq(modes.phoneId, phone.id), eq(modes.isDefault, true))).limit(1);
+      if (!fallback) await seedModes(tx, phone.id);
     }
     await tx.update(phones).set({ modesEnabled: enabled }).where(eq(phones.id, phone.id));
     await touch(tx, phone, ctx.now());
@@ -233,7 +236,11 @@ export function currentMode(list: Mode[], slots: Slot[], now: Date, timeZone: st
     .filter((x): x is { s: Slot; mode: Mode } => x.mode !== undefined);
   if (active.length === 0) return fallback ? { modeId: fallback.id, until: null } : null;
   const quiet = active.filter((x) => x.mode.quiet);
-  const pick = (quiet.length ? quiet : active).reduce((a, b) => (b.s.endMinute > a.s.endMinute ? b : a));
+  const t = localTime(now, timeZone);
+  const minute = t.hour * 60 + t.minute;
+  // Minutes until the slot ends: an end at or before now is tomorrow's (a slot over midnight).
+  const left = (s: Slot) => (s.endMinute - minute + 1440) % 1440 || 1440;
+  const pick = (quiet.length ? quiet : active).reduce((a, b) => (left(b.s) > left(a.s) ? b : a));
   return { modeId: pick.mode.id, until: hhmm(pick.s.endMinute) };
 }
 

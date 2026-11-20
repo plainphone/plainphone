@@ -184,6 +184,16 @@ class ModesTest {
     }
 
     @Test
+    fun `of two slots at once, the one that runs past midnight ends last`() {
+        val overlapping = modesBlock
+            .replace("\"slots\":[", "\"slots\":[${slot("x", "homework", "[1]", "22:00", "23:30")},${slot("y", "school", "[1]", "22:00", "06:00")},")
+            .replace(slot("s3", "night", "[7,1,2,3,4]", "21:00", "07:00"), slot("s3", "night", "[6]", "21:00", "07:00"))
+        val both = Modes.current(rules(modes = overlapping), at("2027-01-04T22:30"))!!
+        assertThat(both.mode!!.id).isEqualTo("school")
+        assertThat(both.until).isEqualTo(LocalTime.of(6, 0))
+    }
+
+    @Test
     fun `the home screen names the mode, and the default mode shows nothing`() {
         val r = rules()
         val school = HomeModel.build(emptyList(), r, at("2027-01-04T10:00")).notice!!

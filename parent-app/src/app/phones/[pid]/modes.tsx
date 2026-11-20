@@ -177,7 +177,7 @@ function ModesBody({ data, reload, toContacts, locale }: { data: Data; reload: (
         )}
       </VStack>
 
-      <Plan data={data} defaultName={def ? modeName(def, t) : t("modes.preset.free")} reload={reload} />
+      <Plan key={JSON.stringify([data.modes.map((m) => m.id), data.slots])} data={data} defaultName={def ? modeName(def, t) : t("modes.preset.free")} reload={reload} />
       <Text variant="small">{t("modes.olderPhone")}</Text>
     </>
   );
@@ -196,7 +196,11 @@ function ModeEditor({ initial, apps, onDone }: { initial?: Mode; apps: App[]; on
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [failed, setFailed] = useState(false);
-  const choosable = apps.filter((a) => !a.core).sort((a, b) => a.label.localeCompare(b.label, locale));
+  const reported = new Set(apps.map((a) => a.packageName));
+  const choosable = [
+    ...apps.filter((a) => !a.core),
+    ...(initial?.allowedPackages ?? []).filter((p) => !reported.has(p)).map((p) => ({ packageName: p, label: p }) as App),
+  ].sort((a, b) => a.label.localeCompare(b.label, locale));
   const path = { params: { path: { pid: phone.id, mid: initial?.id ?? "" } } };
 
   async function submit() {
@@ -248,7 +252,7 @@ function ModeEditor({ initial, apps, onDone }: { initial?: Mode; apps: App[]; on
   return (
     <Card testID="mode-editor">
       <Text variant="heading">{initial ? t("modes.edit") : t("modes.new")}</Text>
-      <Field testID="mode-name" label={t("modes.name")} value={name} onChangeText={setName} maxLength={40} autoComplete="off" />
+      <Field testID="mode-name" label={t("modes.name")} value={name} onChangeText={setName} maxLength={30} autoComplete="off" />
       {isDefault ? (
         <Text variant="small">{t("modes.defaultHelp")}</Text>
       ) : (

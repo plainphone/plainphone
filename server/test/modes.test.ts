@@ -85,6 +85,23 @@ describe("modes: the switch", () => {
     expect((await mum.get(`/api/phones/${phoneId}/modes`)).json.modes).toHaveLength(4);
   });
 
+  it("still makes the modes from school time when a mode was added through the API while modes were off", async () => {
+    const { mum, phoneId, device } = await setup();
+    await mum.post(`/api/phones/${phoneId}/schedules`, { kind: "school", days: [1], startMinute: 480, endMinute: 840 });
+    const before = await rules(device);
+    expect((await mum.post(`/api/phones/${phoneId}/modes`, { preset: "custom", allApps: true, contactGroups: [] })).status).toBe(201);
+    await mum.patch(`/api/phones/${phoneId}`, { modesEnabled: true });
+    const view = (await mum.get(`/api/phones/${phoneId}/modes`)).json;
+    expect(view.modes.filter((m: { isDefault: boolean }) => m.isDefault)).toHaveLength(1);
+    expect((await rules(device)).schedules.map(windowShape)).toEqual(before.schedules.map(windowShape));
+  });
+
+  it("does not switch modes when the same request has a bad time zone", async () => {
+    const { mum, phoneId } = await setup();
+    expect((await mum.patch(`/api/phones/${phoneId}`, { modesEnabled: true, timezone: "Mars/Olympus" })).status).toBe(400);
+    expect((await mum.get(`/api/phones/${phoneId}`)).json.modesEnabled).toBe(false);
+  });
+
   it("is only for child phones", async () => {
     const { mum, phoneId } = await setup("self");
     expect((await mum.patch(`/api/phones/${phoneId}`, { modesEnabled: true })).status).toBe(409);

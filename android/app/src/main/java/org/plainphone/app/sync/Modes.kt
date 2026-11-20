@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
 import org.json.JSONArray
@@ -99,7 +100,10 @@ object Modes {
             return ActiveMode(modes.modes.firstOrNull { it.id == modes.defaultModeId }, until = null, contactGroups = null, quiet = false)
         }
         val quiet = active.filter { it.second.quiet }
-        val (slot, pick) = quiet.ifEmpty { active }.maxBy { it.first.end }
+        // The slot that ends last; an end at or before now is tomorrow's (a slot over midnight).
+        val time = now.atZone(rules.timezone).toLocalTime()
+        val left = { end: LocalTime -> Math.floorMod(Duration.between(time, end).toMinutes() - 1, 1440L) }
+        val (slot, pick) = quiet.ifEmpty { active }.maxBy { left(it.first.end) }
         val groups = active.map { it.second.contactGroups }.reduce { a, b -> a intersect b }
         return ActiveMode(pick, slot.end, groups, quiet.isNotEmpty())
     }

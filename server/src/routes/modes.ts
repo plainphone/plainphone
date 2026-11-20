@@ -7,7 +7,7 @@
 import type { Context, Env, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, eq } from "drizzle-orm";
-import { contacts, type phones } from "../db/schema.js";
+import { contacts, phones } from "../db/schema.js";
 import { body } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import {
@@ -24,7 +24,7 @@ import {
   slotJson,
   updateMode,
 } from "../services/modes.js";
-import { wakePhone } from "../services/phones.js";
+import { nextRulesRevision, wakePhone } from "../services/phones.js";
 
 type Phone = typeof phones.$inferSelect;
 
@@ -107,7 +107,10 @@ export function modeRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requirePhone
     if (current.sosParent && group !== "family") throw new HTTPException(400, { message: "a parent is always family" });
     const [row] = await ctx.db.update(contacts).set({ contactGroup: group })
       .where(and(eq(contacts.phoneId, phone.id), eq(contacts.id, cid))).returning();
-    if (phone.modesEnabled) await wakePhone(ctx, phone.id, "rules");
+    if (phone.modesEnabled) {
+      await ctx.db.update(phones).set(nextRulesRevision()).where(eq(phones.id, phone.id));
+      await wakePhone(ctx, phone.id, "rules");
+    }
     return c.json({ id: row!.id, name: row!.name, number: row!.number, group: row!.contactGroup, ...(row!.sosParent ? { sosParent: true } : {}) });
   });
 }
