@@ -4,7 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router";
 import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, serverHasMail } from "../lib/api";
-import { INVITE_KEY, NEXT_KEY, takeNext, useSession } from "../lib/session";
+import { INVITE_KEY, NEXT_KEY, noteLinkAsked, takeNext, useSession } from "../lib/session";
 
 function pendingReason(): "invite" | "pair" | null {
   try {
@@ -58,6 +58,8 @@ export function LoginPage() {
     setBusy(true);
     try {
       const r = await api.post<{ ok: boolean; mailEnabled: boolean }>("/auth/request", { email: value, locale });
+      // A link this browser asked for is used without a question (pages/AuthCallback.tsx).
+      noteLinkAsked();
       setMail(r.mailEnabled);
       setSentTo(value);
     } catch (err) {

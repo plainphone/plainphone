@@ -50,6 +50,7 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Pairings (holds a not yet collected device token in clear text) | 1 day | sweeper |
 | ClientIDs the DNS filter must forget | until the DNS service confirms the delete | `dns_deletions`, sweeper |
 | Database backups | 30 nightly copies on the hosted service; the sample `compose.yaml` keeps 14 daily and 8 weekly | Dokploy backup (hosted), `backup` service in `compose.yaml` |
+| The server's own error log: no personal data. A failed database query is logged with its error code only, never its values, and email addresses in other error messages are replaced | the platform's log retention | `server/src/lib/log.ts` |
 
 The Android call log and SMS/MMS history stay on the phone. Contact suggestions
 are off for every Child phone until a parent turns them on in the dashboard.

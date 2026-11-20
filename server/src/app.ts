@@ -4,12 +4,14 @@ import { readFile } from "node:fs/promises";
 import { join, normalize } from "node:path";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { etag } from "hono/etag";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { parentPushEnabled } from "./providers/parent-push.js";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
+import { errorFrames, errorSummary } from "./lib/log.js";
 import { attestationRoutes } from "./routes/attestation.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
@@ -20,6 +22,16 @@ import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
+
+/** The largest request body the API reads, unless a route sets its own limit. */
+export const DEFAULT_BODY_LIMIT = 1024 * 1024;
+
+/** Routes that accept more than DEFAULT_BODY_LIMIT and set their own bodyLimit. */
+const LARGE_BODY_ROUTES = [
+  /^\/api\/device\/contact-suggestions$/,
+  /^\/api\/phones\/[^/]+\/contact-suggestions$/,
+  /^\/api\/households\/[^/]+\/server-move\/import$/,
+];
 
 /** Where the PWA's map loads its tiles (web/src/lib/maps.ts). */
 export const MAP_TILE_ORIGIN = "https://tiles.openfreemap.org";
@@ -86,7 +98,7 @@ export function createApp(ctx: Ctx) {
       );
     }
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
-    console.error(err);
+    console.error(`${errorSummary(err)}\n${errorFrames(err)}`);
     return c.json({ error: "internal error" }, 500);
   });
 
@@ -126,6 +138,15 @@ export function createApp(ctx: Ctx) {
     c.header("Cache-Control", "public, max-age=3600");
     return c.json(assetLinks(ctx.cfg));
   });
+
+  // Without a cap, body() reads whatever arrives, also on the routes that need no sign-in.
+  const defaultBodyLimit = bodyLimit({
+    maxSize: DEFAULT_BODY_LIMIT,
+    onError: (c) => c.json({ error: "request body too large" }, 413),
+  });
+  app.use("/api/*", (c, next) =>
+    LARGE_BODY_ROUTES.some((route) => route.test(c.req.path)) ? next() : defaultBodyLimit(c, next),
+  );
 
   const updateWake = new UpdateWake();
   // Public, so it is mounted before the parent API and its session check.

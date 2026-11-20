@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { errorSummary } from "../lib/log.js";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type DnsCategory, dnsDeletions, dnsSettings, phones } from "../db/schema.js";
@@ -44,19 +45,23 @@ export async function markUnconfirmedDnsDirty(ctx: Ctx): Promise<void> {
  * marked dirty and the sweeper retries; the API call that caused it still succeeds.
  */
 export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
+  return (await pushDns(ctx, phoneId)) === "synced";
+}
+
+async function pushDns(ctx: Ctx, phoneId: string): Promise<"synced" | "superseded" | "skipped" | "failed"> {
   const tag = dnsConfirmationTag(ctx.cfg);
   const [bumped] = await ctx.db
     .update(phones)
     .set({ dnsDirty: true, dnsVersion: sql`${phones.dnsVersion} + 1` })
     .where(eq(phones.id, phoneId))
     .returning({ version: phones.dnsVersion });
-  if (!bumped) return false;
+  if (!bumped) return "skipped";
   const [row] = await ctx.db
     .select({ phone: phones, dns: dnsSettings })
     .from(phones)
     .innerJoin(dnsSettings, eq(dnsSettings.phoneId, phones.id))
     .where(eq(phones.id, phoneId));
-  if (!row) return false;
+  if (!row) return "skipped";
   try {
     await ctx.dns.upsertClient({
       clientId: row.phone.dnsClientId,
@@ -75,29 +80,48 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
       .set({ dnsDirty: false, rulesAwaitDns: false })
       .where(and(eq(phones.id, phoneId), eq(phones.dnsVersion, bumped.version)))
       .returning({ id: phones.id });
-    if (!still) {
-      // Removed while the upsert was on its way: make sure the ClientID is forgotten again.
-      const [exists] = await ctx.db.select({ id: phones.id }).from(phones).where(eq(phones.id, phoneId));
-      if (!exists) await queueDnsDeletions(ctx.db, [row.phone.dnsClientId]);
-    }
-    return true;
+    if (still) return "synced";
+    // Another sync started meanwhile. Its upsert may have reached the DNS service before this
+    // older one, which then overwrote it with old rules. Bump the version too, so the other sync
+    // cannot mark the phone clean either: the sweeper then sends the current rules.
+    const [exists] = await ctx.db
+      .update(phones)
+      .set({ dnsDirty: true, dnsVersion: sql`${phones.dnsVersion} + 1` })
+      .where(eq(phones.id, phoneId))
+      .returning({ id: phones.id });
+    // Removed while the upsert was on its way: make sure the ClientID is forgotten again.
+    if (!exists) await queueDnsDeletions(ctx.db, [row.phone.dnsClientId]);
+    return "superseded";
   } catch (err) {
-    console.error(`DNS sync failed for phone ${phoneId}: ${(err as Error).message}`);
-    return false;
+    console.error(`DNS sync failed for phone ${phoneId}: ${errorSummary(err)}`);
+    return "failed";
   }
 }
 
+/** Failed syncs in a row after which the sweeper assumes the DNS service is down. */
+const DNS_FAILURES_BEFORE_PAUSE = 3;
+
 /**
  * Retries dirty phones and confirms legacy or previously provisioned phones with the current provider.
+ * Stops after a few failures in a row: each can wait out a timeout, and the sweeper's
+ * other work (SOS retries, check-in and offline alerts) waits for this one.
  */
 export async function syncDirtyDns(ctx: Ctx): Promise<number> {
   await markUnconfirmedDnsDirty(ctx);
+  // Random order, so a phone the service keeps refusing cannot hold up the others for good.
   const dirty = await ctx.db
     .select({ id: phones.id })
     .from(phones)
-    .where(eq(phones.dnsDirty, true));
+    .where(eq(phones.dnsDirty, true))
+    .orderBy(sql`random()`);
   let ok = 0;
-  for (const p of dirty) if (await syncDns(ctx, p.id)) ok++;
+  let failures = 0;
+  for (const p of dirty) {
+    const result = await pushDns(ctx, p.id);
+    if (result === "synced") ok++;
+    failures = result === "failed" ? failures + 1 : 0;
+    if (failures >= DNS_FAILURES_BEFORE_PAUSE) break;
+  }
   return ok;
 }
 
