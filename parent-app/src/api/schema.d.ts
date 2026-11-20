@@ -744,6 +744,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/emergency-openings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report an emergency opening the Self phone already used (phone)
+         * @description The phone opens first, offline if need be, and reports later. It is the authority for what
+         *     it did, so the server never refuses: the opening is recorded once per `id` (a retry is a
+         *     no-op) and the trusted person is told. Counted per calendar month in the phone's time zone.
+         */
+        post: operations["reportEmergencyOpening"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/requests/{rid}/approve-on-phone": {
         parameters: {
             query?: never;
@@ -2432,6 +2454,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/emergency-openings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** The emergency-opening settings, this month's use and the last 90 days of openings */
+        get: operations["getPhonesEmergencyOpenings"];
+        /**
+         * Switch emergency openings on or off and set the monthly allowance
+         * @description Switching them on or raising the allowance loosens, so it goes through the key. Switching off or lowering applies at once.
+         */
+        put: operations["putPhonesEmergencyOpenings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/changes": {
         parameters: {
             query?: never;
@@ -2984,6 +3029,11 @@ export interface components {
             key?: components["schemas"]["Key"];
         } | {
             /** @constant */
+            type: "emergency.set";
+            enabled: boolean;
+            allowance: number;
+        } | {
+            /** @constant */
             type?: "phone.remove";
             dnsClientId?: string;
         } | {
@@ -3222,6 +3272,7 @@ export interface components {
         Rules: {
             /** Format: uuid */
             phoneId: string;
+            selfEmergency?: components["schemas"]["EmergencyState"];
             sos?: {
                 name: string;
                 parents: {
@@ -3960,6 +4011,37 @@ export interface components {
             payUnlockAmount: number;
             /** @enum {unknown} */
             payUnlockRecipient: "plainphone";
+        };
+        /**
+         * @description A name for the key, derived and never stored. Mild is a 1-hour wait, Firm a 24-hour wait,
+         *     Strict a trusted person. Any other delay is custom. Choosing a level sends an ordinary `PUT /phones/{pid}/key`.
+         * @enum {unknown}
+         */
+        SelfLevel: "mild" | "firm" | "strict" | "custom";
+        /**
+         * @description Limited emergency openings on a Self phone (docs/emergency-openings.md). Off by default.
+         *     `used` is the server's count for the current calendar month in the phone's time zone;
+         *     the phone counts for itself too and the larger number wins.
+         */
+        EmergencyState: {
+            enabled: boolean;
+            /** @description Openings per month. */
+            allowance: number;
+            /** @description How long one opening lasts */
+            minutes: number;
+            used: {
+                month: string;
+                count: number;
+            };
+        };
+        EmergencyOpening: {
+            /** Format: uuid */
+            id: string;
+            packageName: string;
+            appLabel: string | null;
+            /** Format: date-time */
+            openedAt: string;
+            minutes: number;
         };
     };
     responses: {
@@ -5744,6 +5826,40 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    reportEmergencyOpening: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Generated on the phone.
+                     */
+                    id: string;
+                    packageName: string;
+                    /** Format: date-time */
+                    openedAt: string;
+                    /** @default 15 */
+                    minutes?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
         };
     };
     approveDeviceRequestOnPhone: {
@@ -8948,9 +9064,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Key"] & {
+                        level?: components["schemas"]["SelfLevel"];
                         /** @description The trusted person has signed in. */
                         trustedAccepted?: boolean;
                         payUnlockCurrency?: string;
+                        emergency?: components["schemas"]["EmergencyState"];
                     };
                 };
             };
@@ -8980,6 +9098,66 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+        };
+    };
+    getPhonesEmergencyOpenings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings and history (Self phones only) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyState"] & {
+                        openings: components["schemas"]["EmergencyOpening"][];
+                    };
+                };
+            };
+            /** @description Not a Self phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putPhonesEmergencyOpenings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                    allowance: number;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Not a Self phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getPhonesChanges: {
@@ -9042,12 +9220,25 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Phones and owner emails */
+            /** @description Phones, owner emails and each phone's emergency openings */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        people: {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            owner: string;
+                            emergency: components["schemas"]["EmergencyState"] & {
+                                /** @description The ten latest. */
+                                openings: components["schemas"]["EmergencyOpening"][];
+                            };
+                        }[];
+                    };
+                };
             };
         };
     };

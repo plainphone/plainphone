@@ -23,6 +23,7 @@ in this table against the production source, including both branches of platform
 | `light/GuardService.kt` `if (intent.action == Intent.ACTION_SCREEN_ON && isInteractive()) main.postDelayed(tick, TICK_MS)` | On screen-on, first tick in 30 s | On | Resume foreground time checks. |
 | `light/GuardService.kt` `registerReceiver(it, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })` | On screen-on or screen-off | Either | Start or stop foreground time checks. |
 | `light/GuardService.kt` `if (isInteractive()) main.postDelayed(tick, TICK_MS)` | On connection, first tick in 30 s | On | Start foreground time checks when already interactive. |
+| `light/GuardService.kt` `main.postDelayed(emergencyExpiry, left + 250L)` | When an emergency opening ends (15 min at most) | On | Block the app again the moment its emergency opening ends. |
 | `light/GuardService.kt` `VPN_RETRY_DELAYS_MS.forEach { main.postDelayed(vpnRetry, it) }` | 50, 150, 300, 600 and 1,000 ms | On | Retry dismissing the VPN settings dialog. |
 | `light/GuardService.kt` `if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, SETTINGS_MAX_WAIT_MS)` | 150 ms maximum wait | On | Bound how long settings enforcement waits to examine a window. |
 | `safety/RingService.kt` `context.startForegroundService(i)` | When a parent rings the phone and the sync sees the request | Either | Start the audible ring service. |

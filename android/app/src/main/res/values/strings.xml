@@ -393,4 +393,34 @@
     <string name="sos_sms_urgent">urgent</string>
     <string name="sos_sms_help">needs help</string>
     <string name="sos_sms_unknown_position">unknown</string>
+    <string name="setup_level_mild">Mild</string>
+    <string name="setup_level_firm">Firm</string>
+    <string name="setup_level_strict">Strict</string>
+    <string name="setup_level_custom">Custom</string>
+    <plurals name="setup_level_wait_line">
+        <item quantity="one">A looser rule waits %1$d hour.</item>
+        <item quantity="other">A looser rule waits %1$d hours.</item>
+    </plurals>
+    <string name="setup_level_strict_line">A person you trust approves a looser rule.</string>
+    <string name="setup_key_advanced">Advanced</string>
+    <string name="setup_key_advanced_hide">Hide advanced</string>
+    <string name="setup_key_advanced_body">Choose your own wait time</string>
+    <string name="setup_summary_level">Level: %1$s</string>
+    <string name="emergency_button">Emergency opening</string>
+    <plurals name="emergency_left">
+        <item quantity="one">%1$d left this month</item>
+        <item quantity="other">%1$d left this month</item>
+    </plurals>
+    <string name="emergency_none_left">No emergency openings left this month</string>
+    <string name="emergency_confirm_title">Open %1$s for %2$d minutes?</string>
+    <string name="emergency_confirm_told">The person you trust will be told.</string>
+    <string name="emergency_open">Open</string>
+    <string name="emergency_cancel">Cancel</string>
+    <string name="emergency_busy">Another app is open on an emergency opening. Try again when it ends.</string>
+    <string name="emergency_refused">This can’t be opened right now.</string>
+    <plurals name="emergency_status">
+        <item quantity="one">Emergency openings: %1$d left this month</item>
+        <item quantity="other">Emergency openings: %1$d left this month</item>
+    </plurals>
+    <string name="emergency_this_app">this app</string>
 </resources>

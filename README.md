@@ -105,6 +105,8 @@ editable draft with a single-use, 15-minute code, including a draft already open
 from a light-mode setup link.
 See [Self keys](docs/self-keys.md).
 
+**Three levels, and emergency openings.** Instead of a number of hours, choose **Mild** (a looser rule waits 1 hour), **Firm** (24 hours) or **Strict** (a person you trust); custom wait times sit under Advanced, and phones with a custom delay keep it. A Self phone on light mode can also allow itself a few **emergency openings** a month (3 x 15 minutes by default, one app each, off until you switch it on through your key). They work offline, and each one is counted, logged and shown to the person you trust. See [Self keys](docs/self-keys.md#strictness-levels) and [docs/emergency-openings.md](docs/emergency-openings.md).
+
 ### In both modes
 
 - **Calls, SMS and contacts.** Plainphone becomes the default phone and SMS app. Strong Child phones enforce approved contacts. Light Child phones enforce the list by default on new pairings. Parents can change the setting in the dashboard, where it starts off for light phones already paired at the upgrade, even before their first rules sync. Parents can also opt in to suggestions from the phone's address book for review in the dashboard or parent app. A Self phone shows the local address book and can limit calls and texts to favourites during schedules. Favourite setup is available after the first rules sync. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. Existing system SMS and call history is available in the phone app. See [docs/contacts.md](docs/contacts.md).

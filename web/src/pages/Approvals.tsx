@@ -4,13 +4,22 @@ import { ApprovalQueue } from "../components/ApprovalQueue";
 import { ApprovalScanner } from "../components/ApprovalScanner";
 import { errorMessage, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { api, ApiError, type Approval } from "../lib/api";
+import { EmergencyBlock } from "../components/EmergencyOpenings";
+import { api, ApiError, type Approval, type EmergencyOpening, type EmergencySettings } from "../lib/api";
 import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../lib/approval-state";
+
+/** `emergency` is missing when the server is older. */
+interface HelpedPerson {
+  id: string;
+  name: string;
+  owner: string;
+  emergency?: EmergencySettings & { openings?: EmergencyOpening[] };
+}
 
 export function ApprovalsPage() {
   const { t } = useI18n();
   const res = useLoad(() => api.get<{ approvals: Approval[] }>("/approvals").then((r) => r.approvals), []);
-  const people = useLoad(() => api.get<{ people: { id: string; name: string; owner: string }[] }>("/people-i-help"), []);
+  const people = useLoad(() => api.get<{ people: HelpedPerson[] }>("/people-i-help"), []);
   const [code, setCode] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("code"));
   useEffect(() => {
     if (window.location.hash.startsWith("#code=")) window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -86,6 +95,7 @@ export function ApprovalsPage() {
             ? list.map((person) => <section key={person.id} className="stack" aria-labelledby={`person-${person.id}`}>
               <h2 id={`person-${person.id}`}>{person.name}</h2>
               <p className="row-meta">{person.owner}</p>
+              <EmergencyBlock emergency={person.emergency} />
               {changes(all.filter((a) => a.phoneId === person.id), false, (a) => a.phoneId === person.id)}
             </section>)
             : changes(all, true, () => true)

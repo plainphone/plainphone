@@ -27,6 +27,8 @@ export interface PushFacts {
   sos: { phoneName: string; kind: "urgent" | "help"; trigger?: "power" | "clock" | "code" | null; message?: string | null };
   /** A quick message, or the child's suggestion for a new one. */
   quickMessage: { phoneName: string; text: string };
+  /** A Self phone used one of its emergency openings (docs/emergency-openings.md). `appName` is null when the server does not know the app. */
+  emergencyOpening: { phoneName: string; appName: string | null; minutes: number; used: number; allowance: number };
 }
 
 /** "Tue 08:10" in the phone's own time zone. */
@@ -341,6 +343,15 @@ const checkIn = {
   de: (e) => ({ title: `${e.phoneName}: Ich bin zu Hause`, body: "Check-in aus dem Familienpostfach." }),
 } satisfies Record<Locale, (e: { phoneName: string }) => Words>;
 
+/** The Self phone opened a blocked app for a short while; the trusted person is told, not asked. */
+const emergencyOpening = {
+  en: (e) => ({ title: `${e.phoneName}: emergency opening`, body: `${e.appName ?? "An app"} was opened for ${e.minutes} minutes. ${e.used} of ${e.allowance} used this month.` }),
+  da: (e) => ({ title: `${e.phoneName}: nødåbning`, body: `${e.appName ?? "En app"} blev åbnet i ${e.minutes} minutter. ${e.used} af ${e.allowance} brugt denne måned.` }),
+  sv: (e) => ({ title: `${e.phoneName}: nödöppning`, body: `${e.appName ?? "En app"} öppnades i ${e.minutes} minuter. ${e.used} av ${e.allowance} använda den här månaden.` }),
+  nb: (e) => ({ title: `${e.phoneName}: nødåpning`, body: `${e.appName ?? "En app"} ble åpnet i ${e.minutes} minutter. ${e.used} av ${e.allowance} brukt denne måneden.` }),
+  de: (e) => ({ title: `${e.phoneName}: Notöffnung`, body: `${e.appName ?? "Eine App"} wurde für ${e.minutes} Minuten geöffnet. ${e.used} von ${e.allowance} in diesem Monat genutzt.` }),
+} satisfies Record<Locale, (e: PushFacts["emergencyOpening"]) => Words>;
+
 const test = {
   en: { title: "Notifications work", body: "This device will get Plainphone notifications." },
   da: { title: "Notifikationer virker", body: "Denne enhed får notifikationer fra Plainphone." },
@@ -350,7 +361,7 @@ const test = {
 } satisfies Record<Locale, Words>;
 
 /** Every push message, one table each. The completeness test walks this. */
-export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, checkIn, test };
+export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, checkIn, emergencyOpening, test };
 
 export const pushWords = {
   protection: (e: PushFacts["protection"], l: Locale): Words => protection[l](e),
@@ -364,6 +375,7 @@ export const pushWords = {
   quickMessage: (e: PushFacts["quickMessage"], l: Locale): Words => quickMessage[l](e),
   quickSuggestion: (e: PushFacts["quickMessage"], l: Locale): Words => quickSuggestion[l](e),
   checkIn: (e: { phoneName: string }, l: Locale): Words => checkIn[l](e),
+  emergencyOpening: (e: PushFacts["emergencyOpening"], l: Locale): Words => emergencyOpening[l](e),
   test: (l: Locale): Words => test[l],
   moreTime: (e: { phoneName: string; what: string | null; reason: string | null }, l: Locale): Words => {
     const m = moreTime[l];

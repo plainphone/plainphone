@@ -53,9 +53,23 @@ class GuardService : AccessibilityService() {
     private val tick = object : Runnable {
         override fun run() {
             if (!isInteractive()) return
-            foreground?.let { checkTime(it, force = true) }
+            foreground?.let {
+                // An emergency opening that just ended: the allow-list decides again, not only the time limits.
+                if (emergency.hasActiveRecord(it)) guard(it, force = true) else checkTime(it, force = true)
+            }
             main.postDelayed(this, TICK_MS)
         }
+    }
+
+    /** Limited emergency openings (Self phone, light mode only): one app, 15 minutes. */
+    private val emergency by lazy { EmergencyOpenings.of(this) }
+    private val emergencyExpiry = Runnable {
+        if (emergency.isActive(foreground ?: "")) {
+            scheduleEmergencyExpiry()
+            return@Runnable
+        }
+        foreground?.takeIf { emergency.hasActiveRecord(it) }?.let { guard(it, force = true) }
+        emergency.clearIfOver()
     }
 
     override fun onServiceConnected() {
@@ -203,13 +217,29 @@ class GuardService : AccessibilityService() {
     private fun isInteractive(): Boolean =
         getSystemService(PowerManager::class.java)?.isInteractive == true
 
-    private fun guard(pkg: String) {
+    private fun guard(pkg: String, force: Boolean = false) {
         if (pkg == packageName) return
         when (LightLock.plan(this).why(pkg)) {
-            LightPlan.Why.NOT_ALLOWED -> block(pkg, BlockedActivity.Reason.NOT_ALLOWED)
-            LightPlan.Why.TIME_USED_UP -> block(pkg, BlockedActivity.Reason.TIME_USED_UP)
-            null -> checkTime(pkg, force = false)
+            LightPlan.Why.NOT_ALLOWED -> if (!openedForNow(pkg)) block(pkg, BlockedActivity.Reason.NOT_ALLOWED)
+            LightPlan.Why.TIME_USED_UP -> if (!openedForNow(pkg)) block(pkg, BlockedActivity.Reason.TIME_USED_UP)
+            null -> checkTime(pkg, force = force)
         }
+    }
+
+    /**
+     * An emergency opening covers exactly this app right now. Only loosens an app block (never a
+     * protection screen, never calls or texts). Makes sure the block comes back when the window ends.
+     */
+    private fun openedForNow(pkg: String): Boolean {
+        if (!emergency.isActive(pkg)) return false
+        scheduleEmergencyExpiry()
+        return true
+    }
+
+    private fun scheduleEmergencyExpiry() {
+        val left = emergency.activeLeftMs() ?: return
+        main.removeCallbacks(emergencyExpiry)
+        main.postDelayed(emergencyExpiry, left + 250L)
     }
 
     private fun guardSettings(packages: Set<String>, windowIds: Set<Int> = emptySet()) {
@@ -275,6 +305,7 @@ class GuardService : AccessibilityService() {
             }
             main.post {
                 if (foreground != pkg) return@post
+                if (openedForNow(pkg)) return@post
                 block(pkg, BlockedActivity.Reason.TIME_USED_UP)
                 // Refresh the stored plan and tell the parent the minutes used.
                 Lock.applyAsync(this, "time used up")
@@ -352,6 +383,7 @@ class GuardService : AccessibilityService() {
         if (!isConnected) return
         isConnected = false
         main.removeCallbacks(tick)
+        main.removeCallbacks(emergencyExpiry)
         cancelSettingsChecks()
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null

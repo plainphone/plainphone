@@ -1,5 +1,5 @@
 {
-  "id": "1b49ac6e-cd15-42b6-8116-4a5a78cb108a",
+  "id": "825e9997-901b-4642-a495-7758acaa0bf7",
   "prevId": "acf82d76-a544-4116-97e2-47466464904b",
   "version": "7",
   "dialect": "postgresql",
@@ -141,13 +141,6 @@
           "notNull": true,
           "default": false
         },
-        "contact_group": {
-          "name": "contact_group",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'others'"
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -275,6 +268,98 @@
         "dns_settings_phone_id_phones_id_fk": {
           "name": "dns_settings_phone_id_phones_id_fk",
           "tableFrom": "dns_settings",
+          "tableTo": "phones",
+          "columnsFrom": [
+            "phone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.emergency_openings": {
+      "name": "emergency_openings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "package_name": {
+          "name": "package_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opened_at": {
+          "name": "opened_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minutes": {
+          "name": "minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "emergency_openings_phone_month_idx": {
+          "name": "emergency_openings_phone_month_idx",
+          "columns": [
+            {
+              "expression": "phone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "month",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "emergency_openings_phone_id_phones_id_fk": {
+          "name": "emergency_openings_phone_id_phones_id_fk",
+          "tableFrom": "emergency_openings",
           "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
@@ -1163,216 +1248,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.mode_slots": {
-      "name": "mode_slots",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mode_id": {
-          "name": "mode_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "days": {
-          "name": "days",
-          "type": "smallint[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "start_minute": {
-          "name": "start_minute",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "end_minute": {
-          "name": "end_minute",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "mode_slots_phone_idx": {
-          "name": "mode_slots_phone_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "mode_slots_phone_id_phones_id_fk": {
-          "name": "mode_slots_phone_id_phones_id_fk",
-          "tableFrom": "mode_slots",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mode_slots_mode_id_modes_id_fk": {
-          "name": "mode_slots_mode_id_modes_id_fk",
-          "tableFrom": "mode_slots",
-          "tableTo": "modes",
-          "columnsFrom": [
-            "mode_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.modes": {
-      "name": "modes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "preset": {
-          "name": "preset",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "all_apps": {
-          "name": "all_apps",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "allowed_packages": {
-          "name": "allowed_packages",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "contact_groups": {
-          "name": "contact_groups",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{family,friends,others}'::text[]"
-        },
-        "quiet": {
-          "name": "quiet",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_default": {
-          "name": "is_default",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "modes_phone_idx": {
-          "name": "modes_phone_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "modes_phone_id_phones_id_fk": {
-          "name": "modes_phone_id_phones_id_fk",
-          "tableFrom": "modes",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2936,13 +2811,6 @@
           "notNull": true,
           "default": true
         },
-        "modes_enabled": {
-          "name": "modes_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "app_updates_enabled": {
           "name": "app_updates_enabled",
           "type": "boolean",
@@ -3690,6 +3558,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'plainphone'"
+        },
+        "emergency_enabled": {
+          "name": "emergency_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "emergency_allowance": {
+          "name": "emergency_allowance",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 3
         }
       },
       "indexes": {},

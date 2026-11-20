@@ -238,6 +238,7 @@ releases signed with the same key.
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `askMoreTimeEnabled`, `limitWarningEnabled` | Per-phone switches for the stop screen's "Ask for more time" button and the 5-minute warning. Missing means `true`. See [more-time.md](more-time.md) |
 | `sos.hidden`, `sos.quickMessages` | Child phones only. Hidden SOS switches (`power`, `presses`, `clock`, `feedback`) and the quick messages (`enabled`, `suggest`, `items` with `meansSos` for a code word). Missing means off and no messages. See [sos.md](sos.md) |
+| `selfEmergency` | Self phones only: `enabled`, `allowance` (1 to 10 per month), `minutes` (15) and `used` (`month` as `YYYY-MM` in the phone's time zone and the server's `count` for it). The phone counts for itself and takes the larger number. Missing or `enabled: false` means off. See [emergency-openings.md](emergency-openings.md) |
 | `inbox` | Child phones only, and only while the [family inbox](family-inbox.md) is on: `enabled`, `quickMessages`, `checkIns` and `latest` (the newest parent reply; when it changes the phone fetches `GET /device/inbox` and sends its receipt). Missing means off |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `language` | Plainphone UI language: `da`, `en`, `sv`, `nb`, `de` or `null` to follow Android. |
@@ -338,6 +339,13 @@ parent PIN ([bedtime.md](bedtime.md)); asking from the phone is not built yet, t
 
 The stop screen of a child phone can ask for more time on a used-up app or on the daily cap.
 Full description: [more-time.md](more-time.md).
+
+### Emergency openings
+
+`POST /api/device/emergency-openings` with `{ "id": "<uuid from the phone>", "packageName": "…", "openedAt": "<ISO instant>", "minutes": 15 }`
+reports an opening the phone has already used. It answers `204`, also for a repeat of the same `id` and also when the switch is off or the
+allowance is spent: the phone is the authority and the server only records and notifies. `400` only for a malformed body. Retry until it succeeds.
+Full description: [emergency-openings.md](emergency-openings.md).
 
 - `POST /api/device/more-time-requests` with `{ "packageName": "*" | "com.spotify.music", "reason": "optional, up to 140 characters" }`.
   `*` is the daily cap (use it when the total is used up, otherwise the app). `201` with the

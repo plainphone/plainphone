@@ -72,6 +72,14 @@ interface SyncApi {
         throw IOException("asking for more time unavailable")
     /** This phone's asks from the last 24 hours, newest first. */
     fun moreTimeRequests(token: String): List<MoreTimeRequest> = throw IOException("asking for more time unavailable")
+    /**
+     * Tells the server about an emergency opening the phone already granted itself
+     * (`POST /device/emergency-openings`, light mode, Self profile). The server never rejects it:
+     * 204 always, idempotent on the opening's id. True on 204; false on 400 (malformed: drop it, a
+     * retry changes nothing). Anything else throws, so the opening stays queued for the next sync.
+     */
+    fun reportEmergencyOpening(token: String, opening: org.plainphone.app.light.EmergencyOpening): Boolean =
+        throw IOException("emergency opening reports unavailable")
 }
 
 data class Pairing(
@@ -735,6 +743,21 @@ class PlainphoneApi private constructor(
         val r = call("POST", "/device/more-time-requests", token, body, replayable = true)
         if (r.status != 200 && r.status != 201) throw HttpError(r.status, r.body)
         return readMoreTime { MoreTimeRequest.parse(JSONObject(r.body)) }
+    }
+
+    override fun reportEmergencyOpening(token: String, opening: org.plainphone.app.light.EmergencyOpening): Boolean {
+        val body = JSONObject()
+            .put("id", opening.id)
+            .put("packageName", opening.packageName)
+            .put("openedAt", java.time.Instant.ofEpochMilli(opening.openedAtMs).toString())
+            .put("minutes", opening.minutes)
+        // Safe to repeat: the server counts an id once.
+        val r = call("POST", "/device/emergency-openings", token, body, replayable = true)
+        return when {
+            r.status in 200..299 -> true
+            r.status == 400 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
     }
 
     override fun moreTimeRequests(token: String): List<MoreTimeRequest> {

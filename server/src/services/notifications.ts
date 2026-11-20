@@ -40,6 +40,8 @@ export type NotifyEvent =
   | { type: "quickSuggestion"; phoneId: string; phoneName: string; text: string }
   /** "I'm home" from the family inbox (docs/family-inbox.md). */
   | { type: "checkIn"; id: string; phoneId: string; phoneName: string }
+  /** A Self phone used an emergency opening. Goes to the trusted person (docs/emergency-openings.md). */
+  | { type: "emergencyOpening"; phoneId: string; phoneName: string; appName: string | null; minutes: number; used: number; allowance: number }
   | { type: "test" }
   /** The weekly summary is ready (docs/weekly-summary.md). */
   | { type: "summary"; summaryId: string };
@@ -66,6 +68,7 @@ function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"
     case "quickMessage": return pushWords.quickMessage(e, locale);
     case "quickSuggestion": return pushWords.quickSuggestion(e, locale);
     case "checkIn": return pushWords.checkIn(e, locale);
+    case "emergencyOpening": return pushWords.emergencyOpening(e, locale);
     case "test": return pushWords.test(locale);
   }
 }
@@ -116,6 +119,9 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
       return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-${e.id.replaceAll("-", "")}`, data: { type: "quick-message", phoneId: e.phoneId } };
     case "checkIn":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `checkin-${e.id.replaceAll("-", "")}`, data: { type: "check-in", phoneId: e.phoneId } };
+    // The helper's page for the phone they help; the owner reads the same history on the phone's own page.
+    case "emergencyOpening":
+      return { ...t, url: "/approvals", tag: `emergency-${e.phoneId}`, data: { type: "emergency-opening", phoneId: e.phoneId } };
     case "quickSuggestion":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-suggestion-${e.phoneId}`, data: { type: "quick-suggestion", phoneId: e.phoneId } };
     case "test":

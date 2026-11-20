@@ -264,8 +264,15 @@
     {
       "idx": 49,
       "version": "7",
-      "when": 1795195681228,
-      "tag": "0049_modes",
+      "when": 1795196336187,
+      "tag": "0049_emergency_openings",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795201851581,
+      "tag": "0050_modes",
       "breakpoints": true
     }
   ]

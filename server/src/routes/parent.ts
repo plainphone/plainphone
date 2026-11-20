@@ -30,6 +30,8 @@ import {
 import { DEFAULT_PUSH_HOSTS, parentPushEnabled, pushHostAllowed } from "../providers/parent-push.js";
 import { registerNativeSubscription, removePushSubscription } from "../services/push-subscriptions.js";
 import { notifyUsers } from "../services/notifications.js";
+import { emergencyInput, emergencyState, listOpenings } from "../services/emergency-openings.js";
+import { selfLevel } from "../lib/self-level.js";
 import { explainDecision } from "../services/approval-outcome.js";
 import { approveRequest, openRequests, recentAnswers, rejectRequest, RequestError } from "../services/requests.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
@@ -1132,7 +1134,23 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const phone = await requirePhone(c);
     if (phone.profile !== "self") return c.json({ error: "only Self phones have a key" }, 404);
     const [k] = await ctx.db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
-    return c.json(keyJson(k!));
+    return c.json({ ...keyJson(k!), emergency: await emergencyState(ctx.db, phone, ctx.now()) });
+  });
+
+  // Limited emergency openings (docs/emergency-openings.md). More openings, or switching them on,
+  // loosen the rules, so on a connected Self phone they wait for the key like any loosening.
+  app.get("/phones/:pid/emergency-openings", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "self") return c.json({ error: "only Self phones have emergency openings" }, 404);
+    c.header("Cache-Control", "no-store");
+    return c.json({ ...(await emergencyState(ctx.db, phone, ctx.now())), openings: await listOpenings(ctx.db, phone, ctx.now()) });
+  });
+
+  app.put("/phones/:pid/emergency-openings", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "self") return c.json({ error: "only Self phones have emergency openings" }, 404);
+    const input = await body(c, emergencyInput);
+    return change(c, phone, { type: "emergency.set", ...input });
   });
 
   app.put("/phones/:pid/key", async (c) => {
@@ -1231,7 +1249,14 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           where helper_membership.household_id = ${phones.householdId} and helper_membership.user_id = ${helper})`,
       )).orderBy(phones.id, householdMembers.createdAt);
     const people = rows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-    return c.json({ people });
+    // What the helper sees of the phone's emergency openings: the switch, this month's use and the recent ones.
+    const now = ctx.now();
+    const withEmergency = await Promise.all(people.map(async (p) => {
+      const [phone] = await ctx.db.select().from(phones).where(eq(phones.id, p.id));
+      const state = await emergencyState(ctx.db, phone!, now);
+      return { ...p, emergency: { ...state, openings: (await listOpenings(ctx.db, phone!, now)).slice(0, 10) } };
+    }));
+    return c.json({ people: withEmergency });
   });
 
   app.get("/approvals", async (c) => {
@@ -1381,6 +1406,8 @@ function keyJson(k: typeof selfKeys.$inferSelect) {
   return {
     keyType: k.keyType,
     delayHours: k.delayHours,
+    /** mild, firm, strict or custom: a name for the key, derived (docs/self-keys.md). */
+    level: selfLevel(k),
     trustedEmail: k.trustedEmail,
     trustedAccepted: Boolean(k.trustedUserId),
     payUnlockEnabled: k.payUnlockEnabled,
