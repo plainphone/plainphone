@@ -7,6 +7,7 @@ import { PhoneStateTitle } from "../components/PhoneState";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
 import { helpUrl, releaseState } from "../lib/phoneSupport";
+import { isIphone } from "../lib/platform";
 
 interface Row {
   phone: Phone;
@@ -78,7 +79,7 @@ export function PhonesPage() {
                       <span className="row-title">{phone.name}</span>
                       <span className="row-meta">
                         <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
-                        {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
+                        {isIphone(phone) ? <span className="tag">{t("platform.iphone")}</span> : phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
                         {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
                         {phone.pairedAt && <PhoneStateTitle phone={phone} now={now} />}

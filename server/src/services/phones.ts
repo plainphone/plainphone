@@ -22,6 +22,7 @@ import {
   schedules,
   selfKeys,
 } from "../db/schema.js";
+import { capabilities, phoneTier } from "../lib/capabilities.js";
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import { fcmValidationKey, type WakeReason } from "../providers/push.js";
@@ -512,6 +513,10 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     name: phone.name,
     profile: phone.profile,
     mode: phone.mode,
+    platform: phone.platform,
+    tier: phoneTier(phone),
+    /** What this platform and tier can do, per feature (docs/ios/architecture.md). */
+    capabilities: capabilities(phoneTier(phone)),
     openMode: phone.openMode,
     timezone: phone.timezone,
     language: phone.language,

@@ -256,3 +256,42 @@ it("keeps device notices and app updates available with the health board off", (
   expect(html).toContain(t("phone.updateNow"));
   expect(html).not.toContain(t("health.lastSeen"));
 });
+
+const allYes = (over: Record<string, "yes" | "partial" | "no"> = {}): Phone["capabilities"] => ({
+  apps: "yes", contacts: "yes", webFilter: "yes", bedtimeSilence: "yes", calmHome: "yes", phoneSettings: "yes", selfKeys: "yes", ...over,
+});
+
+it("says on each rule what an iPhone cannot do, and only there", () => {
+  const t = makeT("en");
+  const html = renderPhone({
+    ...phone, platform: "ios", tier: "family_controls",
+    capabilities: allYes({ contacts: "partial", calmHome: "no" }),
+  });
+  expect(html).toContain(t("platform.ios.contacts"));
+  expect(html).toContain(t("platform.ios.calmHome"));
+  expect(html).toContain(t("platform.iosNote").split(".")[0]);
+  expect(html).toContain(`<span class="tag">${t("platform.iphone")}</span>`);
+  // Rules the iPhone does fully get no line.
+  expect(html).not.toContain(t("platform.ios.apps"));
+  expect(html).not.toContain(t("platform.ios.webFilter"));
+});
+
+it("follows the capability map, not the platform alone", () => {
+  const t = makeT("en");
+  const html = renderPhone({ ...phone, platform: "ios", tier: "supervised", capabilities: allYes({ contacts: "partial" }) });
+  expect(html).toContain(t("platform.ios.contacts"));
+  expect(html).not.toContain(t("platform.ios.calmHome"));
+});
+
+it("shows no iPhone lines on an Android phone, even with gaps in its map", () => {
+  const t = makeT("en");
+  const html = renderPhone({ ...phone, mode: "light", platform: "android", tier: "light", capabilities: allYes({ apps: "partial" }) });
+  expect(html).not.toContain(t("platform.ios.apps"));
+  expect(html).not.toContain(t("platform.iphone"));
+  expect(html).toContain(t("mode.light"));
+});
+
+it("writes the iPhone line in the parent's language", () => {
+  const html = renderPhone({ ...phone, platform: "ios", capabilities: allYes({ contacts: "partial" }) }, "", "da");
+  expect(html).toContain(makeT("da")("platform.ios.contacts"));
+});

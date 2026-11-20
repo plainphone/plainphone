@@ -20,6 +20,7 @@ export default {
     day: ["Den første dag med Plainphone", "Vælg stærk eller let tilstand i forældrepanelet.", "Vælg, hvem der skal bruge telefonen.", "Følg vejledningen, og forbind telefonen.", "Aftal reglerne sammen, og prøv et opkald og de apps, I har brug for."],
     childSees: "På telefonen kan barnet se, hvilke apps der er tilgængelige, og hvor meget tid der er tilbage til apps med en tidsgrænse. Telefonen siger til, når tiden er brugt, og viser en besked, når den sender sin placering.",
     privacyNote: "Dette websted har ingen cookies, besøgsmåling, sporing eller forespørgsler til tredjeparter.",
+    status: "Status",
     groups: {
       gettingStarted: "Kom godt i gang",
       safety: "Sikkerhed",
