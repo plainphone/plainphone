@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { householdMembers, phones, pushSubscriptions, setupUndoNotices, users } from "../db/schema.js";
-import { phoneAlertMail, toLocale } from "../lib/mail-templates.js";
+import { toLocale } from "../lib/locale.js";
+import { phoneAlertMail } from "../lib/mail-templates.js";
 import { parentPushEnabled } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";

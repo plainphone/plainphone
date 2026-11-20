@@ -20,7 +20,8 @@ import {
 } from "../db/schema.js";
 import { addDays, dateKey, lastOccurrence, localTime, nextOccurrence, validTimeZone } from "../lib/zoned-time.js";
 import { weeklySummaryMail } from "../lib/summary-mail.js";
-import { toSummaryLocale, type ChangeCategory } from "../lib/summary-text.js";
+import { toLocale } from "../lib/locale.js";
+import { type ChangeCategory } from "../lib/summary-text.js";
 import type { Ctx } from "./context.js";
 import { TOTAL } from "./limits.js";
 import { notifyUsers } from "./notifications.js";
@@ -263,7 +264,7 @@ async function deliverOne(ctx: Ctx, s: typeof householdSummaries.$inferSelect): 
   if (h.summaryByMail && ctx.mail.canSend) {
     for (const m of members) {
       try {
-        await ctx.mail.send(weeklySummaryMail(m.email, toSummaryLocale(m.locale), ctx.cfg.PUBLIC_URL, s.id, data));
+        await ctx.mail.send(weeklySummaryMail(m.email, toLocale(m.locale), ctx.cfg.PUBLIC_URL, s.id, data));
       } catch (err) {
         console.error(`summary mail failed: ${(err as Error).message}`);
       }
