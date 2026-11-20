@@ -9,6 +9,7 @@ import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/models";
 import { MoreTimeRequests } from "../../../components/MoreTimeRequests";
+import { EarlyUnlockStatus } from "../../../components/Billing";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
 import { PhoneSwitch } from "../../../components/BedtimeSettings";
 import { AppUpdates } from "../../../components/AppUpdates";
@@ -56,15 +57,18 @@ function PendingList() {
       {pending.map((c) => {
         const what = c.summary?.[messageLanguage(locale)] ?? describeOp(c.op, t, locale, appLabel);
         return (
-          <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
-            <Button
-              kind="secondary"
-              title={t("pending.cancel")}
-              accessibilityLabel={`${t("pending.cancel")}: ${what}`}
-              busy={busyId === c.id}
-              onPress={() => void cancel(c)}
-            />
-          </ItemRow>
+          <VStack key={c.id} gap={space.sm}>
+            <ItemRow testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
+              <Button
+                kind="secondary"
+                title={t("pending.cancel")}
+                accessibilityLabel={`${t("pending.cancel")}: ${what}`}
+                busy={busyId === c.id}
+                onPress={() => void cancel(c)}
+              />
+            </ItemRow>
+            <EarlyUnlockStatus change={c} onChanged={() => void reloadPending()} />
+          </VStack>
         );
       })}
     </VStack>

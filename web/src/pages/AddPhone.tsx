@@ -2,7 +2,7 @@
 //
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router";
-import { Switch, errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
+import { Switch, errorMessage, errorNotice, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
 import { intlLocale } from "../lib/format";
@@ -223,7 +223,7 @@ function AgreementStep({ draft, onChange, light, onBack, onNext }: {
 }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Notice | null>(null);
   const problems = agreementProblems(draft);
   const empty = parseLines(draft.lines).length === 0 && parseLines(draft.adultLines).length === 0;
   async function go(skip: boolean) {
@@ -233,7 +233,7 @@ function AgreementStep({ draft, onChange, light, onBack, onNext }: {
     try {
       await onNext(skip);
     } catch (err) {
-      setError(errorMessage(err, t));
+      setError(errorNotice(err, t));
       setBusy(false);
     }
   }
@@ -243,7 +243,7 @@ function AgreementStep({ draft, onChange, light, onBack, onNext }: {
       <div className="stack">
         <p className="help">{t("age.agreement.optional")}</p>
         <AgreementFields draft={draft} onChange={onChange} disabled={busy} />
-        <LiveStatus notice={error ? { tone: "error", text: error } : null} />
+        <LiveStatus notice={error} />
         <div className="actions">
           <button type="button" className="btn btn-primary" disabled={busy || problems.lines !== null || problems.adultLines !== null}
             onClick={() => void go(empty)}>
@@ -415,7 +415,7 @@ function WhoStep(props: {
 }) {
   const { t } = useI18n();
   const [error, setError] = useState<string | undefined>();
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
   async function submit(e: FormEvent) {
@@ -430,7 +430,7 @@ function WhoStep(props: {
     try {
       await props.onNext();
     } catch (err) {
-      setFormError(errorMessage(err, t));
+      setFormError(errorNotice(err, t));
       setBusy(false);
     }
   }
@@ -470,7 +470,7 @@ function WhoStep(props: {
             />
           )}
         </Field>
-        <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+        <LiveStatus notice={formError} />
         <div>
           <button type="submit" className="btn btn-primary" disabled={busy}>
             {t(busy ? "add.making" : props.makeLink ? "add.makeLink" : "add.next")}
@@ -487,7 +487,7 @@ function PinStep({ light = false, onBack, onDone, children }: { light?: boolean;
   const [pin, setPin] = useState("");
   const [again, setAgain] = useState("");
   const [errors, setErrors] = useState<{ pin?: string; again?: string }>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
   const pinInput = useRef<HTMLInputElement>(null);
   const againInput = useRef<HTMLInputElement>(null);
@@ -505,7 +505,7 @@ function PinStep({ light = false, onBack, onDone, children }: { light?: boolean;
     try {
       await onDone(light ? undefined : pin);
     } catch (err) {
-      setFormError(err instanceof NoCryptoError ? t("add.noCrypto") : errorMessage(err, t));
+      setFormError(err instanceof NoCryptoError ? { tone: "error", text: t("add.noCrypto") } : errorNotice(err, t));
       setBusy(false);
     }
   }
@@ -550,7 +550,7 @@ function PinStep({ light = false, onBack, onDone, children }: { light?: boolean;
             </Field>
           </>
         )}
-        <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+        <LiveStatus notice={formError} />
         <div className="actions">
           <button type="submit" className="btn btn-primary" disabled={busy}>
             {t(busy ? "add.making" : light ? "add.makeLink" : "add.makeQr")}

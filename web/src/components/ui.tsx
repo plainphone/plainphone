@@ -8,14 +8,18 @@ import {
   useRef,
   useState,
 } from "react";
+import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import type { T } from "../i18n/translate";
 import { ApiError } from "../lib/api";
+import { planLimitKey, planLimitOf } from "../lib/billing";
 
 /** Turns any error into a sentence for the user. */
 export function errorMessage(err: unknown, t: T): string {
   if (err instanceof ApiError) {
     if (err.status === 0) return t("error.network");
+    const limit = planLimitOf(err.status, err.data);
+    if (limit) return t(planLimitKey(limit), { max: limit.max });
     if (err.status === 429) return t("error.tooMany");
     if (err.status === 404) return t("error.notFound");
     if (err.status === 400 && err.issues.length) return t("error.form");
@@ -113,6 +117,33 @@ export type Tone = "info" | "success" | "error";
 export interface Notice {
   tone: Tone;
   text: string;
+  /** An in-app link after the text, e.g. to the plan page. */
+  link?: { to: string; label: string };
+}
+
+/** Like errorMessage, as a notice: a free plan limit (402) links to the plan page. */
+export function errorNotice(err: unknown, t: T): Notice {
+  const limit = err instanceof ApiError ? planLimitOf(err.status, err.data) : null;
+  return {
+    tone: "error",
+    text: errorMessage(err, t),
+    ...(limit ? { link: { to: "/plan", label: t("plan.limitLink") } } : {}),
+  };
+}
+
+/** The text of a notice, with its link when it has one. */
+export function NoticeText({ notice }: { notice: Notice }) {
+  return (
+    <p>
+      {notice.text}
+      {notice.link && (
+        <>
+          {" "}
+          <Link to={notice.link.to}>{notice.link.label}</Link>
+        </>
+      )}
+    </p>
+  );
 }
 
 /** Polite live region for async results. Always rendered, so screen readers pick up changes. */
@@ -122,7 +153,7 @@ export function LiveStatus({ notice, onClose }: { notice: Notice | null; onClose
     <div className="live" aria-live="polite" aria-atomic="true">
       {notice && (
         <div className={`notice notice-${notice.tone}`} role={notice.tone === "error" ? "alert" : undefined}>
-          <p>{notice.text}</p>
+          <NoticeText notice={notice} />
           {onClose && (
             <button type="button" className="btn-icon" onClick={onClose} aria-label={t("app.close")}>
               <span aria-hidden="true">×</span>

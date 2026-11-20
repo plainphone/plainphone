@@ -2,7 +2,8 @@
 import { messageLanguage } from "../lib/phone-language";
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
-import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, Switch, useLoad, useNow } from "../components/ui";
+import { ErrorState, errorMessage, errorNotice, Field, Loading, type Notice, NoticeText, PageTitle, Switch, useLoad, useNow } from "../components/ui";
+import { EarlyUnlock } from "../components/EarlyUnlock";
 import { SosOptions } from "../components/SosOptions";
 import { SosPanel } from "../components/SosPanel";
 import { PhoneSwitch } from "../components/BedtimeSettings";
@@ -169,7 +170,7 @@ export function PhoneLayout() {
         return r;
       } catch (err) {
         if (err instanceof ApiError && err.status === 400 && err.issues.length) throw err;
-        setNotice({ tone: "error", text: err instanceof ApiError && err.status === 400 ? err.message : errorMessage(err, t) });
+        setNotice(err instanceof ApiError && err.status === 400 ? { tone: "error", text: err.message } : errorNotice(err, t));
         return null;
       }
     },
@@ -295,7 +296,7 @@ function ChangeBar({
         </div>
       ) : notice ? (
         <div className={`bar bar-${notice.tone}`} role={notice.tone === "error" ? "alert" : undefined}>
-          <p>{notice.text}</p>
+          <NoticeText notice={notice} />
           <div className="bar-actions">
             <button type="button" className="btn-icon" onClick={onDismiss} aria-label={t("app.close")}>
               <span aria-hidden="true">×</span>
@@ -345,6 +346,7 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
           >
             {t("pending.cancel")}
           </button>
+          <EarlyUnlock change={c} onChanged={() => void reloadPending()} />
         </li>
       ))}
     </ul>

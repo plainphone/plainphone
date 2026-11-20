@@ -4,6 +4,7 @@
 // so the app never sees or stores a token.
 
 import type { AgePreset, AgePresetId, AgeState, Agreement } from "./age";
+import type { EarlyUnlockOffer } from "./billing";
 import type { Language, PhoneLanguage } from "./phone-language";
 
 export type Locale = Language;
@@ -470,6 +471,8 @@ export interface PendingChange {
   keyType: "delay" | "trusted";
   effectiveAt: string | null;
   createdAt?: string;
+  /** Paid early unlock (docs/billing.md). Only while billing is on; absent means show nothing. */
+  earlyUnlock?: EarlyUnlockOffer;
 }
 export type ChangeResult = { status: "applied" } | { status: "pending"; change: PendingChange };
 
@@ -510,7 +513,7 @@ export class ApiError extends Error {
     message: string,
     readonly issues: Issue[] = [],
     /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
-    readonly data: { selfPhoneIds?: string[]; outcome?: string } = {},
+    readonly data: { selfPhoneIds?: string[]; outcome?: string; error?: string; limit?: string; max?: number } = {},
   ) {
     super(message);
   }
@@ -554,7 +557,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
   }
   if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string };
+    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string; limit?: string; max?: number };
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
     throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
   }

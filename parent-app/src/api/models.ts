@@ -7,6 +7,9 @@
 import type { components } from "./schema";
 
 import type { Language, PhoneLanguage } from "../shared/lib/phone-language";
+import type { EarlyUnlockOffer } from "../shared/lib/billing";
+
+export type { EarlyUnlockOffer, EarlyUnlockPurchase, Plan } from "../shared/lib/billing";
 
 export type Locale = Language;
 export type Profile = "child" | "self";
@@ -189,6 +192,7 @@ export interface KeyInput {
   keyType: "delay" | "trusted";
   delayHours: number;
   trustedEmail: string | null;
+  /** "Offer early unlock" (docs/billing.md). Amount and recipient are legacy and only echoed back. */
   payUnlockEnabled: boolean;
   payUnlockAmount: number;
   payUnlockRecipient: "plainphone";
@@ -297,6 +301,11 @@ export interface PendingChange {
   keyType: "delay" | "trusted";
   effectiveAt: string | null;
   createdAt?: string;
+  /**
+   * Paid early unlock (docs/billing.md), only while billing is on. The app never buys one (store
+   * rules); it only shows a bought unlock's state and keeps the withdrawal reachable.
+   */
+  earlyUnlock?: EarlyUnlockOffer;
 }
 export type ChangeResult = { status: "applied" } | { status: "pending"; change: PendingChange };
 

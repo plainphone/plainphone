@@ -7,18 +7,31 @@ import { api, ApiError, type Phone } from "../lib/api";
 import { useMe, useSession } from "../lib/session";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { NotificationsSection } from "./Notifications";
+import { planNowKey } from "../lib/billing";
+import { usePlan } from "./Plan";
 
 export function SettingsPage() {
   const { t } = useI18n();
+  const plan = usePlan();
+  const now = plan?.billing ? planNowKey(plan) : null;
   return (
     <>
       <PageTitle>{t("settings.title")}</PageTitle>
       <NotificationsSection />
       <WeeklySummarySettings />
-      <section className="section" aria-labelledby="free-promise-h">
-        <h2 id="free-promise-h">{t("settings.freeTitle")}</h2>
-        <p>{t("settings.freePromise")}</p>
-      </section>
+      {now ? (
+        // Only while the server has billing on: the plan replaces the old "free for now" promise.
+        <section className="section" aria-labelledby="plan-h">
+          <h2 id="plan-h">{t("plan.settingsTitle")}</h2>
+          <p>{t(now)}</p>
+          <p><Link to="/plan">{t("plan.settingsLink")}</Link></p>
+        </section>
+      ) : (
+        <section className="section" aria-labelledby="free-promise-h">
+          <h2 id="free-promise-h">{t("settings.freeTitle")}</h2>
+          <p>{t("settings.freePromise")}</p>
+        </section>
+      )}
       <AccountSection />
     </>
   );
