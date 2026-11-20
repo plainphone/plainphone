@@ -21,7 +21,7 @@ For a larger change, open an issue first so we can agree on the approach.
 Found a way around the lock, or a privacy flaw? Do not open a public issue. Follow [SECURITY.md](SECURITY.md).
 
 ## Setup per part
-
+ `pnpm lint` at the root runs each package's `lint`, which is its TypeScript typecheck (there is no separate linter).
 The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root.
 
 | Part | Requirements | Check before a PR |
