@@ -85,7 +85,7 @@ describe("pairing", () => {
       await fireEvent.press(screen.getByTestId("setup-age-next"));
       await fireEvent.press(await screen.findByRole("button", { name: "Continue in the browser" }));
       await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
-      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child" });
+      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child", householdId: ME.households[0].id });
     } finally {
       open.mockRestore();
     }
@@ -980,6 +980,7 @@ describe("invitations", () => {
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce(link);
     const api = phoneApi(PHONE, { "POST /invites/accept": { body: { ok: true } }, "GET /phones": { body: { phones: [] } } });
     await renderRouter(routes, { initialUrl: "/invite" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     expect(await screen.findByText("You are now part of the household and can manage its phones.")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_abcdefghij" });
     await fireEvent.press(screen.getByTestId("invite-done"));
@@ -1002,6 +1003,7 @@ describe("invitations", () => {
     await SecureStore.setItemAsync("pp.invite", "pp_i_keptinvite1");
     const api = phoneApi(PHONE, { "POST /invites/accept": { body: { ok: true } } });
     await renderRouter(routes, { initialUrl: "/invite" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     expect(await screen.findByText("You are now part of the household and can manage its phones.")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_keptinvite1" });
     // Used or failed: forgotten.
@@ -1021,6 +1023,7 @@ describe("invitations", () => {
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/invite#token=pp_i_usedinvite1");
     phoneApi(PHONE, { "POST /invites/accept": { status: 400, body: { error: "invalid or expired invitation" } } });
     await renderRouter(routes, { initialUrl: "/invite" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     expect(await screen.findByText("This invitation is expired or already used. Ask for a new one.")).toBeTruthy();
   });
 });

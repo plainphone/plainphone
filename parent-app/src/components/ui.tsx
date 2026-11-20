@@ -84,6 +84,8 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
     return () => {
+      // A counter, not a DOM node: bumping it makes the answers to these deps stale.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       latest.current++;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -6,6 +6,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
 import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import { RequireAuth } from "../components/RequireAuth";
+import { useMe } from "../lib/session";
 import { ScanCode } from "../components/ScanCode";
 import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack, Switch, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
@@ -16,6 +17,8 @@ import { normaliseCode } from "../shared/lib/format";
 
 function PairForm() {
   const { t } = useI18n();
+  // The household the app shows; without it the server picks any of the parent's households.
+  const householdId = useMe().households[0]?.id;
   const router = useRouter();
   const params = useLocalSearchParams<{ code?: string }>();
   const [code, setCode] = useState(() => normaliseCode(params.code ?? ""));
@@ -86,7 +89,7 @@ function PairForm() {
       } catch {
         timezone = undefined;
       }
-      const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone, ...(lookup.light && profile === "self" && privateDns ? { filterMethod: "privateDns" as const } : {}) } }));
+      const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone, householdId, ...(lookup.light && profile === "self" && privateDns ? { filterMethod: "privateDns" as const } : {}) } }));
       // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the phone.
       const failed = profile === "child" && await saveSetupChoices(phone.id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement);
       if (failed) setNotice({ tone: "warn", text: t("age.setupSaveFailed") });
