@@ -34,6 +34,7 @@ internal data class ThreadPage(
 internal class SmsHistory(
     private val context: Context,
     private val rules: ContactRules = ContactPolicySources.get(context).rules(),
+    private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     private val resolver = context.contentResolver
 
@@ -52,7 +53,7 @@ internal class SmsHistory(
         val rows = resolver.query(conversations, columns, bounded, null, null)
             ?.use(::read)
             // AOSP rejects subqueries in the restricted view and simple=true has no limit argument.
-            ?: query(conversations, columns, selection, ::read)
+            ?: windowed(columns, selection, after?.date, size, ::read)
         val visible = rows.take(size)
         val next = if (rows.size > size) {
             val date = visible.last().date
@@ -151,6 +152,24 @@ internal class SmsHistory(
         uri: Uri, columns: Array<String>, where: String, read: (Cursor) -> T,
     ): T = checkNotNull(resolver.query(uri, columns, where, null, null)) { "No history cursor" }.use(read)
 
+    /**
+     * The provider materialises every matching conversation (simple=true ignores LIMIT), so on a
+     * phone with thousands of them the first page would wait for all. Ask for a recent window first
+     * and widen it only while it holds fewer than a page; the newest rows are the same either way.
+     */
+    private fun <T : Any> windowed(
+        columns: Array<String>, selection: String, olderThan: Long?, size: Int, read: (Cursor) -> List<T>,
+    ): List<T> {
+        val top = olderThan ?: nowMs()
+        var span = FIRST_WINDOW_MS
+        while (top - span > 0) {
+            val rows = query(conversations, columns, "$selection AND date >= ${top - span}", read)
+            if (rows.size > size) return rows
+            span *= WINDOW_GROWTH
+        }
+        return query(conversations, columns, selection, read)
+    }
+
     private fun <T> queryPage(
         uri: Uri, columns: Array<String>, where: String, order: String, size: Int, read: (Cursor) -> T,
     ): T = checkNotNull(resolver.queryHistoryPage(uri, columns, where, null, order, size)) {
@@ -167,6 +186,8 @@ internal class SmsHistory(
     }
 
     private companion object {
+        const val FIRST_WINDOW_MS = 30L * 24 * 60 * 60 * 1000
+        const val WINDOW_GROWTH = 4
         val conversations: Uri = Uri.parse("content://mms-sms/conversations?simple=true")
         val canonicalAddresses: Uri = Uri.parse("content://mms-sms/canonical-addresses")
     }

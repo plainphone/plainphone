@@ -239,11 +239,12 @@ export const phones = pgTable(
       .references(() => households.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     profile: text("profile", { enum: ["child", "self"] }).notNull(),
-    /** Null preserves the always-on contact restriction on previously paired Strong Self phones. */
+    /** The child phone reads its contacts and suggests them to the parents (off by default). */
     suggestDeviceContacts: boolean("suggest_device_contacts").notNull().default(false),
     allowServerMove: boolean("allow_server_move"),
     awaitingServerMove: boolean("awaiting_server_move").notNull().default(false),
     lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
+    /** Null preserves the always-on contact restriction on previously paired Strong Self phones. */
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
     /** iPhone support (docs/ios/architecture.md); existing phones are Android. */
