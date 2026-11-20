@@ -71,9 +71,9 @@ internal object SosSender {
 
     /** Without a service: a partial wake lock keeps the CPU up for the attempt. */
     fun runInProcess(context: Context, input: Data, done: () -> Unit = {}) {
-        val lock = context.getSystemService(PowerManager::class.java)
-            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:sos-send")
-            ?.apply { setReferenceCounted(false); acquire(WAKE_LOCK_MS) }
+        val lock = context.getSystemService(PowerManager::class.java)?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:sos-send")
+        lock?.setReferenceCounted(false)
+        lock?.acquire(WAKE_LOCK_MS)
         scope.launch {
             try {
                 SosDelivery.attempt(context, input, 0)
@@ -125,8 +125,8 @@ internal object SosSender {
 
     private fun toJson(input: Data) = JSONObject().apply {
         STRINGS.forEach { key -> input.getString(key)?.let { put(key, it) } }
-        LONGS.forEach { key -> if (input.hasKeyWithValueOfType(key, java.lang.Long::class.java)) put(key, input.getLong(key, 0)) }
-        if (input.hasKeyWithValueOfType("boot", Integer::class.java)) put("boot", input.getInt("boot", -1))
+        LONGS.forEach { key -> (input.keyValueMap[key] as? Long)?.let { put(key, it) } }
+        (input.keyValueMap["boot"] as? Int)?.let { put("boot", it) }
     }
 
     fun fromJson(json: JSONObject): Data = Data.Builder().apply {
