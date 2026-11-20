@@ -301,7 +301,7 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
       hours: phones.offlineAlertHours,
     });
   for (const p of claimed) {
-    await notifyHousehold(ctx, p.id, {
+    await notifyClaimed(ctx, p.id, {
       type: "offline",
       phoneId: p.id,
       phoneName: p.name,
@@ -315,6 +315,15 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
     });
   }
   return claimed.length + (await alertNeverConnectedPhones(ctx, hours));
+}
+
+/** The phones are already claimed: one phone's failed alert must not cost the others theirs. */
+async function notifyClaimed(ctx: Ctx, phoneId: string, e: NotifyEvent) {
+  try {
+    await notifyHousehold(ctx, phoneId, e);
+  } catch (err) {
+    console.error(`${e.type} alert failed: ${errorSummary(err)}`);
+  }
 }
 
 /** A confirmed light phone that never connected has no last contact to go quiet from: remind once after two days. */
@@ -339,6 +348,6 @@ async function alertNeverConnectedPhones(ctx: Ctx, hours: ReturnType<typeof sql>
       ),
     )
     .returning({ id: phones.id, name: phones.name });
-  for (const p of claimed) await notifyHousehold(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
+  for (const p of claimed) await notifyClaimed(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
   return claimed.length;
 }
