@@ -198,3 +198,25 @@ it("opens the url on a click without an action, and ignores unknown actions", as
   expect(fetchMock).not.toHaveBeenCalled();
   expect(opened).toEqual(["https://pp.example/phones/p1", "https://pp.example/phones/p1"]);
 });
+
+it("confirms arrival and opening with the receipt id, without the session cookie", async () => {
+  load(4);
+  const receipt = "r".repeat(22);
+  await push({ title: "Alma needs help", url: "/phones/p1", tag: "sos1", receipt, data: { type: "sos-urgent", phoneId: "p1" } });
+  expect(shown).toHaveLength(1);
+  expect(fetchMock).toHaveBeenCalledWith("/api/push-receipt", expect.objectContaining({
+    method: "POST", credentials: "omit", body: JSON.stringify({ receipt, event: "delivered" }),
+  }));
+  await click("", shown[0]!.options.data as Record<string, unknown>);
+  expect(fetchMock).toHaveBeenLastCalledWith("/api/push-receipt", expect.objectContaining({ body: JSON.stringify({ receipt, event: "opened" }) }));
+});
+
+it("still shows the alert when the receipt cannot be sent, and sends none for a malformed id", async () => {
+  load(4);
+  fetchMock.mockRejectedValue(new TypeError("offline"));
+  await push({ title: "Alma needs help", url: "/", receipt: "r".repeat(22) });
+  expect(shown).toHaveLength(1);
+  fetchMock.mockClear();
+  await push({ title: "Hello", url: "/", receipt: "../../x" });
+  expect(fetchMock).not.toHaveBeenCalled();
+});
