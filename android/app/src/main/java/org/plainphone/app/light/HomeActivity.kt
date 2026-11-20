@@ -156,6 +156,7 @@ class HomeActivity : ComponentActivity() {
             },
         ) {
             SelfApprovalAction()
+            EmergencyStatusLine()
             if (light && LightSetup.isComplete(context)) {
                 FilledTonalButton(onClick = openSos) { Text(stringResource(R.string.sos_title)) }
             }

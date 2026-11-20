@@ -218,6 +218,11 @@ class SyncRunner(
         guarded("report status") { reportStatus(token, rules, reason) }
         // Before the list is read: an approval entered on the phone must not show as waiting.
         guarded("report approvals on the phone") { reportPhoneApprovals(token) }
+        // The phone is the authority for what it did: every opening it granted itself is reported, also
+        // after the feature was switched off. A failure only leaves them queued for the next sync.
+        guarded("report emergency openings") {
+            org.plainphone.app.light.EmergencyOpenings.reportPending(store.emergencyOpenings, api, token)
+        }
         guarded("requests") { refreshOpenRequests(token, rules) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
