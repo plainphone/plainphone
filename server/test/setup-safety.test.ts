@@ -143,6 +143,19 @@ describe("onboarding safety", () => {
     expect(notices[0]?.text.includes("reported late")).toBe(!withinGrace);
   });
 
+  it.each([[1, false], [8, true]])("when completion never reached the server, an undo after %s days is late: %s", async (days, late) => {
+    const { device, decide, claim } = await start(undefined, "light", "child");
+    await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    h.clock.advance(days * 24 * 60 * 60_000);
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    await sweep(h.ctx);
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.text.includes("reported late")).toBe(late);
+  });
+
   it.each([null, 365 * 24 * 60 * 60_000])("accepts undo with unknown or oversized completion age: %s", async (elapsedMs) => {
     const { parent, device, decide, claim } = await start();
     const claimed = await claim();
