@@ -152,7 +152,9 @@ Done before any Swift code, so the server, the dashboard and the parent app are 
 spikes have run on a real iPhone. Everything is behind one server switch, `IOS_PAIRING_ENABLED`
 (default `false`, [self-hosting.md](../self-hosting.md)).
 
-**Pairing.** `POST /device/pairings` takes `"platform": "ios"`. With the switch off the server
+### Pairing
+
+`POST /device/pairings` takes `"platform": "ios"`. With the switch off the server
 answers 403 `{"code": "ios_pairing_not_yet"}`: the app shows "This server cannot add iPhones yet",
 not an error. With it on, the pairing is stored with its platform and always as a light pairing
 (no Device Owner), `GET /phones/pairing-profile` returns `platform`, and the claim creates the
@@ -160,7 +162,9 @@ phone with `platform = ios` and `ios_tier = family_controls`. A claim after the 
 refused the same way. Android pairing is unchanged. Migration `0052_ios_pairing` adds
 `pairings.platform` and the `ios_selections` table.
 
-**Rules.** An iPhone's `GET /device/rules` is the Android document projected through an
+### iOS rules document
+
+An iPhone's `GET /device/rules` is the Android document projected through an
 allowlist (`IOS_RULE_KEYS` in [`server/src/services/ios-rules.ts`](../../server/src/services/ios-rules.ts)).
 Each key is tied to the capability it needs and left out when the phone's tier says `no`
 (for example `lockSystemLanguage`). Android mechanisms never reach an iPhone: package names, modes
@@ -169,7 +173,9 @@ windows and Google accounts (`ANDROID_ONLY_RULE_KEYS`; a test fails when a new A
 placed in one of the two lists). Schedules lose their app lists, time limits keep only the
 whole-phone limit, and the document adds `platform`, `tier`, `capabilities` and `iosApps`.
 
-**App selections.** The apps an iPhone allows (or blocks, in open mode) are Apple's encoded
+### App selections
+
+The apps an iPhone allows (or blocks, in open mode) are Apple's encoded
 `FamilyActivitySelection`, stored per phone as an opaque base64 blob of at most 128 KiB
 (`ios_selections`). Two routes, each behind a capability, because spike (a) decides which one
 phase 1 uses:
@@ -184,13 +190,17 @@ happened there, so the server records it. The rules document carries only `iosAp
 (`revision`, `source`, `updatedAt`); the phone fetches the bytes from `GET /device/ios-selection`
 when the revision changes. Android phones get 409 `not_supported` on both routes.
 
-**Status.** `PUT /device/status` takes an `ios` object (`iosVersion`, `authorizationStatus`,
+### Receipts and status
+
+`PUT /device/status` takes an `ios` object (`iosVersion`, `authorizationStatus`,
 `communicationLimits`, `dnsEnabled`, `locationAuth`, `effectiveStores`). An iPhone's lock counts as
 intact only while `authorizationStatus` is `approved`, nothing failed and no maintenance runs; the
 light-mode protections do not apply. Unknown fields are ignored, so a newer app is never refused.
 Receipts use the same `rulesEtag` and `rulesReceiptConfirmed` fields as Android.
 
-**Dashboard and parent app.** "Add phone" offers "An iPhone" only while `GET /me` says
+### Dashboard and parent app
+
+"Add phone" offers "An iPhone" only while `GET /me` says
 `iosPairing: true`. That path asks "Whose phone is this?" (Child or Myself), lists Apple's
 prerequisites (Family Sharing, a child Apple Account, Screen Time on; only Screen Time for Myself)
 with a link to Apple's guide, and then takes the code or QR code the iPhone shows. On an iPhone's
@@ -199,7 +209,9 @@ switches that would do nothing, the Apps page says apps are picked on the iPhone
 last picked, the health card checks Screen Time permission instead of Android's protections, and
 light mode's Android parts (Private DNS choice, contact restriction, protections list) are hidden.
 
-**Left for the Swift side (phase 1 proper):** the Child role and the app's own "Whose phone is
+### Left for the Swift side (phase 1 proper)
+
+the Child role and the app's own "Whose phone is
 this?" screen (`ROLE_FLAGS` in [`roles.ts`](../../parent-app/src/lib/roles.ts) still has Child off),
 calling `POST /device/pairings` with `platform: "ios"` and showing the code and QR, `.child`
 authorization, `RulesCompiler` for the `IosRules` document, the picker and the two selection
