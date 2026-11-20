@@ -97,7 +97,7 @@ export class Apns {
     this.key = createPrivateKey(p8);
   }
 
-  async send(token: string, payload: object, urgent: boolean): Promise<SendOutcome> {
+  async send(token: string, payload: object, urgent: boolean, collapseId?: string): Promise<SendOutcome> {
     const iat = Math.floor(Date.now() / 1000);
     if (!this.auth || iat - this.auth.iat >= 3000) {
       this.auth = { jwt: jwt({ alg: "ES256", kid: this.kid }, { iss: this.team, iat }, this.key, "SHA256"), iat };
@@ -108,6 +108,8 @@ export class Apns {
         authorization: `bearer ${this.auth.jwt}`,
         "apns-topic": this.topic, "apns-push-type": "alert", "apns-priority": urgent ? "10" : "5",
         "content-type": "application/json",
+        // The same id replaces the notification already shown (the tag); APNs allows at most 64 bytes.
+        ...(collapseId && Buffer.byteLength(collapseId) <= 64 && { "apns-collapse-id": collapseId }),
       }, JSON.stringify(payload));
       if (response.status === 200) return "sent";
       if (response.status === 410 || (response.status === 400 && ["BadDeviceToken", "DeviceTokenNotForTopic"].includes(JSON.parse(response.body).reason))) return "gone";
@@ -212,7 +214,7 @@ export class NativeParentPush implements ParentPushProvider {
       return this.apns?.send(target.endpoint, {
         aps: { alert: { title, body }, ...(!silent && { sound: "default" }), ...(category && { category }), ...(urgent && { "interruption-level": "time-sensitive" }) },
         ...data,
-      }, urgent) ?? "unsupported";
+      }, urgent, tag) ?? "unsupported";
     }
     // FCM "notification" messages are drawn by Android itself, without buttons. Messages with buttons are
     // data-only, so expo-notifications in the parent app draws them with the category's actions.

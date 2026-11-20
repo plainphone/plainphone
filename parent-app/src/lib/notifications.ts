@@ -166,8 +166,10 @@ export async function handleNotificationResponse(r: Notifications.NotificationRe
       title: typeof (data as { phoneName?: unknown } | undefined)?.phoneName === "string" ? (data as { phoneName: string }).phoneName : "Plainphone",
       body: outcome.text,
       data: { type: outcome.failed ? "more-time-failed" : "more-time-done", phoneId: target.phoneId, url: `/phones/${target.phoneId}` },
+      ...(!outcome.failed && { interruptionLevel: "passive" as const }),
     },
-    trigger: null,
+    // Android: a failure is something to act on, the rest goes to the quiet channel.
+    trigger: { channelId: outcome.failed ? "normal" : "quiet" },
   }).catch(() => undefined);
   // Something the parent has to do: the phone's screen shows the request.
   return outcome.failed ? routeForPush(data) : null;

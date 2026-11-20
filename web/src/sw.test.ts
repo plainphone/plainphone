@@ -173,6 +173,14 @@ it("opens the phone page when the push carried no lines (an older server)", asyn
   expect(opened).toEqual(["https://pp.example/phones/p1"]);
 });
 
+it("stays quiet and closed when an older push carried no lines but the answer went through", async () => {
+  fetchMock.mockResolvedValue(decided({}));
+  load(4);
+  await click("15", payload.data);
+  expect(shown).toEqual([]);
+  expect(opened).toEqual([]);
+});
+
 it("shows the receipt from the phone as a silent update of the same notification", async () => {
   load(4);
   await push({

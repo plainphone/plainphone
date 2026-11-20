@@ -78,7 +78,9 @@ describe("native push", () => {
       "apns-topic": "org.plainphone.parent", authorization: expect.stringMatching(/^bearer /),
     });
     expect(JSON.parse(http.mock.calls[0]![2])).toMatchObject({ aps: { "interruption-level": "time-sensitive" } });
-    expect(await push.send(target, notification)).toBe("gone");
+    expect(http.mock.calls[0]![1]).toMatchObject({ "apns-collapse-id": "alert" });
+    expect(await push.send(target, { ...notification, tag: "x".repeat(65) })).toBe("gone");
+    expect(http.mock.calls[1]![1]).not.toHaveProperty("apns-collapse-id");
     expect(JSON.parse(http.mock.calls[1]![2]).aps["interruption-level"]).toBeUndefined();
   });
 

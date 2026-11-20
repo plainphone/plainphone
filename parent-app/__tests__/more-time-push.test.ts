@@ -105,8 +105,8 @@ describe("answer buttons", () => {
     await handleNotificationResponse(response("15", { ...DATA, phoneName: "Alma" }), true, T);
     expect(followUpShown()).toEqual([expect.objectContaining({
       identifier: "moretime-33333333333343338333333333333333",
-      trigger: null,
-      content: expect.objectContaining({ title: "Alma", body: "15 more minutes given. The phone will confirm when it is active.", data: expect.objectContaining({ type: "more-time-done" }) }),
+      trigger: { channelId: "quiet" },
+      content: expect.objectContaining({ interruptionLevel: "passive", title: "Alma", body: "15 more minutes given. The phone will confirm when it is active.", data: expect.objectContaining({ type: "more-time-done" }) }),
     })]);
   });
 
@@ -132,6 +132,8 @@ describe("answer buttons", () => {
     setSessionToken("pp_s_test");
     expect(await handleNotificationResponse(response("15"), true, T)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
     expect(followUpShown()[0]!.content).toMatchObject({ body: "This request had expired", data: { type: "more-time-failed" } });
+    expect(followUpShown()[0]!.trigger).toEqual({ channelId: "normal" });
+    expect(followUpShown()[0]!.content).not.toHaveProperty("interruptionLevel");
   });
 
   it("ignores a button on a payload that is not a request, or has a bad id", async () => {

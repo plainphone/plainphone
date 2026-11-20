@@ -164,6 +164,8 @@ function answerMoreTime(data, answer) {
 // Returns [text, failed]. The lines come with the push, in the parent's language.
 function followUpText(words, result) {
   const done = (a) => (words.done && words.done[a]) || "";
+  // A push from before the follow-up existed carries no lines: the answer went through, say nothing.
+  if (!words.done && (result.status === "approved" || result.status === "declined")) return ["", false];
   if (result.status === "expired") return [words.expired, true];
   if ((result.status === "approved" || result.status === "declined") && done(result.answer)) {
     if (result.won || result.answeredByYou) {
@@ -198,7 +200,7 @@ self.addEventListener("notificationclick", (event) => {
   const answer = event.action;
   if (data.type === "more-time" && MORE_TIME_ANSWERS.includes(answer) && data.phoneId && data.requestId) {
     const words = data.words || {};
-    const tell = ([text, failed]) => (text ? showFollowUp(event.notification, data, text, failed) : openUrl(url));
+    const tell = ([text, failed]) => (text ? showFollowUp(event.notification, data, text, failed) : failed ? openUrl(url) : undefined);
     // Not signed in, offline or refused: say so in plain words; a tap opens the phone page, where the parent can answer.
     event.waitUntil(
       answerMoreTime(data, answer).then(
