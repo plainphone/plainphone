@@ -48,7 +48,7 @@ phones      + modesEnabled
   local midnight, crossing midnight when `end < start`. Slots of one phone may not overlap: the API
   answers `400` with `overlap`. A slot cannot use the default mode.
 
-Migration `0049_modes` is additive: two new tables, `phones.modes_enabled` (default false) and
+Migration `0050_modes` is additive: two new tables, `phones.modes_enabled` (default false) and
 `contacts.contact_group` (default `others`). It sets `contact_group = 'family'` on contacts that are
 marked as parents. Existing columns are not changed.
 
