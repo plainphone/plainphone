@@ -89,7 +89,9 @@ internal object CatalogAccounts {
             // then move the fallback's relock snapshot to the current accounts and keep it until its TTL.
             val settledFallbacks = markers.filterValues { it.optBoolean(5) && it.hasOutcome() }
             if (settledFallbacks.isNotEmpty()) {
-                val all = if (request.fallback) current else fingerprints(context, allTypes = true)
+                // Read the accounts now, not the baseline above: an account added since then (a fallback
+                // lifts the restriction first) would otherwise be missing from the new relock snapshot.
+                val all = fingerprints(context, allTypes = true)
                 if (settledFallbacks.values.any { hasLateAddition(it, all) }) reportUnexpectedChange(context)
                 check(foldRelocked(context, settledFallbacks, all.keys))
             }
@@ -215,8 +217,15 @@ internal object CatalogAccounts {
 
     // The fallback lifted the restriction for every account type, so any new account is late.
     private fun hasLateAddition(marker: JSONArray, current: Map<String, String>): Boolean {
-        // Older outcomes did not record the account set at relock.
-        val relocked = marker.optJSONArray(7)?.accountKeys() ?: return false
+        val relocked = marker.optJSONArray(7)?.accountKeys()
+        if (relocked == null) {
+            // An outcome written before the relock set existed (the app upgraded inside an open window).
+            // Read it strictly: any account beyond the baseline is late, except the single Google account
+            // a successful outcome expected. Reading it as "nothing late" would let a late account through.
+            val baseline = baseline(marker)
+            return current.keys.any { it !in baseline } &&
+                !(marker.optBoolean(6) && expectedGoogleAddition(baseline, current))
+        }
         return current.keys.any { it !in relocked }
     }
 
