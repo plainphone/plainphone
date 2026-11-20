@@ -48,6 +48,7 @@ export const translations = {
     ],
     contact: "Kontakta supporten",
     contactText: "Beskriv vad du provade och vad som hände. Du kan klistra in diagnostik från Underhåll eller kontrollpanelen. Utelämna namn, kontouppgifter och andra personuppgifter.",
+    statusText: "Se om Plainphone fungerar som vanligt på <a href=\"https://status.plainphone.org\">statussidan</a>. Den visar appen, webbfiltret och inloggningsmejl.",
   },
   nb: {
     path: "/nb/help/",
@@ -97,6 +98,7 @@ export const translations = {
     ],
     contact: "Kontakt brukerstøtte",
     contactText: "Beskriv hva du prøvde og hva som skjedde. Du kan lime inn diagnostikk fra Vedlikehold eller kontrollpanelet. Utelat navn, kontoopplysninger og andre personopplysninger.",
+    statusText: "Se om Plainphone kjører som normalt på <a href=\"https://status.plainphone.org\">statussiden</a>. Den viser appen, nettfilteret og innloggingsmeldinger.",
   },
   de: {
     path: "/de/help/",
@@ -146,5 +148,6 @@ export const translations = {
     ],
     contact: "Support kontaktieren",
     contactText: "Beschreiben Sie, was Sie versucht haben und was passiert ist. Sie können Diagnosedaten aus der Wartung oder dem Dashboard einfügen. Lassen Sie Namen, Kontodaten und andere personenbezogene Daten weg.",
+    statusText: "Auf der <a href=\"https://status.plainphone.org\">Statusseite</a> sehen Sie, ob Plainphone normal läuft. Sie zeigt die App, den Webfilter und die Anmelde-E-Mails.",
   },
 };

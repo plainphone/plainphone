@@ -38,6 +38,7 @@ export const en = {
   "nav.logout": "Log out",
   "nav.language": "Language",
   "nav.privacy": "Privacy",
+  "nav.status": "Status",
 
   "error.generic": "Something went wrong. Please try again.",
   "error.network": "Could not reach the server. Check your connection and try again.",

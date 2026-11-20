@@ -51,6 +51,7 @@ export const help = {
     ],
     contact: "Contact support",
     contactText: "Describe what you tried and what happened. You can paste the diagnostics from Maintenance or the dashboard. Leave out names, account details and other personal information.",
+    statusText: "Check whether Plainphone is running normally on the <a href=\"https://status.plainphone.org\">status page</a>. It shows the app, the web filter and sign-in emails.",
   },
   da: {
     path: "/da/help/",
@@ -100,5 +101,6 @@ export const help = {
     ],
     contact: "Kontakt support",
     contactText: "Beskriv, hvad du har prøvet, og hvad der skete. Du kan indsætte de tekniske oplysninger fra Vedligeholdelse eller kontrolpanelet. Udelad navne, kontooplysninger og andre personoplysninger.",
+    statusText: "Se om Plainphone kører normalt på <a href=\"https://status.plainphone.org\">statussiden</a>. Den viser appen, webfilteret og login-mails.",
   },
 };

@@ -295,6 +295,7 @@ main {
 }
 
 .site-footer a {
+  margin-inline-end: 1.25rem;
   display: inline-flex;
   align-items: center;
   min-height: 44px;

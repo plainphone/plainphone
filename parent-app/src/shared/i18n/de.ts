@@ -34,6 +34,7 @@ export const de: Messages = {
   "nav.logout": "Abmelden",
   "nav.language": "Sprache",
   "nav.privacy": "Datenschutz",
+  "nav.status": "Status",
 
   "error.generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
   "error.network": "Der Server konnte nicht erreicht werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",

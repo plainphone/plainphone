@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import Constants from "expo-constants";
 import { useEffect, useState } from "react";
+import { Linking } from "react-native";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
@@ -10,6 +11,9 @@ import { ServerChoice } from "../components/ServerChoice";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
+
+/** The public status page, served by Uptime Kuma. */
+const STATUS_URL = "https://status.plainphone.org";
 
 function Settings() {
   const { t, locale } = useI18n();
@@ -67,6 +71,12 @@ function Settings() {
         <ServerChoice signsOut />
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
+      <Button
+        kind="secondary"
+        title={t("nav.status")}
+        testID="status-link"
+        onPress={() => void Linking.openURL(STATUS_URL)}
+      />
       <Card>
         <Text variant="heading">{t("settings.freeTitle")}</Text>
         <Text>{t("settings.freePromise")}</Text>

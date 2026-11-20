@@ -20,6 +20,7 @@ export default {
     day: ["Day one with Plainphone", "Pick Strong or Light mode in the parent dashboard.", "Choose who will use the phone.", "Follow the setup guide and connect the phone.", "Agree on the rules together and try a call and the apps you need."],
     childSees: "The phone shows which apps are available and how much time is left for apps with a limit. It tells your child when time is up and shows a notification when it sends its location.",
     privacyNote: "No cookies, analytics, tracking or third-party requests on this website.",
+    status: "Status",
     groups: {
       gettingStarted: "Getting started",
       safety: "Safety",

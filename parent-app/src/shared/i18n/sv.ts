@@ -34,6 +34,7 @@ export const sv: Messages = {
   "nav.logout": "Logga ut",
   "nav.language": "Språk",
   "nav.privacy": "Privatliv",
+  "nav.status": "Status",
 
   "error.generic": "Något gick fel. Försök igen.",
   "error.network": "Kunde inte nå servern. Kontrollera din anslutning och försök igen.",
