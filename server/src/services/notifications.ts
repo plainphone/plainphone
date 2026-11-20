@@ -15,13 +15,10 @@ import { lastSeen, moreTimeActions, pushWords, type SafetyNews } from "../lib/pu
 import { reviewWords } from "../lib/review-words.js";
 import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
-import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
+import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
 import { recordSummaryEvent } from "./summary-record.js";
-
-/** After this many failed sends in a row (not 404/410), a subscription is dropped. */
-const MAX_FAILURES = 20;
 
 export type NotifyEvent =
   | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
@@ -182,14 +179,8 @@ export async function notifyUsers(
         if (outcome === "failed") opts.onFailure?.();
         // A retried alert must not use up a subscription's allowance: only a permanent error deletes it.
         if (outcome === "failed" && opts.keepOnTransientFailure) return 0;
-        if (outcome === "gone" || (outcome === "failed" && sub.platform === "web" && sub.failures + 1 >= MAX_FAILURES)) {
-          await discardGonePushSubscription(ctx, sub);
-        } else if (outcome === "failed") {
-          await ctx.db
-            .update(pushSubscriptions)
-            .set({ failures: sql`${pushSubscriptions.failures} + 1` })
-            .where(sameRegistration);
-        }
+        if (outcome === "gone") await discardGonePushSubscription(ctx, sub);
+        else if (outcome === "failed") await recordFailedPush(ctx, sub);
         return 0;
       }),
     );
