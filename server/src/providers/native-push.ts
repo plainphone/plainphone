@@ -173,8 +173,8 @@ export function configureNativePush(cfg: Config) {
       }
     }
   }
-  if (p8 || kid || team || bundle) {
-    if (!(p8 && kid && team && bundle)) {
+  if (p8 || kid || team) {
+    if (!(p8 && kid && team)) {
       fail("apns: incomplete configuration");
     } else {
       try {

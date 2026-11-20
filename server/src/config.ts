@@ -29,14 +29,14 @@ const schema = z.object({
   APNS_KEY_P8: z.string().optional(),
   APNS_KEY_ID: z.string().optional(),
   APNS_TEAM_ID: z.string().optional(),
-  APNS_BUNDLE_ID: z.string().optional(),
+  APNS_BUNDLE_ID: unsetIfEmpty(z.string().default("org.plainphone.app")),
   APNS_SANDBOX: unsetIfEmpty(z.enum(["true", "false"]).default("false")),
   /**
    * Native parent apps that may open this server's links (universal links / app links),
    * served at /.well-known/apple-app-site-association and /.well-known/assetlinks.json.
    * Self-hosters with their own app builds put their own ids here.
    */
-  APPLE_APP_IDS: z.string().default("P7698GU4AV.org.plainphone.parent"),
+  APPLE_APP_IDS: z.string().default("P7698GU4AV.org.plainphone.app"),
   ANDROID_APP_PACKAGE: z.string().default("org.plainphone.parent"),
   /** SHA-256 fingerprints (AA:BB:…) of the Android signing certificates, comma separated. */
   ANDROID_APP_CERT_SHA256: z.string().default(""),
