@@ -116,6 +116,13 @@ sealed interface RulesResult {
     data class Changed(val etag: String, val body: String) : RulesResult
 }
 
+/**
+ * The server's answer to a quick message: how many parent devices got a push (with 0 the phone sends
+ * an SMS), whether it was over the limit (recorded but quiet: no SMS either), or whether the first
+ * send with this id is still notifying (ask again).
+ */
+data class QuickSendAnswer(val notified: Int, val limited: Boolean = false, val pending: Boolean = false)
+
 data class InstalledApp(val packageName: String, val label: String, val core: Boolean)
 
 data class LocationFix(val lat: Double, val lon: Double, val accuracyM: Float?, val recordedAtMs: Long)
@@ -595,6 +602,29 @@ class PlainphoneApi private constructor(
         } catch (err: org.json.JSONException) {
             throw IOException("Invalid SOS response", err)
         }
+    }
+
+    /**
+     * An ordinary quick message (docs/sos.md). Safe to repeat: the server answers a repeated [id]
+     * with the first answer.
+     */
+    fun sendQuickMessage(token: String, id: String, text: String): QuickSendAnswer {
+        val body = JSONObject().put("id", id).put("text", text)
+        val r = call("POST", "/device/quick-messages/send", token, body, readTimeoutMs = 8_000, replayable = true)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return try {
+            val json = JSONObject(r.body)
+            QuickSendAnswer(json.getInt("notified"), json.optBoolean("limited"), json.optBoolean("pending"))
+        } catch (err: JSONException) {
+            throw IOException("Invalid quick message response", err)
+        }
+    }
+
+    /** The child suggests a new quick message. 201 on success; [HttpError] 409 when three are waiting, 403 when off. */
+    fun suggestQuickMessage(token: String, text: String) {
+        // Not replayed: a repeat would add the suggestion twice.
+        val r = call("POST", "/device/quick-messages/suggest", token, JSONObject().put("text", text), readTimeoutMs = 10_000)
+        if (r.status != 201) throw HttpError(r.status, r.body)
     }
 
     fun sosStatus(token: String, id: String): JSONObject {

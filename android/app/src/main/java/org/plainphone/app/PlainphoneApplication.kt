@@ -117,6 +117,7 @@ class PlainphoneApplication : Application() {
                 IntentFilter(Intent.ACTION_SCREEN_OFF),
             )
             TimeTicker.register(this)
+            org.plainphone.app.sos.SilentSos.watchPowerButton(this)
             // On startup or a host switch the lock can confirm the VPN step on the next sync.
             org.plainphone.app.light.vpn.VpnEvents.listener = { event ->
                 when (event) {

@@ -1,0 +1,22 @@
+<resources>
+    <string name="quick_title">Schnellnachrichten</string>
+    <string name="quick_sent">An deine Eltern gesendet</string>
+    <string name="quick_send_failed">Die Nachricht konnte nicht gesendet werden. Ruf deine Eltern selbst an oder schreib ihnen.</string>
+    <string name="quick_suggest">Eine Schnellnachricht vorschlagen</string>
+    <string name="quick_suggest_label">Deine Nachricht</string>
+    <string name="quick_suggest_send">Senden</string>
+    <string name="quick_suggest_cancel">Abbrechen</string>
+    <string name="quick_suggest_sent">Zur Freigabe an deine Eltern gesendet</string>
+    <string name="quick_suggest_waiting">Deine Eltern haben auf deine früheren Vorschläge noch nicht geantwortet</string>
+    <string name="quick_suggest_failed">Der Vorschlag konnte nicht gesendet werden. Versuch es später noch einmal.</string>
+    <plurals name="sharing_hidden_power">
+        <item quantity="one">Wenn du %1$d-mal schnell die Ein-/Aus-Taste drückst, bekommen deine Eltern ein stilles SOS.</item>
+        <item quantity="other">Wenn du %1$d-mal schnell die Ein-/Aus-Taste drückst, bekommen deine Eltern ein stilles SOS.</item>
+    </plurals>
+    <plurals name="sharing_hidden_power_position">
+        <item quantity="one">Wenn du %1$d-mal schnell die Ein-/Aus-Taste drückst, bekommen deine Eltern ein stilles SOS mit deinem Standort.</item>
+        <item quantity="other">Wenn du %1$d-mal schnell die Ein-/Aus-Taste drückst, bekommen deine Eltern ein stilles SOS mit deinem Standort.</item>
+    </plurals>
+    <string name="sharing_hidden_clock">Wenn du die Uhr auf dem Startbildschirm gedrückt hältst, bekommen deine Eltern ein stilles SOS.</string>
+    <string name="sharing_code_words">Diese Schnellnachrichten schicken deinen Eltern auch ein SOS: %1$s</string>
+</resources>

@@ -23,7 +23,9 @@ export interface PushFacts {
   /** `what` is null for the daily limit. */
   requestOnPhone: { phoneName: string; what: string | null };
   safety: { phoneName: string; what: SafetyNews };
-  sos: { phoneName: string; kind: "urgent" | "help" };
+  sos: { phoneName: string; kind: "urgent" | "help"; trigger?: "power" | "clock" | "code" | null; message?: string | null };
+  /** A quick message, or the child's suggestion for a new one. */
+  quickMessage: { phoneName: string; text: string };
 }
 
 /** "Tue 08:10" in the phone's own time zone. */
@@ -266,13 +268,45 @@ const safety = {
   })[e.what],
 } satisfies Record<Locale, (e: PushFacts["safety"]) => Words>;
 
+/** How a hidden SOS was sent, after the urgent line; a code word quotes the quick message. */
+const sosTrigger = {
+  en: { power: "Sent quietly with the power button.", clock: "Sent quietly from the clock on the home screen.", code: (m: string) => `Code word: "${m}"` },
+  da: { power: "Sendt i det skjulte med tænd/sluk-knappen.", clock: "Sendt i det skjulte fra uret på startskærmen.", code: (m: string) => `Kodeord: ”${m}”` },
+  sv: { power: "Skickat i tysthet med strömknappen.", clock: "Skickat i tysthet från klockan på hemskärmen.", code: (m: string) => `Kodord: ”${m}”` },
+  nb: { power: "Sendt i det stille med av/på-knappen.", clock: "Sendt i det stille fra klokken på startskjermen.", code: (m: string) => `Kodeord: «${m}»` },
+  de: { power: "Unbemerkt mit der Ein-/Aus-Taste gesendet.", clock: "Unbemerkt über die Uhr auf dem Startbildschirm gesendet.", code: (m: string) => `Codewort: „${m}“` },
+} satisfies Record<Locale, { power: string; clock: string; code: (m: string) => string }>;
+
+function withTrigger(e: PushFacts["sos"], l: Locale, w: Words): Words {
+  const t = sosTrigger[l];
+  const extra = e.trigger === "code" && e.message ? t.code(e.message) : e.trigger === "power" ? t.power : e.trigger === "clock" ? t.clock : null;
+  return extra ? { title: w.title, body: `${w.body} ${extra}` } : w;
+}
+
 const sos = {
-  en: (e) => ({ title: `${e.kind === "urgent" ? "Urgent SOS" : "SOS"} from ${e.phoneName}`, body: e.kind === "urgent" ? "I need help now." : "I need help." }),
-  da: (e) => ({ title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} fra ${e.phoneName}`, body: e.kind === "urgent" ? "Jeg har brug for hjælp nu." : "Jeg har brug for hjælp." }),
-  sv: (e) => ({ title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} från ${e.phoneName}`, body: e.kind === "urgent" ? "Jag behöver hjälp nu." : "Jag behöver hjälp." }),
-  nb: (e) => ({ title: `${e.kind === "urgent" ? "Akutt SOS" : "SOS"} fra ${e.phoneName}`, body: e.kind === "urgent" ? "Jeg trenger hjelp nå." : "Jeg trenger hjelp." }),
-  de: (e) => ({ title: `${e.kind === "urgent" ? "Dringendes SOS" : "SOS"} von ${e.phoneName}`, body: e.kind === "urgent" ? "Ich brauche jetzt Hilfe." : "Ich brauche Hilfe." }),
+  en: (e) => withTrigger(e, "en", { title: `${e.kind === "urgent" ? "Urgent SOS" : "SOS"} from ${e.phoneName}`, body: e.kind === "urgent" ? "I need help now." : "I need help." }),
+  da: (e) => withTrigger(e, "da", { title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} fra ${e.phoneName}`, body: e.kind === "urgent" ? "Jeg har brug for hjælp nu." : "Jeg har brug for hjælp." }),
+  sv: (e) => withTrigger(e, "sv", { title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} från ${e.phoneName}`, body: e.kind === "urgent" ? "Jag behöver hjälp nu." : "Jag behöver hjälp." }),
+  nb: (e) => withTrigger(e, "nb", { title: `${e.kind === "urgent" ? "Akutt SOS" : "SOS"} fra ${e.phoneName}`, body: e.kind === "urgent" ? "Jeg trenger hjelp nå." : "Jeg trenger hjelp." }),
+  de: (e) => withTrigger(e, "de", { title: `${e.kind === "urgent" ? "Dringendes SOS" : "SOS"} von ${e.phoneName}`, body: e.kind === "urgent" ? "Ich brauche jetzt Hilfe." : "Ich brauche Hilfe." }),
 } satisfies Record<Locale, (e: PushFacts["sos"]) => Words>;
+
+/** An ordinary quick message from the child's phone (docs/sos.md). */
+const quickMessage = {
+  en: (e) => ({ title: `${e.phoneName}: "${e.text}"`, body: "Quick message from the phone." }),
+  da: (e) => ({ title: `${e.phoneName}: ”${e.text}”`, body: "Hurtigbesked fra telefonen." }),
+  sv: (e) => ({ title: `${e.phoneName}: ”${e.text}”`, body: "Snabbmeddelande från telefonen." }),
+  nb: (e) => ({ title: `${e.phoneName}: «${e.text}»`, body: "Hurtigmelding fra telefonen." }),
+  de: (e) => ({ title: `${e.phoneName}: „${e.text}“`, body: "Schnellnachricht vom Handy." }),
+} satisfies Record<Locale, (e: PushFacts["quickMessage"]) => Words>;
+
+const quickSuggestion = {
+  en: (e) => ({ title: `${e.phoneName} suggests a quick message`, body: `"${e.text}". Open the app to approve or decline.` }),
+  da: (e) => ({ title: `${e.phoneName} foreslår en hurtigbesked`, body: `”${e.text}”. Åbn appen for at godkende eller afvise.` }),
+  sv: (e) => ({ title: `${e.phoneName} föreslår ett snabbmeddelande`, body: `”${e.text}”. Öppna appen för att godkänna eller avslå.` }),
+  nb: (e) => ({ title: `${e.phoneName} foreslår en hurtigmelding`, body: `«${e.text}». Åpne appen for å godkjenne eller avslå.` }),
+  de: (e) => ({ title: `${e.phoneName} schlägt eine Schnellnachricht vor`, body: `„${e.text}“. Öffnen Sie die App, um zuzustimmen oder abzulehnen.` }),
+} satisfies Record<Locale, (e: PushFacts["quickMessage"]) => Words>;
 
 const test = {
   en: { title: "Notifications work", body: "This device will get Plainphone notifications." },
@@ -283,7 +317,7 @@ const test = {
 } satisfies Record<Locale, Words>;
 
 /** Every push message, one table each. The completeness test walks this. */
-export const pushTables = { protection, offline, approval, request, requestOnPhone, moreTime, safety, sos, test };
+export const pushTables = { protection, offline, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, test };
 
 export const pushWords = {
   protection: (e: PushFacts["protection"], l: Locale): Words => protection[l](e),
@@ -293,6 +327,8 @@ export const pushWords = {
   requestOnPhone: (e: PushFacts["requestOnPhone"], l: Locale): Words => requestOnPhone[l](e),
   safety: (e: PushFacts["safety"], l: Locale): Words => safety[l](e),
   sos: (e: PushFacts["sos"], l: Locale): Words => sos[l](e),
+  quickMessage: (e: PushFacts["quickMessage"], l: Locale): Words => quickMessage[l](e),
+  quickSuggestion: (e: PushFacts["quickMessage"], l: Locale): Words => quickSuggestion[l](e),
   test: (l: Locale): Words => test[l],
   moreTime: (e: { phoneName: string; what: string | null; reason: string | null }, l: Locale): Words => {
     const m = moreTime[l];

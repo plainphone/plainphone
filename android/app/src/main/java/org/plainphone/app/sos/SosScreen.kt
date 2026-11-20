@@ -171,6 +171,7 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
             if (callActive) Button(onClick = SosCalls::stop, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.sos_stop_call))
             }
+            ChildQuickMessages(withSuggest = true, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

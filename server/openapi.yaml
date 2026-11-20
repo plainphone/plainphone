@@ -184,6 +184,8 @@ components:
       properties:
         id: { type: string, format: uuid }
         kind: { enum: [urgent, help] }
+        trigger: { enum: [power, clock, code, null], description: "How a hidden SOS was sent; null is the SOS screen. See docs/sos.md." }
+        message: { type: [string, "null"], description: The quick message's text when it was a code word. }
         createdAt: { type: string, format: date-time }
         seenAt: { type: [string, "null"], format: date-time }
         seenByName: { type: [string, "null"] }
@@ -194,6 +196,32 @@ components:
           anyOf:
             - { $ref: "#/components/schemas/SosPosition" }
             - { type: "null" }
+    SosSettings:
+      type: object
+      description: Per-phone switches for hidden SOS and quick messages (docs/sos.md).
+      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled]
+      properties:
+        hiddenPower: { type: boolean, default: false, description: Pressing the power button quickly sends a silent urgent SOS }
+        hiddenPresses: { type: integer, enum: [3, 4, 5, 6], default: 4, description: How many presses within about three seconds }
+        hiddenClock: { type: boolean, default: false, description: A long press on the home screen clock sends a silent urgent SOS }
+        hiddenFeedback: { enum: [vibrate, none], default: vibrate, description: The quiet confirmation on the child's phone }
+        quickMessagesEnabled: { type: boolean, default: true }
+        quickSuggestionsEnabled: { type: boolean, default: true, description: The child may suggest new quick messages }
+    QuickMessage:
+      type: object
+      required: [id, text, meansSos, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string, maxLength: 60 }
+        meansSos: { type: boolean, description: A code word. The child's phone shows an ordinary message; the parents get an urgent SOS. }
+        createdAt: { type: string, format: date-time }
+    QuickMessageSuggestion:
+      type: object
+      required: [id, text, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string, maxLength: 60 }
+        createdAt: { type: string, format: date-time }
     ChildContactSettings:
       type: object
       required: [suggestDeviceContacts, lightContactRestriction]
@@ -687,6 +715,30 @@ components:
                 properties:
                   name: { type: string }
                   number: { $ref: "#/components/schemas/E164" }
+            hidden:
+              type: object
+              required: [power, presses, clock, feedback]
+              properties:
+                power: { type: boolean }
+                presses: { type: integer, enum: [3, 4, 5, 6] }
+                clock: { type: boolean }
+                feedback: { enum: [vibrate, none] }
+            quickMessages:
+              type: object
+              required: [enabled, suggest, items]
+              properties:
+                enabled: { type: boolean }
+                suggest: { type: boolean, description: The child may suggest new quick messages }
+                items:
+                  type: array
+                  maxItems: 6
+                  items:
+                    type: object
+                    required: [id, text, meansSos]
+                    properties:
+                      id: { type: string, format: uuid }
+                      text: { type: string }
+                      meansSos: { type: boolean }
         allowServerMove: { type: boolean }
         fallbackDnsHost:
           type: [string, "null"]
@@ -1247,6 +1299,8 @@ paths:
                 location: { $ref: "#/components/schemas/SosPosition" }
                 smsSubmitted: { type: boolean }
                 sentAt: { type: string, format: date-time }
+                trigger: { enum: [power, clock, code], description: "A hidden SOS or a code word. Only with kind urgent." }
+                message: { type: string, maxLength: 60, description: The quick message's text; required with trigger code and only then. }
       responses:
         "200":
           description: Recorded
@@ -1255,6 +1309,64 @@ paths:
               schema: { $ref: "#/components/schemas/SosEvent" }
         "403": { description: SOS unavailable (only for a report that did not already send an SMS) }
         "410": { description: SOS expired }
+  /device/quick-messages/send:
+    post:
+      operationId: sendQuickMessage
+      summary: Send an ordinary quick message to the parents as push
+      description: Always accepted. With `notified` 0 no parent device got a push and the phone sends an SMS instead, unless `limited` (over the limit of ten in ten minutes; recorded but quiet) or `pending` (a repeat while the first send is still notifying; ask again). A repeated id is answered from the first send.
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, text]
+              properties:
+                id: { type: string, format: uuid }
+                text: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notified]
+                properties:
+                  notified: { type: integer, description: Parent devices that got a push }
+                  limited: { type: boolean, description: Over the send limit; the phone sends no SMS either }
+                  pending: { type: boolean, description: The first send with this id is still notifying }
+        "404": { description: Not a Child phone }
+  /device/quick-messages/suggest:
+    post:
+      operationId: suggestQuickMessage
+      summary: Suggest a new quick message for a parent to approve
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        "201":
+          description: Waiting for a parent (or the existing message with the same text)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { enum: [active, suggested] }
+        "403": { description: Suggestions are switched off }
+        "409": { description: Three suggestions are already waiting }
   /device/sos/{id}:
     get:
       operationId: getDeviceSos
@@ -1291,15 +1403,17 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [events, callbackNumber]
+                required: [events, callbackNumber, settings]
                 properties:
                   events:
                     type: array
                     items: { $ref: "#/components/schemas/SosEvent" }
                   callbackNumber: { type: [string, "null"] }
+                  settings: { $ref: "#/components/schemas/SosSettings" }
     put:
       operationId: setSosCallbackNumber
-      summary: Set or clear the number parents can call back
+      summary: Set the callback number and the hidden SOS and quick-message switches
+      description: Every field is optional; only the given ones change.
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         required: true
@@ -1307,11 +1421,126 @@ paths:
           application/json:
             schema:
               type: object
-              required: [callbackNumber]
               properties:
                 callbackNumber: { type: [string, "null"] }
+                hiddenPower: { type: boolean }
+                hiddenPresses: { type: integer, enum: [3, 4, 5, 6] }
+                hiddenClock: { type: boolean }
+                hiddenFeedback: { enum: [vibrate, none] }
+                quickMessagesEnabled: { type: boolean }
+                quickSuggestionsEnabled: { type: boolean }
       responses:
         "204": { description: Saved }
+        "404": { description: Not a Child phone }
+  /phones/{pid}/quick-messages:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: listQuickMessages
+      summary: The phone's quick messages and the child's waiting suggestions
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Quick messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [messages, suggestions]
+                properties:
+                  messages:
+                    type: array
+                    items: { $ref: "#/components/schemas/QuickMessage" }
+                  suggestions:
+                    type: array
+                    items: { $ref: "#/components/schemas/QuickMessageSuggestion" }
+        "404": { description: Not a Child phone }
+    post:
+      operationId: addQuickMessage
+      summary: Add a quick message (at most six)
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 60 }
+                meansSos: { type: boolean, default: false }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuickMessage" }
+        "409": { description: The phone already has six quick messages }
+  /phones/{pid}/quick-messages/{id}:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    patch:
+      operationId: updateQuickMessage
+      summary: Change a quick message's text or code-word flag
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string, minLength: 1, maxLength: 60 }
+                meansSos: { type: boolean }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuickMessage" }
+        "404": { description: Quick message not found }
+    delete:
+      operationId: deleteQuickMessage
+      summary: Remove a quick message or a suggestion
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "204": { description: Removed }
+        "404": { description: Quick message not found }
+  /phones/{pid}/quick-messages/{id}/approve:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: approveQuickMessage
+      summary: Approve the child's suggestion as a quick message
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                meansSos: { type: boolean }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuickMessage" }
+        "404": { description: Suggestion not found }
+        "409": { description: The phone already has six quick messages }
+  /phones/{pid}/quick-messages/{id}/decline:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: declineQuickMessage
+      summary: Decline the child's suggestion; nothing about it is kept
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "204": { description: Declined }
+        "404": { description: Suggestion not found }
   /phones/{pid}/sos/{id}/seen:
     post:
       operationId: acknowledgeSos

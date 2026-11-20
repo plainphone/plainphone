@@ -12,6 +12,7 @@ import { alertOfflinePhones } from "./notifications.js";
 import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
 import { sweepMoreTime } from "./more-time.js";
 import { sweepSos } from "./sos.js";
+import { sweepQuickMessages } from "./quick-messages.js";
 import { sweepSummaries } from "./weekly-summary.js";
 
 const DAY = 86_400_000;
@@ -129,6 +130,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   };
   await deliverSetupUndoNotices(ctx);
   await sweepSos(ctx);
+  await sweepQuickMessages(ctx);
   await sweepSummaries(ctx);
   await sweepMoreTime(ctx);
   return { applied, dns, dnsDeleted, offlineAlerts, alwaysEnded: ended.length, deleted };

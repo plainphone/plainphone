@@ -4,6 +4,11 @@ package org.plainphone.app.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +71,8 @@ data class HomeUi(
     val openRequests: Int = 0,
     /** The 5-minute warning, already worded (time/LimitWarning.kt). */
     val limitWarning: String? = null,
+    /** Holding the clock sends a silent SOS (docs/sos.md). Off: the clock is only a clock. */
+    val hiddenClock: Boolean = false,
 )
 
 class HomeActions(
@@ -77,6 +84,7 @@ class HomeActions(
     val help: () -> Unit = {},
     val selfTools: (() -> Unit)? = null,
     val requests: () -> Unit = {},
+    val clockHeld: () -> Unit = {},
 )
 
 @Composable
@@ -117,7 +125,7 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
                 LimitWarningNotice(it)
             }
             Spacer(Modifier.height(if (ui.limitWarning != null) 24.dp else 56.dp))
-            Clock(ui.time, ui.date)
+            Clock(ui.time, ui.date, onHeld = actions.clockHeld.takeIf { ui.hiddenClock })
             ui.noticeUntil?.let { until ->
                 Spacer(Modifier.height(20.dp))
                 Notice(
@@ -165,11 +173,14 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
 }
 
 @Composable
-private fun Clock(time: String, date: String) {
+private fun Clock(time: String, date: String, onHeld: (() -> Unit)? = null) {
     val c = LocalHomeColors.current
     // The clock is already huge: it does not grow further with the font size, the date does.
     val clockSize = with(LocalDensity.current) { 92.dp.toSp() }
-    Column(Modifier.semantics(mergeDescendants = true) { heading() }) {
+    // The hidden SOS adds no semantics and no visible change: the child learns about it on
+    // "What can my parents see?", and a screen reader does not announce it to anyone nearby.
+    val hold = if (onHeld == null) Modifier else Modifier.pointerInput(onHeld) { detectClockHold(onHeld) }
+    Column(Modifier.semantics(mergeDescendants = true) { heading() }.then(hold)) {
         Text(
             time,
             color = c.ink,
@@ -185,6 +196,26 @@ private fun Clock(time: String, date: String) {
         )
         Spacer(Modifier.height(6.dp))
         Text(date, color = c.muted, fontSize = 19.sp)
+    }
+}
+
+/** How long the clock must be held for the hidden SOS: longer than a normal long press, so it is not hit by chance. */
+internal const val CLOCK_HOLD_MS = 1_500L
+
+/** Fires [onHeld] when a finger rests on the clock for [CLOCK_HOLD_MS]. Scrolling or lifting earlier cancels. */
+private suspend fun PointerInputScope.detectClockHold(onHeld: () -> Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        val held = withTimeoutOrNull(CLOCK_HOLD_MS) { waitForUpOrCancellation() } == null &&
+            currentEvent.changes.none { it.isConsumed || !it.pressed }
+        if (held) {
+            onHeld()
+            // Swallow the rest of this touch, so lifting the finger does nothing else.
+            do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { it.consume() }
+            } while (event.changes.any { it.pressed })
+        }
     }
 }
 
