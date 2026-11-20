@@ -28,6 +28,7 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, notifyAlertRecipients, protectionLost } from "../services/notifications.js";
+import { recordUsage } from "../services/summary-record.js";
 import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
 import { canPreviewMove, MoveError, redeemMove, redeemMoveInput } from "../services/server-move.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
@@ -827,6 +828,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         },
         statusReportedAt: now,
       }).where(eq(phones.id, phone.id));
+      await recordUsage(tx, phone, input.timeUsed, now);
       const filterLost = previousFilter === true && confirmedLoss && !input.maintenance;
       const lockLost = protectionLost(
         prev.status ? withAttestation({

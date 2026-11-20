@@ -2,9 +2,13 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { sweep } from "../src/services/sweeper.js";
+import { households } from "../src/db/schema.js";
 import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
+
+/** These tests are about the alerts themselves: the weekly summary (its own tests) would add pushes and hold offline news back. */
+const withoutSummary = () => h.ctx.db.update(households).set({ summaryEnabled: false });
 
 const EP = "https://fcm.googleapis.com/fcm/send/";
 const keys = { p256dh: "B".repeat(87), auth: "A".repeat(22) };
@@ -300,6 +304,7 @@ describe("offline (#22)", () => {
     const mum = await signIn(h, "mum@example.org");
     await subscribe(mum, "mum");
     const { device } = await pairPhone(h, mum, { name: "Alma" });
+    await withoutSummary();
     await device.get("/api/device/rules");
     const mails = h.mail.outbox.length;
     h.clock.advance(12 * 3_600_000 - 60_000);
@@ -330,6 +335,7 @@ describe("offline (#22)", () => {
     const mum = await signIn(h, "mum@example.org");
     await subscribe(mum, "mum");
     const { device } = await pairPhone(h, mum, { name: "Alma" });
+    await withoutSummary();
     await device.get("/api/device/rules");
     // The server was down for three days: the alert tells the real silence.
     h.clock.advance(3 * 86_400_000 + 3_600_000);
@@ -344,6 +350,7 @@ describe("offline time per phone", () => {
     await subscribe(mum, "mum");
     const a = await pairPhone(h, mum, { name: "Alma" });
     const b = await pairPhone(h, mum, { name: "Bo" });
+    await withoutSummary();
     expect((await mum.patch(`/api/phones/${a.phoneId}`, { offlineAlertHours: 2 })).json).toMatchObject({ offlineAlertHours: 2, offlineAlertHoursDefault: 12 });
     await mum.patch(`/api/phones/${b.phoneId}`, { offlineAlertHours: 0 });
     await a.device.get("/api/device/rules");

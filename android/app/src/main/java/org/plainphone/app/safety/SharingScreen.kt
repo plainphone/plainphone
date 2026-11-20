@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import org.plainphone.app.R
 import org.plainphone.app.light.CalmScreen
 import org.plainphone.app.sync.ServerRules
+import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.PlainphoneTheme
 
 /**
@@ -40,8 +41,10 @@ class SharingActivity : ComponentActivity() {
         setContent {
             PlainphoneTheme {
                 val store = SafetyStore(this)
+                val rules = SyncStore(this).rules()
                 SharingScreen(
                     mode = store.locationMode ?: ServerRules.LOCATION_OFF,
+                    weeklySummary = rules?.profile == "child" && rules.weeklySummaryEnabled,
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },
@@ -62,6 +65,7 @@ fun SharingScreen(
     alwaysUntilMs: Long?,
     log: List<SharingEntry>,
     format: (Long) -> String,
+    weeklySummary: Boolean = false,
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -83,6 +87,10 @@ fun SharingScreen(
     ) {
         if (mode != ServerRules.LOCATION_OFF) {
             Text(stringResource(R.string.sharing_only_latest), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // Principle 1: the child is told what else the parents see, in plain words.
+        if (weeklySummary) {
+            Text(stringResource(R.string.sharing_weekly_summary), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.sharing_latest), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)

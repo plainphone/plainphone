@@ -94,6 +94,84 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    SummarySettings:
+      type: object
+      required: [enabled, byMail, byPush, actNowOnly, day, hour, minute, timeZone, mailEnabled]
+      properties:
+        enabled: { type: boolean, description: "Send a weekly summary (default on)." }
+        byMail: { type: boolean }
+        byPush: { type: boolean }
+        actNowOnly: { type: boolean, description: "Only alert me when I must act (default on): news that can wait goes into the summary." }
+        day: { type: integer, minimum: 0, maximum: 6, description: "0 = Sunday (default)." }
+        hour: { type: integer, minimum: 0, maximum: 23, description: "Default 18." }
+        minute: { type: integer, minimum: 0, maximum: 59 }
+        timeZone: { type: string, description: "IANA time zone the day and time are in (default Europe/Copenhagen)." }
+        mailEnabled: { type: boolean, description: "Whether this server can send mail." }
+    PhoneWeek:
+      type: object
+      required: [phoneId, name, usage, requests, changes, events]
+      properties:
+        phoneId: { type: string, format: uuid }
+        name: { type: string }
+        usage:
+          type: [object, "null"]
+          description: Null when the phone reported no use. Use is reported when the phone has a time limit.
+          properties:
+            days:
+              type: array
+              items:
+                type: object
+                required: [day, minutes]
+                properties:
+                  day: { type: string, format: date }
+                  minutes: { type: integer }
+            averageMinutes: { type: integer, description: "Over the days with a report." }
+            topApps:
+              type: array
+              items:
+                type: object
+                required: [packageName, label, minutes]
+                properties:
+                  packageName: { type: string }
+                  label: { type: string }
+                  minutes: { type: integer }
+        requests:
+          type: object
+          required: [asked, approved, rejected, byKind]
+          properties:
+            asked: { type: integer }
+            approved: { type: integer }
+            rejected: { type: integer }
+            byKind: { type: object, additionalProperties: { type: integer } }
+        changes:
+          type: object
+          required: [total, byCategory]
+          properties:
+            total: { type: integer }
+            byCategory: { type: object, additionalProperties: { type: integer }, description: "time, apps, contacts, web, schedules or other" }
+        events:
+          type: object
+          required: [protection, offline, checkin]
+          properties:
+            protection: { type: integer }
+            offline: { type: integer }
+            checkin: { type: integer }
+    WeeklySummary:
+      type: object
+      required: [id, weekEnd, periodStart, periodEnd, data]
+      properties:
+        id: { type: string, format: uuid }
+        weekEnd: { type: string, format: date, description: "Local date the summary was due." }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        data:
+          type: object
+          required: [version, phones]
+          properties:
+            version: { type: integer }
+            phones:
+              type: array
+              items: { $ref: "#/components/schemas/PhoneWeek" }
     SosPosition:
       type: object
       required: [lat, lon]
@@ -692,6 +770,10 @@ components:
           type: boolean
           default: true
           description: Include live web filter checks and the observed usage access permission in phone status.
+        weeklySummaryEnabled:
+          type: boolean
+          default: true
+          description: The server keeps this phone's daily use for the parents' weekly summary. The phone only uses it to tell the child on "What can my parents see?". Missing means on.
         silentBedtime:
           type: boolean
           default: true
@@ -965,6 +1047,7 @@ components:
         offlineAlertHoursDefault: { type: integer }
         changeReceiptsEnabled: { type: boolean }
         healthBoardEnabled: { type: boolean }
+        weeklySummaryEnabled: { type: boolean }
         silentBedtime: { type: boolean }
         pinApprovalEnabled: { type: boolean }
         ruleReceipt:
@@ -2370,6 +2453,73 @@ paths:
             schema: { type: object, properties: { name: { type: string } } }
       responses:
         "204": { description: "Renamed" }
+  /households/{hid}/summary-settings:
+    get:
+      operationId: getHouseholdSummarySettings
+      summary: Settings of the weekly summary
+      description: One calm summary a week instead of a stream of alerts (docs/weekly-summary.md).
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: The household's settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SummarySettings" }
+        "404": { description: "Not a member" }
+    patch:
+      operationId: updateHouseholdSummarySettings
+      summary: Change the weekly summary settings
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+                byMail: { type: boolean }
+                byPush: { type: boolean }
+                actNowOnly: { type: boolean, description: "With the summary on, news that can wait goes into it instead of a push or mail." }
+                day: { type: integer, minimum: 0, maximum: 6, description: "0 = Sunday" }
+                hour: { type: integer, minimum: 0, maximum: 23 }
+                minute: { type: integer, minimum: 0, maximum: 59 }
+                timeZone: { type: string, description: IANA time zone }
+      responses:
+        "200":
+          description: The new settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SummarySettings" }
+        "400": { description: "Invalid value" }
+        "404": { description: "Not a member" }
+  /households/{hid}/summaries:
+    get:
+      operationId: getHouseholdSummaries
+      summary: The last 8 weekly summaries, newest first
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [summaries, firstSummaryOn]
+                properties:
+                  summaries:
+                    type: array
+                    items: { $ref: "#/components/schemas/WeeklySummary" }
+                  firstSummaryOn:
+                    type: [string, "null"]
+                    format: date
+                    description: Local date the first summary comes, while there is none yet. The first summary waits for a full week of history. Null once one exists, when the summary is off, or when the date has passed.
+        "404": { description: "Not a member" }
   /households/{hid}/members:
     get:
       operationId: getHouseholdsMembers
@@ -2668,6 +2818,7 @@ paths:
                 locationEnabled: { type: boolean }
                 changeReceiptsEnabled: { type: boolean }
                 healthBoardEnabled: { type: boolean }
+                weeklySummaryEnabled: { type: boolean, description: "Include this phone in the weekly summary (default on)." }
                 silentBedtime: { type: boolean }
                 pinApprovalEnabled: { type: boolean }
                 pushWakeups: { type: boolean }

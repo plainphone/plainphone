@@ -26,6 +26,7 @@ function AppStack() {
         <Stack.Screen name="invite" options={{ title: t("nav.household") }} />
         <Stack.Screen name="household" options={{ title: t("nav.household") }} />
         <Stack.Screen name="approvals" options={{ title: t("nav.approvals") }} />
+        <Stack.Screen name="summary" options={{ title: t("summary.title") }} />
         <Stack.Screen name="settings" options={{ title: t("native.settings") }} />
         <Stack.Screen name="phones/[pid]" options={{ headerShown: false }} />
       </Stack>

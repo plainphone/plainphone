@@ -129,6 +129,7 @@ export interface Phone {
   offlineAlertHoursDefault: number;
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
+  weeklySummaryEnabled?: boolean;
   /** Bedtime is silent except parents, 112 and help lines. Missing on old servers (treated as on). */
   silentBedtime?: boolean;
   /** A parent may approve a request on the phone with the parent PIN. Missing on old servers (treated as on). */

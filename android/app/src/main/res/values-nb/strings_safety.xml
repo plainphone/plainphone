@@ -38,6 +38,7 @@
     <string name="sharing_mode_always">Posisjonen din deles hvert femte minutt fram til %1$s. Deretter bare når foreldrene dine trykker på Finn eller du ikke svarer på «Har du det bra?».</string>
     <string name="sharing_mode_always_open">Posisjonen din deles hvert femte minutt. Denne meldingen vises hele tiden.</string>
     <string name="sharing_only_latest">Foreldrene dine ser bare den siste posisjonen din. Det lagres ingen posisjonshistorikk hos dem.</string>
+    <string name="sharing_weekly_summary">En gang i uken får foreldrene dine en oversikt: skjermtiden din for hver dag, de mest brukte appene dine, forespørslene dine, endringer i reglene og tidspunkter da telefonen ikke hadde kontakt. Den viser aldri meldinger, samtaler eller hva du gjør i apper.</string>
     <string name="sharing_latest">Når posisjonen din ble sendt</string>
     <string name="sharing_none">Posisjonen din har ikke blitt sendt de siste 30 dagene.</string>
     <string name="sharing_why_find">Forelderen din trykket på Finn</string>

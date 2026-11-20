@@ -43,6 +43,7 @@ import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { activateMove, MoveError } from "./server-move.js";
 import { nextRulesRevision, wakePhone } from "./phones.js";
+import { changeCategory, recordSummaryEvent } from "./summary-record.js";
 
 export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
@@ -627,6 +628,7 @@ export async function submitChange(
     const applied = await applyOp(ctx, tx, fresh, op);
     if (op.type !== "phone.remove") {
       await tx.update(phones).set(nextRulesRevision(applied.dns)).where(eq(phones.id, phone.id));
+      if (fresh.weeklySummaryEnabled) await recordSummaryEvent(tx, phone.id, "change", ctx.now(), changeCategory(op));
     }
     return { status: "applied" as const, op, dns: applied.dns };
   });
@@ -731,6 +733,7 @@ export async function applyPending(
         const applied = await applyOp(ctx, sp, phone, op, bonusDate);
         if (op.type !== "phone.remove") {
           await sp.update(phones).set(nextRulesRevision(applied.dns)).where(eq(phones.id, phone.id));
+          if (phone.weeklySummaryEnabled) await recordSummaryEvent(sp, phone.id, "change", ctx.now(), changeCategory(op));
         }
         return applied.dns;
       });

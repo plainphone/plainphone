@@ -38,6 +38,7 @@
     <string name="sharing_mode_always">Your location is shared every 5 minutes until %1$s. After that, only when your parent presses Find or you do not answer \"Are you okay?\".</string>
     <string name="sharing_mode_always_open">Your location is shared every 5 minutes. You see this notice the whole time.</string>
     <string name="sharing_only_latest">Your parent only sees the latest position, never a history.</string>
+    <string name="sharing_weekly_summary">Once a week your parents get a summary: your screen time for each day, your most used apps, your requests, changes to the rules and times the phone was out of contact. It never shows messages, calls or what you do inside apps.</string>
     <string name="sharing_latest">When your location was sent</string>
     <string name="sharing_none">Your location has not been sent in the last 30 days.</string>
     <string name="sharing_why_find">Your parent pressed Find</string>

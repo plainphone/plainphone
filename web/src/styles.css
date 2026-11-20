@@ -2308,3 +2308,27 @@ main {
   grid-column: 2;
   margin-top: 0;
 }
+
+.summary-week h3 {
+  margin: 1rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.summary-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.summary-lines li {
+  padding: 0.2rem 0;
+}
+
+.summary-when {
+  margin-top: 0.75rem;
+}
+
+.summary-when label {
+  display: grid;
+  gap: 0.25rem;
+}

@@ -2,6 +2,8 @@
 import type { Mail } from "../providers/mail.js";
 
 export type Locale = "en" | "da";
+/** The mail layout also serves the weekly summary, which is written in all five languages. */
+export type LayoutLocale = Locale | "sv" | "nb" | "de";
 
 /** Push text exists in more languages than the mails: the "more time" strings also in sv, nb and de. */
 export type PushLocale = Locale | "sv" | "nb" | "de";
@@ -36,15 +38,24 @@ const logoUrl = (publicUrl: string, dark: boolean) =>
   `${publicUrl.replace(/\/+$/, "")}/mail/lockup${dark ? "-dark" : ""}@2x.png`;
 /** Schibsted Grotesk where the reader has it, otherwise the system font. */
 const FONT = "'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const privacyUrl = { en: "https://plainphone.org/privacy/", da: "https://plainphone.org/da/privacy/" } as const;
-const privacyLabel = { en: "Privacy", da: "Privatliv" } as const;
+const privacyUrl = {
+  en: "https://plainphone.org/privacy/",
+  da: "https://plainphone.org/da/privacy/",
+  sv: "https://plainphone.org/sv/privacy/",
+  nb: "https://plainphone.org/nb/privacy/",
+  de: "https://plainphone.org/de/privacy/",
+} as const;
+const privacyLabel = { en: "Privacy", da: "Privatliv", sv: "Integritet", nb: "Personvern", de: "Datenschutz" } as const;
+const siteUrl = (locale: LayoutLocale) => `https://plainphone.org${locale === "en" ? "/" : `/${locale}/`}`;
 
 interface LayoutInput {
   publicUrl: string;
-  locale: Locale;
+  locale: LayoutLocale;
   preheader: string;
   heading: string;
   paragraphs: string[];
+  /** Titled blocks of short lines after the paragraphs, for example one per phone. */
+  sections?: { title: string; lines: string[] }[];
   button: { label: string; url: string };
   afterButton: string[];
   footer: string;
@@ -65,6 +76,8 @@ export function layout(input: LayoutInput): string {
   const n = input.neutral ? " pp-neutral" : "";
   const p = (text: string) =>
     `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#141414;" class="pp-text">${esc(text)}</p>`;
+  const section = (s: { title: string; lines: string[] }) =>
+    `<h2 class="pp-heading" style="margin:24px 0 8px;font-size:17px;line-height:1.3;font-weight:700;color:#141414;">${esc(s.title)}</h2>\n    ${s.lines.map(p).join("\n    ")}`;
   const small = (text: string) =>
     `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#525252;" class="pp-muted">${esc(text)}</p>`;
   return `<!doctype html>
@@ -105,6 +118,7 @@ export function layout(input: LayoutInput): string {
   <tr><td class="pp-card" style="background:#ffffff;border:1.5px solid #141414;border-radius:6px;padding:36px 32px;font-family:${FONT};">
     <h1 class="pp-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:#141414;">${esc(input.heading)}</h1>
     ${input.paragraphs.map(p).join("\n    ")}
+    ${(input.sections ?? []).map(section).join("\n    ")}
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
     <tr><td class="pp-button${n}" bgcolor="#141414" style="border-radius:24px;background:#141414;">
       <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(input.button.url)}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="50%" fillcolor="#141414" stroke="f"><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${esc(input.button.label)}</center></v:roundrect><![endif]-->
@@ -116,7 +130,7 @@ export function layout(input: LayoutInput): string {
   </td></tr>
   <tr><td style="padding:20px 4px 0;font-family:${FONT};">
     <p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted">${esc(input.footer)}</p>
-    <p style="margin:0;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link${n}" style="color:#141414;">${privacyLabel[input.locale]}</a> &middot; <a href="https://plainphone.org${input.locale === "da" ? "/da/" : "/"}" class="pp-link${n}" style="color:#141414;">plainphone.org</a></p>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link${n}" style="color:#141414;">${privacyLabel[input.locale]}</a> &middot; <a href="${siteUrl(input.locale)}" class="pp-link${n}" style="color:#141414;">plainphone.org</a></p>
   </td></tr>
   </table>
 </td></tr>
@@ -125,11 +139,12 @@ export function layout(input: LayoutInput): string {
 </html>`;
 }
 
-function text(input: LayoutInput): string {
+export function text(input: LayoutInput): string {
   return [
     input.heading,
     "",
     ...input.paragraphs.flatMap((s) => [s, ""]),
+    ...(input.sections ?? []).flatMap((s) => [s.title, ...s.lines.map((l) => `- ${l}`), ""]),
     `${input.button.label}: ${input.button.url}`,
     "",
     ...input.afterButton.flatMap((s) => [s, ""]),
@@ -139,7 +154,7 @@ function text(input: LayoutInput): string {
   ].join("\n");
 }
 
-function build(to: string, subject: string, input: LayoutInput): Mail {
+export function build(to: string, subject: string, input: LayoutInput): Mail {
   return { to, subject, html: layout(input), text: text(input) };
 }
 

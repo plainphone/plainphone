@@ -140,7 +140,11 @@ phone                                      server                         parent
    current rules ETag, and the parent API returns timestamps in UTC. The dashboard
    labels the server's confirmation time when the phone clock is ahead.
    The parent's per-phone `changeReceiptsEnabled` and `healthBoardEnabled`
-   preferences default to true and sync in `GET /device/rules`. Android sends
+   preferences default to true and sync in `GET /device/rules`. So does
+   `weeklySummaryEnabled` (docs/weekly-summary.md): the server keeps this phone's
+   daily `timeUsed` for the weekly summary only while it is true. The phone keeps reporting as before and
+   uses it only to tell the child on "What can my parents see?"; a change advances the revision so the
+   notice follows. Android sends
    null rule confirmation fields when receipts are off and omits the extra
    filter and usage access observations when the board is off. The phone
    continues sending existing operational status and safety reports.

@@ -63,6 +63,7 @@ import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
+import { summaryRoutes } from "./summary.js";
 import { parentMoreTimeRoutes } from "./more-time.js";
 import { locationRoutes, setLocationMode } from "./location.js";
 import { parentSosRoutes } from "./sos.js";
@@ -697,18 +698,20 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
         changeReceiptsEnabled: z.boolean().optional(),
         healthBoardEnabled: z.boolean().optional(),
+        weeklySummaryEnabled: z.boolean().optional(),
         silentBedtime: z.boolean().optional(),
         pinApprovalEnabled: z.boolean().optional(),
       }),
     );
-    const { changeReceiptsEnabled, healthBoardEnabled, silentBedtime, pinApprovalEnabled } = input;
+    const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled, silentBedtime, pinApprovalEnabled } = input;
     const rulesField = changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined
-      || silentBedtime !== undefined || pinApprovalEnabled !== undefined;
+      || weeklySummaryEnabled !== undefined || silentBedtime !== undefined || pinApprovalEnabled !== undefined;
     if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
     const fields = {
       ...(rulesField ? nextRulesRevision() : {}),
+      ...(weeklySummaryEnabled !== undefined ? { weeklySummaryEnabled } : {}),
       ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
       ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
       ...(silentBedtime !== undefined ? { silentBedtime } : {}),
@@ -918,6 +921,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
+  summaryRoutes(app, ctx, { requireMember });
   parentMoreTimeRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   parentSosRoutes(app, ctx, requirePhone);

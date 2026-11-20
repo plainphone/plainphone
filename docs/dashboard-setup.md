@@ -126,6 +126,15 @@ to allow background activity for Plainphone on [OnePlus](https://dontkillmyapp.c
 On [Samsung](https://dontkillmyapp.com/samsung), check whether Plainphone is on a sleeping
 or deep sleeping apps list. The exact settings vary by model and Android version.
 
+## Weekly summary
+
+In **Settings**, **Weekly summary** sends one mail and/or notification a week with, for each
+phone, screen time, requests, rule changes and protection news. The last 8 weeks are on the
+**Summary** page. Everything can be switched off: the summary, mail, notification and
+**Only alert me when I must act**, and each phone has its own **Weekly summary** switch under
+**What to show for this phone**. The default is Sunday 18:00 in the household's time zone.
+Screen time appears for phones that have a time limit. See [docs/weekly-summary.md](weekly-summary.md).
+
 ## Rule confirmations and phone health
 
 Open a phone to see **Current rules**. The confirmation time comes from the phone

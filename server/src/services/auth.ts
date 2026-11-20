@@ -51,7 +51,7 @@ export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
     let [user] = await tx.select().from(users).where(eq(users.email, link.email));
     if (!user) {
       [user] = await tx.insert(users).values({ email: link.email, locale }).returning();
-      const [household] = await tx.insert(households).values({ name: "Home" }).returning();
+      const [household] = await tx.insert(households).values({ name: "Home", summarySince: now }).returning();
       await tx.insert(householdMembers).values({ householdId: household!.id, userId: user!.id, role: "owner" });
     }
     // A trusted person chosen by email before they had an account.

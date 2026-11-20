@@ -8,9 +8,12 @@
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, phoneAlertMail, type PushLocale, toLocale, toPushLocale } from "../lib/mail-templates.js";
+import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
+import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
+import { recordSummaryEvent } from "./summary-record.js";
 
 /** After this many failed sends in a row (not 404/410), a subscription is dropped. */
 const MAX_FAILURES = 20;
@@ -25,7 +28,11 @@ export type NotifyEvent =
   /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
   | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null }
   | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
-  | { type: "test" };
+  | { type: "test" }
+  /** The weekly summary is ready (docs/weekly-summary.md). */
+  | { type: "summary"; summaryId: string };
+
+type TextEvent = Exclude<NotifyEvent, { type: "summary" }>;
 
 /** What a parent hears about a ring or an "Are you okay?" (docs/location.md). */
 export type SafetyNews = "here" | "ok" | "call" | "noReplyLocating" | "noReplyNoLocation" | "located";
@@ -58,7 +65,7 @@ function silence(hours: number, locale: Locale): string {
   return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
-const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body">> = {
+const text: Record<Locale, (e: TextEvent) => Pick<PushMessage, "title" | "body">> = {
   en: (e) => {
     switch (e.type) {
       case "protection":
@@ -206,6 +213,10 @@ const MORE_TIME_TEXT: Record<
 };
 
 export function pushMessage(e: NotifyEvent, locale: PushLocale): PushMessage {
+  if (e.type === "summary") {
+    const w = summaryWords(locale);
+    return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary", data: { type: "summary" } };
+  }
   const more = locale === "sv" || locale === "nb" || locale === "de" ? MORE_TIME_TEXT[locale] : null;
   const t =
     more && e.type === "moreTime"
@@ -304,9 +315,19 @@ export async function notifyUsers(
 
 /** Sends an event about a phone to the parents of its household who have not muted it. */
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: { urgent?: boolean } = {}): Promise<number> {
-  const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
+  const [phone] = await ctx.db.select({ householdId: phones.householdId, summaryOn: phones.weeklySummaryEnabled }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
+  if (phone.summaryOn) await noteForSummary(ctx, phoneId, e);
+  // "Can wait" news is in the summary instead (docs/weekly-summary.md); everything else goes now.
+  if (await batchedIntoSummary(ctx, phone.householdId, e)) return 0;
   return notifyAlertRecipients(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e, opts);
+}
+
+/** Notes protection, offline and check-in news for the weekly summary, whether or not it is also pushed. */
+async function noteForSummary(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<void> {
+  const kind = e.type === "protection" ? "protection" : e.type === "offline" ? "offline"
+    : e.type === "safety" && (e.what === "here" || e.what === "ok") ? "checkin" : null;
+  if (kind) await recordSummaryEvent(ctx.db, phoneId, kind, ctx.now());
 }
 
 type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];

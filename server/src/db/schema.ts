@@ -61,6 +61,19 @@ export const sessions = pgTable(
 export const households = pgTable("households", {
   id: id(),
   name: text("name").notNull(),
+  /** Weekly summary (docs/weekly-summary.md): one calm mail or push per week instead of a stream of alerts. */
+  summaryEnabled: boolean("summary_enabled").notNull().default(true),
+  summaryByMail: boolean("summary_by_mail").notNull().default(true),
+  summaryByPush: boolean("summary_by_push").notNull().default(true),
+  /** With the summary on, "can wait" events go into it instead of a push or mail. */
+  actNowOnly: boolean("act_now_only").notNull().default(true),
+  /** 0 = Sunday ... 6 = Saturday, at hour:minute in `timeZone`. */
+  summaryDay: smallint("summary_day").notNull().default(0),
+  summaryHour: smallint("summary_hour").notNull().default(18),
+  summaryMinute: smallint("summary_minute").notNull().default(0),
+  timeZone: text("time_zone").notNull().default("Europe/Copenhagen"),
+  /** When the weekly summary went live for this household: no summary before it has a full week of history behind it. */
+  summarySince: timestamp("summary_since", { withTimezone: true }).notNull().defaultNow(),
   createdAt: createdAt(),
 });
 
@@ -285,6 +298,8 @@ export const phones = pgTable(
     offlineAlertHours: integer("offline_alert_hours"),
     changeReceiptsEnabled: boolean("change_receipts_enabled").notNull().default(true),
     healthBoardEnabled: boolean("health_board_enabled").notNull().default(true),
+    /** Whether this phone's use is kept per day and shown in the weekly summary. */
+    weeklySummaryEnabled: boolean("weekly_summary_enabled").notNull().default(true),
     /** Bedtime is silent: only parents, 112 and help lines get through (docs/bedtime.md). */
     silentBedtime: boolean("silent_bedtime").notNull().default(true),
     /** A parent next to the child may approve a request on the phone with the parent PIN. */
@@ -813,3 +828,35 @@ export const phoneMoves = pgTable("phone_moves", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   active: boolean("active").notNull().default(false),
 }, (t) => [index("phone_moves_phone_idx").on(t.phoneId)]);
+
+/** Daily use per app as the phone reported it, kept only for the weekly summary (package "*" is the day's total). */
+export const phoneUsageDays = pgTable("phone_usage_days", {
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  day: date("day", { mode: "string" }).notNull(),
+  packageName: text("package_name").notNull(),
+  minutes: integer("minutes").notNull(),
+}, (t) => [primaryKey({ columns: [t.phoneId, t.day, t.packageName] })]);
+
+/** Protection, offline, check-in and rule-change news, recorded when it happens, for the weekly summary. */
+export const summaryEvents = pgTable("summary_events", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["protection", "offline", "checkin", "change"] }).notNull(),
+  /** For a change: its category ("time", "apps", "contacts", "web", "schedules", "other"). */
+  detail: text("detail"),
+  at: timestamp("at", { withTimezone: true }).notNull(),
+}, (t) => [index("summary_events_phone_at_idx").on(t.phoneId, t.at)]);
+
+/** One built summary per household and week. `data` holds numbers and app names only. */
+export const householdSummaries = pgTable("household_summaries", {
+  id: id(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
+  /** Local date of the day the summary was due, in the household's time zone. */
+  weekEnd: date("week_end", { mode: "string" }).notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+  data: jsonb("data").$type<unknown>().notNull(),
+  /** Claimed before sending, so a summary is delivered at most once, also across restarts. */
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("household_summaries_week_idx").on(t.householdId, t.weekEnd)]);
