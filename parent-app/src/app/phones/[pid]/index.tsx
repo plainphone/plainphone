@@ -28,7 +28,7 @@ import { HOME_PALETTES } from "../../../shared/lib/settings";
 import { describeOp } from "../../../shared/lib/ops";
 import { appUpdateReceiptLine } from "../../../shared/lib/app-updates";
 import { healthRows, receiptText } from "../../../shared/lib/phone-health";
-import { isIphone, platformLine } from "../../../shared/lib/platform";
+import { isIphone, platformLine, ruleRowUnavailable } from "../../../shared/lib/platform";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
 function PendingList() {
@@ -555,7 +555,7 @@ function Overview() {
           ))}
         </Card>
       ) : filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
-      {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+      {phone.mode === "light" && !isIphone(phone) ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {!showHealth && phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
@@ -629,6 +629,15 @@ function Overview() {
             <Text variant="label">{g.title}</Text>
             {g.items.map((i) => {
               const note = platformLine(phone, i.to);
+              // An iPhone cannot do this rule at all: say so instead of opening switches that do nothing.
+              if (ruleRowUnavailable(phone, i.to)) {
+                return (
+                  <Card key={i.to} testID={`section-${i.to}-unavailable`}>
+                    <Text variant="label">{i.label}</Text>
+                    {note ? <Text variant="small">{t(note)}</Text> : null}
+                  </Card>
+                );
+              }
               return (
                 <LinkRow
                   key={i.to}

@@ -5,6 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "../i18n/translate";
 import { api, ApiError, type ChangeResult, CONTACT_GROUPS, type Contact, type ContactGroup, setContactGroup } from "../lib/api";
 import { ContactSuggestions } from "./ContactSuggestions";
+import { isIphone } from "../lib/platform";
 import { usePhone } from "./Phone";
 
 /** Same rule as the server: + and 7 to 15 digits, spaces, dashes and brackets ignored. */
@@ -22,7 +23,9 @@ export function ContactsPage() {
   const { t } = useI18n();
   const { phone, run, pending, refreshRuleReceipt } = usePhone();
   const self = phone.profile === "self";
-  const lightChild = !self && phone.mode === "light";
+  // An iPhone is light but has no Android contact restriction (docs/ios/architecture.md).
+  const iphone = isIphone(phone);
+  const lightChild = !self && phone.mode === "light" && !iphone;
   const res = useLoad(() => api.get<ChildContactSettings & { contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
     `/phones/${phone.id}/contacts`,
   ), [phone.id]);
@@ -170,16 +173,23 @@ export function ContactsPage() {
                     )}
                   </>
                 )}
-                <label className="item">
-                  <span>{t("contacts.suggestFromPhone")}</span>
-                  <input type="checkbox" checked={suggestDeviceContacts === true} aria-describedby="contact-sharing-help"
-                    disabled={savingSettings || suggestDeviceContacts === undefined}
-                    onChange={(event) => void changeSettings({ suggestDeviceContacts: event.currentTarget.checked })} />
-                </label>
-                <p className="help" id="contact-sharing-help">{t("contacts.suggestSharing")}</p>
+                {/* Suggestions come from the phone's address book, which only Android shares. */}
+                {iphone ? <p className="help platform-note">{t("platform.ios.contacts")}</p> : (
+                  <>
+                    <label className="item">
+                      <span>{t("contacts.suggestFromPhone")}</span>
+                      <input type="checkbox" checked={suggestDeviceContacts === true} aria-describedby="contact-sharing-help"
+                        disabled={savingSettings || suggestDeviceContacts === undefined}
+                        onChange={(event) => void changeSettings({ suggestDeviceContacts: event.currentTarget.checked })} />
+                    </label>
+                    <p className="help" id="contact-sharing-help">{t("contacts.suggestSharing")}</p>
+                  </>
+                )}
               </>
             )}
-            {self && (
+            {/* Limiting calls during schedules is an Android mechanism; on an iPhone, Apple decides. */}
+            {self && iphone && <p className="help platform-note">{t("platform.ios.contacts")}</p>}
+            {self && !iphone && (
               <>
                 <p className="help">{t(selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro")}</p>
                 {selfScheduleContacts === null ? (
@@ -254,7 +264,7 @@ export function ContactsPage() {
         )}
       </LoadGate>
 
-      {!self && res.data?.suggestDeviceContacts && <ContactSuggestions phoneId={phone.id} onApproved={async () => { await res.reload(); }} />}
+      {!self && !iphone && res.data?.suggestDeviceContacts && <ContactSuggestions phoneId={phone.id} onApproved={async () => { await res.reload(); }} />}
 
       <section className="section" aria-labelledby="add-contact">
         <h2 id="add-contact">{t(self ? "contacts.addFavourite" : "contacts.add")}</h2>

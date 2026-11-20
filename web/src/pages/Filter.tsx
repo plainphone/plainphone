@@ -6,6 +6,7 @@ import { Field, Loading, LoadGate, PageTitle, Switch, useLoad } from "../compone
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../lib/api";
 import { categoryLabel } from "../lib/ops";
+import { isIphone } from "../lib/platform";
 import { usePhone } from "./Phone";
 
 /** Roughly the server's rule; the server has the final word. */
@@ -78,7 +79,7 @@ function PhoneFilter() {
             ) : (
               !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>
             )}
-            {phone.mode === "light" && (
+            {phone.mode === "light" && !isIphone(phone) && (
               <Switch label={t("filter.privateDns")} checked={dns.filterMethod === "privateDns"}
                 busy={busy === "method"} disabled={methodPending}
                 description={methodPending ? t("pending.waitingTag") : t("filter.methodHelp")}

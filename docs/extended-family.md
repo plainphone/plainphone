@@ -202,7 +202,7 @@ The rules carry two new blocks, each left out while off:
 `rev` changes whenever the phone should fetch that conversation again (a reply, a receipt, a new
 link). Older phone apps ignore both blocks.
 
-Migration `0052_extended_family` is additive: three new tables (`extended_contacts`,
+Migration `0053_extended_family` is additive: three new tables (`extended_contacts`,
 `extended_messages`, `location_snapshots`) and two phone columns, both default false.
 
 ## Not covered

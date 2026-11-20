@@ -418,6 +418,11 @@ main {
   text-underline-offset: 0.15em;
 }
 
+/* A rule the phone's platform cannot do: text, not a link. */
+.row-static:hover .row-title {
+  text-decoration: none;
+}
+
 .list > li:first-child .row-link {
   border-radius: var(--radius) var(--radius) 0 0;
 }
