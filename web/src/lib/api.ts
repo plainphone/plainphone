@@ -20,10 +20,28 @@ export interface Me {
   user: User;
   households: { id: string; name: string; role: "owner" | "parent" }[];
   mailEnabled: boolean;
+  /** This server pairs iPhones (IOS_PAIRING_ENABLED): offer "Add an iPhone". Missing on old servers. */
+  iosPairing?: boolean;
 }
 /** What the phone last reported about itself (`PUT /device/status`). */
 export type FilterMethod = "vpn" | "privateDns";
+/** What an iPhone reports besides the common fields (docs/ios/architecture.md). */
+export interface IosStatus {
+  iosVersion: string;
+  authorizationStatus: "notDetermined" | "denied" | "approved";
+  communicationLimits?: boolean | null;
+  dnsEnabled?: boolean | null;
+  locationAuth?: "notDetermined" | "denied" | "whenInUse" | "always";
+  effectiveStores?: string[];
+}
+/** An iPhone's app selection: Apple's coded list, opaque to the dashboard. */
+export interface IosSelectionState {
+  selection: string | null;
+  source: "parent" | "phone" | null;
+  updatedAt: string | null;
+}
 export interface PhoneStatus {
+  ios?: IosStatus;
   pushProvider?: "none" | "fcm" | "unifiedpush";
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
@@ -510,7 +528,7 @@ export class ApiError extends Error {
     message: string,
     readonly issues: Issue[] = [],
     /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
-    readonly data: { selfPhoneIds?: string[]; outcome?: string } = {},
+    readonly data: { selfPhoneIds?: string[]; outcome?: string; code?: string } = {},
   ) {
     super(message);
   }
@@ -554,7 +572,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
   }
   if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string };
+    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string; code?: string };
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
     throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
   }
