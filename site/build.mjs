@@ -480,7 +480,7 @@ ${p.sections.map(section).join("\n")}
 <h2 id="contact-title">${esc(p.contact)}</h2>
 <p>${esc(p.contactText)}</p>
 <p><a href="mailto:support@plainphone.org">support@plainphone.org</a></p>
-<p>${p.statusText}</p>
+<p>${p.statusText.replace("{STATUS_LINK}", `href="${STATUS_URL}" target="_blank" rel="noopener noreferrer"`)}</p>
 </section>
 </main>
 ${footer(t, route)}
