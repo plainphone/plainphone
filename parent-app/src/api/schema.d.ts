@@ -5168,6 +5168,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Invalid fix: recorded in the future, at or before the check-in was created, or (with a check-in purpose) before its reply deadline. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Location is off for this phone, or no position was asked for; stop reporting. */
             409: {
                 headers: {

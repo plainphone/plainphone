@@ -235,7 +235,23 @@ class SyncRunner(
                 return Outcome.Synced(true, ServerRules.MIN_POLL_SECONDS)
             }
         }
-        return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
+        val pollSeconds = rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS
+        return Outcome.Synced(changed, minOf(pollSeconds, checkInClockWaitSeconds(rules) ?: pollSeconds))
+    }
+
+    /**
+     * The server says a check-in's position is due, but this phone's clock has not reached the deadline
+     * (it runs a little behind). A fix recorded now would be refused as taken before the deadline, so
+     * look again when the local clock gets there instead of at the next normal poll.
+     */
+    private fun checkInClockWaitSeconds(rules: ServerRules?): Int? {
+        val checkIn = rules?.checkIn ?: return null
+        if (!rules.locationEnabled || rules.locationMode == ServerRules.LOCATION_OFF) return null
+        if (!checkIn.sendLocation || checkIn.locationDue != true) return null
+        if (checkIn.id == store.locatedCheckInId || device.checkInAnswered(checkIn.id)) return null
+        val waitMs = checkIn.deadline.toEpochMilli() - device.nowMs()
+        if (waitMs <= 0 || waitMs > CLOCK_SLACK_MS) return null
+        return maxOf(ServerRules.MIN_POLL_SECONDS, ((waitMs + 999) / 1000).toInt() + 1)
     }
 
     /** Approvals a parent gave on the phone with the PIN. The server answers a repeat with the same result. */
@@ -406,6 +422,7 @@ class SyncRunner(
             openCheckIn.takeIf { savedCheckIn == null },
             find.takeIf { findNeedsLookup },
         ).sortedBy { it.expiresAt }
+        var lookedUp: LocationFix? = null
         for (request in lookups) guarded("look up ${request.purpose.substringBefore(':')} location") {
             val attemptAt = device.nowMs()
             val checkInId = request.checkInId
@@ -416,17 +433,22 @@ class SyncRunner(
             val retryAt = if (checkInId == null) maxOf(attemptAt, request.start) else now
             if (!locationAttemptDue(request.start, retryAt, lastAttempt)) return@guarded
             if (checkInId == null) attemptedFind = true
+            // A precise lookup earlier in this sync serves the other request too when it is new enough for it.
             val fix = if (checkInId == null) {
-                device.location(precise = true, notBeforeMs = request.start)?.takeUnless(store::isLocationRejected)
+                lookedUp?.takeIf { it.recordedAtMs >= request.start && !store.isLocationRejected(it) }
+                    ?: device.location(precise = true, notBeforeMs = request.start)?.takeUnless(store::isLocationRejected)
+                        ?.also { lookedUp = it }
                     ?: device.lastKnownLocation()?.takeUnless {
                         store.isLocationRejected(it) || it.recordedAtMs == readyFind?.fix?.recordedAtMs
                     }
             } else {
-                device.location(precise = true, fresh = true)?.takeIf {
-                    val createdAt = checkIn?.createdAt?.toEpochMilli()
+                val createdAt = checkIn?.createdAt?.toEpochMilli()
+                val fresh = { it: LocationFix ->
                     it.recordedAtMs >= request.start && (createdAt == null || it.recordedAtMs > createdAt) &&
                         !store.isLocationRejected(it)
                 }
+                lookedUp?.takeIf(fresh)
+                    ?: device.location(precise = true, fresh = true)?.takeIf(fresh)?.also { lookedUp = it }
             }
             if (fix == null) {
                 recordAttempt(request, attemptAt)
@@ -507,9 +529,14 @@ class SyncRunner(
         } catch (e: HttpError) {
             if (e.status == 400) recordAttempt(request, now, pending.fix.recordedAtMs)
             throw e
+        } catch (e: IOException) {
+            // The answer may have been lost after the server stored the fix: a 409 on the retry is then success.
+            if (!pending.uncertain && !neverReachedServer(e)) savePendingLocation(pending.copy(uncertain = true))
+            throw e
         }
-        // A 409 leaves the fix pending until the next rules show the request is inactive.
-        if (!stored) {
+        // A 409 leaves the fix pending until the next rules show the request is inactive,
+        // unless an earlier attempt of this same fix may have been the one that answered it.
+        if (!stored && !pending.uncertain) {
             if (checkInId != null && !pending.conflict) savePendingLocation(pending.copy(conflict = true))
             return false
         }

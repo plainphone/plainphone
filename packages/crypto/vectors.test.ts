@@ -102,7 +102,7 @@ for (const backend of ["native", "noble"] as const) {
     const revisedWire = await core.sealRecord(sample.wire.header, { schema: 1, rules: {} }, r1, bytes(protocol.signing.seed));
     assert.deepEqual(await core.openRecord(revisedWire, sample.wire.header, admin, r1), { schema: 1, rules: {} });
     assert.equal(rulesRejection(sample.wire.header, "admin", accepted.digest, accepted), null);
-    for (const v of [undefined, "1", 2]) {
+    for (const v of [undefined, "1", 2, 1.5]) {
       const header: JsonObject = { ...sample.wire.header };
       if (v === undefined) delete header.v;
       else header.v = v;
@@ -187,6 +187,14 @@ for (const backend of ["native", "noble"] as const) {
       assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), tag.subarray(1)), false);
       tag[0] = tag[0]! ^ 1;
       assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), tag), false);
+      tag[0] = tag[0]! ^ 1;
+      // A difference in any byte, including the last, is rejected.
+      for (let i = 0; i < tag.length; i++) {
+        const bad = tag.slice();
+        bad[i] = bad[i]! ^ 0x80;
+        assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), bad), false, `byte ${i}`);
+      }
+      assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), tag), true);
     }
     const { dedupe, dns, recovery } = protocol;
     eq(await core.hkdf(r1, key(0), bytes(dedupe.info), 32), dedupe.key);

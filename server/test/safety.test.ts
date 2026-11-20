@@ -324,6 +324,7 @@ describe("are you okay?", () => {
       await parent.put(`/api/phones/${phoneId}/location/mode`, { mode, alwaysFor: "hour" });
     }
     await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    const deadline = new Date(h.clock.now.getTime() + 60_000).toISOString();
     if (mode === "find") await parent.post(`/api/phones/${phoneId}/locate`);
     h.clock.advance(5_000);
     const earlyFix = fix(h.clock.now);
@@ -333,7 +334,8 @@ describe("are you okay?", () => {
     expect((await status()).checkin.locatedAt).toBeNull();
     h.clock.advance(56_000);
     await sweep(h.ctx);
-    expect((await status()).checkin.locatedAt).toBe(earlyFix.recordedAt);
+    // Located as of the deadline, not the earlier upload time.
+    expect((await status()).checkin.locatedAt).toBe(deadline);
   });
 
   it("lets the answer win when a location upload commits first in the same second", async () => {
@@ -357,20 +359,34 @@ describe("are you okay?", () => {
   it("accepts an untagged check-in fix from a legacy clock five seconds ahead", async () => {
     const { parent, phoneId, device } = await setup();
     await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    const deadline = new Date(h.clock.now.getTime() + 60_000).toISOString();
     h.clock.advance(55_000);
     const deadlineFix = fix(new Date(h.clock.now.getTime() + 5_000));
 
     expect((await device.get("/api/device/rules")).json.checkIn.locationDue).toBe(false);
     expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
-    const receivedAt = h.clock.now.toISOString();
     const beforeDeadline = (await parent.get(`/api/phones/${phoneId}/location`)).json;
     expect(beforeDeadline.location).toBeNull();
     expect(beforeDeadline.checkin.locatedAt).toBeNull();
     h.clock.advance(5_000);
     await publishCheckin();
     const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
-    expect(seen.checkin.locatedAt).toBe(receivedAt);
+    // Received five seconds early, but the position is shown as of the deadline, never before it.
+    expect(seen.checkin.locatedAt).toBe(deadline);
     expect(seen.location.recordedAt).toBe(deadlineFix.recordedAt);
+  });
+
+  it("answers 400, not 409, to a tagged fix recorded between creation and the deadline", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
+    h.clock.advance(5 * 60_000 + 1_000);
+    const early = await device.put("/api/device/location", {
+      ...fix(new Date(h.clock.now.getTime() - 30_000)), purpose: `checkin:${checkin.id}`,
+    });
+    expect(early.status).toBe(400);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(204);
   });
 
   it("rejects a tagged fix five seconds into a one-minute check-in", async () => {

@@ -208,6 +208,12 @@ data class DeviceStatus(
 
 internal fun iso(ms: Long): String = java.time.Instant.ofEpochMilli(ms).toString()
 
+/** Failures identifiable as connection setup, TLS verification or a deadline: the request was not (fully) sent. */
+internal fun neverReachedServer(e: IOException): Boolean =
+    e is InterruptedIOException || e is UnknownHostException || e is ConnectException ||
+        e is NoRouteToHostException || e is BindException || e is SSLHandshakeException ||
+        e is SSLPeerUnverifiedException
+
 /** HTTP error that is not a network failure: the server answered, but not as expected. */
 class HttpError(val status: Int, message: String) : IOException("HTTP $status: ${message.take(200)}")
 
@@ -249,7 +255,8 @@ class PlainphoneApi private constructor(
 
     private val base = baseUrl.trimEnd('/') + "/api"
 
-    private class Response(val status: Int, val body: String, val etag: String?)
+    /** [replayed]: the first attempt failed with a network error and this is the answer to the second. */
+    private class Response(val status: Int, val body: String, val etag: String?, val replayed: Boolean = false)
 
     private fun call(
         method: String,
@@ -272,11 +279,10 @@ class PlainphoneApi private constructor(
         } catch (e: IOException) {
             // HttpURLConnection does not expose socket reuse. Exclude failures that are
             // identifiable as connection setup, TLS verification, or a read/write deadline.
-            if (!replayable || cancellation?.isCanceled == true || e is InterruptedIOException ||
-                e is UnknownHostException || e is ConnectException || e is NoRouteToHostException ||
-                e is BindException || e is SSLHandshakeException || e is SSLPeerUnverifiedException
-            ) throw e
-            exchange(openFreshConnection(url), method, token, payload, headers, readTimeoutMs, cancellation, true, streamBody)
+            if (!replayable || cancellation?.isCanceled == true || neverReachedServer(e)) throw e
+            exchange(openFreshConnection(url), method, token, payload, headers, readTimeoutMs, cancellation, true, streamBody).let {
+                Response(it.status, it.body, it.etag, replayed = true)
+            }
         }
     }
 
@@ -575,7 +581,8 @@ class PlainphoneApi private constructor(
         val r = call("PUT", "/device/location", token, body, replayable = requested)
         return when (r.status) {
             204 -> true
-            409 -> false
+            // A replay that meets 409 means the first attempt stored the fix and only its answer was lost.
+            409 -> requested && r.replayed
             else -> throw HttpError(r.status, r.body)
         }
     }

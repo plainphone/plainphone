@@ -144,6 +144,45 @@ class PairingControllerTest {
     }
 
     @Test
+    fun `pairing with the QR token closes the code the phone was showing`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+        controller.start()
+        store.saveEnrollToken("pp_e_late_qr")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        controller.enroll()
+        assertThat(store.isPaired).isTrue()
+        assertThat(api.cancelledPairings).containsExactly("p1")
+    }
+
+    @Test
+    fun `a failed cancel of the shown code does not undo the pairing`() {
+        controller.start()
+        store.saveEnrollToken("pp_e_late_qr")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        api.cancelPairingFailure = java.io.IOException("offline")
+        assertThat(controller.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
+        assertThat(store.deviceToken()).isEqualTo("pp_d_from_qr")
+    }
+
+    @Test
+    fun `nothing is cancelled when no code was shown`() {
+        store.saveEnrollToken("pp_e_plain")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_x")
+        controller.enroll()
+        assertThat(api.cancelledPairings).isEmpty()
+    }
+
+    @Test
+    fun `a refused token keeps the shown code open`() {
+        controller.start()
+        store.saveEnrollToken("pp_e_used")
+        api.enrollResult = EnrollResult.Rejected
+        controller.enroll()
+        assertThat(api.cancelledPairings).isEmpty()
+        assertThat(store.pairing()).isNotNull()
+    }
+
+    @Test
     fun `a refused key preserves the setup link for correcting the choice`() {
         store.saveEnrollToken("pp_e_retry")
         store.confirmEnrollment()
