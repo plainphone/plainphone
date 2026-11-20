@@ -4,7 +4,11 @@ import { useI18n } from "../i18n/I18n";
 
 const DOT_PORT = 853;
 
-export function DnsAddress({ host }: { host: string | null }) {
+/**
+ * `mode` is the phone this address belongs to. A Device Owner (strong) phone has Private DNS and VPN
+ * settings locked and already uses the filter; on a light phone Tailscale replaces Plainphone's own VPN.
+ */
+export function DnsAddress({ host, mode }: { host: string | null; mode?: "strong" | "light" }) {
   const { t } = useI18n();
   const heading = useId();
   if (!host) return null;
@@ -22,11 +26,13 @@ export function DnsAddress({ host }: { host: string | null }) {
       </ul>
       <details className="details">
         <summary>{t("filter.addressAndroidTitle")}</summary>
+        {mode && <p>{t(mode === "strong" ? "filter.addressAndroidStrong" : "filter.addressAndroidLight")}</p>}
         <p>{t("filter.addressAndroid")}</p>
       </details>
       <details className="details">
         <summary>Tailscale</summary>
         <p className="help">{t("filter.addressUnverified")}</p>
+        {mode && <p>{t(mode === "strong" ? "filter.addressTailscaleStrong" : "filter.addressTailscaleLight")}</p>}
         <p>{t("filter.addressTailscale")}</p>
         <p>{t("filter.addressTailscaleAdmin")}</p>
       </details>

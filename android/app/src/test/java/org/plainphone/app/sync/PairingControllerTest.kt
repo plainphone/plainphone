@@ -15,7 +15,7 @@ class PairingControllerTest {
     private val store = SyncStore(context, FakeSecretBox())
     private val api = FakeSyncApi()
     private var now = 1_800_000_000_000L
-    private val controller = PairingController(store, api, mapOf("model" to "Test"))
+    private val controller = PairingController(store, api, mapOf("model" to "Test"), nowMs = { now })
 
     @Test
     fun favouriteSetupSurvivesPairingWithoutRulesUntilExplicitlyCompleted() {
@@ -71,6 +71,48 @@ class PairingControllerTest {
         api.pollResult = PairPoll.Paired("phone-1", "pp_d_secret")
         assertThat(controller.poll()).isInstanceOf(PairPoll.Paired::class.java)
         assertThat(store.isPaired).isTrue()
+    }
+
+    @Test
+    fun `a code past its expiry is checked with the server before it is shown again`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+        val first = controller.start()
+        now += 16 * 60_000
+        // Nobody claimed it: the server says it is gone, so a fresh code is shown instead.
+        api.pollResult = PairPoll.Expired
+        api.pairing = api.pairing.copy(id = "p2", expiresAtMs = now + 15 * 60_000)
+        val second = controller.start()
+        assertThat(second.id).isEqualTo("p2")
+        assertThat(second).isNotEqualTo(first)
+        assertThat(store.pairing()).isEqualTo(second)
+    }
+
+    @Test
+    fun `a claimed code past its expiry keeps showing while the server still knows it`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+        val first = controller.start()
+        now += 16 * 60_000
+        api.pollResult = PairPoll.Waiting
+        assertThat(controller.start()).isEqualTo(first)
+    }
+
+    @Test
+    fun `a code that was paired while the app was closed is not shown again`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+        controller.start()
+        now += 16 * 60_000
+        api.pollResult = PairPoll.Paired("phone-1", "pp_d_secret")
+        assertThrows(IllegalStateException::class.java) { controller.start() }
+        assertThat(store.isPaired).isTrue()
+    }
+
+    @Test
+    fun `a code inside its 15 minutes is shown without asking the server`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+        val first = controller.start()
+        now += 5 * 60_000
+        api.pollResult = PairPoll.Expired // would drop the code if the server were asked
+        assertThat(controller.start()).isEqualTo(first)
     }
 
     @Test

@@ -63,13 +63,14 @@ export interface Phone {
   rulesCurrent?: boolean | null;
   offlineAlertHours?: number | null;
   offlineAlertHoursDefault?: number;
-  dnsHost: string;
+  dnsHost: string | null;
   dnsSynced: boolean;
   hasLocation: boolean;
   status?: components["schemas"]["PhoneStatus"] | null;
   attestation?: components["schemas"]["Attestation"] | null;
   dnsConfigured?: boolean;
   dnsReady?: boolean;
+  rulesDnsReady?: boolean;
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
   weeklySummaryEnabled?: boolean;
@@ -103,6 +104,7 @@ export interface Contact {
 export interface DnsState {
   filterMethod?: components["schemas"]["FilterMethod"];
   host: string | null;
+  rulesReady?: boolean;
   synced: boolean;
   blockedCategories: DnsCategory[];
   allowDomains: string[];

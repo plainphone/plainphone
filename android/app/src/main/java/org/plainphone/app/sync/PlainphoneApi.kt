@@ -483,7 +483,7 @@ class PlainphoneApi private constructor(
         val r = call("POST", "/device/undo-setup", token, replayable = true)
         // Older servers return 404 for the missing route even when the phone is still paired.
         return when {
-            r.status in 200..299 -> true
+            r.status == 204 -> true
             r.status == 401 &&
                 runCatching { JSONObject(r.body).optString("error") }.getOrNull() == "unknown device; pair again" -> true
             r.status == 409 -> false

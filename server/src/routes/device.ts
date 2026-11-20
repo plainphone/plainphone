@@ -12,7 +12,7 @@ import { contacts, householdMembers, enrollments, households, pairings, pendingC
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
-import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
+import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, setupUndoDeadline, setupUndoReportedLate, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { phoneApprovalState } from "../services/approval-outcome.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
@@ -416,10 +416,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
         if (undo) {
           if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
-          const deadline = setupUndoDeadline(fresh);
-          const reportedLate = fresh.setupCompletedAt !== null &&
-            (deadline === null || receivedAt > deadline + SETUP_UNDO_REPORT_GRACE_MS);
-          await queueSetupUndoNotices(ctx, tx, fresh, reportedLate);
+          await queueSetupUndoNotices(ctx, tx, fresh, setupUndoReportedLate(fresh, receivedAt));
         } else if (!fresh.releaseRequestedAt) {
           return { status: 409 as const, error: "this phone has not been asked to release" };
         }

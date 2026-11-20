@@ -71,8 +71,10 @@ function PhoneFilter() {
       <LoadGate res={res}>
         {(dns) => (
           <>
-            {dns.host === null ? (
-              <p className="notice notice-info">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "filter.waitingDns")}</p>
+            {phone.dnsConfigured === false ? (
+              <p className="notice notice-info">{t("filter.noDnsService")}</p>
+            ) : (dns.rulesReady === undefined ? dns.host === null : !dns.rulesReady) ? (
+              <p className="notice notice-info">{t("filter.waitingDns")}</p>
             ) : (
               !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>
             )}
@@ -101,7 +103,7 @@ function PhoneFilter() {
             </section>
             <DomainList kind="allow" domains={dns.allowDomains} onChanged={() => void res.reload()} />
             <DomainList kind="block" domains={dns.blockDomains} onChanged={() => void res.reload()} />
-            <DnsAddress host={dns.host} />
+            <DnsAddress host={dns.host} mode={phone.mode} />
           </>
         )}
       </LoadGate>

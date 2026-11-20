@@ -145,6 +145,10 @@ without a confirmation still shows that it is waiting. Changes saved between syn
 An edit that undoes an earlier change still gets a fresh confirmation. A web
 filter change waits for the resolver too. The filter screen shows whether its
 settings reached the resolver.
+A light phone that confirmed its set-up but never connected has no last contact, so it
+gets one reminder (push and mail) two days after it was added, unless offline alerts are off
+for the phone. The reminder asks the parent to open Plainphone on the phone or remove it from
+the list.
 Only the current rules have a confirmation. The dashboard keeps Self changes
 waiting for approval visible in their own list.
 
