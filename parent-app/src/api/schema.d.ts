@@ -58,6 +58,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The family inbox thread for the child's phone
+         * @description The newest 30 messages, oldest first (docs/family-inbox.md). With the inbox off, empty lists. The phone fetches it when the rules' `inbox.latest` changes.
+         */
+        get: operations["getDeviceInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/inbox/received": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The device receipt for parent replies the phone has
+         * @description Only the first receipt per reply counts; repeats and unknown ids change nothing.
+         */
+        post: operations["inboxReceived"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/sos/{id}": {
         parameters: {
             query?: never;
@@ -92,6 +132,29 @@ export interface paths {
          */
         put: operations["setSosCallbackNumber"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** The family inbox thread of a Child phone */
+        get: operations["getFamilyInbox"];
+        put?: never;
+        /**
+         * Send a short reply to the child's phone
+         * @description The server can read the reply, like the quick messages (docs/family-inbox.md). Wakes the phone.
+         */
+        post: operations["replyFamilyInbox"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2568,13 +2631,60 @@ export interface components {
              * @enum {unknown}
              */
             hiddenFeedback: "vibrate" | "none";
-            /** @default true */
+            /**
+             * @description Off for new phones since the family inbox; earlier phones keep their choice
+             * @default false
+             */
             quickMessagesEnabled: boolean;
             /**
              * @description The child may suggest new quick messages
              * @default true
              */
             quickSuggestionsEnabled: boolean;
+            /**
+             * @description One short thread between the child and the parents (docs/family-inbox.md)
+             * @default false
+             */
+            familyInbox: boolean;
+            /**
+             * @description "I'm home" in the family inbox, without a position
+             * @default false
+             */
+            checkIns: boolean;
+        };
+        /** @description One message of the family inbox (docs/family-inbox.md). Code words never appear here. */
+        FamilyMessage: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            from: "child" | "parent";
+            /** @enum {unknown} */
+            kind: "quick" | "checkin" | "reply";
+            text: string;
+            /**
+             * Format: date-time
+             * @description When it was sent; for the child, the phone's time, never later than the server's
+             */
+            sentAt: string;
+            /** @description Child messages: parent devices that got a push; 0 means the phone sent an SMS */
+            delivered?: number | null;
+            /** @description Parent replies: the name the parent signed with */
+            author?: string | null;
+            /**
+             * Format: date-time
+             * @description Parent replies: when the child's phone got it (the device receipt)
+             */
+            receivedAt?: string | null;
+        };
+        FamilyInbox: {
+            familyInbox: boolean;
+            /** @description Quick messages in the inbox (needs the inbox) */
+            quickMessages: boolean;
+            /** @description "I'm home" in the inbox (needs the inbox) */
+            checkIns: boolean;
+            /** @description The SOS parents' names, as the child knows them */
+            recipients: string[];
+            messages: components["schemas"]["FamilyMessage"][];
         };
         QuickMessage: {
             /** Format: uuid */
@@ -3064,6 +3174,20 @@ export interface components {
                         meansSos: boolean;
                     }[];
                 };
+            };
+            /** @description The family inbox of a Child phone (docs/family-inbox.md). Left out while it is off. */
+            inbox?: {
+                /** @enum {boolean} */
+                enabled: true;
+                /** @description The quick messages in sos.quickMessages can be sent from the inbox */
+                quickMessages: boolean;
+                /** @description The child can send "I'm home" */
+                checkIns: boolean;
+                /**
+                 * Format: uuid
+                 * @description The newest parent reply; when it changes
+                 */
+                latest: string | null;
             };
             allowServerMove?: boolean;
             /** @description This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready. */
@@ -3757,6 +3881,21 @@ export interface operations {
                     /** Format: uuid */
                     id: string;
                     text: string;
+                    /** @description Sent from the family inbox; the message joins the thread (docs/family-inbox.md) */
+                    inbox?: boolean;
+                    /**
+                     * @description checkin is "I'm home" without a position; it always joins the thread
+                     * @default quick
+                     * @enum {unknown}
+                     */
+                    kind?: "quick" | "checkin";
+                    /**
+                     * Format: date-time
+                     * @description When the child pressed send; a later time is taken as the server's
+                     */
+                    sentAt?: string;
+                    /** @description The phone was offline and sent the message by SMS: it joins the thread, nobody is notified again */
+                    smsSent?: boolean;
                 };
             };
         };
@@ -3824,6 +3963,57 @@ export interface operations {
             };
             /** @description Three suggestions are already waiting */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDeviceInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thread */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FamilyInbox"];
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    inboxReceived: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3914,12 +4104,87 @@ export interface operations {
                     hiddenFeedback?: "vibrate" | "none";
                     quickMessagesEnabled?: boolean;
                     quickSuggestionsEnabled?: boolean;
+                    familyInbox?: boolean;
+                    checkIns?: boolean;
                 };
             };
         };
         responses: {
             /** @description Saved */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getFamilyInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thread */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FamilyInbox"];
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    replyFamilyInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    /** @description The name the child knows the parent by */
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FamilyMessage"];
+                };
+            };
+            /** @description The family inbox is off for this phone */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

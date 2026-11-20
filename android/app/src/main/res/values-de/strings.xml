@@ -99,7 +99,6 @@
     <string name="history_unknown">Unbekannte Nummer</string>
     <string name="history_mms">Bild- oder Gruppengespräch</string>
     <string name="history_mms_placeholder">Bild- oder Gruppennachricht. Der Inhalt kann nicht angezeigt werden.</string>
-    <string name="message_hint">Nachricht</string>
     <string name="message_failed">Nicht gesendet</string>
     <string name="message_send_failed">Die Nachricht konnte nicht gesendet werden. Dein Text steht noch hier.</string>
     <string name="message_not_approved">%1$s ist kein genehmigter Kontakt, daher können keine Nachrichten gesendet werden.</string>

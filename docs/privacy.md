@@ -29,6 +29,7 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | How a hidden SOS was sent (power button, clock, code word) and the code word's text | with the SOS event: 30 days or until the phone is removed | `sos_events.trigger`, `sos_events.message` |
 | Quick messages and the child's waiting suggestions | until removed or when the phone is removed | `quick_messages` |
 | The id of a quick message sent online (no text, no recipient) | one day, to recognise a retry | `quick_message_sends` |
+| The family inbox: quick messages and check-ins the child sent from it, parent replies with the name the parent signed with, delivery and device receipts | the newest 50 per phone, at most 30 days | `family_messages` |
 | Location mode (off, find, checkin, always) and the end of "always" | until the phone is removed; the end is cleared when "always" ends | `phones.location_mode`, `phones.location_always_until` |
 | "Ring the phone" and "Are you okay?" (times, the answer, and for "Call me" an approved contact's number; one of each kind per phone) | replaced by the next one; deleted a day after it ended | `safety_requests`, sweeper |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
