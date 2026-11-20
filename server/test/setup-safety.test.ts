@@ -47,7 +47,7 @@ describe("onboarding safety", () => {
   it("requires matching dashboard choice and shows only the masked account before releasing the token", async () => {
     const { parent, device, code, poll, decide, claim } = await start();
     expect((await poll()).json).toEqual({ status: "waiting" });
-    expect((await parent.post("/api/phones/pairing-profile", { code })).json).toEqual({ profile: "self", mode: "light" });
+    expect((await parent.post("/api/phones/pairing-profile", { code })).json).toEqual({ profile: "self", mode: "light", platform: "android" });
     expect((await claim("child")).status).toBe(409);
     const claimed = await claim();
     expect(claimed.status).toBe(201);

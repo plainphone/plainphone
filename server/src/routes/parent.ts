@@ -61,6 +61,8 @@ import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, isRulesDnsReady, syncDns } from "../services/dns.js";
 import { invalidateEnrollments, issueEnrollment } from "../services/enrollment.js";
+import { parentIosSelectionRoutes } from "./ios-selection.js";
+import { IOS_PAIRING_NOT_YET } from "../lib/ios.js";
 import { createPhone, loadPhoneSettings, nextRulesRevision, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
@@ -197,7 +199,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .innerJoin(households, eq(households.id, householdMembers.householdId))
       .where(eq(householdMembers.userId, user.id))
       .orderBy(households.createdAt);
-    return c.json({ user: userJson(user), households: memberships, mailEnabled: ctx.mail.canSend });
+    return c.json({ user: userJson(user), households: memberships, mailEnabled: ctx.mail.canSend, iosPairing: ctx.cfg.IOS_PAIRING_ENABLED });
   });
 
   app.patch("/me", async (c) => {
@@ -542,6 +544,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   }
 
   mountServerMoveRoutes(app, ctx, { requireMember, requirePhone, change });
+  parentIosSelectionRoutes(app, ctx, requirePhone);
 
   app.get("/phones", async (c) => {
     const hids = await myHouseholdIds(c.get("user").id);
@@ -554,7 +557,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
     }
     const { code } = await body(c, z.object({ code: z.string().max(20).transform(normalizePairingCode) }));
-    const [p] = await ctx.db.select({ profile: pairings.profileHint, mode: pairings.mode }).from(pairings)
+    const [p] = await ctx.db.select({ profile: pairings.profileHint, mode: pairings.mode, platform: pairings.platform }).from(pairings)
       .where(and(eq(pairings.codeHash, sha256(code)), isNull(pairings.claimedAt), gt(pairings.expiresAt, ctx.now())));
     if (!p) return c.json({ error: "code not found" }, 404);
     return c.json(p);
@@ -595,11 +598,14 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         .for("update");
       if (!p) return null;
       if (p.profileHint && input.profile !== p.profileHint) return "profileMismatch" as const;
+      // The flag may have been switched off since the iPhone started pairing.
+      if (p.platform === "ios" && !ctx.cfg.IOS_PAIRING_ENABLED) return "iosNotYet" as const;
       const created = await createPhone(ctx, tx, {
         householdId,
         name: input.name,
         profile: input.profile,
         mode: p.mode,
+        platform: p.platform,
         filterMethod: input.filterMethod,
         deviceTokenHash: p.requiresConfirmation ? null : sha256(deviceToken),
         deviceInfo: p.deviceInfo ?? null,
@@ -614,6 +620,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     });
     if (!phone) return c.json({ error: "code not found or expired; check the code on the phone" }, 404);
     if (phone === "profileMismatch") return c.json({ error: "profile mismatch" }, 409);
+    if (phone === "iosNotYet") return c.json(IOS_PAIRING_NOT_YET, 403);
     if (phone.deviceTokenHash) await syncDns(ctx, phone.id);
     return c.json(await phoneSummary(ctx, phone), 201);
   });

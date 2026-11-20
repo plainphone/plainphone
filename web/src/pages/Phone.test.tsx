@@ -295,3 +295,21 @@ it("writes the iPhone line in the parent's language", () => {
   const html = renderPhone({ ...phone, platform: "ios", capabilities: allYes({ contacts: "partial" }) }, "", "da");
   expect(html).toContain(makeT("da")("platform.ios.contacts"));
 });
+
+it("shows a rule an iPhone cannot do as text instead of a link to switches that do nothing", () => {
+  const t = makeT("en");
+  const html = renderPhone({ ...phone, platform: "ios", mode: "light", capabilities: allYes({ calmHome: "no", contacts: "partial" }) });
+  expect(html).not.toContain(`href="/phones/${phoneId}/home"`);
+  expect(html).toContain('class="row-link row-static"');
+  expect(html).toContain(t("platform.ios.calmHome"));
+  // Partial rules stay links, with their line.
+  expect(html).toContain(`href="/phones/${phoneId}/contacts"`);
+  // An iPhone is a light phone, but light mode's Android setup section does not apply.
+  expect(html).not.toContain(t("light.intro"));
+});
+
+it("keeps every rule a link on Android", () => {
+  const html = renderPhone({ ...phone, platform: "android", capabilities: allYes({ calmHome: "no" }) });
+  expect(html).toContain(`href="/phones/${phoneId}/home"`);
+  expect(html).not.toContain("row-static");
+});

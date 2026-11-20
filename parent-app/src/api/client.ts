@@ -18,7 +18,7 @@ export class ApiError extends Error {
     message: string,
     readonly issues: Issue[] = [],
     /** The error body's other fields, e.g. the `outcome` of a request that was answered already. */
-    readonly data: { outcome?: string } = {},
+    readonly data: { outcome?: string; code?: string } = {},
   ) {
     super(message);
   }
