@@ -52,12 +52,15 @@ export async function createLegacyDatabase(upToIdx: number) {
   const admin = createDb(inject("databaseUrl"));
   const legacy = createDb(withDatabase(inject("databaseUrl"), name));
   const close = async () => {
-    await legacy.sql.end();
     try {
-      await dropDatabase(name);
+      await legacy.sql.end();
     } finally {
-      await admin.sql.end();
-      await rm(prior, { recursive: true, force: true });
+      try {
+        await dropDatabase(name);
+      } finally {
+        await admin.sql.end();
+        await rm(prior, { recursive: true, force: true });
+      }
     }
   };
   try {

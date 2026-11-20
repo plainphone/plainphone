@@ -7,15 +7,17 @@
 // Either way, all migrations run once into a template database. Test files copy it
 // (see db.ts) instead of replaying the migrations themselves.
 
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestProject } from "vitest/node";
 import { createDb, runMigrations } from "../src/db/client.js";
 
-const TEMPLATE = "plainphone_template";
+// Unique per run, so two suites sharing one DATABASE_URL never drop each other's template.
+const newTemplateName = () => `plainphone_template_${randomUUID().replaceAll("-", "")}`;
 
-async function dropTemplate(baseUrl: string) {
+async function dropTemplate(baseUrl: string, TEMPLATE: string) {
   const admin = createDb(baseUrl);
   try {
     await admin.sql`drop database if exists ${admin.sql(TEMPLATE)} with (force)`;
@@ -24,8 +26,8 @@ async function dropTemplate(baseUrl: string) {
   }
 }
 
-async function buildTemplate(baseUrl: string) {
-  await dropTemplate(baseUrl);
+async function buildTemplate(baseUrl: string, TEMPLATE: string) {
+  await dropTemplate(baseUrl, TEMPLATE);
   const admin = createDb(baseUrl);
   try {
     await admin.sql`create database ${admin.sql(TEMPLATE)}`;
@@ -43,12 +45,13 @@ async function buildTemplate(baseUrl: string) {
 }
 
 export default async function setup(project: TestProject) {
+  const TEMPLATE = newTemplateName();
   if (process.env.DATABASE_URL) {
     const url = process.env.DATABASE_URL;
-    await buildTemplate(url);
+    await buildTemplate(url, TEMPLATE);
     project.provide("databaseUrl", url);
     project.provide("templateDatabase", TEMPLATE);
-    return () => dropTemplate(url);
+    return () => dropTemplate(url, TEMPLATE);
   }
   const { default: EmbeddedPostgres } = await import("embedded-postgres");
   const dir = await mkdtemp(join(tmpdir(), "plainphone-pg-"));
@@ -65,7 +68,7 @@ export default async function setup(project: TestProject) {
   await pg.start();
   await pg.createDatabase("plainphone_test");
   const url = `postgres://plainphone:plainphone@127.0.0.1:${port}/plainphone_test`;
-  await buildTemplate(url);
+  await buildTemplate(url, TEMPLATE);
   project.provide("databaseUrl", url);
   project.provide("templateDatabase", TEMPLATE);
   return async () => {

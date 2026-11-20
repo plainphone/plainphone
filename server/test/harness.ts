@@ -33,8 +33,11 @@ export function useHarness(): Harness {
     const copy = await createTestDatabase();
     const { db, sql: client } = createDb(copy.url);
     close = async () => {
-      await client.end();
-      await copy.drop();
+      try {
+        await client.end();
+      } finally {
+        await copy.drop();
+      }
     };
     h.ctx = { db } as Ctx;
   });
