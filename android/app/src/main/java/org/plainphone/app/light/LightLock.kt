@@ -74,6 +74,7 @@ object LightLock {
             telephony = telephony,
             timeBlocked = config.timeBlocked,
             installing = config.installing,
+            protectedCalls = setOfNotNull(device.telephonyApps().systemDialer),
         )
         save(context, plan)
         StepResult(
@@ -143,10 +144,12 @@ data class LightPlan(val blocked: Set<String>, val timeBlocked: Set<String>) {
             telephony: Set<String>,
             timeBlocked: Set<String>,
             installing: String?,
+            protectedCalls: Set<String> = emptySet(),
         ): LightPlan {
-            val keep = core + allowed + ownPackage - telephony + listOfNotNull(installing?.let { PolicyConfig.PLAY_STORE })
+            // [protectedCalls] (the system dialer) stay like in strong mode: calls must never be one rule away from blocked.
+            val keep = core + allowed + ownPackage + protectedCalls - telephony + listOfNotNull(installing?.let { PolicyConfig.PLAY_STORE })
             val blocked = LockPolicy.hidePlan(launchable, keep, emptySet()).hide
-            return LightPlan(blocked, timeBlocked - core - ownPackage - blocked)
+            return LightPlan(blocked, timeBlocked - core - ownPackage - protectedCalls - blocked)
         }
     }
 }

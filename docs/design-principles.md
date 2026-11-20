@@ -14,6 +14,7 @@ These principles guide product decisions, including future work. See the
 3. **Keep help reachable.** Keep emergency calls, caregiver contact and
    helplines available across schedules and limits. Exempt these calls from
    usage caps and keep helpline use out of caregiver-visible logs.
+   A test fails if any mode or limit blocks them ([always reachable](always-reachable.md)).
    [UN GC25 ¶¶76, 94][gc25]
 4. **Set and explain rules together.** Help families agree on rules, show the
    reasons in language the child understands, and encourage adults to follow
