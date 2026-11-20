@@ -19,6 +19,7 @@ const src = join(root, "src");
 const dist = join(root, "dist");
 const ORIGIN = "https://plainphone.org";
 const GITHUB = "https://github.com/plainphone/plainphone";
+const STATUS_URL = "https://status.plainphone.org";
 const pages = [en, da, sv, nb, de];
 const languageNames = { en: "English", da: "Dansk", sv: "Svenska", nb: "Norsk bokmål", de: "Deutsch" };
 const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
@@ -164,6 +165,7 @@ function footer(t, route = (p) => p.path) {
 <li><a href="${t.path}#faq">${l.faq}</a></li>
 <li><a href="${t.why.path}">${t.why.h1}</a></li>
 <li><a href="${t.privacy.path}">${t.privacy.h1}</a></li>
+<li><a href="${STATUS_URL}" target="_blank" rel="noopener noreferrer">${l.status}</a></li>
 </ul></section>
 <section aria-labelledby="foot-project"><h2 id="foot-project">${l.project}</h2><ul>
 <li><a href="${GITHUB}">${l.code}</a></li>
@@ -478,6 +480,7 @@ ${p.sections.map(section).join("\n")}
 <h2 id="contact-title">${esc(p.contact)}</h2>
 <p>${esc(p.contactText)}</p>
 <p><a href="mailto:support@plainphone.org">support@plainphone.org</a></p>
+<p>${p.statusText.replace("{STATUS_LINK}", `href="${STATUS_URL}" target="_blank" rel="noopener noreferrer"`)}</p>
 </section>
 </main>
 ${footer(t, route)}
