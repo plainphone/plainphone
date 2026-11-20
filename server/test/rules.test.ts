@@ -165,7 +165,7 @@ describe("rules (child profile)", () => {
     );
     expect((await parent.post(`/api/phones/${phoneId}/contacts`, { name: "Bad", number: "12345678" })).status).toBe(400);
     const list = await parent.get(`/api/phones/${phoneId}/contacts`);
-    expect(list.json.contacts).toEqual([{ id: expect.any(String), name: "Mor", number: "+4512345678" }]);
+    expect(list.json.contacts).toEqual([{ id: expect.any(String), name: "Mor", number: "+4512345678", group: "others" }]);
     expect((await device.get("/api/device/rules")).json.contacts).toEqual([{ name: "Mor", number: "+4512345678" }]);
     expect((await parent.del(`/api/phones/${phoneId}/contacts/${list.json.contacts[0].id}`)).status).toBe(200);
     expect((await parent.get(`/api/phones/${phoneId}/contacts`)).json.contacts).toEqual([]);
