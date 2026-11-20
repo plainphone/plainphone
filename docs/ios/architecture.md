@@ -131,6 +131,12 @@ Nothing sets `platform = ios` yet: iOS pairing arrives in phase 1. The lines are
 what the platform can do, not a feature, so they have no switch: hiding them would make the
 dashboard claim more than the phone does.
 
+The rows with a line are Apps, Contacts, Web filter, Screen time (more time on request), Bedtime
+(silence), Location (Ring cannot pass silent mode without Critical Alerts), Home screen, Settings and
+the Myself key. The Contacts and Bedtime lines say "Set it up with the guide": that guide is the
+phase 5 wizard. If phase 1 ships before phase 5, those two lines must link to Apple's own help page
+(https://support.apple.com/en-us/108806) or drop the sentence until the wizard exists.
+
 ## App roles
 
 [`parent-app/src/lib/roles.ts`](../../parent-app/src/lib/roles.ts) holds the role model: `parent`,

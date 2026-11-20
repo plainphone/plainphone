@@ -12,7 +12,7 @@ jest.mock("expo-linking", () => {
 });
 
 const routes = "./src/app";
-const yes = { apps: "yes", contacts: "yes", webFilter: "yes", bedtimeSilence: "yes", calmHome: "yes", phoneSettings: "yes", selfKeys: "yes" };
+const yes = { apps: "yes", contacts: "yes", webFilter: "yes", moreTime: "yes", bedtimeSilence: "yes", ring: "yes", calmHome: "yes", phoneSettings: "yes", selfKeys: "yes" };
 
 function showPhone(phone: Record<string, unknown>) {
   fakeApi({
@@ -30,10 +30,12 @@ beforeEach(async () => {
 });
 
 it("puts the iPhone line under the rules Apple controls, and not under the others", async () => {
-  showPhone({ ...PHONE, platform: "ios", tier: "family_controls", capabilities: { ...yes, contacts: "partial", webFilter: "partial" } });
+  showPhone({ ...PHONE, platform: "ios", tier: "family_controls", capabilities: { ...yes, contacts: "partial", webFilter: "partial", ring: "partial" } });
   await renderRouter(routes, { initialUrl: `/phones/${PHONE.id}` });
   expect(await screen.findByText(en["platform.ios.contacts"])).toBeTruthy();
   expect(screen.getByText(en["platform.ios.webFilter"])).toBeTruthy();
+  expect(screen.getByText(en["platform.ios.ring"])).toBeTruthy();
+  expect(screen.queryByText(en["platform.ios.moreTime"])).toBeNull();
   expect(screen.getByText(en["platform.iosNote"])).toBeTruthy();
   expect(screen.queryByText(en["platform.ios.apps"])).toBeNull();
   // The row reads the line aloud with its title.

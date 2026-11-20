@@ -16,3 +16,10 @@ it("leaves Android phones and old servers alone", () => {
   expect(platformLine({ platform: "android", capabilities: { contacts: "no" } }, "contacts")).toBeNull();
   expect(platformLine({}, "contacts")).toBeNull();
 });
+
+it("explains the partial more-time and ring support on an iPhone", () => {
+  const phone = { platform: "ios" as const, capabilities: { moreTime: "partial" as const, ring: "partial" as const, bedtimeSilence: "yes" as const } };
+  expect(platformLine(phone, "time")).toBe("platform.ios.moreTime");
+  expect(platformLine(phone, "location")).toBe("platform.ios.ring");
+  expect(platformLine(phone, "schedules")).toBeNull();
+});

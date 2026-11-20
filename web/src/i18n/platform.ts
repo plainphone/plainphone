@@ -13,6 +13,8 @@ export const platformEn = {
   "platform.ios.bedtimeSilence": "On iPhone, Apple's Downtime decides who can ring at bedtime. Set it up with the guide.",
   "platform.ios.calmHome": "On iPhone, Plainphone cannot change the home screen.",
   "platform.ios.phoneSettings": "On iPhone, these settings are made in Apple's Settings app.",
+  "platform.ios.moreTime": "On iPhone, more time is asked for from the blocked app's screen, and the answer can take a few minutes to reach the phone.",
+  "platform.ios.ring": "On iPhone, ringing the phone cannot get past silent mode yet. It rings only if its sound is on.",
   "platform.ios.selfKeys": "On iPhone, the owner can switch Plainphone off in Settings. The key slows changes down but cannot stop that.",
 };
 
@@ -25,6 +27,8 @@ export const platformDa: Record<keyof typeof platformEn, string> = {
   "platform.ios.bedtimeSilence": "På iPhone bestemmer Apples Nedetid, hvem der kan ringe ved sengetid. Sæt det op med guiden.",
   "platform.ios.calmHome": "På iPhone kan Plainphone ikke ændre hjemmeskærmen.",
   "platform.ios.phoneSettings": "På iPhone vælges de her indstillinger i Apples app Indstillinger.",
+  "platform.ios.moreTime": "På iPhone beder barnet om mere tid fra skærmen i den spærrede app, og svaret kan tage et par minutter om at nå telefonen.",
+  "platform.ios.ring": "På iPhone kan du endnu ikke få telefonen til at ringe, når den er på lydløs. Den ringer kun, hvis lyden er slået til.",
   "platform.ios.selfKeys": "På iPhone kan ejeren slå Plainphone fra under Indstillinger. Nøglen gør ændringer langsommere, men kan ikke forhindre det.",
 };
 
@@ -37,6 +41,8 @@ export const platformSv: Record<keyof typeof platformEn, string> = {
   "platform.ios.bedtimeSilence": "På iPhone avgör Apples Nedtid vem som kan ringa vid läggdags. Ställ in det med guiden.",
   "platform.ios.calmHome": "På iPhone kan Plainphone inte ändra hemskärmen.",
   "platform.ios.phoneSettings": "På iPhone görs de här inställningarna i Apples app Inställningar.",
+  "platform.ios.moreTime": "På iPhone ber barnet om mer tid från skärmen i den spärrade appen, och svaret kan ta några minuter att nå telefonen.",
+  "platform.ios.ring": "På iPhone kan du ännu inte få telefonen att ringa i ljudlöst läge. Den ringer bara om ljudet är på.",
   "platform.ios.selfKeys": "På iPhone kan ägaren stänga av Plainphone under Inställningar. Nyckeln gör ändringar långsammare men kan inte stoppa det.",
 };
 
@@ -49,6 +55,8 @@ export const platformNb: Record<keyof typeof platformEn, string> = {
   "platform.ios.bedtimeSilence": "På iPhone bestemmer Apples Nedetid hvem som kan ringe ved leggetid. Sett det opp med veiviseren.",
   "platform.ios.calmHome": "På iPhone kan ikke Plainphone endre hjemskjermen.",
   "platform.ios.phoneSettings": "På iPhone velges disse innstillingene i Apples app Innstillinger.",
+  "platform.ios.moreTime": "På iPhone ber barnet om mer tid fra skjermen i den sperrede appen, og svaret kan bruke noen minutter på å nå telefonen.",
+  "platform.ios.ring": "På iPhone kan du ennå ikke få telefonen til å ringe når den er på lydløs. Den ringer bare hvis lyden er på.",
   "platform.ios.selfKeys": "På iPhone kan eieren slå av Plainphone under Innstillinger. Nøkkelen gjør endringer tregere, men kan ikke hindre det.",
 };
 
@@ -61,5 +69,7 @@ export const platformDe: Record<keyof typeof platformEn, string> = {
   "platform.ios.bedtimeSilence": "Auf dem iPhone entscheidet Apples Auszeit, wer zur Schlafenszeit anrufen kann. Richten Sie es mit der Anleitung ein.",
   "platform.ios.calmHome": "Auf dem iPhone kann Plainphone den Home-Bildschirm nicht ändern.",
   "platform.ios.phoneSettings": "Auf dem iPhone werden diese Einstellungen in Apples App Einstellungen vorgenommen.",
+  "platform.ios.moreTime": "Auf dem iPhone wird mehr Zeit auf dem Bildschirm der gesperrten App erbeten, und die Antwort kann einige Minuten brauchen, bis sie das Telefon erreicht.",
+  "platform.ios.ring": "Auf dem iPhone kann das Klingeln den Lautlos-Modus noch nicht umgehen. Das Telefon klingelt nur, wenn der Ton an ist.",
   "platform.ios.selfKeys": "Auf dem iPhone kann die Person, der es gehört, Plainphone in den Einstellungen ausschalten. Der Schlüssel verlangsamt Änderungen, kann das aber nicht verhindern.",
 };

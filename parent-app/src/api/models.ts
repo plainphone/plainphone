@@ -81,7 +81,7 @@ export interface Phone {
   /** iPhone support (docs/ios/architecture.md). Missing on old servers: an Android phone. */
   platform?: import("../shared/lib/platform").Platform;
   tier?: "strong" | "light" | "family_controls" | "supervised";
-  capabilities?: Partial<Record<string, import("../shared/lib/platform").Support>>;
+  capabilities?: components["schemas"]["Capabilities"];
   ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
 }
 export interface App {
