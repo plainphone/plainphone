@@ -6,7 +6,7 @@
 
 import { errorSummary } from "../lib/log.js";
 import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
-import { billingSubscriptions, householdMembers, households, phones, selfKeys } from "../db/schema.js";
+import { billingSubscriptions, householdMembers, households, phones, selfKeys, users } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import type { DbLike } from "./changes.js";
 
@@ -120,9 +120,15 @@ export async function isAllowed(
   }
   const max = ctx.cfg.BILLING_FREE_TRUSTED;
   const others = await trustedPeople(db, householdId, opts.phoneId);
-  const who = opts.trusted?.userId ?? (opts.trusted?.email ? `mail:${opts.trusted.email}` : null);
-  // Someone who already helps on another phone costs nothing extra.
-  if (who && others.has(who)) return { ok: true };
+  // Someone who already helps on another phone costs nothing extra, whether they were stored by
+  // account (accepted) or by address (invited), so the address is matched to an account too.
+  const email = opts.trusted?.email?.toLowerCase() ?? null;
+  let userId = opts.trusted?.userId ?? null;
+  if (!userId && email) {
+    const [u] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+    userId = u?.id ?? null;
+  }
+  if ((userId && others.has(userId)) || (email && others.has(`mail:${email}`))) return { ok: true };
   return others.size < max ? { ok: true } : { ok: false, limit: "trusted", max };
 }
 

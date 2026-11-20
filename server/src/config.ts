@@ -168,6 +168,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       warnings[area].push(`${label}: invalid ${key}`);
     }
   }
+  // Billing settings must not stop a server, least of all one where billing is off. An invalid
+  // value is dropped and reported; without a cutoff billing stays off (below).
+  const softBilling: [string, z.ZodType][] = [
+    ["PLAY_RTDN_TOKEN", z.string().min(24)],
+    ["BILLING_GRANDFATHER_BEFORE", z.iso.datetime({ offset: true })],
+  ];
+  for (const [key, check] of softBilling) {
+    const raw = sane[key];
+    if (raw === undefined || raw === "" || check.safeParse(raw).success) continue;
+    delete sane[key];
+    warnings.other.push(`billing: invalid ${key}`);
+  }
   const parsed = schema.safeParse(sane);
   if (!parsed.success) {
     throw new Error(`Invalid configuration: ${z.prettifyError(parsed.error)}`);

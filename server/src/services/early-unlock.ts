@@ -192,26 +192,55 @@ function stripeLocale(l: string) {
   return ({ da: "da", sv: "sv", nb: "nb", de: "de" } as Record<string, string>)[l] ?? "en";
 }
 
+export type PaidOutcome = "scheduled" | "refund" | "noop";
+
 /**
- * The provider confirmed payment. Idempotent: a second confirmation for the same row changes
- * nothing. Returns what to do next outside the transaction.
+ * The provider confirmed payment. Idempotent: a second confirmation for the same payment changes
+ * nothing. Returns what to do next outside the transaction, and the row to do it for: a second,
+ * different payment for a row that was already paid gets its own refund record, so the first
+ * payment's record stays intact.
  */
 export async function confirmPaid(
   ctx: Ctx,
   db: DbLike,
   id: string,
   pay: { paymentRef: string; providerRef?: string | null },
-): Promise<"scheduled" | "refund" | "noop"> {
+): Promise<{ outcome: PaidOutcome; id: string }> {
   const [row] = await db.select().from(earlyUnlocks).where(eq(earlyUnlocks.id, id)).for("update");
-  if (!row) return "noop";
-  if (row.paymentRef && row.paymentRef === pay.paymentRef && row.status !== "created" && row.status !== "expired") return "noop";
+  if (!row) return { outcome: "noop", id };
+  if (row.paymentRef && row.paymentRef === pay.paymentRef && row.status !== "created" && row.status !== "expired") return { outcome: "noop", id };
   const now = ctx.now();
+  if (row.paymentRef && row.paymentRef !== pay.paymentRef) {
+    // Another payment for a row that already holds one (two purchase flows for the same offer).
+    const [seen] = await db.select({ id: earlyUnlocks.id }).from(earlyUnlocks)
+      .where(and(eq(earlyUnlocks.channel, row.channel), eq(earlyUnlocks.paymentRef, pay.paymentRef)));
+    if (seen) return { outcome: "noop", id: seen.id };
+    const [extra] = await db.insert(earlyUnlocks).values({
+      phoneId: row.phoneId,
+      householdId: row.householdId,
+      // Not tied to the change, so the offer keeps showing the purchase that was actually kept.
+      pendingChangeId: null,
+      buyerId: row.buyerId,
+      channel: row.channel,
+      amount: row.amount,
+      currency: row.currency,
+      status: "refund_due",
+      providerRef: pay.providerRef && pay.providerRef !== row.providerRef ? pay.providerRef : null,
+      paymentRef: pay.paymentRef,
+      consentAt: row.consentAt,
+      originalEffectiveAt: row.originalEffectiveAt,
+      paidAt: now,
+      refundReason: "duplicate",
+      createdAt: now,
+    }).returning();
+    return { outcome: "refund", id: extra!.id };
+  }
   const refund = async (reason: string) => {
     await db.update(earlyUnlocks).set({
       status: "refund_due", paidAt: row.paidAt ?? now, paymentRef: pay.paymentRef,
       providerRef: pay.providerRef ?? row.providerRef, refundReason: reason,
     }).where(eq(earlyUnlocks.id, row.id));
-    return "refund" as const;
+    return { outcome: "refund" as const, id: row.id };
   };
   // Paid after it was withdrawn or given up: never keep the money.
   if (row.status !== "created") return refund(row.withdrawnAt ? "withdrawn" : "late");
@@ -226,11 +255,11 @@ export async function confirmPaid(
   await db.update(earlyUnlocks).set({
     status: "scheduled", paidAt: now, unlockAt, paymentRef: pay.paymentRef, providerRef: pay.providerRef ?? row.providerRef,
   }).where(eq(earlyUnlocks.id, row.id));
-  return "scheduled";
+  return { outcome: "scheduled", id: row.id };
 }
 
 /** After confirmPaid committed: wake the phone, send the receipt, or refund at once. */
-export async function afterPaid(ctx: Ctx, id: string, outcome: "scheduled" | "refund" | "noop") {
+export async function afterPaid(ctx: Ctx, id: string, outcome: PaidOutcome) {
   const [row] = await ctx.db.select().from(earlyUnlocks).where(eq(earlyUnlocks.id, id));
   if (!row) return;
   if (outcome === "scheduled") {
@@ -246,12 +275,20 @@ export async function withdraw(ctx: Ctx, id: string, userId: string, name?: stri
   const row = await ctx.db.transaction(async (tx) => {
     const [r] = await tx.select().from(earlyUnlocks).where(eq(earlyUnlocks.id, id)).for("update");
     if (!r) throw new EarlyUnlockError(404, "not found");
-    if (r.status === "delivered") throw new EarlyUnlockError(409, "the unlock was delivered, so the right of withdrawal has ended");
     if (r.status === "created") {
       const [done] = await tx.update(earlyUnlocks).set({ status: "expired", withdrawnAt: now }).where(eq(earlyUnlocks.id, r.id)).returning();
       return done!;
     }
     if (r.status !== "scheduled") return r;
+    const [change] = r.pendingChangeId
+      ? await tx.select().from(pendingChanges).where(eq(pendingChanges.id, r.pendingChangeId)).for("update")
+      : [];
+    if (change?.status === "applied") {
+      // The phone already applied it (GET /device/rules) before the sweeper noticed: delivered.
+      const [done] = await tx.update(earlyUnlocks).set({ status: "delivered", deliveredAt: change.decidedAt ?? now })
+        .where(eq(earlyUnlocks.id, r.id)).returning();
+      return done!;
+    }
     if (r.pendingChangeId && r.originalEffectiveAt) {
       await tx.update(pendingChanges).set({ effectiveAt: r.originalEffectiveAt })
         .where(and(eq(pendingChanges.id, r.pendingChangeId), eq(pendingChanges.status, "pending")));
@@ -260,8 +297,10 @@ export async function withdraw(ctx: Ctx, id: string, userId: string, name?: stri
       .where(eq(earlyUnlocks.id, r.id)).returning();
     return done!;
   });
+  if (row.status === "delivered") throw new EarlyUnlockError(409, "the unlock was delivered, so the right of withdrawal has ended");
   if (row.phoneId) await wakePhone(ctx, row.phoneId, "rules");
-  if (row.withdrawnAt?.getTime() === now.getTime()) await sendReceipt(ctx, row, "withdrawal", { userId, name });
+  // A receipt only for a contract that was paid; an abandoned checkout just closes.
+  if (row.paidAt && row.withdrawnAt?.getTime() === now.getTime()) await sendReceipt(ctx, row, "withdrawal", { userId, name });
   if (row.status === "refund_due") await refundNow(ctx, row);
   const [fresh] = await ctx.db.select().from(earlyUnlocks).where(eq(earlyUnlocks.id, id));
   return fresh!;

@@ -6,7 +6,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
-import { billingEvents, households } from "../src/db/schema.js";
+import { billingEvents, households, selfKeys, users } from "../src/db/schema.js";
 import { verifyStripeSignature, signStripePayload, formEncode } from "../src/providers/stripe.js";
 import { enableBilling, playRtdn, RTDN_TOKEN, stripeWebhook, WEBHOOK_SECRET } from "./billing-helpers.js";
 import { Client, pairPhone, signIn, useHarness } from "./harness.js";
@@ -65,6 +65,11 @@ describe("with BILLING_ENABLED off (the default)", () => {
     const odd = loadConfig({ DATABASE_URL: "x", BILLING_ENABLED: "yes please" });
     expect(odd.BILLING_ENABLED).toBe(false);
     expect(odd.configWarnings.other).toContain("billing: invalid BILLING_ENABLED");
+    // Neither do malformed billing settings on a server where billing is off.
+    const bad = loadConfig({ DATABASE_URL: "x", PLAY_RTDN_TOKEN: "short", BILLING_GRANDFATHER_BEFORE: "last tuesday" });
+    expect(bad.PLAY_RTDN_TOKEN).toBeUndefined();
+    expect(bad.BILLING_GRANDFATHER_BEFORE).toBeUndefined();
+    expect(bad.configWarnings.other).toEqual(expect.arrayContaining(["billing: invalid PLAY_RTDN_TOKEN", "billing: invalid BILLING_GRANDFATHER_BEFORE"]));
   });
 });
 
@@ -109,7 +114,10 @@ describe("plan limits with billing on", () => {
     const blocked = await parent.put(`/api/phones/${b.phoneId}/key`, key("two@example.org"));
     expect(blocked.status).toBe(402);
     expect(blocked.json.limit).toBe("trusted");
-    // The same person may help on a second phone.
+    // The same person may help on a second phone, also once they accepted and are stored by account.
+    await signIn(h, "one@example.org");
+    const [one] = await h.ctx.db.select().from(users).where(eq(users.email, "one@example.org"));
+    await h.ctx.db.update(selfKeys).set({ trustedUserId: one!.id, trustedEmail: null }).where(eq(selfKeys.phoneId, a.phoneId));
     expect((await parent.put(`/api/phones/${b.phoneId}/key`, key("one@example.org"))).status).toBeLessThan(300);
     await h.ctx.db.update(households).set({ plan: "plus", planSource: "manual", planUntil: null });
     expect((await parent.put(`/api/phones/${b.phoneId}/key`, key("two@example.org"))).status).toBeLessThan(300);

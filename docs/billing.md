@@ -108,10 +108,14 @@ optional name field (written only into the receipt mail), then **Confirm withdra
 fortrydelse). Withdrawal restores the original wait and refunds the full amount. Both the purchase
 and the withdrawal are confirmed by mail (a durable receipt with the consent text, the times and
 the contract number). Withdrawal and reading the receipt keep working if billing is switched off
-again.
+again. Once the phone has applied the change (also when it fetched its rules before the sweeper
+marked the purchase delivered), the right of withdrawal has ended and a withdrawal is refused. A
+checkout that was never paid is no contract: the offer shows again, and closing it sends no receipt.
 
 A paid unlock that cannot be delivered (the change was cancelled or failed), that came in late,
-or that was a duplicate is refunded. Refunds use an idempotency key (Stripe) or the order id
+or that was a duplicate is refunded. A second, different payment for a purchase that is already
+paid (two purchase flows for the same offer) gets its own refund record, so the first payment's
+record stays as it was. Refunds use an idempotency key (Stripe) or the order id
 (Play), so a retry never refunds twice; a failed refund call stays `refund_due` and the sweeper
 retries it. A checkout retry returns the same session, so a double click never charges twice.
 
@@ -148,7 +152,7 @@ All values come from the environment; never commit them.
 | Variable | Default | Meaning |
 |---|---|---|
 | `BILLING_ENABLED` | `false` | Master switch. Needs `BILLING_GRANDFATHER_BEFORE`; without it billing stays off and `/api/health` lists `billing: BILLING_ENABLED needs BILLING_GRANDFATHER_BEFORE` |
-| `BILLING_GRANDFATHER_BEFORE` | | ISO time, e.g. `2027-03-01T00:00:00Z`. Households created before it keep everything free |
+| `BILLING_GRANDFATHER_BEFORE` | | ISO time, e.g. `2027-03-01T00:00:00Z`. Households created before it keep everything free. An invalid value is dropped and reported, so billing stays off |
 | `BILLING_FREE_PHONES` | `1` | Phones on the free plan |
 | `BILLING_FREE_TRUSTED` | `1` | Trusted people (buddies) on the free plan |
 | `BILLING_CURRENCY` | `DKK` | Currency of the prices below |
@@ -161,7 +165,7 @@ All values come from the environment; never commit them.
 | `PLAY_SERVICE_ACCOUNT_JSON` / `PLAY_SERVICE_ACCOUNT_FILE` | | A service account with access to the Google Play Developer API for that app |
 | `PLAY_PRODUCT_PLUS` | `plus_household` | Subscription product id in Play Console |
 | `PLAY_PRODUCT_EARLY_UNLOCK` | `early_unlock` | One-time (consumable) product id in Play Console |
-| `PLAY_RTDN_TOKEN` | | At least 24 random characters. The Pub/Sub push endpoint is `<PUBLIC_URL>/api/billing/play/rtdn?token=<PLAY_RTDN_TOKEN>` |
+| `PLAY_RTDN_TOKEN` | | At least 24 random characters (a shorter value is dropped and reported, and RTDN is refused). The Pub/Sub push endpoint is `<PUBLIC_URL>/api/billing/play/rtdn?token=<PLAY_RTDN_TOKEN>` |
 
 Stripe webhook events to send: `checkout.session.completed`,
 `checkout.session.async_payment_succeeded`, `checkout.session.expired`,

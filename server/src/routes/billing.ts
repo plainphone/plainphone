@@ -85,8 +85,8 @@ async function handleStripe(ctx: Ctx, tx: DbLike, e: z.infer<typeof stripeEvent>
       const id = m.early_unlock_id;
       const pi = str(o.payment_intent);
       if (!pi || !z.uuid().safeParse(id).success) return;
-      const outcome = await confirmPaid(ctx, tx, id, { paymentRef: pi, providerRef: str(o.id) });
-      after.push(() => afterPaid(ctx, id, outcome));
+      const paid = await confirmPaid(ctx, tx, id, { paymentRef: pi, providerRef: str(o.id) });
+      after.push(() => afterPaid(ctx, paid.id, paid.outcome));
       return;
     }
     case "checkout.session.expired": {
@@ -270,13 +270,13 @@ async function fulfilPlayProduct(
   if (!id || !z.uuid().safeParse(id).success) return null;
   const [row] = await tx.select().from(earlyUnlocks).where(and(eq(earlyUnlocks.id, id), eq(earlyUnlocks.channel, "play")));
   if (!row || row.householdId !== product.accountId || (expectHousehold && row.householdId !== expectHousehold)) return null;
-  const outcome = await confirmPaid(ctx, tx, id, { paymentRef: token, providerRef: product.orderId });
+  const paid = await confirmPaid(ctx, tx, id, { paymentRef: token, providerRef: product.orderId });
   after.push(async () => {
-    await afterPaid(ctx, id, outcome);
+    await afterPaid(ctx, paid.id, paid.outcome);
     // Consumed, so it can be bought again next week. Play refunds a purchase never acknowledged.
     if (!product.consumed) await ctx.billing!.play!.consumeProduct(sku, token).catch(() => undefined);
   });
-  return outcome;
+  return paid.outcome;
 }
 
 // --- Parent API ------------------------------------------------------------------

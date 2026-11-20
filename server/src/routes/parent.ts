@@ -591,6 +591,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       return c.json({ error: "unknown time zone" }, 400);
     }
     // The plan only limits adding phones (docs/billing.md); existing phones are never touched.
+    // A soft limit: checked outside the transaction, so two enrolments at the same instant can
+    // both pass. That only ever errs towards the family, which is the safe side.
     const allowed = await isAllowed(ctx, householdId, "phone.add");
     if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
 

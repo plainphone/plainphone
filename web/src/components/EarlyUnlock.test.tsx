@@ -121,6 +121,13 @@ it("starts as one quiet line and opens the terms with an unticked consent box", 
   expect(keep.className).toBe(pay.className);
 });
 
+it("offers it again after a cancelled checkout instead of asking to withdraw", async () => {
+  const unpaid = { ...purchase, status: "created" as const, paidAt: null, unlockAt: null };
+  await mount(<EarlyUnlock change={change({ ...offer, purchase: unpaid })} onChanged={() => undefined} />);
+  expect(button(t("early.open"))).toBeTruthy();
+  expect(button("Withdraw from contract")).toBeUndefined();
+});
+
 it("enables paying only after the consent is ticked, then posts it and goes to checkout", async () => {
   postResult = { purchase: { ...purchase, status: "created" }, checkoutUrl: "https://checkout.stripe.test/s/1" };
   await mount(<EarlyUnlock change={change(offer)} onChanged={() => undefined} />);

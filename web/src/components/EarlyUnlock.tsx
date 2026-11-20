@@ -24,7 +24,10 @@ export function EarlyUnlock({ change, onChanged }: {
   const offer = change.earlyUnlock;
   if (!offer) return null;
   let content = null;
-  if (offer.purchase) content = <PurchaseStatus purchase={offer.purchase} onChanged={onChanged} />;
+  // An unpaid checkout (cancelled or abandoned) is no contract yet: offer it again instead of a
+  // withdrawal control. Starting again reuses the open checkout, so nobody pays twice.
+  const unpaid = offer.purchase?.status === "created";
+  if (offer.purchase && !(unpaid && offer.available)) content = <PurchaseStatus purchase={offer.purchase} onChanged={onChanged} />;
   else if (offer.available) content = <Offer changeId={change.id} offer={offer} />;
   else if (offer.reason === "weeklyCap" && offer.nextAvailableAt) {
     content = <p className="help">{t("early.weeklyCap", { time: formatDateTime(offer.nextAvailableAt, locale) })}</p>;

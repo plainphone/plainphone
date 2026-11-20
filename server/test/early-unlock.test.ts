@@ -187,6 +187,31 @@ describe("buying and delivering", () => {
     expect(stripe.refunds.map((r) => r.paymentIntent)).toEqual(["pi_second"]);
   });
 
+  it("refunds a second Play payment for an already paid unlock in its own record", async () => {
+    const { play } = enableBilling(h);
+    const { me, phoneId, device } = await myself();
+    const cid = await loosen(me, phoneId);
+    const hid = (await me.get("/api/me")).json.households[0].id;
+    const start = await device.post("/api/device/early-unlocks", { changeId: cid, consent: true });
+    const id = start.json.purchase.id as string;
+    // Two purchase flows for the same open offer, and both were paid.
+    for (const [token, orderId] of [["tok-first-0001", "GPA.1"], ["tok-second-001", "GPA.2"]] as const) {
+      play.products.set(token, { purchaseState: 0, consumed: false, acknowledged: false, orderId, accountId: hid, profileId: id });
+      expect((await device.post("/api/device/billing/play", { kind: "earlyUnlock", productId: "early_unlock", purchaseToken: token })).status).toBe(200);
+    }
+    // The paid, scheduled unlock keeps its own payment and its withdrawal right.
+    expect(await unlockRow(id)).toMatchObject({ status: "scheduled", paymentRef: "tok-first-0001", providerRef: "GPA.1" });
+    const extra = await h.ctx.db.select().from(earlyUnlocks).where(eq(earlyUnlocks.paymentRef, "tok-second-001"));
+    expect(extra).toHaveLength(1);
+    expect(extra[0]).toMatchObject({ status: "refunded", refundReason: "duplicate", providerRef: "GPA.2", pendingChangeId: null });
+    expect(play.refunded).toEqual(["GPA.2"]);
+    // The same second payment reported again refunds nothing more.
+    await playRtdn(h, { oneTimeProductNotification: { version: "1.0", notificationType: 1, purchaseToken: "tok-second-001", sku: "early_unlock" } });
+    expect(play.refunded).toEqual(["GPA.2"]);
+    const change = (await me.get(`/api/phones/${phoneId}/changes`)).json.changes[0];
+    expect(change.earlyUnlock.purchase).toMatchObject({ id, status: "scheduled", canWithdraw: true });
+  });
+
   it("refunds an unlock that cannot be delivered, and retries a failed refund", async () => {
     const { stripe } = enableBilling(h);
     const { me, phoneId } = await myself();
@@ -231,6 +256,32 @@ describe("withdrawal (Fortryd aftale)", () => {
     expect(stripe.refunds).toHaveLength(1);
     const stranger = await signIn(h, "stranger@example.org");
     expect((await stranger.get(`/api/early-unlocks/${purchaseId}`)).status).toBe(404);
+  });
+
+  it("ends once the phone has applied the change, even before the sweeper runs", async () => {
+    const { stripe } = enableBilling(h);
+    const { me, phoneId, device } = await myself();
+    const cid = await loosen(me, phoneId);
+    const { purchaseId } = await pay(cid, me);
+    h.clock.advance(10 * MIN);
+    expect((await device.get("/api/device/rules")).json.apps.allowed).toContain("com.instagram.android");
+    expect((await unlockRow(purchaseId)).status).toBe("scheduled");
+    const w = await me.post(`/api/early-unlocks/${purchaseId}/withdraw`, { confirm: true });
+    expect(w.status).toBe(409);
+    expect(await unlockRow(purchaseId)).toMatchObject({ status: "delivered", withdrawnAt: null });
+    expect(stripe.refunds).toEqual([]);
+  });
+
+  it("closes an unpaid checkout without a withdrawal receipt", async () => {
+    enableBilling(h);
+    const { me, phoneId } = await myself();
+    const cid = await loosen(me, phoneId);
+    const start = await me.post(`/api/changes/${cid}/early-unlock`, { consent: true });
+    h.mail.outbox.length = 0;
+    const w = await me.post(`/api/early-unlocks/${start.json.purchase.id}/withdraw`, { confirm: true });
+    expect(w.status).toBe(200);
+    expect(w.json.status).toBe("expired");
+    expect(h.mail.outbox).toEqual([]);
   });
 });
 
