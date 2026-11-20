@@ -233,7 +233,8 @@ object Lock {
         if (sync.released || sync.releaseAsked || sync.setupUndoPending) return null
         recoverInstall(context, reason)
         val p = prefs(context)
-        val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
+        // A last run "in the future" (the clock was set back since) is never fresh.
+        val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) in 0 until maxAgeMs
         val etag = sync.etag
         val receiptPending = etag != null && sync.rules()?.changeReceiptsEnabled == true &&
             p.getString("receipt_attempt_etag", null) != etag
@@ -471,11 +472,17 @@ object Lock {
     }
 
     /** When the maintenance unlock ends (wall clock), or null when no unlock is open. */
-    fun maintenanceEndsAtMs(context: Context): Long? =
-        prefs(context).getLong("relock_at_wall", 0L).takeIf { it > System.currentTimeMillis() }
+    fun maintenanceEndsAtMs(context: Context): Long? {
+        val p = prefs(context)
+        val stored = MaintenanceWindow.Stored(
+            wallEndMs = p.getLong("relock_at_wall", 0L),
+            elapsedEndMs = p.getLong("relock_at_elapsed", 0L).takeIf { p.contains("relock_at_elapsed") },
+            boot = p.getInt("relock_boot", 0).takeIf { p.contains("relock_boot") },
+        )
+        return MaintenanceWindow.endsAtMs(stored, System.currentTimeMillis(), BootClock.of(context))
+    }
 
-    fun isInMaintenanceWindow(context: Context): Boolean =
-        prefs(context).getLong("relock_at_wall", 0L) > System.currentTimeMillis()
+    fun isInMaintenanceWindow(context: Context): Boolean = maintenanceEndsAtMs(context) != null
 
     /**
      * The account restriction stayed lifted because a release was asked for. If the release is withdrawn,
@@ -490,12 +497,15 @@ object Lock {
 
     private fun scheduleRelock(context: Context, minutes: Int) {
         val delayMs = minutes * 60_000L
+        val clock = BootClock.of(context)
+        val elapsedEnd = clock.elapsedMs() + delayMs
         context.getSystemService(AlarmManager::class.java).setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + delayMs,
+            elapsedEnd,
             relockIntent(context),
         )
-        prefs(context).edit().putLong("relock_at_wall", System.currentTimeMillis() + delayMs).apply()
+        prefs(context).edit().putLong("relock_at_wall", System.currentTimeMillis() + delayMs)
+            .putLong("relock_at_elapsed", elapsedEnd).putInt("relock_boot", clock.boot()).apply()
     }
 
     private fun cancelRelock(context: Context) {
@@ -505,7 +515,7 @@ object Lock {
 
     private fun clearMaintenanceWindow(context: Context) {
         val wasOpen = prefs(context).contains("relock_at_wall")
-        prefs(context).edit().remove("relock_at_wall").apply()
+        prefs(context).edit().remove("relock_at_wall").remove("relock_at_elapsed").remove("relock_boot").apply()
         if (wasOpen) runCatching { CatalogAccounts.maintenanceEnded(context) }
     }
 
