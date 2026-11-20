@@ -17,6 +17,15 @@ use world::*;
 
 type Res = Result<Vec<String>, String>;
 
+/// Same texts in both harnesses, to compare what ciphertext length reveals.
+const TEXTS: [&str; 5] = [
+    "SYNTH-CANARY ok",
+    "SYNTH-CANARY pick me up at the library after football",
+    "SYNTH-CANARY a much longer text about the plan for the weekend, with times and places and who drives",
+    "SYNTH-CANARY I'm home",
+    "SYNTH-CANARY ok",
+];
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("cross") {
@@ -519,11 +528,15 @@ fn local_storage() -> Res {
 fn server_inspection() -> Res {
     let mut notes = vec![];
     let (mut server, mut pa, mut pb, mut cp, mut tab) = family()?;
-    pa.send(&mut server, "SYNTH-CANARY pick me up at the library")?;
+    for t in &TEXTS[..3] {
+        pa.send(&mut server, t)?;
+    }
     cp.sync(&mut server)?;
-    cp.send(&mut server, "SYNTH-CANARY I'm home")?;
+    cp.send(&mut server, TEXTS[3])?;
     pa.remove(&mut server, &["parent-a-tablet"])?;
-    for d in [&mut pb, &mut tab, &mut pa] {
+    pb.sync(&mut server)?;
+    pb.send(&mut server, TEXTS[4])?;
+    for d in [&mut tab, &mut pa, &mut cp] {
         d.sync(&mut server)?;
     }
     let all = server.everything_seen();
@@ -542,8 +555,9 @@ fn server_inspection() -> Res {
     let meta = server.cleartext_headers();
     notes.push(format!("PrivateMessage cleartext header the server can parse: {meta}"));
     let sizes = server.text_sizes();
+    let lens: Vec<usize> = TEXTS.iter().map(|t| t.len()).collect();
     notes.push(format!(
-        "ciphertext sizes for short texts with padding_size 64: {sizes:?} bytes; the sender's leaf index is inside the encrypted sender data"
+        "ciphertext sizes for texts of {lens:?} bytes with padding_size 64: {sizes:?}; length leaks only in 64-byte steps, and the sender's leaf index is inside the encrypted sender data"
     ));
     notes.push("push payloads carry only the conversation id and queue cursor".into());
     Ok(notes)

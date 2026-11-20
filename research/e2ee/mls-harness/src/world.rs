@@ -217,11 +217,14 @@ impl Server {
     }
 
     pub fn text_sizes(&self) -> Vec<usize> {
-        let mut s: Vec<usize> =
-            self.history.iter().filter(|(_, k, _)| *k == Kind::Application).map(|(_, _, b)| b.len()).collect();
-        s.sort();
-        s.dedup();
-        s
+        // One entry per distinct ciphertext, in sending order.
+        let mut seen: Vec<&Vec<u8>> = vec![];
+        for (_, k, b) in &self.history {
+            if *k == Kind::Application && !seen.contains(&b) {
+                seen.push(b);
+            }
+        }
+        seen.iter().map(|b| b.len()).collect()
     }
 }
 
