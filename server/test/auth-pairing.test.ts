@@ -162,6 +162,33 @@ describe("pairing", () => {
     if (first.status === 202) expect((await poll()).status).toBe(200);
   });
 
+  it("does not ask for confirmation on the phone when there is nothing left to confirm", async () => {
+    const parent = await signIn(h, "p@example.org");
+    // A strong phone paired by code has nothing to confirm.
+    const strong = new Client(h);
+    const sStart = await strong.post("/api/device/pairings", { mode: "strong" });
+    const sClaim = await parent.post("/api/phones/claim", { code: sStart.json.code, name: "A", profile: "child" });
+    expect(sClaim.status).toBe(201);
+    const sAgain = await parent.post(`/api/phones/${sClaim.json.id}/enrollment`);
+    expect(sAgain.status).toBe(409);
+    expect(sAgain.json.error).not.toMatch(/confirm/i);
+
+    // A light phone that confirmed but has not synced yet has already confirmed.
+    const light = new Client(h);
+    const lStart = await light.post("/api/device/pairings", { mode: "light", profile: "child", confirmOnPhone: true });
+    const path = `/api/device/pairings/${lStart.json.pairingId}`;
+    const headers = { "x-poll-secret": lStart.json.pollSecret };
+    const lClaim = await parent.post("/api/phones/claim", { code: lStart.json.code, name: "B", profile: "child" });
+    expect(lClaim.status).toBe(201);
+    const waiting = await parent.post(`/api/phones/${lClaim.json.id}/enrollment`);
+    expect(waiting.status).toBe(409);
+    expect(waiting.json.error).toMatch(/confirm the account on the phone/i);
+    expect((await light.call("POST", path, { action: "confirm" }, headers)).status).toBe(200);
+    const confirmed = await parent.post(`/api/phones/${lClaim.json.id}/enrollment`);
+    expect(confirmed.status).toBe(409);
+    expect(confirmed.json.error).not.toMatch(/confirm/i);
+  });
+
   it("limits invitations per recipient", async () => {
     const a = await signIn(h, "a@example.org");
     const hid = (await a.get("/api/me")).json.households[0].id;

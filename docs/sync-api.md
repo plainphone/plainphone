@@ -18,8 +18,10 @@ can use this retry. Safety events only notify on the first recorded answer. Rele
 transactional and a repeated acknowledgement can return 401, which the phone already accepts.
 Find and check-in uploads replay the original fix and purpose; the server checks the matching
 request and can return 409 if it already consumed the upload. Enrollment rotates the device
-token on redemption, pairing creation allocates a new pairing, and the legacy pairing poll
-consumes the token. Those operations never use the immediate retry.
+token on redemption and pairing creation allocates a new pairing, so neither uses the
+immediate retry. The pairing poll can fetch the device token again for up to 24 hours or until
+the first rules sync, so a lost response is recoverable, but it still starts on a fresh
+connection and has no application-level retry.
 
 ## Light-mode code pairing and sync
 

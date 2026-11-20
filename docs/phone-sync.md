@@ -61,8 +61,9 @@ for the scheduling call sites.
 
 Sync reuses HTTP connections. If an exchange fails with an I/O error, replayable reads,
 safety events, release acknowledgements, and enrollment with the same token and install ID
-get one retry on a fresh connection. The pairing poll can deliver a device token only once,
-so it starts on a fresh connection and has no application-level retry.
+get one retry on a fresh connection. The pairing poll can fetch the device token again for up
+to 24 hours or until the first rules sync, but it starts on a fresh connection and has no
+application-level retry.
 
 ## Never looser because of an error
 

@@ -667,7 +667,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
     const [pending] = await ctx.db.select({ id: pairings.id }).from(pairings)
       .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
-    if (pending || phone.deviceTokenHash !== null || phone.awaitingServerMove) return c.json({ error: "confirm the account on the phone" }, 409);
+    // Only a phone that has not confirmed the account has something left to confirm.
+    if (phone.deviceTokenHash !== null) return c.json({ error: "this phone is already paired and will show here once it connects" }, 409);
+    if (pending || phone.awaitingServerMove) return c.json({ error: "confirm the account on the phone" }, 409);
     if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
     const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
     if (!setup) return c.json({ error: "this phone is already set up" }, 409);
