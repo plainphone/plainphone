@@ -227,6 +227,50 @@ for (const hash of cspHashes) {
   if (!seenHashes.has(hash)) errors.push(`_headers: unused style hash ${hash}`);
 }
 
+
+// Front page pictures (pnpm site:screenshots): every language shows every picture, light and dark, 1x and 2x,
+// as real WebP files whose size matches the width and height in the HTML, with alt text.
+const shotNames = ["dashboard", "requests", "home", "blocked", "sharing"];
+const webpSize = (file) => {
+  const b = readFileSync(file);
+  if (b.length < 30 || b.toString("latin1", 0, 4) !== "RIFF" || b.toString("latin1", 8, 12) !== "WEBP") return null;
+  const kind = b.toString("latin1", 12, 16);
+  if (kind === "VP8 ") return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+  if (kind === "VP8L") {
+    const bits = b.readUInt32LE(21);
+    return [(bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1];
+  }
+  if (kind === "VP8X") return [b.readUIntLE(24, 3) + 1, b.readUIntLE(27, 3) + 1];
+  return null;
+};
+for (const lang of locales) {
+  const file = join(dist, lang === "en" ? "index.html" : `${lang}/index.html`);
+  const page = readFileSync(file, "utf8");
+  for (const name of shotNames) {
+    const tag = page.match(new RegExp(`<img src="/img/${name}-${lang}-light-1x\\.webp"[^>]*>`))?.[0];
+    if (!tag) {
+      errors.push(`${lang}: front page has no ${name} picture`);
+      continue;
+    }
+    const width = Number(tag.match(/ width="(\d+)"/)?.[1]);
+    const height = Number(tag.match(/ height="(\d+)"/)?.[1]);
+    if (!/ alt="[^"]{20,}"/.test(tag)) errors.push(`${lang}: ${name} picture needs descriptive alt text`);
+    for (const scheme of ["light", "dark"]) {
+      for (const scale of [1, 2]) {
+        const img = join(dist, "img", `${name}-${lang}-${scheme}-${scale}x.webp`);
+        if (!existsSync(img)) {
+          errors.push(`${lang}: missing image img/${name}-${lang}-${scheme}-${scale}x.webp (run pnpm site:screenshots)`);
+          continue;
+        }
+        const size = webpSize(img);
+        if (!size) errors.push(`${lang}: ${name}-${lang}-${scheme}-${scale}x.webp is not a WebP file`);
+        else if (size[0] !== width * scale || Math.abs(size[1] - height * scale) > 1) {
+          errors.push(`${lang}: ${name}-${lang}-${scheme}-${scale}x.webp is ${size.join("x")}, the page says ${width}x${height} at ${scale}x`);
+        }
+      }
+    }
+  }
+}
 if (external) {
   for (const url of externalLinks) {
     try {

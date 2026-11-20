@@ -3,7 +3,8 @@
 // what is always on and what you choose, who decides, what the child sees, the two
 // setup modes and the closing call to action. Keep the five languages in step.
 // Rows are [label, on] or [label, detail, on]; `on` is 1 for on and 0 for off.
-// The mocks are illustrations of real screens with fixture names (Sam), not screenshots.
+// `shots` is the alt text and caption of every picture from `pnpm site:screenshots` (real screens, a fictional
+// child called Sam). `panel` is no longer shown on the page; the share images still use it.
 export const home = {
   en: {
     nav: { how: "How it works", apps: "Apps", language: "Language" },
@@ -42,32 +43,18 @@ export const home = {
         "For a child, the parents decide, ideally together with the child. Set the rules in the parent dashboard or the parent app, and change them as your child grows.",
         "On your own phone, you decide. Loosening a rule can wait for a delay or for someone you trust to approve it, and you can always cancel.",
       ],
-      mock: {
-        caption: "The parent dashboard (illustration).",
-        title: "Sam’s phone",
-        status: "Online 2 min ago · rules received",
-        rows: [
-          ["School time", "Weekdays 08:00–14:00", 1],
-          ["Web filter", "Blocks adult content and ads", 1],
-          ["Always-on location", "Off. Find works when you ask, and Sam sees it.", 0],
-        ],
-        request: "Sam asks to use Maps",
-        allow: "Allow",
-        decline: "Decline",
-      },
     },
     sees: {
       title: "The child sees it",
       extra: "On the phone, “What can my parents see?” explains the current rules and lists each time the location was sent.",
-      mock: {
-        caption: "The child’s home screen (illustration).",
-        time: "10:32",
-        date: "Thursday 19 November",
-        notice: "School time until 14:00. Calls and texts work.",
-        calls: ["Call Mum", "Call Dad"],
-        apps: ["Phone", "Messages", "Camera", "Maps", "Music", "Clock"],
-        emergency: "Emergency call",
-      },
+    },
+    shots: {
+      note: "Screenshots of the real dashboard and phone app, with a fictional child.",
+      dashboard: { alt: "The parent dashboard for Sam’s phone. School time, web filter and asking for more time are on. Location and weekly summary are off.", caption: "The parent dashboard" },
+      requests: { alt: "The parent dashboard shows that Sam’s phone asks for more time on Maps. The parent can answer 15 minutes, 1 hour, rest of the day, or no.", caption: "A request from the phone" },
+      home: { alt: "The child’s home screen during school time: the time 10:32, “School time until 14:00”, four apps, and the buttons Phone, Messages and SOS.", caption: "Home screen in school time" },
+      blocked: { alt: "The phone’s stop screen when the time for Music is used up. It has a button to ask for more time, one to call or message a parent, and one back to the start.", caption: "When time is up" },
+      sharing: { alt: "The phone’s page “What can my parents see?”. It says when the parents get the phone’s location and lists each time it was sent.", caption: "“What can my parents see?”" },
     },
     modes: {
       title: "Two ways to set it up",
@@ -122,32 +109,18 @@ export const home = {
         "For et barn bestemmer forældrene, helst sammen med barnet. Sæt reglerne i forældrepanelet eller forældreappen, og ret dem, efterhånden som barnet bliver ældre.",
         "På din egen telefon bestemmer du. Før en regel bliver lempet, kan der være en ventetid, eller en, du stoler på, kan skulle godkende den. Du kan altid fortryde.",
       ],
-      mock: {
-        caption: "Forældrepanelet (illustration).",
-        title: "Sams telefon",
-        status: "Online for 2 min. siden · reglerne er nået frem",
-        rows: [
-          ["Skoletid", "Hverdage 08.00–14.00", 1],
-          ["Webfilter", "Blokerer voksenindhold og reklamer", 1],
-          ["Placering hele tiden", "Fra. Find virker, når du spørger, og Sam kan se det.", 0],
-        ],
-        request: "Sam beder om at bruge Kort",
-        allow: "Tillad",
-        decline: "Afvis",
-      },
     },
     sees: {
       title: "Barnet kan se det",
       extra: "På telefonen forklarer „Hvad kan mine forældre se?“ de regler, der gælder, og viser hver gang, placeringen er blevet sendt.",
-      mock: {
-        caption: "Barnets startskærm (illustration).",
-        time: "10.32",
-        date: "Torsdag 19. november",
-        notice: "Skoletid til 14.00. Opkald og sms virker.",
-        calls: ["Ring til mor", "Ring til far"],
-        apps: ["Telefon", "Beskeder", "Kamera", "Kort", "Musik", "Ur"],
-        emergency: "Nødopkald",
-      },
+    },
+    shots: {
+      note: "Skærmbilleder af det rigtige forældrepanel og den rigtige telefon-app, med et opdigtet barn.",
+      dashboard: { alt: "Forældrepanelet for Sams telefon. Skoletid, webfilter og at bede om mere tid er slået til. Placering og ugeoversigt er slået fra.", caption: "Forældrepanelet" },
+      requests: { alt: "Forældrepanelet viser, at Sams telefon beder om mere tid på Kort. Forælderen kan svare 15 minutter, 1 time, resten af dagen eller nej.", caption: "En anmodning fra telefonen" },
+      home: { alt: "Barnets startskærm i skoletiden: klokken 10.32, „Skoletid til 14.00“, fire apps og knapperne Telefon, Beskeder og SOS.", caption: "Startskærm i skoletiden" },
+      blocked: { alt: "Telefonens stopskærm, når tiden i Musik er brugt. Den har en knap til at bede om mere tid, en til at ringe eller skrive til en forælder og en tilbage til start.", caption: "Når tiden er brugt" },
+      sharing: { alt: "Telefonens side „Hvad kan mine forældre se?“. Den fortæller, hvornår forældrene får telefonens placering, og viser hver gang, den er sendt.", caption: "„Hvad kan mine forældre se?“" },
     },
     modes: {
       title: "To måder at sætte den op på",
@@ -202,32 +175,18 @@ export const home = {
         "För ett barn bestämmer föräldrarna, helst tillsammans med barnet. Ställ in reglerna i föräldrapanelen eller föräldraappen och ändra dem när barnet blir äldre.",
         "På din egen telefon bestämmer du. En lättnad i reglerna kan få vänta en tid eller behöva godkännas av någon du litar på, och du kan alltid ångra.",
       ],
-      mock: {
-        caption: "Föräldrapanelen (illustration).",
-        title: "Sams telefon",
-        status: "Online för 2 min sedan · reglerna har kommit fram",
-        rows: [
-          ["Skoltid", "Vardagar 08.00–14.00", 1],
-          ["Webbfilter", "Blockerar vuxeninnehåll och reklam", 1],
-          ["Plats hela tiden", "Av. Hitta fungerar när du frågar, och Sam ser det.", 0],
-        ],
-        request: "Sam ber om att få använda Kartor",
-        allow: "Tillåt",
-        decline: "Avböj",
-      },
     },
     sees: {
       title: "Barnet ser det",
       extra: "På telefonen förklarar ”Vad kan mina föräldrar se?” vilka regler som gäller och visar varje gång platsen har skickats.",
-      mock: {
-        caption: "Barnets hemskärm (illustration).",
-        time: "10.32",
-        date: "Torsdag 19 november",
-        notice: "Skoltid till 14.00. Samtal och sms fungerar.",
-        calls: ["Ring mamma", "Ring pappa"],
-        apps: ["Telefon", "Meddelanden", "Kamera", "Kartor", "Musik", "Klocka"],
-        emergency: "Nödsamtal",
-      },
+    },
+    shots: {
+      note: "Skärmbilder av den riktiga föräldrapanelen och telefonappen, med ett påhittat barn.",
+      dashboard: { alt: "Föräldrapanelen för Sams telefon. Skoltid, webbfilter och att be om mer tid är på. Plats och veckosammanfattning är av.", caption: "Föräldrapanelen" },
+      requests: { alt: "Föräldrapanelen visar att Sams telefon ber om mer tid i Kartor. Föräldern kan svara 15 minuter, 1 timme, resten av dagen eller nej.", caption: "En förfrågan från telefonen" },
+      home: { alt: "Barnets startskärm under skoltid: klockan 10:32, ”Skoltid till 14:00”, fyra appar och knapparna Telefon, Meddelanden och SOS.", caption: "Startskärm under skoltid" },
+      blocked: { alt: "Telefonens stoppskärm när tiden i Musik är slut. Den har en knapp för att be om mer tid, en för att ringa eller skriva till en förälder och en tillbaka till start.", caption: "När tiden är slut" },
+      sharing: { alt: "Telefonens sida ”Vad kan mina föräldrar se?”. Den berättar när föräldrarna får telefonens plats och visar varje gång den har skickats.", caption: "”Vad kan mina föräldrar se?”" },
     },
     modes: {
       title: "Två sätt att ställa in den",
@@ -282,32 +241,18 @@ export const home = {
         "For et barn bestemmer foreldrene, helst sammen med barnet. Sett reglene i foreldrepanelet eller foreldreappen, og endre dem etter hvert som barnet blir eldre.",
         "På din egen telefon bestemmer du. En lettelse i reglene kan måtte vente en stund eller godkjennes av noen du stoler på, og du kan alltid angre.",
       ],
-      mock: {
-        caption: "Foreldrepanelet (illustrasjon).",
-        title: "Sams telefon",
-        status: "Pålogget for 2 min siden · reglene er kommet fram",
-        rows: [
-          ["Skoletid", "Hverdager 08.00–14.00", 1],
-          ["Nettfilter", "Blokkerer voksent innhold og reklame", 1],
-          ["Posisjon hele tiden", "Av. Finn virker når du spør, og Sam ser det.", 0],
-        ],
-        request: "Sam ber om å bruke Kart",
-        allow: "Tillat",
-        decline: "Avslå",
-      },
     },
     sees: {
       title: "Barnet ser det",
       extra: "På telefonen forklarer «Hva kan foreldrene mine se?» reglene som gjelder, og viser hver gang posisjonen er sendt.",
-      mock: {
-        caption: "Barnets startskjerm (illustrasjon).",
-        time: "10.32",
-        date: "Torsdag 19. november",
-        notice: "Skoletid til 14.00. Samtaler og SMS virker.",
-        calls: ["Ring mamma", "Ring pappa"],
-        apps: ["Telefon", "Meldinger", "Kamera", "Kart", "Musikk", "Klokke"],
-        emergency: "Nødanrop",
-      },
+    },
+    shots: {
+      note: "Skjermbilder av det ekte foreldrepanelet og telefonappen, med et oppdiktet barn.",
+      dashboard: { alt: "Foreldrepanelet for Sams telefon. Skoletid, nettfilter og det å be om mer tid er på. Posisjon og ukesammendrag er av.", caption: "Foreldrepanelet" },
+      requests: { alt: "Foreldrepanelet viser at Sams telefon ber om mer tid i Kart. Forelderen kan svare 15 minutter, 1 time, resten av dagen eller nei.", caption: "En forespørsel fra telefonen" },
+      home: { alt: "Barnets startskjerm i skoletiden: klokka 10:32, «Skoletid til 14:00», fire apper og knappene Telefon, Meldinger og SOS.", caption: "Startskjerm i skoletiden" },
+      blocked: { alt: "Telefonens stoppskjerm når tiden i Musikk er brukt opp. Den har en knapp for å be om mer tid, en for å ringe eller skrive til en forelder og en tilbake til start.", caption: "Når tiden er brukt opp" },
+      sharing: { alt: "Telefonens side «Hva kan foreldrene mine se?». Den forteller når foreldrene får posisjonen til telefonen, og viser hver gang den er sendt.", caption: "«Hva kan foreldrene mine se?»" },
     },
     modes: {
       title: "To måter å sette den opp på",
@@ -362,32 +307,18 @@ export const home = {
         "Bei einem Kind entscheiden die Eltern, am besten gemeinsam mit dem Kind. Legen Sie die Regeln im Elternbereich oder in der Eltern-App fest und passen Sie sie an, wenn Ihr Kind älter wird.",
         "Auf Ihrem eigenen Handy entscheiden Sie. Eine Lockerung kann eine Wartezeit haben oder die Zustimmung einer Vertrauensperson brauchen, und Sie können jederzeit abbrechen.",
       ],
-      mock: {
-        caption: "Der Elternbereich (Illustration).",
-        title: "Sams Handy",
-        status: "Vor 2 Min. online · Regeln angekommen",
-        rows: [
-          ["Schulzeit", "Werktags 08:00–14:00", 1],
-          ["Webfilter", "Sperrt Inhalte für Erwachsene und Werbung", 1],
-          ["Standort dauerhaft", "Aus. Suchen funktioniert auf Anfrage, und Sam sieht es.", 0],
-        ],
-        request: "Sam möchte Karten verwenden",
-        allow: "Erlauben",
-        decline: "Ablehnen",
-      },
     },
     sees: {
       title: "Das Kind sieht es",
       extra: "Auf dem Handy erklärt „Was können meine Eltern sehen?“ die geltenden Regeln und listet jedes Mal auf, wenn der Standort gesendet wurde.",
-      mock: {
-        caption: "Der Startbildschirm des Kindes (Illustration).",
-        time: "10:32",
-        date: "Donnerstag, 19. November",
-        notice: "Schulzeit bis 14:00. Anrufe und SMS funktionieren.",
-        calls: ["Mama anrufen", "Papa anrufen"],
-        apps: ["Telefon", "Nachrichten", "Kamera", "Karten", "Musik", "Uhr"],
-        emergency: "Notruf",
-      },
+    },
+    shots: {
+      note: "Bildschirmfotos des echten Elternpanels und der Handy-App, mit einem erfundenen Kind.",
+      dashboard: { alt: "Das Elternpanel für Sams Handy. Schulzeit, Webfilter und das Bitten um mehr Zeit sind an. Standort und Wochenzusammenfassung sind aus.", caption: "Das Elternpanel" },
+      requests: { alt: "Das Elternpanel zeigt, dass Sams Handy um mehr Zeit für Karten bittet. Die Eltern können 15 Minuten, 1 Stunde, den Rest des Tages oder Nein antworten.", caption: "Eine Anfrage vom Handy" },
+      home: { alt: "Der Startbildschirm des Kindes in der Schulzeit: 10:32 Uhr, „Schulzeit bis 14:00“, vier Apps und die Tasten Telefon, Nachrichten und SOS.", caption: "Startbildschirm in der Schulzeit" },
+      blocked: { alt: "Der Stoppbildschirm des Handys, wenn die Zeit für Musik aufgebraucht ist. Er hat eine Taste, um mehr Zeit zu erbitten, eine, um die Eltern anzurufen oder ihnen zu schreiben, und eine zurück zum Start.", caption: "Wenn die Zeit aufgebraucht ist" },
+      sharing: { alt: "Die Handy-Seite „Was können meine Eltern sehen?“. Sie sagt, wann die Eltern den Standort des Handys bekommen, und zeigt jedes Mal, wenn er gesendet wurde.", caption: "„Was können meine Eltern sehen?“" },
     },
     modes: {
       title: "Zwei Arten der Einrichtung",

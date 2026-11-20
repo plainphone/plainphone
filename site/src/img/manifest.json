@@ -1,0 +1,112 @@
+{
+  "dashboard": {
+    "en": {
+      "width": 480,
+      "height": 648
+    },
+    "da": {
+      "width": 480,
+      "height": 648
+    },
+    "sv": {
+      "width": 480,
+      "height": 648
+    },
+    "nb": {
+      "width": 480,
+      "height": 648
+    },
+    "de": {
+      "width": 480,
+      "height": 693
+    }
+  },
+  "requests": {
+    "en": {
+      "width": 480,
+      "height": 385
+    },
+    "da": {
+      "width": 480,
+      "height": 385
+    },
+    "sv": {
+      "width": 480,
+      "height": 385
+    },
+    "nb": {
+      "width": 480,
+      "height": 385
+    },
+    "de": {
+      "width": 480,
+      "height": 385
+    }
+  },
+  "home": {
+    "en": {
+      "width": 240,
+      "height": 520
+    },
+    "da": {
+      "width": 240,
+      "height": 520
+    },
+    "sv": {
+      "width": 240,
+      "height": 520
+    },
+    "nb": {
+      "width": 240,
+      "height": 520
+    },
+    "de": {
+      "width": 240,
+      "height": 520
+    }
+  },
+  "blocked": {
+    "en": {
+      "width": 240,
+      "height": 520
+    },
+    "da": {
+      "width": 240,
+      "height": 520
+    },
+    "sv": {
+      "width": 240,
+      "height": 520
+    },
+    "nb": {
+      "width": 240,
+      "height": 520
+    },
+    "de": {
+      "width": 240,
+      "height": 520
+    }
+  },
+  "sharing": {
+    "en": {
+      "width": 240,
+      "height": 520
+    },
+    "da": {
+      "width": 240,
+      "height": 520
+    },
+    "sv": {
+      "width": 240,
+      "height": 520
+    },
+    "nb": {
+      "width": 240,
+      "height": 520
+    },
+    "de": {
+      "width": 240,
+      "height": 520
+    }
+  }
+}
