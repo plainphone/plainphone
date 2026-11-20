@@ -9,6 +9,7 @@ import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-or
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, toLocale } from "../lib/locale.js";
 import { phoneAlertMail } from "../lib/mail-templates.js";
+import { clockTime, followUpWords, moreTimeWords } from "../lib/more-time-words.js";
 import { lastSeen, moreTimeActions, pushWords, type SafetyNews } from "../lib/push-text.js";
 import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
@@ -28,13 +29,18 @@ export type NotifyEvent =
   | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string | null; kind: "app" | "contact" | "more-time" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
   /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
-  | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null }
+  | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null; receipts?: boolean }
+  /** The phone applied an answer the parent gave from a notification: updates that notification. `at` is in the phone's time zone. */
+  | { type: "moreTimeReceipt"; requestId: string; phoneId: string; phoneName: string; answer: "15" | "60" | "day"; at: Date; clockAhead: boolean; timezone: string }
   | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
   | { type: "test" }
   /** The weekly summary is ready (docs/weekly-summary.md). */
   | { type: "summary"; summaryId: string };
 
-type TextEvent = Exclude<NotifyEvent, { type: "summary" }>;
+type TextEvent = Exclude<NotifyEvent, { type: "summary" | "moreTimeReceipt" }>;
+
+/** The notification's tag for one request: the buttons, the follow-up and the receipt all share it. */
+export const moreTimeTag = (requestId: string) => `moretime-${requestId.replaceAll("-", "")}`;
 
 export type { SafetyNews };
 
@@ -58,6 +64,19 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
     const w = summaryWords(locale);
     return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary", data: { type: "summary" } };
   }
+  if (e.type === "moreTimeReceipt") {
+    const w = moreTimeWords(locale);
+    const time = clockTime(e.at, e.timezone, locale);
+    // Same tag as the notification with the buttons, so this replaces it (or the follow-up that took its place).
+    return {
+      title: e.phoneName,
+      body: `${w.done[e.answer]}. ${e.clockAhead ? w.clockAhead(time) : w.active(time)}`,
+      url: `/phones/${e.phoneId}`,
+      tag: moreTimeTag(e.requestId),
+      silent: true,
+      data: { type: "more-time-receipt", phoneId: e.phoneId, requestId: e.requestId },
+    };
+  }
   const t = words(e, locale);
   switch (e.type) {
     case "protection":
@@ -71,8 +90,10 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
     case "request-on-phone":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
     case "moreTime":
-      return { ...t, url: `/phones/${e.phoneId}`, tag: `moretime-${e.requestId.replaceAll("-", "")}`,
-        data: { type: "more-time", phoneId: e.phoneId, requestId: e.requestId }, actions: moreTimeActions(locale) };
+      return { ...t, url: `/phones/${e.phoneId}`, tag: moreTimeTag(e.requestId),
+        // The lines for what a tap on a button leads to, so the service worker can say it in the parent's language.
+        data: { type: "more-time", phoneId: e.phoneId, requestId: e.requestId, phoneName: e.phoneName, receipts: e.receipts !== false, words: followUpWords(locale, e.receipts !== false) },
+        actions: moreTimeActions(locale) };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
     case "sos":

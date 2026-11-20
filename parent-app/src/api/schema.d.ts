@@ -6276,6 +6276,11 @@ export interface operations {
                 "application/json": {
                     /** @enum {unknown} */
                     answer: "15" | "60" | "day" | "no";
+                    /**
+                     * @description Set when the answer is given from a push notification button. The server then sends this parent a silent follow-up when the phone has applied a bonus (`Active on the phone at 14:05`), under the notification's tag. Ignored when the phone's change receipts are off.
+                     * @constant
+                     */
+                    source?: "notification";
                 };
             };
         };

@@ -36,7 +36,7 @@ import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety
 import { approveRequestOnPhone, createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
-import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson } from "../services/more-time.js";
+import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson, sendMoreTimeReceipts } from "../services/more-time.js";
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
 
@@ -854,6 +854,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         await notifyAlertRecipients(ctx, recipients, { ...event, trusted: true });
       }
     }
+    // A parent who answered "more time" from a notification hears when this report shows the phone applied it.
+    await sendMoreTimeReceipts(ctx, phone.id);
     return c.body(null, 204);
   });
 

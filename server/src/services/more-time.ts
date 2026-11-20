@@ -6,13 +6,13 @@
 // for that app (or the daily cap) on the day of the request, so the phone applies it offline-safe
 // through `/rules`. Unanswered requests expire at the phone's local midnight.
 
-import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { moreTimeRequests, phoneApps, phones, timeLimits } from "../db/schema.js";
 import { applyOp } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { localDate, TOTAL } from "./limits.js";
-import { notifyHousehold } from "./notifications.js";
-import { wakePhone } from "./phones.js";
+import { notifyAlertRecipients, notifyHousehold, phoneAlertRecipients } from "./notifications.js";
+import { respondWithRules, wakePhone } from "./phones.js";
 
 type Phone = typeof phones.$inferSelect;
 type Row = typeof moreTimeRequests.$inferSelect;
@@ -149,6 +149,8 @@ export async function createMoreTimeRequest(
       phoneName: phone.name,
       what: await targetLabel(ctx, phone.id, input.packageName),
       reason,
+      // Without receipts the notification does not promise that the phone will confirm.
+      receipts: phone.changeReceiptsEnabled && phone.pairedAt !== null,
     });
   }
   return out;
@@ -166,6 +168,8 @@ export async function answerMoreTimeRequest(
   userId: string | null,
   answer: MoreTimeAnswer,
   via: "parent" | "phone" = "parent",
+  /** The answer was given from a notification: tell this parent when the phone has applied it. */
+  fromNotification = false,
 ): Promise<{ request: Row; won: boolean }> {
   const out = await ctx.db.transaction(async (tx) => {
     const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
@@ -202,6 +206,8 @@ export async function answerMoreTimeRequest(
         decidedBy: userId,
         decidedVia: via,
         decidedAt: now,
+        // Only a bonus changes the rules, so only a bonus has something for the phone to confirm, and only with receipts on.
+        ...(fromNotification && userId && minutes !== null && fresh.changeReceiptsEnabled && fresh.pairedAt ? { receiptUserId: userId } : {}),
       })
       .where(eq(moreTimeRequests.id, row.id))
       .returning();
@@ -210,6 +216,66 @@ export async function answerMoreTimeRequest(
   // The phone shows the answer and applies the bonus: let it sync now.
   if (out.won) await wakePhone(ctx, phone.id, "rules");
   return out;
+}
+
+/** A receipt is only worth telling about for a few hours; later it would be stale news. */
+const RECEIPT_WINDOW_MS = 6 * 3_600_000;
+
+/**
+ * Called after a status report from the phone. When the phone has now confirmed the rules the server
+ * holds (the same proof as the dashboard's receipt), tells the parent who answered from a notification:
+ * "Active on the phone at 14:05", under the same tag so it replaces what they saw. Once per request.
+ * Never fails the report.
+ */
+export async function sendMoreTimeReceipts(ctx: Ctx, phoneId: string): Promise<void> {
+  try {
+    const now = ctx.now();
+    const waiting = await ctx.db
+      .select()
+      .from(moreTimeRequests)
+      .where(
+        and(
+          eq(moreTimeRequests.phoneId, phoneId),
+          isNotNull(moreTimeRequests.receiptUserId),
+          isNull(moreTimeRequests.receiptSentAt),
+          gte(moreTimeRequests.decidedAt, new Date(now.getTime() - RECEIPT_WINDOW_MS)),
+        ),
+      );
+    if (waiting.length === 0) return;
+    const [phone] = await ctx.db.select().from(phones).where(eq(phones.id, phoneId));
+    const status = phone?.deviceStatus;
+    if (!phone || !phone.changeReceiptsEnabled || !phone.pairedAt || (phone.rulesAwaitDns && phone.dnsDirty)) return;
+    if (!status?.rulesReceiptConfirmed || !status.rulesEtag || !status.rulesAppliedAt) return;
+    if ((await respondWithRules(ctx, phone, [])).etag !== status.rulesEtag) return;
+    const received = new Date(status.rulesReceiptReceivedAt ?? phone.statusReportedAt ?? now);
+    const applied = new Date(status.rulesAppliedAt);
+    const clockAhead = applied > received;
+    const members = await phoneAlertRecipients(ctx.db, phone.id, phone.householdId);
+    for (const r of waiting) {
+      // The receipt must come after the answer, or it is about older rules.
+      if (!r.decidedAt || received < r.decidedAt || !r.receiptUserId) continue;
+      // Claim it first, so two reports at once send one.
+      const [claimed] = await ctx.db
+        .update(moreTimeRequests)
+        .set({ receiptSentAt: now })
+        .where(and(eq(moreTimeRequests.id, r.id), isNull(moreTimeRequests.receiptSentAt)))
+        .returning({ id: moreTimeRequests.id });
+      if (!claimed || r.answer === null || r.answer === "no") continue;
+      // Members who muted the phone are left out, as for every other message about it.
+      await notifyAlertRecipients(ctx, members.filter((m) => m.id === r.receiptUserId), {
+        type: "moreTimeReceipt",
+        requestId: r.id,
+        phoneId: phone.id,
+        phoneName: phone.name,
+        answer: r.answer,
+        at: clockAhead ? received : applied,
+        clockAhead,
+        timezone: phone.timezone,
+      });
+    }
+  } catch (err) {
+    console.error(`more-time receipt failed: ${(err as Error).message}`);
+  }
 }
 
 /** What a parent next to the child approves on the phone with the PIN: a quarter of an hour. More can be given from the dashboard or the parent app. */

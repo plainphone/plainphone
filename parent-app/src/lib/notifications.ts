@@ -6,9 +6,9 @@ import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import type { Locale } from "../api/models";
 import { getSessionToken } from "../api/client";
-import { makeAppT } from "../i18n/I18n";
+import { makeAppT, type TFn } from "../i18n/I18n";
 import { ANSWER_KEY, MORE_TIME_ANSWERS } from "../shared/lib/more-time";
-import { answerMoreTime, isMoreTimeAnswer, moreTimeTarget } from "./moreTime";
+import { answerMoreTime, followUp, isMoreTimeAnswer, moreTimeTag, moreTimeTarget } from "./moreTime";
 import { registerNativeToken } from "./push-registration";
 
 /** The server sends this category id with a request for more time (`categoryId` in FCM, `aps.category` in APNs). */
@@ -16,6 +16,7 @@ export const MORE_TIME_CATEGORY = "more-time";
 
 export const CHANNELS: { id: string; name: Record<Locale, string>; importance: AndroidImportance }[] = [
   { id: "normal", name: { en: "Notifications", da: "Notifikationer", sv: "Aviseringar", nb: "Varsler", de: "Benachrichtigungen" }, importance: AndroidImportance.DEFAULT },
+  { id: "quiet", name: { en: "Updates", da: "Opdateringer", sv: "Uppdateringar", nb: "Oppdateringer", de: "Aktualisierungen" }, importance: AndroidImportance.LOW },
   { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS", sv: "Akut SOS", nb: "Akutt SOS", de: "Dringender SOS" }, importance: AndroidImportance.HIGH },
 ];
 
@@ -142,33 +143,48 @@ const responseKey = (r: Notifications.NotificationResponse) => `${r.notification
  * and returns null (nothing to open). The default tap, a failed answer, and everything else return the screen to open.
  * A button press whose payload is not a request is dropped.
  */
-export async function handleNotificationResponse(r: Notifications.NotificationResponse, canAnswer: boolean): Promise<Href | null> {
+export async function handleNotificationResponse(r: Notifications.NotificationResponse, canAnswer: boolean, t: TFn): Promise<Href | null> {
   const data = r.notification.request.content.data;
   const action = r.actionIdentifier;
   if (!isMoreTimeAnswer(action)) return routeForPush(data);
   const target = moreTimeTarget(data);
   if (!target) return null;
   if (!canAnswer) return routeForPush(data);
+  const confirms = (data as { receipts?: unknown } | undefined)?.receipts !== "false";
+  let outcome: { text: string; failed: boolean };
   try {
-    await answerMoreTime(target.phoneId, target.requestId, action);
+    outcome = followUp(await answerMoreTime(target.phoneId, target.requestId, action, true), t, confirms);
   } catch {
-    return routeForPush(data);
+    outcome = { text: t("moreTime.pushFailed"), failed: true };
   }
-  // The buttons do not close the notification by themselves, and the phone's screen shows the result.
+  // The buttons do not close the notification by themselves.
   await Notifications.dismissNotificationAsync(r.notification.request.identifier).catch(() => undefined);
-  return null;
+  // The follow-up takes the old one's place (same identifier as the tag the server's receipt uses).
+  await Notifications.scheduleNotificationAsync({
+    identifier: moreTimeTag(target.requestId),
+    content: {
+      title: typeof (data as { phoneName?: unknown } | undefined)?.phoneName === "string" ? (data as { phoneName: string }).phoneName : "Plainphone",
+      body: outcome.text,
+      data: { type: outcome.failed ? "more-time-failed" : "more-time-done", phoneId: target.phoneId, url: `/phones/${target.phoneId}` },
+      ...(!outcome.failed && { interruptionLevel: "passive" as const }),
+    },
+    // Android: a failure is something to act on, the rest goes to the quiet channel.
+    trigger: { channelId: outcome.failed ? "normal" : "quiet" },
+  }).catch(() => undefined);
+  // Something the parent has to do: the phone's screen shows the request.
+  return outcome.failed ? routeForPush(data) : null;
 }
 
 /**
  * Opens the right screen when the user taps a notification, and sends the answer when a button on a request
  * for more time is pressed. Waits for the saved sign-in to load, so an answer is not sent without it.
  */
-export function useNotificationRouting(status: "loading" | "anon" | "in") {
+export function useNotificationRouting(status: "loading" | "anon" | "in", t: TFn) {
   const router = useRouter();
   useEffect(() => {
     if (Platform.OS === "web" || status === "loading") return;
     const handle = (r: Notifications.NotificationResponse) => {
-      void handleNotificationResponse(r, status === "in").then((href) => {
+      void handleNotificationResponse(r, status === "in", t).then((href) => {
         if (href) router.push(href);
       });
     };
@@ -182,5 +198,5 @@ export function useNotificationRouting(status: "loading" | "anon" | "in") {
       handle(r);
     });
     return () => sub.remove();
-  }, [router, status]);
+  }, [router, status, t]);
 }

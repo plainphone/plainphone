@@ -66,9 +66,10 @@ export function parentMoreTimeRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { re
   // Idempotent: the first answer wins and a later one gets that result back with `won: false`.
   app.post("/phones/:pid/more-time-requests/:rid/answer", async (c) => {
     const phone = await requirePhone(c);
-    const input = await body(c, z.object({ answer: z.enum(MORE_TIME_ANSWERS) }));
+    const input = await body(c, z.object({ answer: z.enum(MORE_TIME_ANSWERS), source: z.literal("notification").optional() }));
     try {
-      const { request, won } = await answerMoreTimeRequest(ctx, phone, param(c, "rid"), userId(c), input.answer);
+      const { request, won } = await answerMoreTimeRequest(
+        ctx, phone, param(c, "rid"), userId(c), input.answer, "parent", input.source === "notification");
       return c.json({ ...moreTimeJson(request), won, answeredByYou: request.decidedBy === userId(c) });
     } catch (err) {
       return fail(err);
