@@ -1,0 +1,22 @@
+<resources>
+    <string name="quick_title">Hurtigmeldinger</string>
+    <string name="quick_sent">Sendt til foreldrene dine</string>
+    <string name="quick_send_failed">Meldingen kunne ikke sendes. Ring eller skriv til foreldrene dine selv.</string>
+    <string name="quick_suggest">Foreslå en hurtigmelding</string>
+    <string name="quick_suggest_label">Meldingen din</string>
+    <string name="quick_suggest_send">Send</string>
+    <string name="quick_suggest_cancel">Avbryt</string>
+    <string name="quick_suggest_sent">Sendt til foreldrene dine for godkjenning</string>
+    <string name="quick_suggest_waiting">Foreldrene dine har ikke svart på de tidligere forslagene dine ennå</string>
+    <string name="quick_suggest_failed">Forslaget kunne ikke sendes. Prøv igjen senere.</string>
+    <plurals name="sharing_hidden_power">
+        <item quantity="one">Hvis du trykker raskt %1$d ganger på av/på-knappen, får foreldrene dine en stille SOS.</item>
+        <item quantity="other">Hvis du trykker raskt %1$d ganger på av/på-knappen, får foreldrene dine en stille SOS.</item>
+    </plurals>
+    <plurals name="sharing_hidden_power_position">
+        <item quantity="one">Hvis du trykker raskt %1$d ganger på av/på-knappen, får foreldrene dine en stille SOS med posisjonen din.</item>
+        <item quantity="other">Hvis du trykker raskt %1$d ganger på av/på-knappen, får foreldrene dine en stille SOS med posisjonen din.</item>
+    </plurals>
+    <string name="sharing_hidden_clock">Hvis du holder fingeren på klokken på startskjermen, får foreldrene dine en stille SOS.</string>
+    <string name="sharing_code_words">Disse hurtigmeldingene sender også en SOS til foreldrene dine: %1$s</string>
+</resources>

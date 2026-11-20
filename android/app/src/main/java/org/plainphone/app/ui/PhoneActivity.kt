@@ -336,17 +336,23 @@ private fun PhoneApp(route: Route, resumed: Int) {
                     onCall = call, onMessage = { conversationWith = SmsThread(it.number) },
                 )
                 Tab.RECENTS -> RecentsScreen(rules, resumed, onCall = call)
-                Tab.MESSAGES -> ConversationsScreen(
-                    rules, threadPage?.threads, threadListState,
-                    hasMore = threadPage?.next != null,
-                    failed = historyFailed,
-                    loading = historyLoading,
-                    onMore = {
-                        if (!historyFailed) threadAfter = threadPage?.next
-                        threadRequest++
-                    },
-                    onOpen = { conversationWith = it },
-                )
+                Tab.MESSAGES -> {
+                    org.plainphone.app.sos.ChildQuickMessages(
+                        withSuggest = false,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+                    ConversationsScreen(
+                        rules, threadPage?.threads, threadListState,
+                        hasMore = threadPage?.next != null,
+                        failed = historyFailed,
+                        loading = historyLoading,
+                        onMore = {
+                            if (!historyFailed) threadAfter = threadPage?.next
+                            threadRequest++
+                        },
+                        onOpen = { conversationWith = it },
+                    )
+                }
                 Tab.KEYPAD -> KeypadScreen(
                     initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(),
                     onCall = call,

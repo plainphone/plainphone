@@ -196,7 +196,7 @@ data class ServerRules(
                     SosRules(sos.getString("name"), List(parents.length()) { i ->
                         val contact = parents.getJSONObject(i)
                         ApprovedContact(contact.getString("name"), contact.getString("number"))
-                    })
+                    }, HiddenSos.parse(sos.optJSONObject("hidden")), QuickMessages.parse(sos.optJSONObject("quickMessages")))
                 },
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }
@@ -284,4 +284,10 @@ data class CheckInRequest(
     val locationDue: Boolean? = null,
 )
 
-data class SosRules(val name: String, val parents: List<ApprovedContact>)
+/** [hidden] and [quickMessages] live in SosExtras.kt; older servers send neither (off, none). */
+data class SosRules(
+    val name: String,
+    val parents: List<ApprovedContact>,
+    val hidden: HiddenSos = HiddenSos.OFF,
+    val quickMessages: QuickMessages = QuickMessages.NONE,
+)

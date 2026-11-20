@@ -1,0 +1,22 @@
+<resources>
+    <string name="quick_title">Snabbmeddelanden</string>
+    <string name="quick_sent">Skickat till dina föräldrar</string>
+    <string name="quick_send_failed">Meddelandet kunde inte skickas. Ring eller skriv till dina föräldrar själv.</string>
+    <string name="quick_suggest">Föreslå ett snabbmeddelande</string>
+    <string name="quick_suggest_label">Ditt meddelande</string>
+    <string name="quick_suggest_send">Skicka</string>
+    <string name="quick_suggest_cancel">Avbryt</string>
+    <string name="quick_suggest_sent">Skickat till dina föräldrar för godkännande</string>
+    <string name="quick_suggest_waiting">Dina föräldrar har inte svarat på dina tidigare förslag än</string>
+    <string name="quick_suggest_failed">Förslaget kunde inte skickas. Försök igen senare.</string>
+    <plurals name="sharing_hidden_power">
+        <item quantity="one">Om du trycker snabbt %1$d gånger på strömknappen får dina föräldrar ett tyst SOS.</item>
+        <item quantity="other">Om du trycker snabbt %1$d gånger på strömknappen får dina föräldrar ett tyst SOS.</item>
+    </plurals>
+    <plurals name="sharing_hidden_power_position">
+        <item quantity="one">Om du trycker snabbt %1$d gånger på strömknappen får dina föräldrar ett tyst SOS med din position.</item>
+        <item quantity="other">Om du trycker snabbt %1$d gånger på strömknappen får dina föräldrar ett tyst SOS med din position.</item>
+    </plurals>
+    <string name="sharing_hidden_clock">Om du håller fingret på klockan på hemskärmen får dina föräldrar ett tyst SOS.</string>
+    <string name="sharing_code_words">De här snabbmeddelandena skickar också ett SOS till dina föräldrar: %1$s</string>
+</resources>
