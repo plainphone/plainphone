@@ -376,4 +376,10 @@
     <string name="self_approval_outcome_cancelled">Forespørselen er trukket tilbake. Ingenting er endret.</string>
     <string name="self_approval_outcome_failed">Endringen kunne ikke gjennomføres. Lag en ny forespørsel.</string>
     <string name="self_approval_outcome_expired">Koden har utløpt. Ingenting ble godkjent. Vis en ny kode.</string>
+    <!-- The fallback SOS SMS, built on the phone: keep it to one SMS segment. -->
+    <string name="sos_sms_text">SOS fra %1$s: %2$s. Posisjon: %3$s. Sendt via Plainphone.</string>
+    <string name="sos_sms_hidden">akutt (skjult SOS)</string>
+    <string name="sos_sms_urgent">akutt</string>
+    <string name="sos_sms_help">trenger hjelp</string>
+    <string name="sos_sms_unknown_position">ukjent</string>
 </resources>

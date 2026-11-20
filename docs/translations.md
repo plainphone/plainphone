@@ -30,6 +30,7 @@ Every text the server writes itself is in all five languages, chosen from the pa
 The approval summary shown inside the apps (`approval-summary.ts`) is still English and Danish; it is neither a push nor a mail.
 
 The Android app, web dashboard and parent app also include these five languages.
+The fallback SMS that the phone builds itself when the server cannot be reached (the SOS text, `sos_sms_*` in the Android string resources) is in the phone's language too; `QuickMessageFallbackTest` checks all five and scans the source for hard-coded text. A code word's SMS is only the child's own text and a map link.
 Swedish, Norwegian Bokmål and German need native review there as well. Prioritize
 setup and release instructions, emergency and contact screens, and permissions.
 Android strings live in `android/app/src/main/res/values-*/`. Web catalogs live in

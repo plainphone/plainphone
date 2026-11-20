@@ -388,4 +388,10 @@
     <string name="self_new_code">Show a new code</string>
     <string name="self_invite_not_approval">This is an invitation, not an approval. It lets your friend become your key.</string>
     <string name="self_approval_not_invite">This asks your friend to review one change. Scanning is not consent: they decide after reading it.</string>
+    <!-- The fallback SOS SMS, built on the phone: keep it to one SMS segment. -->
+    <string name="sos_sms_text">SOS from %1$s: %2$s. Location: %3$s. Sent via Plainphone.</string>
+    <string name="sos_sms_hidden">urgent (hidden SOS)</string>
+    <string name="sos_sms_urgent">urgent</string>
+    <string name="sos_sms_help">needs help</string>
+    <string name="sos_sms_unknown_position">unknown</string>
 </resources>
