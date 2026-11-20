@@ -149,7 +149,7 @@ export function normalizeApnsKey(value: string) {
  * FCM and APNs are optional: invalid settings switch that provider off and are reported as short
  * reasons in `errors`, never with the secret or the underlying error text.
  */
-export function configureNativePush(cfg: Config) {
+export function configureNativePush(cfg: Config, http?: ApnsHttp) {
   const { FCM_SERVICE_ACCOUNT_JSON: inline, FCM_SERVICE_ACCOUNT_FILE: file, APNS_KEY_P8: p8,
     APNS_KEY_ID: kid, APNS_TEAM_ID: team, APNS_BUNDLE_ID: bundle, APNS_SANDBOX: sandbox } = cfg;
   const errors: string[] = [];
@@ -173,12 +173,12 @@ export function configureNativePush(cfg: Config) {
       }
     }
   }
-  if (p8 || kid || team) {
+  if (p8 || kid || team || bundle) {
     if (!(p8 && kid && team)) {
       fail("apns: incomplete configuration");
     } else {
       try {
-        apns = new Apns(normalizeApnsKey(p8), kid, team, bundle, sandbox === "true");
+        apns = new Apns(normalizeApnsKey(p8), kid, team, bundle ?? "org.plainphone.app", sandbox === "true", http);
       } catch {
         fail("apns: invalid key");
       }

@@ -29,7 +29,7 @@ const schema = z.object({
   APNS_KEY_P8: z.string().optional(),
   APNS_KEY_ID: z.string().optional(),
   APNS_TEAM_ID: z.string().optional(),
-  APNS_BUNDLE_ID: unsetIfEmpty(z.string().default("org.plainphone.app")),
+  APNS_BUNDLE_ID: unsetIfEmpty(z.string().optional()),
   APNS_SANDBOX: unsetIfEmpty(z.enum(["true", "false"]).default("false")),
   /**
    * Native parent apps that may open this server's links (universal links / app links),
