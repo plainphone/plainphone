@@ -147,6 +147,8 @@ export interface Phone {
   agreementHasText?: boolean;
   /** Bedtime is silent except parents, 112 and help lines. Missing on old servers (treated as on). */
   silentBedtime?: boolean;
+  /** Modes on one weekly plan (docs/modes.md). Child phones only; missing on old servers: off. */
+  modesEnabled?: boolean;
   /** A parent may approve a request on the phone with the parent PIN. Missing on old servers (treated as on). */
   pinApprovalEnabled?: boolean;
   /** Strong mode: the nightly app update window. Missing on old servers (treated as on). */
@@ -244,8 +246,12 @@ export interface PhoneCatalog {
   categories: { id: string; name: { en: string; da: string } }[];
   apps: CatalogApp[];
 }
+export type ContactGroup = "family" | "friends" | "others";
+export const CONTACT_GROUPS: ContactGroup[] = ["family", "friends", "others"];
 export interface Contact {
   sosParent?: boolean;
+  /** Missing on old servers: treated as others. */
+  group?: ContactGroup;
   id: string;
   name: string;
   number: string;
@@ -270,6 +276,46 @@ export interface ScheduleInput {
 }
 export interface Schedule extends ScheduleInput {
   id: string;
+}
+export type ModePreset = "school" | "homework" | "free" | "night" | "custom";
+export const MODE_PRESETS: ModePreset[] = ["school", "homework", "free", "night", "custom"];
+export interface Mode {
+  id: string;
+  preset: ModePreset;
+  /** Null: the preset's translated name. */
+  name: string | null;
+  allApps: boolean;
+  allowedPackages: string[];
+  contactGroups: ContactGroup[];
+  quiet: boolean;
+  isDefault: boolean;
+}
+export interface ModeInput {
+  preset: ModePreset;
+  name?: string | null;
+  allApps: boolean;
+  allowedPackages: string[];
+  contactGroups: ContactGroup[];
+  quiet: boolean;
+}
+export interface ModeSlotInput {
+  modeId: string;
+  days: number[];
+  startMinute: number;
+  endMinute: number;
+}
+export interface ModeSlot extends ModeSlotInput {
+  id: string;
+}
+export interface ModesState {
+  enabled: boolean;
+  /** False: no contact is marked as a parent, so contact groups do not narrow the list. */
+  parentsMarked: boolean;
+  timezone: string;
+  modes: Mode[];
+  slots: ModeSlot[];
+  /** Null while modes are off. `until` is HH:MM local time, null for the default mode. */
+  current: { modeId: string; until: string | null } | null;
 }
 /** When the phone sends its position (docs/location.md). */
 export type LocationMode = "off" | "find" | "checkin" | "always";
@@ -550,6 +596,18 @@ export const markReviewed = (pid: string) => api.post<AgeState>(`/phones/${pid}/
 export const getAgreement = (pid: string) => api.get<Agreement>(`/phones/${pid}/agreement`);
 export const putAgreement = (pid: string, agreement: Partial<Pick<Agreement, "lines" | "adultLines" | "enabled" | "onHome">>) =>
   api.put<Agreement>(`/phones/${pid}/agreement`, agreement);
+export const getModes = (pid: string) => api.get<ModesState>(`/phones/${pid}/modes`);
+export const setModesEnabled = (pid: string, modesEnabled: boolean) => api.patch<Phone>(`/phones/${pid}`, { modesEnabled });
+export const createMode = (pid: string, input: ModeInput) => api.post<Mode>(`/phones/${pid}/modes`, input);
+/** The default mode takes only `name` (null clears it back to the preset name). */
+export const updateMode = (pid: string, mid: string, input: ModeInput | { name: string | null }) =>
+  api.put<Mode>(`/phones/${pid}/modes/${mid}`, input);
+export const deleteMode = (pid: string, mid: string) => api.del<void>(`/phones/${pid}/modes/${mid}`);
+/** Replaces the whole weekly plan. 400 `overlap` when two slots share a minute. */
+export const putModeSchedule = (pid: string, slots: ModeSlotInput[]) =>
+  api.put<{ slots: ModeSlot[] }>(`/phones/${pid}/mode-schedule`, { slots });
+export const setContactGroup = (pid: string, cid: string, group: ContactGroup) =>
+  api.patch<Contact>(`/phones/${pid}/contacts/${cid}`, { group });
 
 /** Mail is configured on this server. Works without a session via /api/health. */
 export async function serverHasMail(): Promise<boolean | null> {

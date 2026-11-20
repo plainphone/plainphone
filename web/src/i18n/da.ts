@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 import { ageDa } from "./age";
 import { appUpdatesDa } from "./app-updates";
 import { platformDa } from "./platform";
+import { modesDa } from "./modes";
 import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
@@ -16,6 +17,7 @@ export const da: Messages = {
   ...appUpdatesDa,
   ...ageDa,
   ...platformDa,
+  ...modesDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",
   "app.loading": "Henter…",

@@ -18,6 +18,7 @@ import { InvitePage } from "./pages/Invite";
 import { KeyPage } from "./pages/Key";
 import { LocationPage } from "./pages/Location";
 import { LoginPage } from "./pages/Login";
+import { ModesPage } from "./pages/Modes";
 import { PairPage } from "./pages/Pair";
 import { AddPhonePage, SetupPhonePage } from "./pages/AddPhone";
 import { PhoneLayout, PhoneOverview } from "./pages/Phone";
@@ -69,6 +70,7 @@ function AppRoutes() {
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="filter" element={<FilterPage />} />
           <Route path="schedules" element={<SchedulesPage />} />
+          <Route path="modes" element={<ModesPage />} />
           <Route path="location" element={<LocationPage />} />
           <Route path="settings" element={<PhoneSettingsPage />} />
           <Route path="home" element={<HomeScreenPage />} />

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useId, useRef, useState } from "react";
+import { Link } from "react-router";
 import { PhoneSwitch, SleepOutsideTip } from "../components/BedtimeSettings";
 import { Field, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
@@ -39,6 +40,13 @@ export function SchedulesPage() {
   return (
     <>
       <PageTitle sub={t("sched.intro")}>{t("sched.title")}</PageTitle>
+      {phone.modesEnabled === true && (
+        <aside className="notice">
+          <p>
+            {t("modes.schedNote")} <Link to={`/phones/${phone.id}/modes`}>{t("modes.title")}</Link>
+          </p>
+        </aside>
+      )}
       <SleepOutsideTip />
       <section className="section" aria-label={t("bedtime.silent")}>
         <PhoneSwitch phone={phone} field="silentBedtime" label={t("bedtime.silent")} help={t("bedtime.silentHelp")} setPhone={setPhone} notify={notify} />

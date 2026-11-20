@@ -13,7 +13,7 @@ has no parents to remind.
 
 One table, `server/src/lib/age-presets.ts`, is the single source. Setup in the dashboard and the
 parent app reads it from `GET /api/age-presets`, so what a preset says before it is chosen is exactly
-what it sets. [Modes](policies.md) can reuse the same table later.
+what it sets. [Modes](modes.md) can reuse the same table later.
 
 | Preset | Time a day (weekday / weekend) | Bedtime | School time (Mon to Fri) | Web filter blocks |
 |---|---|---|---|---|
@@ -33,6 +33,12 @@ edit, so the rules revision, the phone's wake-up and the weekly summary behave a
 - the **bedtime** window (every day) and the **school time** window (Monday to Friday) are updated
   in place, or created, or (school time at 14+) removed. The apps allowed during a window are kept;
 - the **web filter** blocks exactly the preset's categories and opens the others.
+
+**With [modes](modes.md) on**, school time and bedtime are slots of the phone's modes, so a preset
+only fills in the normal rules, the ones of the default "Free" mode: the daily time and the web
+filter. It does not touch the slots or the school and bedtime windows kept for when modes are turned
+off, and the setup and "Growing up" pages say so before anything is changed. The parents set school
+time and bedtime on the Modes page.
 
 Per-app limits, contacts, the app list, location and the phone's own settings are not touched.
 Applying counts as a review and restarts the review clock. The setup and "Growing up" pages say what

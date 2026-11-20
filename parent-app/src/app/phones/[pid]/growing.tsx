@@ -77,7 +77,7 @@ function GrowingUp({ presets, first }: { presets: AgePreset[]; first: AgeState }
 
       <AgePicker presets={presets} value={choice} onChange={setChoice} disabled={busy} />
       {state.agePreset ? <Text variant="small">{t("age.current", { preset: presetName(t, state.agePreset) })}</Text> : null}
-      <Text variant="small">{t("age.applyWarning")}</Text>
+      <Text variant="small">{t(phone.modesEnabled ? "age.applyWarningModes" : "age.applyWarning")}</Text>
       <Button
         testID="age-apply"
         title={t(busy ? "age.applying" : "age.apply")}

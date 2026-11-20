@@ -479,7 +479,7 @@ function Overview() {
     setRefreshing(false);
   }
 
-  type Section = "apps" | "contacts" | "filter" | "time" | "schedules" | "location" | "key" | "growing" | "agreement";
+  type Section = "apps" | "contacts" | "filter" | "time" | "schedules" | "modes" | "location" | "key" | "growing" | "agreement";
   type Item = { to: Section; label: string; hint?: string };
   // The same groups, in the same order, as the web dashboard's rule list.
   const groups: { title: string; items: Item[] }[] = [
@@ -498,6 +498,7 @@ function Overview() {
       items: [
         { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
         { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
+        ...(phone.profile === "child" ? [{ to: "modes" as const, label: t("modes.title") }] : []),
       ],
     },
     {

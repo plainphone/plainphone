@@ -4,6 +4,7 @@ import type { Messages } from "./en";
 import { ageDe } from "./age";
 import { appUpdatesDe } from "./app-updates";
 import { platformDe } from "./platform";
+import { modesDe } from "./modes";
 import { statusEn } from "./status";
 
 export const de: Messages = {
@@ -11,6 +12,7 @@ export const de: Messages = {
   ...appUpdatesDe,
   ...ageDe,
   ...platformDe,
+  ...modesDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",
   "status.stale.title": "Zuletzt online {when}",

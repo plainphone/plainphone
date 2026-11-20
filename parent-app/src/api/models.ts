@@ -31,6 +31,8 @@ export interface Me {
   mailEnabled: boolean;
 }
 export interface Phone {
+  /** Modes on one weekly plan (docs/modes.md). Child phones only; missing on old servers: off. */
+  modesEnabled?: boolean;
   pushWakeups?: boolean;
   preferUnifiedPush?: boolean;
   id: string;
@@ -104,7 +106,13 @@ export interface App {
   blockedBy?: OpenCategory;
   core: boolean;
 }
+export type ContactGroup = components["schemas"]["ContactGroup"];
+export type Mode = components["schemas"]["Mode"];
+export type ModeInput = components["schemas"]["ModeInput"];
+export type ModeSlot = components["schemas"]["ModeSlot"];
 export interface Contact {
+  /** Only while the server knows contact groups; a parent is always family. */
+  group?: ContactGroup;
   sosParent?: boolean;
   id: string;
   name: string;

@@ -363,7 +363,9 @@ object Lock {
         val midnight = rules?.takeIf { !it.timeLimits.isEmpty }?.let {
             now.atZone(it.timezone).toLocalDate().plusDays(1).atStartOfDay(it.timezone).toInstant()
         }
-        val next = listOfNotNull(windowChange, midnight).minOrNull()
+        // Modes switch contact groups at their slots also when no app window changes (docs/modes.md).
+        val modeChange = org.plainphone.app.sync.Modes.nextBoundary(rules, now)
+        val next = listOfNotNull(windowChange, midnight, modeChange).minOrNull()
         if (next == null) {
             am.cancel(windowIntent(context))
             return

@@ -79,6 +79,34 @@ describe("age presets", () => {
     expect([...dns!.blockedCategories].sort()).toEqual(["adult", "gambling"]);
   });
 
+  it("with modes on, fills in the normal rules and leaves the school and night slots alone", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.post(`/api/phones/${phoneId}/schedules`, { kind: "school", days: [1, 2, 3, 4, 5], startMinute: 540, endMinute: 780, allowedPackages: [] });
+    await parent.post(`/api/phones/${phoneId}/schedules`, { kind: "bedtime", days: [1, 2, 3, 4, 5, 6, 7], startMinute: 1380, endMinute: 360 });
+    expect((await parent.patch(`/api/phones/${phoneId}`, { modesEnabled: true })).status).toBe(200);
+    const view = async () => (await parent.get(`/api/phones/${phoneId}/modes`)).json;
+    const before = await view();
+    const windowsBefore = (await rules(device)).schedules;
+
+    const r = await parent.post(`/api/phones/${phoneId}/age-preset`, { preset: "10-11" });
+    expect(r.status).toBe(200);
+    expect(r.json.agePreset).toBe("10-11");
+
+    // The slots, the modes and the windows the phone gets are exactly as they were.
+    expect((await view()).slots).toEqual(before.slots);
+    expect((await view()).modes).toEqual(before.modes);
+    expect((await rules(device)).schedules).toEqual(windowsBefore);
+    // The stored windows, which come back when modes go off, are not rewritten either.
+    const rows = await h.ctx.db.select().from(schedules).where(eq(schedules.phoneId, phoneId));
+    expect(rows.map((s) => [s.kind, s.startMinute, s.endMinute]).sort()).toEqual([["bedtime", 1380, 360], ["school", 540, 780]]);
+
+    // The normal rules (the default mode's) are filled in.
+    const [limit] = await h.ctx.db.select().from(timeLimits).where(eq(timeLimits.phoneId, phoneId));
+    expect(limit).toMatchObject({ packageName: "*", minutes: 90, days: { "6": 120, "7": 120 } });
+    const [dns] = await h.ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phoneId));
+    expect([...dns!.blockedCategories].sort()).toEqual(["adult", "dating", "gambling", "social"]);
+  });
+
   it("is only for Child phones, and only for the household's own", async () => {
     const self = await setup("self@example.org", "self");
     expect((await self.parent.post(`/api/phones/${self.phoneId}/age-preset`, { preset: "8-9" })).status).toBe(404);

@@ -47,7 +47,8 @@ export async function currentRules(ctx: Ctx, phoneId: string): Promise<RulesSnap
 
 /**
  * Applies a preset to a Child phone: the daily cap, bedtime, school time and the blocked web
- * categories become the preset's values. Everything stays editable. Applying counts as a review.
+ * categories become the preset's values. With modes on, bedtime and school time are left alone.
+ * Everything stays editable. Applying counts as a review.
  */
 export async function applyAgePreset(ctx: Ctx, phone: Phone, userId: string, id: AgePresetId): Promise<ChangeResult[]> {
   const preset = agePreset(id)!;
@@ -71,8 +72,13 @@ export async function applyAgePreset(ctx: Ctx, phone: Phone, userId: string, id:
     if (current) await submit({ type: "schedule.update", scheduleId: current.id, schedule });
     else await submit({ type: "schedule.create", schedule });
   };
-  await window("bedtime", [1, 2, 3, 4, 5, 6, 7], preset.bedtime);
-  await window("school", [1, 2, 3, 4, 5], preset.school);
+  // With modes on, bedtime and school time are slots of the phone's modes (docs/modes.md). A preset
+  // fills in the normal rules only (the default mode: daily time and web filter) and leaves the
+  // slots, and the school and bedtime windows kept for when modes go off, as they are.
+  if (!phone.modesEnabled) {
+    await window("bedtime", [1, 2, 3, 4, 5, 6, 7], preset.bedtime);
+    await window("school", [1, 2, 3, 4, 5], preset.school);
+  }
 
   const [dns] = await ctx.db.select({ blocked: dnsSettings.blockedCategories }).from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
   for (const category of DNS_CATEGORIES) {

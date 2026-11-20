@@ -65,7 +65,7 @@ function GrowingUp({ presets, first }: { presets: Awaited<ReturnType<typeof getA
         <h2 id="age-h">{t("age.presetLabel")}</h2>
         {state.agePreset && <p className="help">{t("age.current", { preset: presetName(t, state.agePreset) })}</p>}
         <AgePicker presets={presets} value={choice} onChange={setChoice} name="age" disabled={busy} />
-        <p className="help">{t("age.applyWarning")}</p>
+        <p className="help">{t(phone.modesEnabled ? "age.applyWarningModes" : "age.applyWarning")}</p>
         <div>
           <button type="button" className="btn btn-primary" disabled={busy || choice === null}
             onClick={() => choice && void act(() => applyAgePreset(phone.id, choice), () => t("age.applied", { preset: presetName(t, choice) }))}>

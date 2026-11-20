@@ -7,7 +7,7 @@
 import { eq, getTableColumns } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { expect, it } from "vitest";
-import { contacts, phones, schedules, sosEvents, timeLimits } from "../src/db/schema.js";
+import { contacts, modeSlots, modes, phones, schedules, sosEvents, timeLimits } from "../src/db/schema.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -83,6 +83,26 @@ it("keeps them in the rules with every schedule kind on all day and every cap us
   expect(rules.json.timeLimits.total.minutes).toBe(0);
   expect(summary(rules.json)).toEqual({ contacts: ["Dad +4587654321", "Mum +4512345678"], parents: ["Dad +4587654321"] });
   expect(rules.json.inbox.enabled).toBe(true);
+});
+
+it("keeps them in the rules with modes on and a mode that allows no app and no contact group all day", async () => {
+  const { phoneId, device } = await setup();
+  await h.ctx.db.update(phones).set({ modesEnabled: true }).where(eq(phones.id, phoneId));
+  for (const quiet of [false, true]) {
+    await h.ctx.db.delete(modes).where(eq(modes.phoneId, phoneId));
+    await h.ctx.db.insert(modes).values({ phoneId, preset: "free", isDefault: true });
+    const [closed] = await h.ctx.db.insert(modes).values({
+      phoneId, preset: "custom", allApps: false, allowedPackages: [], contactGroups: [], quiet,
+    }).returning();
+    await h.ctx.db.insert(modeSlots).values({ phoneId, modeId: closed!.id, days: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 0 });
+    const rules = await device.get("/api/device/rules");
+    expect(rules.status).toBe(200);
+    expect(rules.json.schedules.map((s: any) => s.kind)).toEqual([quiet ? "bedtime" : "school"]);
+    expect(summary(rules.json)).toEqual({ contacts: ["Dad +4587654321", "Mum +4512345678"], parents: ["Dad +4587654321"] });
+    // The phone keeps the parents in every mode; on the wire a parent is always Family.
+    expect(rules.json.contacts.find((c: any) => c.name === "Dad").group).toBe("family");
+    expect(rules.json.inbox.enabled).toBe(true);
+  }
 });
 
 it("a phone the parents released still gets its contacts, and an SOS it already sent by SMS is still recorded", async () => {
