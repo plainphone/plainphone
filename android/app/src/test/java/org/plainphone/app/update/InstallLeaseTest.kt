@@ -22,6 +22,7 @@ class InstallLeaseTest {
         var arming = {}
         var failWrites = false
         var relock = { restricted = true }
+        var guarded = false
         override fun load() = saved
         override fun save(leases: Map<String, InstallLease.Lease>) {
             check(!failWrites) { "Storage unavailable" }
@@ -45,7 +46,48 @@ class InstallLeaseTest {
         fun lease(relockCatalogAccounts: () -> Unit = {}) = InstallLease(
             this, this, { relock() }, { !restricted }, { true },
             relockCatalogAccounts = relockCatalogAccounts,
+            guardWindow = { guarded = it },
         ) { _, _ -> error("Unexpected full policy apply") }
+    }
+
+    @Test fun forceStopGuardHoldsUntilTheLastLeaseIsClosedAndRelocked() {
+        val f = Fixture()
+        f.arming = { assertFalse(f.guarded) }
+        val lease = f.lease()
+        lease.begin(CATALOG, 10_000)
+        assertTrue(f.guarded)
+        f.arming = {}
+        lease.begin(SELF_UPDATE, 60_000)
+        f.restricted = false
+
+        lease.release(CATALOG)
+        assertTrue(f.guarded)
+        lease.release(SELF_UPDATE)
+
+        assertTrue(f.restricted)
+        assertFalse(f.guarded)
+    }
+
+    @Test fun forceStopGuardStaysWhenTheRelockFails() {
+        val f = Fixture()
+        val lease = f.lease()
+        lease.begin(CATALOG, 10_000)
+        f.restricted = false
+        f.relock = { error("Android refused") }
+        f.now += 10_000
+
+        assertThrows(IllegalStateException::class.java) { lease.recover() }
+
+        assertTrue(f.guarded)
+    }
+
+    @Test fun recoveryClearsAGuardLeftBehindWithoutLeases() {
+        val f = Fixture()
+        f.guarded = true
+
+        f.lease().recover()
+
+        assertFalse(f.guarded)
     }
 
     @Test fun watchdogRelocksWhenStorageFailsAndRetryReportsTheObservedOverrun() {
@@ -193,11 +235,14 @@ class InstallLeaseTest {
             assertTrue(f.restricted)
             assertFalse(lease.isOpen(CATALOG))
             assertTrue(lease.hasMarkers())
+            // The clear can still lift the restriction again: Force stop stays unavailable.
+            assertTrue(f.guarded)
             assertThrows(IllegalStateException::class.java) { lease.begin(SELF_UPDATE, 90_000) }
             f.now += 45_000
             returnClear.countDown()
             clear.get(5, SECONDS)
             assertTrue(f.restricted)
+            assertFalse(f.guarded)
             assertFalse(lease.hasMarkers())
             assertEquals(listOf(45L), f.reports)
         } finally {

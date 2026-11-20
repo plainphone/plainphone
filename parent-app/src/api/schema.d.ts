@@ -4140,6 +4140,12 @@ export interface components {
             pushProvider?: "none" | "fcm" | "unifiedpush";
             /** @description Names of the lock steps that failed. */
             failedPolicies: string[];
+            /** @description Lock steps lifted on purpose for a parent-approved window, each with the deadline by which the phone puts it back (today only "restriction no_modify_accounts" during an approved Google sign-in). The phone still reports lockIntact true and leaves the step out of failedPolicies. The server only makes this stricter. An entry more than 2 minutes past its deadline is stored as a failed step with lockIntact false, so the usual protection alert fires. If the phone has not reported 10 minutes after a deadline, the sweeper tells the parents once. */
+            liftedPolicies?: {
+                name: string;
+                /** Format: date-time */
+                until: string;
+            }[];
             /** @description Phone-local incident sequence sent with an install-window overrun so retries retain its original expiry. */
             installOverrunSequence?: number;
             /** @description ETag of the rules the phone last applied. */

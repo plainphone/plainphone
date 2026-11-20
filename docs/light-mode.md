@@ -100,6 +100,14 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    bypass) needs Device Owner. In light mode only the DNS filter applies; other browsers are blocked
    like any app the parent has not allowed.
 9. **adb and a computer** get around everything, as in strong mode before the lock.
+10. **The date and time** can be set by hand (strong mode forces automatic time). School time
+    and bedtime follow the phone's clock, so a child who moves the clock can move them. When
+    the rules have school time, bedtime or time limits, the step "automatic date and time"
+    fails while the clock is set by hand, and the parent sees it. This is a protection check,
+    not a feature, so it has no switch of its own: it goes away with those rules, and a phone on
+    wifi alone still gets automatic time from the network. A maintenance unlock and the
+    PIN lockout also run on the time since boot, so changing the clock neither keeps an unlock
+    open nor shortens a lockout.
 
 ## Installing it (no reset)
 

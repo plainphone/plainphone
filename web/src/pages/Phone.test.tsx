@@ -296,6 +296,44 @@ it("writes the iPhone line in the parent's language", () => {
   expect(html).toContain(makeT("da")("platform.ios.contacts"));
 });
 
+it.each([
+  { when: "open", until: "2026-11-16T12:03:00Z", reportedAt: "2026-11-16T11:59:00Z", line: "phone.liftedOpen", notice: "notice-info", time: "12:03" },
+  { when: "past and silent", until: "2026-11-16T11:50:00Z", reportedAt: "2026-11-16T11:49:00Z", line: "phone.liftedOverdue", notice: "notice-warn", time: "11:50" },
+] as const)("shows the lifted account window as a calm line or a warning when $when", ({ until, reportedAt, line, notice, time }) => {
+  const zone = process.env.TZ;
+  process.env.TZ = "UTC";
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+  try {
+    const html = renderPhone({
+      ...phone,
+      status: { ...phone.status, failedPolicies: [], liftedPolicies: [{ name: "restriction no_modify_accounts", until }], reportedAt },
+    });
+    const t = makeT("en");
+    expect(html).toContain(`<p class="notice ${notice}" role="status">${t(line, { time })}</p>`);
+    expect(html).toContain(t("phone.lockIntact"));
+  } finally {
+    vi.useRealTimers();
+    if (zone === undefined) delete process.env.TZ; else process.env.TZ = zone;
+  }
+});
+
+it("shows no lifted line without a lifted step, or when the server already lists it as failed", () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+  try {
+    const name = "restriction no_modify_accounts";
+    const past = [{ name, until: "2026-11-16T11:40:00Z" }];
+    for (const status of [phone.status, { ...phone.status, failedPolicies: [name], liftedPolicies: past }]) {
+      const html = renderPhone({ ...phone, status });
+      expect(html).not.toContain("Account changes were allowed");
+      expect(html).not.toContain("Account changes are allowed");
+    }
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("shows a rule an iPhone cannot do as text instead of a link to switches that do nothing", () => {
   const t = makeT("en");
   const html = renderPhone({ ...phone, platform: "ios", mode: "light", capabilities: allYes({ calmHome: "no", contacts: "partial" }) });

@@ -22,7 +22,8 @@ import {
   PROTECTIONS,
   type Protection,
 } from "../lib/api";
-import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
+import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, formatTimeOfDay, installWindowOverrunSeconds } from "../lib/format";
+import { liftedNotice } from "../lib/liftedPolicies";
 import { lockStepLabel } from "../lib/lock-steps";
 import { filterStatusKey } from "../lib/filter-status";
 import { describeOp } from "../lib/ops";
@@ -384,6 +385,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
   const technicalSteps = failedSteps.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
+  const lifted = liftedNotice(s, now);
   const when = (iso: string) => formatRelative(iso, now, locale);
   const showHealth = phone.healthBoardEnabled !== false;
   const rows = showHealth ? healthRows(phone, now, locale, t) : [];
@@ -422,6 +424,11 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
       {!showHealth && s?.lockIntact && !s.maintenance && <p className="row-title">{t("phone.lockIntact")}</p>}
       {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
       {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
+      {lifted && (
+        <p className={lifted.overdue ? "notice notice-warn" : "notice notice-info"} role="status">
+          {t(lifted.overdue ? "phone.liftedOverdue" : "phone.liftedOpen", { time: formatTimeOfDay(lifted.until, locale) })}
+        </p>
+      )}
       {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
         <p className="notice notice-error" role="status">
           {t(ATTESTATION_TEXT[phone.attestation.state])}
