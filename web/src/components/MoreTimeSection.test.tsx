@@ -15,10 +15,14 @@ const t = makeT("en");
 const phone = { id: "p1", name: "Alma's phone", profile: "child" } as Phone;
 
 beforeEach(() => {
+  // The fixtures are dated 2026-11-19 and the section hides answers older than a day, so pin the clock.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-19T12:00:00Z"));
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("navigator", { languages: ["en"] });
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
