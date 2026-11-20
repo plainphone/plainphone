@@ -2,6 +2,7 @@
 //
 // Notifications to parents using Web Push, APNs or FCM.
 
+import { DELIVERY, type PushClass } from "../lib/push-priority.js";
 import { type PushOutcome, sendWebPush, type VapidKeys } from "../lib/webpush.js";
 
 export interface PushMessage {
@@ -19,7 +20,20 @@ export interface PushMessage {
    * to the server; the title is already in the parent's language. Max 4, titles short.
    */
   actions?: { id: string; title: string }[];
+  /**
+   * A random one-time id the parent's device posts back to `/api/push-receipt` when the
+   * notification arrives or is opened (docs/latency.md). It says nothing about the event.
+   */
+  receipt?: string;
 }
+
+/** `priority` picks TTL, urgency and priority per provider (lib/push-priority.ts); `urgent` alone means "alarm". */
+export interface SendOptions {
+  urgent?: boolean;
+  priority?: PushClass;
+}
+
+export const sendClass = (opts?: SendOptions): PushClass => opts?.priority ?? (opts?.urgent ? "alarm" : "normal");
 
 export interface PushTarget {
   platform: "web" | "apns" | "fcm";
@@ -35,7 +49,7 @@ export interface ParentPushProvider {
   /** Public VAPID key for browsers, or null when Web Push is not configured. */
   readonly webPublicKey: string | null;
   enabled?(platform: PushTarget["platform"]): boolean;
-  send(target: PushTarget, msg: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome>;
+  send(target: PushTarget, msg: PushMessage, opts?: SendOptions): Promise<SendOutcome>;
 }
 
 export function parentPushEnabled(provider: ParentPushProvider, platform: PushTarget["platform"]) {
@@ -82,10 +96,12 @@ export class WebPushProvider implements ParentPushProvider {
     return this.keys.publicKey;
   }
 
-  async send(t: PushTarget, msg: PushMessage, opts: { urgent?: boolean } = {}): Promise<SendOutcome> {
+  async send(t: PushTarget, msg: PushMessage, opts: SendOptions = {}): Promise<SendOutcome> {
     if (t.platform !== "web" || !t.p256dh || !t.auth) return "unsupported";
+    const delivery = DELIVERY[sendClass(opts)];
     const r = await sendWebPush({ endpoint: t.endpoint, p256dh: t.p256dh, auth: t.auth }, msg, this.keys, this.subject, {
-      urgency: opts.urgent ? "high" : "normal",
+      urgency: delivery.webUrgency,
+      ttlSeconds: delivery.ttlSeconds,
       // Push services accept up to 32 URL-safe characters; a newer message replaces an undelivered one.
       topic: msg.tag.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32),
     });
@@ -98,13 +114,13 @@ export class WebPushProvider implements ParentPushProvider {
 export class MemoryParentPushProvider implements ParentPushProvider {
   readonly name = "memory";
   readonly webPublicKey = "test-public-key";
-  readonly sent: { endpoint: string; msg: PushMessage; urgent: boolean }[] = [];
+  readonly sent: { endpoint: string; msg: PushMessage; urgent: boolean; priority: PushClass }[] = [];
   /** Endpoints that answer 410 Gone. */
   readonly gone = new Set<string>();
-  async send(t: PushTarget, msg: PushMessage, opts: { urgent?: boolean } = {}): Promise<SendOutcome> {
+  async send(t: PushTarget, msg: PushMessage, opts: SendOptions = {}): Promise<SendOutcome> {
     if (t.platform !== "web") return "unsupported";
     if (this.gone.has(t.endpoint)) return "gone";
-    this.sent.push({ endpoint: t.endpoint, msg, urgent: Boolean(opts.urgent) });
+    this.sent.push({ endpoint: t.endpoint, msg, urgent: Boolean(opts.urgent), priority: sendClass(opts) });
     return "sent";
   }
 }

@@ -21,6 +21,7 @@ import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
+import { latencyRoutes } from "./routes/latency.js";
 
 /** The largest request body the API reads, unless a route sets its own limit. */
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
@@ -150,6 +151,7 @@ export function createApp(ctx: Ctx) {
   const updateWake = new UpdateWake();
   // Public, so it is mounted before the parent API and its session check.
   app.route("/api/catalog", publicCatalogRoutes());
+  app.route("/api", latencyRoutes(ctx));
   app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
   const resetProtection = resetProtectionRoutes(ctx);
   app.route("/api/reset-protection", resetProtection.callback);

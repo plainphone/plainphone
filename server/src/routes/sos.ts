@@ -8,6 +8,7 @@ import { phoneNumber } from "../lib/validation.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
+import { elapsedHeader, recordUpload } from "../services/latency.js";
 import { wakePhone } from "../services/phones.js";
 import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
 import { deviceQuickMessageRoutes, parentQuickMessageRoutes } from "./quick-messages.js";
@@ -80,6 +81,8 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
       return { event: row!, fresh: !limited };
     });
     if (fresh) void deliverSos(ctx, event.id, phoneId).catch(() => console.error("SOS notification dispatch failed"));
+    // The first arrival only: from the press to the server (docs/latency.md). A report that already went by SMS is not timed.
+    if (fresh && !input.smsSubmitted) recordUpload(ctx, "sos", elapsedHeader(c.req.header("x-plainphone-elapsed-ms")), input.sentAt ? at : undefined);
     return c.json(sosJson(event));
   });
 

@@ -1058,3 +1058,34 @@ export const iosSelections = pgTable("ios_selections", {
   updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
+
+/** What a latency sample measures (docs/latency.md). */
+export const LATENCY_PATHS = ["phone-server", "server-parent", "server-child"] as const;
+
+/**
+ * One delivery timing, for p50/p95 per path (docs/latency.md). Durations and provider names only: no
+ * content, no user. `phoneId` and `anchorAt` exist only while a wake-up waits for the phone, and the
+ * receipt id only until the parent's device answers or a day passes. Kept 8 days.
+ */
+export const latencySamples = pgTable("latency_samples", {
+  id: id(),
+  path: text("path", { enum: LATENCY_PATHS }).notNull(),
+  /** web, fcm, apns, unifiedpush or poll; null for the phone's upload. */
+  provider: text("provider"),
+  /** The push class (alarm, prompt, normal), the wake reason, or sos/quick for an upload. */
+  kind: text("kind").notNull(),
+  /** Rounded down to the hour: enough for a 7-day window, too coarse to match an event. */
+  hour: timestamp("hour", { withTimezone: true }).notNull(),
+  /** The leg itself: press to server, server to push service, or wake-up to the phone's next fetch. */
+  ms: integer("ms"),
+  /** Parent pushes: push service accepted it until the device confirmed it arrived, or was opened. */
+  deliveredMs: integer("delivered_ms"),
+  openedMs: integer("opened_ms"),
+  receipt: text("receipt"),
+  anchorAt: timestamp("anchor_at", { withTimezone: true }),
+  phoneId: uuid("phone_id").references(() => phones.id, { onDelete: "cascade" }),
+}, (t) => [
+  uniqueIndex("latency_samples_receipt_uq").on(t.receipt),
+  index("latency_samples_open_wake_idx").on(t.phoneId).where(sql`${t.ms} is null`),
+  index("latency_samples_hour_idx").on(t.path, t.hour),
+]);

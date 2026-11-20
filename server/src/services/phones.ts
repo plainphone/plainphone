@@ -40,6 +40,7 @@ import { agreementRules } from "./age-review.js";
 import { inboxRules } from "./family-inbox.js";
 import { effectiveGroup, loadModes, modesForRules } from "./modes.js";
 import { emergencyRules } from "./emergency-openings.js";
+import { startWake } from "./latency.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -98,6 +99,9 @@ export async function createPhone(
       language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
+      // "Faster rule updates" starts on for a new Android phone when this server can wake one
+      // (docs/latency.md). Phones paired earlier keep what they had; parents can switch it off.
+      pushWakeups: input.platform !== "ios" && Boolean(ctx.push.fcmAvailable || ctx.push.unifiedPushAvailable),
       createdAt: ctx.now(),
     })
     .returning();
@@ -111,12 +115,15 @@ export async function createPhone(
 export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
   const [p] = await ctx.db.select({
     enabled: phones.pushWakeups, token: phones.fcmToken, endpoint: phones.unifiedPushEndpoint,
-    validationKey: phones.fcmValidationKey,
+    validationKey: phones.fcmValidationKey, platform: phones.platform,
   }).from(phones).where(eq(phones.id, phoneId));
-  if (!p?.enabled) return;
+  if (!p) return;
   const column = p.endpoint ? phones.unifiedPushEndpoint : phones.fcmToken;
-  const registration = p.endpoint ?? p.token;
-  if (!registration || (!p.endpoint && p.validationKey !== fcmValidationKey(ctx.push))) return;
+  const registration = p.enabled ? p.endpoint ?? p.token : null;
+  const usable = Boolean(registration) && (Boolean(p.endpoint) || p.validationKey === fcmValidationKey(ctx.push));
+  // Timed until the phone's next rules fetch, whether push or polling brings it (docs/latency.md).
+  if (p.platform === "android") startWake(ctx, phoneId, !usable ? "poll" : p.endpoint ? "unifiedpush" : "fcm", reason);
+  if (!registration || !usable) return;
   try {
     if (await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
       const sameValidation = p.validationKey === null ? isNull(phones.fcmValidationKey)

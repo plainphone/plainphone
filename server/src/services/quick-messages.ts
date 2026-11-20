@@ -5,6 +5,7 @@ import { householdMembers, phones, quickMessageSends, quickMessages } from "../d
 import type { Ctx } from "./context.js";
 import { markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
 import { notifyUsers } from "./notifications.js";
+import { recordUpload } from "./latency.js";
 
 type Phone = typeof phones.$inferSelect;
 
@@ -100,7 +101,7 @@ function sendAnswer(notified: number): SendAnswer {
  */
 export async function sendQuickMessage(
   ctx: Ctx, phone: Phone,
-  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date; smsSent?: boolean },
+  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date; smsSent?: boolean; elapsedMs?: number },
 ): Promise<SendAnswer> {
   const now = ctx.now();
   // Sent from the family inbox (a check-in always is): it joins the thread, even if the inbox was
@@ -123,15 +124,20 @@ export async function sendQuickMessage(
     if (inThread) await markDelivered(ctx, phone.id, input.id, 0);
     return { notified: 0 };
   }
-  const [recent] = await ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
-    eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),
-  ));
+  recordUpload(ctx, "quick", input.elapsedMs, input.sentAt);
+  // The child's phone waits for this answer: look up the limit and the parents at the same time.
+  const [[recent], parents] = await Promise.all([
+    ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
+      eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),
+    )),
+    parentIds(ctx, phone.householdId),
+  ]);
   let notified: number;
   if ((recent?.total ?? 0) > SEND_LIMIT) notified = NOTIFY_LIMITED;
   else if (phone.releaseRequestedAt) notified = 0;
   else {
     // Never urgent, also in the child's quiet hours: only a code word (through SOS) is.
-    notified = await notifyUsers(ctx, await parentIds(ctx, phone.householdId), kind === "checkin"
+    notified = await notifyUsers(ctx, parents, kind === "checkin"
       ? { type: "checkIn", id: input.id, phoneId: phone.id, phoneName: phone.name }
       : { type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text },
     ).catch(() => 0);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Config } from "../config.js";
+import { WAKE_TTL_SECONDS } from "../lib/push-priority.js";
 import type { Fcm } from "./native-push.js";
 import { pushHostAllowed } from "./parent-push.js";
 
@@ -44,15 +45,18 @@ export class PhonePushProvider implements PushProvider {
     return this.fcm?.send({ token, data: { wake: "rules" } }, true) ?? Promise.resolve("unsupported" as const);
   }
   async wake(token: string, reason: WakeReason, transport: WakeTransport = "fcm"): Promise<void | "gone"> {
+    // Every wake is a high-priority data message: it runs the app's sync even in Doze. One collapse key,
+    // because any wake fetches everything, so a burst of rule changes is one wake-up, not a queue.
+    const ttl = WAKE_TTL_SECONDS[reason];
     if (transport === "fcm" && this.fcmAvailable) {
       if (await this.fcm!.send({
-        token, data: { wake: reason }, android: { priority: "HIGH", ttl: "60s", collapse_key: "plainphone-sync" },
+        token, data: { wake: reason }, android: { priority: "HIGH", ttl: `${ttl}s`, collapse_key: "plainphone-sync" },
       }) === "gone") return "gone";
     }
     if (transport === "unifiedpush" && this.acceptsEndpoint(token)) {
       const response = await this.http(token, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(5000),
-        headers: { "content-type": "text/plain", ttl: "60", urgency: "high", "x-unifiedpush": "1", "x-cache": "no" },
+        headers: { "content-type": "text/plain", ttl: String(ttl), urgency: "high", "x-unifiedpush": "1", "x-cache": "no" },
         body: JSON.stringify({ wake: reason }),
       });
       await response.body?.cancel();
