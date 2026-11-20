@@ -10,6 +10,8 @@ for strong mode and on the phone for light mode.
 | Point in the flow | What the setup now says or does |
 | --- | --- |
 | Choosing a mode | Ask about the phone's current state. The strong-mode guide explains backup and reset before any data is erased. The light-mode guide goes straight to its own dashboard flow. |
+| Where the rules start (Child phones) | An optional step after the name and profile: pick an age, or "No preset", and keep or switch off the "review the rules" reminder (every 3 months by default). The step says what the age sets before anything is changed; nothing is locked. See [age-presets.md](age-presets.md). |
+| Family agreement (Child phones) | An optional, skippable step: a few lines in the child's words and, if the family wants, rules for the adults. Shown on the child's phone. See [family-agreement.md](family-agreement.md). |
 | Household time zone | Choose the time zone where the phone will be used before generating the QR code. The dashboard uses it for schedules and includes it in the Android setup code. This step is in the browser for both parent apps. |
 | Choosing the language | In strong mode, choose the language before generating the QR code. From the parent app, save the choice and continue to the browser to create the QR code. On a Child phone, Android uses the chosen language during setup. **Lock Android language** is on by default and can be changed later. **Use phone language** leaves Android’s setup language in place. |
 | Choosing a PIN | Explain what the PIN is for. In strong mode, enter it twice in the dashboard. The salted hash is in the provisioning QR code. In light mode, enter it twice on the phone, where Plainphone hashes it locally. |
