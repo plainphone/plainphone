@@ -8,6 +8,8 @@ import { OpenModePanel } from "../../../components/OpenMode";
 import { useI18n } from "../../../i18n/I18n";
 import type { MessageKey } from "../../../shared/i18n/translate";
 import { space } from "../../../lib/theme";
+import { IphoneApps } from "../../../components/IphoneApps";
+import { isIphone } from "../../../shared/lib/platform";
 
 function AppsList() {
   const { t, locale } = useI18n();
@@ -112,10 +114,16 @@ function AppsList() {
   );
 }
 
+/** An iPhone's apps are Apple's coded selection, not package names (docs/ios/architecture.md). */
+function AppsForPlatform() {
+  const { phone } = usePhone();
+  return isIphone(phone) ? <IphoneApps phone={phone} /> : <AppsList />;
+}
+
 export default function AppsScreen() {
   return (
     <PhoneGate>
-      <AppsList />
+      <AppsForPlatform />
     </PhoneGate>
   );
 }

@@ -19,8 +19,10 @@ import {
   provisioningPayload,
   provisioningQr,
 } from "../lib/provisioning";
+import { useIosPairing } from "../lib/session";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
 import type { PhoneLanguage } from "../lib/phone-language";
+import { useHouseholdId } from "../lib/session";
 import "./add-phone.css";
 
 interface EnrollmentOut {
@@ -51,6 +53,7 @@ interface Qr {
 
 /** /add: a new phone. */
 export function AddPhonePage() {
+  const householdId = useHouseholdId();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const [template] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("template"));
@@ -81,7 +84,7 @@ export function AddPhonePage() {
     if (!mode) return;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, householdId, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
     if (template) {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;
@@ -372,6 +375,8 @@ export function buildQr(
 
 function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
   const { t } = useI18n();
+  // Only while the server pairs iPhones (IOS_PAIRING_ENABLED, docs/ios/architecture.md).
+  const iphone = useIosPairing();
   return (
     <>
       <PageTitle>{t("add.modeTitle")}</PageTitle>
@@ -384,6 +389,12 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
           <span className="choice-title">{t("add.modeLight")}</span>
           <span className="choice-desc">{t("add.modeLightHelp")}</span>
         </button>
+        {iphone && (
+          <Link className="choice" to="/add/iphone">
+            <span className="choice-title">{t("platform.iphone.add")}</span>
+            <span className="choice-desc">{t("platform.iphone.addHelp")}</span>
+          </Link>
+        )}
       </div>
       <p><Link className="btn btn-secondary" to="/pair">{t("add.useCode")}</Link></p>
     </>

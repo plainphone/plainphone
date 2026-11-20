@@ -574,6 +574,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/ios-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch this iPhone's app selection (iPhone) */
+        get: operations["getDeviceIosSelection"];
+        /**
+         * Report apps picked on the iPhone after the parent PIN (iPhone)
+         * @description The phone already applies the pick; the server records it. Allowed while the capability `pickAppsOnPhone` is not `no` (spike (a), docs/ios/spikes.md).
+         */
+        put: operations["putDeviceIosSelection"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/self/favourites": {
         parameters: {
             query?: never;
@@ -1501,6 +1522,27 @@ export interface paths {
          *     Self phone this goes through the key. A phone that never paired answers 400: remove it instead.
          */
         post: operations["postPhoneRelease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/ios-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read an iPhone's app selection */
+        get: operations["getPhoneIosSelection"];
+        /**
+         * Send apps picked on the parent's iPhone
+         * @description A rule change: the iPhone gets a new rules revision and a wake-up. Allowed while the capability `pickAppsOnParent` is not `no` (spike (a), docs/ios/spikes.md).
+         */
+        put: operations["putPhoneIosSelection"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3890,6 +3932,10 @@ export interface components {
             maintenance: components["schemas"]["Support"];
             selfKeys: components["schemas"]["Support"];
             phoneSettings: components["schemas"]["Support"];
+            /** @description iPhone apps can be picked on the parent's own iPhone (`PUT /phones/{pid}/ios-selection`). `no` on Android. */
+            pickAppsOnParent: components["schemas"]["Support"];
+            /** @description iPhone apps can be picked on the phone after the parent PIN (`PUT /device/ios-selection`). `no` on Android. */
+            pickAppsOnPhone: components["schemas"]["Support"];
         };
         PhoneSummary: {
             /** Format: uuid */
@@ -4116,6 +4162,7 @@ export interface components {
             filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
             protections?: components["schemas"]["Protections"];
             timeUsed?: components["schemas"]["TimeUsed"];
+            ios?: components["schemas"]["IosStatus"];
             /** @description The last app update window in strong mode. The server records it and turns `caught` into app requests once per `id`. */
             appUpdates?: {
                 id: string;
@@ -4141,6 +4188,77 @@ export interface components {
                  */
                 error?: "batteryExemption" | "failed";
             };
+        };
+        IosNotYet: {
+            error: string;
+            /** @constant */
+            code: "ios_pairing_not_yet";
+        };
+        /** @description iPhones only. The lock counts as intact only while `authorizationStatus` is `approved`, no policy failed and no maintenance runs; Android's light-mode protections do not apply. Unknown fields are ignored, so a newer app can report more. A value outside the listed cases (a newer iOS) is recorded, not refused, and only `approved` counts as intact. */
+        IosStatus: {
+            /** @example 26.1 */
+            iosVersion: string;
+            /**
+             * @description Family Controls authorization.
+             * @enum {unknown}
+             */
+            authorizationStatus: "notDetermined" | "denied" | "approved";
+            /** @description Apple's Communication Limits, through Declared Age Range; null when unknown. */
+            communicationLimits?: boolean | null;
+            /** @description The per-phone DNS settings are enabled (phase 4). */
+            dnsEnabled?: boolean | null;
+            /** @enum {unknown} */
+            locationAuth?: "notDetermined" | "denied" | "whenInUse" | "always";
+            /** @description Named ManagedSettings stores in effect (base, school, bedtime, limits, maintenance). */
+            effectiveStores?: string[];
+        };
+        IosSelection: {
+            /** @description Apple's encoded FamilyActivitySelection, base64 with padding, at most 128 KiB decoded. Opaque to the server. */
+            selection: string;
+        };
+        IosSelectionState: {
+            selection: string | null;
+            /** @enum {unknown} */
+            source: "parent" | "phone" | null;
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        IosSelectionSaved: {
+            /** @enum {unknown} */
+            source: "parent" | "phone";
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description The rules document of an iPhone: only keys an iPhone can act on, each left out when the phone's tier cannot do that feature at all (see `capabilities`). No package names, Android settings, home screen, push transport or Google accounts. Schedules have no app lists, time limits only the whole-phone limit, and apps come as `iosApps`. See docs/ios/architecture.md, "iOS rules document". */
+        IosRules: {
+            /** Format: uuid */
+            phoneId: string;
+            /** @constant */
+            platform: "ios";
+            /** @enum {unknown} */
+            tier: "family_controls" | "supervised";
+            capabilities: components["schemas"]["Capabilities"];
+            /** @enum {unknown} */
+            profile: "child" | "self";
+            timezone: string;
+            language?: string | null;
+            rulesRevision: number;
+            pollSeconds: number;
+            release: boolean;
+            iosApps: {
+                /** @description True: the selection is the block list. False: the apps allowed besides Apple's own. */
+                open: boolean;
+                /** @description Fetch the bytes from `GET /device/ios-selection` when `revision` changes. Null until someone picks apps. */
+                selection: {
+                    revision: string;
+                    /** @enum {unknown} */
+                    source: "parent" | "phone";
+                    /** Format: date-time */
+                    updatedAt: string;
+                } | null;
+            };
+        } & {
+            [key: string]: unknown;
         };
         /** @description What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC. */
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
@@ -5263,10 +5381,17 @@ export interface operations {
             content: {
                 "application/json": {
                     /**
+                     * @description Ignored for an iPhone, which always pairs as light.
                      * @default strong
                      * @enum {unknown}
                      */
                     mode?: "strong" | "light";
+                    /**
+                     * @description `ios` needs IOS_PAIRING_ENABLED on the server; otherwise 403 with code `ios_pairing_not_yet`.
+                     * @default android
+                     * @enum {unknown}
+                     */
+                    platform?: "android" | "ios";
                     /** @enum {unknown} */
                     profile?: "child" | "self";
                     /** @default false */
@@ -5292,6 +5417,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         confirmOnPhone?: boolean;
+                        /** @enum {unknown} */
+                        platform?: "android" | "ios";
                         /** Format: uuid */
                         pairingId?: string;
                         /** @example K7MP-4QXR */
@@ -5302,6 +5429,15 @@ export interface operations {
                         /** Format: uri */
                         qrUrl?: string;
                     };
+                };
+            };
+            /** @description iPhone pairing is not available on this server yet (`code: ios_pairing_not_yet`). Show it as "not yet", not as an error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IosNotYet"];
                 };
             };
             429: components["responses"]["Error"];
@@ -5691,7 +5827,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Rules"];
+                    "application/json": components["schemas"]["Rules"] | components["schemas"]["IosRules"];
                 };
             };
             /** @description Unchanged */
@@ -5703,6 +5839,72 @@ export interface operations {
             };
             /** @description Token unknown (phone removed by a parent). Keep the last rules and show "pair again". */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDeviceIosSelection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The selection, or nulls when none was picked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IosSelectionState"];
+                };
+            };
+            /** @description Not an iPhone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putDeviceIosSelection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IosSelection"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IosSelectionSaved"];
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description This phone cannot pick its own apps (`code: not_supported`, e.g. Android) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Selection too large */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6591,7 +6793,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description User, households and `mailEnabled` */
+            /** @description User, households, `mailEnabled` and `iosPairing` (true when this server pairs iPhones: show "Add an iPhone") */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7255,6 +7457,8 @@ export interface operations {
                         profile?: "child" | "self" | null;
                         /** @enum {unknown} */
                         mode?: "strong" | "light";
+                        /** @enum {unknown} */
+                        platform?: "android" | "ios";
                     };
                 };
             };
@@ -7300,6 +7504,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PhoneSummary"];
                 };
+            };
+            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Code not found or expired */
             404: {
@@ -7518,6 +7729,83 @@ export interface operations {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
             400: components["responses"]["Error"];
+        };
+    };
+    getPhoneIosSelection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The selection, or nulls when none was picked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IosSelectionState"];
+                };
+            };
+            /** @description Not found, or not an iPhone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putPhoneIosSelection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IosSelection"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IosSelectionSaved"];
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Phone not found in your households */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Apps for this phone cannot be picked on another device (`code: not_supported`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Selection too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getPhonesApps: {

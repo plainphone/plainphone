@@ -11,6 +11,7 @@ import { checkServer, HOSTED_SERVER, BUILD_SERVER, normalizeServerUrl, restoreSe
 import { clearLocalNotifications, syncNativePush, watchNativePush } from "./notifications";
 import { logoutNativeSession } from "./push-registration";
 import { clearPendingInvite, loadPendingInvite } from "./pendingInvite";
+import { rememberLogout, retryPendingLogouts, signOutOnServer } from "./pending-logout";
 import { getItem, removeItem, setItem } from "./storage";
 
 const TOKEN_KEY = "pp.session";
@@ -146,6 +147,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setServerUrl(SERVER_URL);
       setServerReady(true);
       await restore();
+      void retryPendingLogouts();
     }).catch((error: unknown) => {
       setSessionToken(null);
       setServerReady(true);
@@ -183,6 +185,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         throw err;
       }
       if (switching.current || revision !== serverRevision.current) return null;
+      // The session this link replaces would otherwise stay valid on the server, with its push alerts.
+      const previous = getSessionToken();
+      if (previous && previous !== out.sessionToken) void signOutOnServer(origin, previous);
       setSessionToken(out.sessionToken);
       await writeSession(origin, out.sessionToken);
       if (switching.current || revision !== serverRevision.current) return null;
@@ -197,14 +202,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [signedIn, locale]);
 
   const logout = useCallback(async () => {
+    const server = SERVER_URL;
+    const token = getSessionToken();
     try {
       await logoutNativeSession();
     } catch {
-      // signed out locally either way
+      // Signed out locally either way; the server hears about it when the app is online again.
+      if (token) await rememberLogout(server, token).catch(() => undefined);
     } finally {
+      // The next person to sign in here must not inherit this account's destination or invitation.
+      inflight.clear();
+      setNext(null);
+      await clearPendingInvite().catch(() => undefined);
       await signOutLocally();
     }
-  }, [signOutLocally]);
+  }, [signOutLocally, setNext]);
 
   const changeServer = useCallback(async (value: string | null) => {
     if (switching.current) return;
@@ -214,6 +226,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setServerChanging(true);
     try {
       if (value !== null) await checkServer(target);
+      // Switching signs out here, so it must also end the session on the old server: otherwise
+      // that server keeps the session and keeps sending this device the household's alerts.
+      const oldToken = getSessionToken();
+      if (oldToken) {
+        try {
+          await logoutNativeSession();
+        } catch {
+          await rememberLogout(SERVER_URL, oldToken).catch(() => undefined);
+        }
+        await clearLocalNotifications().catch(() => undefined);
+      }
       serverRevision.current++;
       setSessionToken(null);
       setState({ status: "anon" });
@@ -263,4 +286,10 @@ export function useMe(): Me {
   const { state } = useSession();
   if (state.status !== "in") throw new Error("not signed in");
   return state.me;
+}
+
+/** True when this server pairs iPhones (`iosPairing` in /me). False outside a session. */
+export function useIosPairing(): boolean {
+  const v = useContext(SessionContext);
+  return v?.state.status === "in" && v.state.me.iosPairing === true;
 }

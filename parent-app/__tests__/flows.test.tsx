@@ -18,6 +18,9 @@ jest.mock("expo-linking", () => {
 
 const routes = "./src/app";
 
+/** The app asked for a login link a moment ago, so the link that comes back is used without a question. */
+const askedForLink = () => SecureStore.setItemAsync("pp.linkAsked", String(Date.now()));
+
 describe("logging in", () => {
   it("asks for a login link the app can open", async () => {
     const api = fakeApi({
@@ -152,6 +155,7 @@ describe("logging in", () => {
   });
 
   it("opens the login link, keeps the session in the keychain and shows the phones", async () => {
+    await askedForLink();
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_linktoken123");
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: true });
     const api = fakeApi({
@@ -178,6 +182,7 @@ describe("logging in", () => {
   });
 
   it("says so when the link is used up", async () => {
+    await askedForLink();
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_usedtoken123");
     fakeApi({ "POST /auth/verify": { status: 400, body: { error: "this link is expired or already used" } } });
     await renderRouter(routes, { initialUrl: "/auth/app" });
@@ -186,8 +191,10 @@ describe("logging in", () => {
 });
 
 describe("coming back after the app was closed during login", () => {
-  const login = (token: string) =>
+  const login = (token: string) => {
+    void askedForLink();
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce(`https://app.plainphone.org/auth/app#token=${token}`);
+  };
   const signedInApi = (extra = {}) =>
     fakeApi({
       "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_session" } },
@@ -201,6 +208,8 @@ describe("coming back after the app was closed during login", () => {
     login("pp_m_linktoken456");
     const api = signedInApi({ "POST /invites/accept": { body: { householdId: ME.households[0].id } } });
     await renderRouter(routes, { initialUrl: "/auth/app" });
+    // An invitation always waits for a tap, also one kept across the login.
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     await waitFor(() => expect(api.calls.some((c) => c.path === "/invites/accept")).toBe(true));
     expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_invitetoken123" });
     await waitFor(() => expect(screen).toHavePathname("/invite"));
@@ -241,6 +250,8 @@ describe("login links in other situations", () => {
       "GET /phones": { body: { phones: [PHONE] } },
     });
     await renderRouter(routes, { initialUrl: "/auth/app" });
+    // Someone is signed in, so the link asks before it replaces the session.
+    await fireEvent.press(await screen.findByTestId("auth-link-confirm-yes"));
     expect(await screen.findByText("This login link is expired or already used. Ask for a new one.")).toBeTruthy();
     await testRouter.replace("/");
     expect(await screen.findByText("Alma")).toBeTruthy();
@@ -249,6 +260,7 @@ describe("login links in other situations", () => {
 
   it("sends a second login link to the start screen, not to the last destination again", async () => {
     await SecureStore.setItemAsync("pp.next", "/pair?code=K7MP4QXR");
+    await askedForLink();
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_firstlink123");
     let n = 0;
     fakeApi({
@@ -260,6 +272,8 @@ describe("login links in other situations", () => {
     await waitFor(() => expect(screen).toHavePathname("/pair"));
     (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_secondlink12");
     await act(() => router.push("/auth/app"));
+    // Signed in now: a second link asks before it replaces the session.
+    await fireEvent.press(await screen.findByTestId("auth-link-confirm-yes"));
     await waitFor(() => expect(screen).toHavePathname("/"));
     (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
   });
@@ -273,6 +287,7 @@ describe("login links in other situations", () => {
     });
     await renderRouter(routes, { initialUrl: "/login" });
     expect(await screen.findByTestId("login")).toBeTruthy();
+    await askedForLink();
     (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_warmlink1234");
     await act(() => router.push("/auth/app"));
     expect(await screen.findByText("Alma")).toBeTruthy();

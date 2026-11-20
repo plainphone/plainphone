@@ -10,6 +10,9 @@ import { lightSetupIntent } from "../lib/light-setup";
 import { AddPhonePage } from "./AddPhone";
 import { skipAgeSteps } from "./setup-test-helpers";
 
+// The household the dashboard shows first; the new phone must go there.
+vi.mock("../lib/session", async (original) => ({ ...await original<typeof import("../lib/session")>(), useHouseholdId: () => "h-own" }));
+
 it("puts the custom origin returned by enrollment in the Light setup link and QR", async () => {
   const origin = "https://my-plainphone.example.org:8443";
   const enrollment = { token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
@@ -52,6 +55,9 @@ it("puts the custom origin returned by enrollment in the Light setup link and QR
     expect(fetch).toHaveBeenCalledWith("/api/phones/enroll", expect.objectContaining({
       method: "POST",
       body: expect.stringContaining('"mode":"light"'),
+    }));
+    expect(fetch).toHaveBeenCalledWith("/api/phones/enroll", expect.objectContaining({
+      body: expect.stringContaining('"householdId":"h-own"'),
     }));
     const link = [...container.querySelectorAll("a")].find((el) => el.textContent === "Open setup link");
     expect(link).toBeDefined();

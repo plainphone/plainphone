@@ -47,7 +47,7 @@ describe("onboarding safety", () => {
   it("requires matching dashboard choice and shows only the masked account before releasing the token", async () => {
     const { parent, device, code, poll, decide, claim } = await start();
     expect((await poll()).json).toEqual({ status: "waiting" });
-    expect((await parent.post("/api/phones/pairing-profile", { code })).json).toEqual({ profile: "self", mode: "light" });
+    expect((await parent.post("/api/phones/pairing-profile", { code })).json).toEqual({ profile: "self", mode: "light", platform: "android" });
     expect((await claim("child")).status).toBe(409);
     const claimed = await claim();
     expect(claimed.status).toBe(201);
@@ -222,6 +222,34 @@ describe("onboarding safety", () => {
     await sweep(h.ctx);
     expect(h.mail.outbox.slice(before).map(({ to }) => to)).toEqual(["claimer@example.org"]);
     expect(h.parentPush.sent).toHaveLength(0);
+  });
+
+  it("stops retrying a push notice once the endpoint has failed twenty times", async () => {
+    const { parent, device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await parent.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/broken", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
+    })).status).toBe(201);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    const send = vi.spyOn(h.parentPush, "send").mockResolvedValue("failed");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 19; i++) {
+        await deliverSetupUndoNotices(h.ctx);
+        h.clock.advance(60_000);
+      }
+      expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(1);
+      await deliverSetupUndoNotices(h.ctx);
+      h.clock.advance(60_000);
+      await deliverSetupUndoNotices(h.ctx);
+      expect(send).toHaveBeenCalledTimes(20);
+      expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+    } finally {
+      send.mockRestore();
+      log.mockRestore();
+    }
   });
 
   it("delivers at most ten undo notices per sweep", async () => {

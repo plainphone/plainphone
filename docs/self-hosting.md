@@ -18,7 +18,8 @@ curl http://localhost:8080/api/health
 
 Put a TLS-terminating reverse proxy (Caddy, Traefik, nginx) in front and point your domain at
 it. Then set `TRUST_PROXY=true` and stop publishing port 8080 to the internet, so rate limits
-see each client's own address. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
+see each client's own address. The API reads request bodies up to 1 MB; only contact suggestions
+and server moves accept more. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
 pairing QR code.
 
 ## Connect the apps
@@ -112,6 +113,7 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 | `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
 | `PAYMENTS_ENABLED` | `false` | Experimental pay-to-unlock control. Payment processing is unavailable. Leave disabled when self-hosting. |
+| `IOS_PAIRING_ENABLED` | `false` | iPhone pairing ([docs/ios/architecture.md](ios/architecture.md)). Leave off until the iOS app is released: the server then refuses iPhone pairings with a clear "not yet" error, and the dashboard hides "Add an iPhone". |
 | `APNS_BUNDLE_ID` | `org.plainphone.app` | APNs topic for iOS; override for custom builds ([push-setup.md](push-setup.md)) |
 | `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.app` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |

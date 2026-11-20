@@ -80,6 +80,13 @@ describe("key attestation", () => {
     expect(result).toMatchObject({ state: "unverifiable", revocationChecked: false });
   });
 
+  it("reads the record closest to the root, not one on an appended certificate", () => {
+    // The holder of an attested key can sign a further certificate with a record of their own.
+    const forged = chain("forged-leaf");
+    expect(verifyAttestation(forged, Buffer.from("genuine"), new Set())).toMatchObject({ state: "unverifiable", securityLevel: "tee" });
+    expect(() => verifyAttestation(forged, Buffer.from("forged"), new Set())).toThrow(ChallengeMismatch);
+  });
+
   it("rejects a valid chain after its issuing certificates expire", () => {
     const result = verifyAttestation(
       chain("frankel-TEE_EC_2026"),

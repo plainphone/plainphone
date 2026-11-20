@@ -106,6 +106,20 @@ export function samePushRegistration(sub: Subscription) {
     sub.sessionId ? eq(pushSubscriptions.sessionId, sub.sessionId) : isNull(pushSubscriptions.sessionId));
 }
 
+/** After this many failed sends in a row (not 404/410), a Web Push subscription is dropped. */
+const MAX_PUSH_FAILURES = 20;
+
+/** Counts a failed send; a Web Push endpoint that keeps failing is dropped like a gone one. */
+export async function recordFailedPush(ctx: Ctx, sub: Subscription) {
+  if (sub.platform === "web" && sub.failures + 1 >= MAX_PUSH_FAILURES) {
+    await discardGonePushSubscription(ctx, sub);
+  } else {
+    await ctx.db.update(pushSubscriptions)
+      .set({ failures: sql`${pushSubscriptions.failures} + 1` })
+      .where(samePushRegistration(sub));
+  }
+}
+
 export async function discardGonePushSubscription(ctx: Ctx, sub: Subscription) {
   const matched = samePushRegistration(sub);
   if (sub.platform === "web") {

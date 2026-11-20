@@ -36,7 +36,7 @@ import { PhoneAppVersion } from "./PhoneAppVersion";
 import { AppUpdates } from "../components/AppUpdates";
 import { appUpdateReceiptLine } from "../lib/app-updates";
 import { healthRows, receiptText } from "../lib/phone-health";
-import { isIphone, platformLine } from "../lib/platform";
+import { isIphone, platformLine, ruleRowUnavailable } from "../lib/platform";
 
 interface PhoneCtx {
   phone: Phone;
@@ -632,6 +632,19 @@ export function PhoneOverview() {
               <ul className="list phone-rules">
                 {items.map(({ to, label, hint }) => {
                   const platformNote = platformLine(phone, to);
+                  // An iPhone cannot do this rule at all: say so instead of linking to switches that do nothing.
+                  if (ruleRowUnavailable(phone, to)) {
+                    return (
+                      <li key={to}>
+                        <div className="row-link row-static">
+                          <span className="row-main">
+                            <span className="row-title">{label}</span>
+                            {platformNote && <span className="row-meta platform-note">{t(platformNote)}</span>}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={to}>
                       <Link to={`${base}/${to}`} className="row-link">
@@ -660,7 +673,7 @@ export function PhoneOverview() {
           <PhoneSwitch phone={phone} field="pinApprovalEnabled" label={t("pin.toggle")} help={t("pin.help")} setPhone={setPhone} notify={notify} />
         </section>
       )}
-      {phone.mode === "light" && <LightModeSection phone={phone} />}
+      {phone.mode === "light" && !isIphone(phone) && <LightModeSection phone={phone} />}
       <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
       <ManagePhone />
     </>
@@ -845,7 +858,7 @@ function LightModeSection({ phone }: { phone: Phone }) {
  * Rename the phone, release it, or remove it. Releasing switches Plainphone off on the phone;
  * removing only deletes it here. On a Self phone both wait for the key.
  */
-function ManagePhone() {
+export function ManagePhone() {
   const { t } = useI18n();
   const { phone, setPhone, run, notify } = usePhone();
   const navigate = useNavigate();

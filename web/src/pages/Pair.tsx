@@ -5,8 +5,11 @@ import { errorMessage, Field, LiveStatus, PageTitle, Switch } from "../component
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import { normaliseCode } from "../lib/format";
+import { useHouseholdId } from "../lib/session";
+import { IOS_PAIRING_NOT_YET } from "../lib/platform";
 
 export function PairPage() {
+  const householdId = useHouseholdId();
   const { t } = useI18n();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -15,6 +18,7 @@ export function PairPage() {
   const [profile, setProfile] = useState<Profile>(() => params.get("profile") === "self" ? "self" : "child");
   const [privateDns, setPrivateDns] = useState(false);
   const [light, setLight] = useState(false);
+  const [iphone, setIphone] = useState(false);
   const [hint, setHint] = useState<Profile | null>(null);
   const [lookupPending, setLookupPending] = useState(false);
   const [awaitingPhone, setAwaitingPhone] = useState(false);
@@ -25,16 +29,18 @@ export function PairPage() {
   useEffect(() => {
     setHint(null);
     setLight(false);
+    setIphone(false);
     if (code.replace(/-/g, "").length !== 8) {
       setLookupPending(false);
       return;
     }
     let current = true;
     setLookupPending(true);
-    api.post<{ profile: Profile | null; mode?: "light" | "strong" }>("/phones/pairing-profile", { code }).then(({ profile: suggested, mode }) => {
+    api.post<{ profile: Profile | null; mode?: "light" | "strong"; platform?: "android" | "ios" }>("/phones/pairing-profile", { code }).then(({ profile: suggested, mode, platform }) => {
       if (!current) return;
       setHint(suggested);
       setLight(mode === "light");
+      setIphone(platform === "ios");
       if (suggested) setProfile(suggested);
     }).catch(() => {
       // Claim still validates the code and selected profile on the server.
@@ -55,11 +61,12 @@ export function PairPage() {
     setBusy(true);
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone, ...(light && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}) });
+      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone, householdId, ...(light && !iphone && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}) });
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else navigate(`/phones/${phone.id}`, { replace: true });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) setFormError(t("pair.profileMismatch"));
+      if (err instanceof ApiError && err.data.code === IOS_PAIRING_NOT_YET) setFormError(t("platform.iphone.notYet"));
+      else if (err instanceof ApiError && err.status === 409) setFormError(t("pair.profileMismatch"));
       else if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
       else if (err instanceof ApiError && err.status === 400 && err.issues.length) {
         const f = err.fields();
@@ -112,7 +119,8 @@ export function PairPage() {
             </label>
           ))}
         </fieldset>
-        {light && profile === "self" && (
+        {iphone && <p className="notice notice-info">{t("platform.iphone.pairNote")}</p>}
+        {light && !iphone && profile === "self" && (
           <Switch label={t("filter.otherVpn")} checked={privateDns} onChange={setPrivateDns}
             description={privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />
         )}
