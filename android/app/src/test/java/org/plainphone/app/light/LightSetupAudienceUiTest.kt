@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import java.io.File
 import org.junit.Assert.assertNull
@@ -86,8 +87,9 @@ class LightSetupAudienceUiTest {
         compose.onNodeWithText("Myself").performClick()
         compose.onNodeWithText("No, use Plainphone VPN").performClick()
         compose.onNodeWithText("30 minutes").performClick()
-        compose.onNodeWithText("Wait 12 h").performClick()
-        compose.onNodeWithText("A person I trust").performClick()
+        compose.onNodeWithText("Advanced").performScrollTo().performClick()
+        compose.onNodeWithText("Wait 12 h").performScrollTo().performClick()
+        compose.onNodeWithText("Strict").performScrollTo().performClick()
         compose.onNodeWithText("Their email address").performTextInput("friend@example.org")
         compose.onNodeWithText("Continue").performClick()
         compose.onNodeWithText("Set up protection on your own phone?").assertIsDisplayed()
@@ -97,6 +99,71 @@ class LightSetupAudienceUiTest {
             assertEquals("trusted", key.getString("keyType"))
             assertEquals("friend@example.org", key.getString("trustedEmail"))
         }
+    }
+
+    private fun chooseKey(vararg taps: String) {
+        compose.onNodeWithText("Myself").performClick()
+        compose.onNodeWithText("No, use Plainphone VPN").performClick()
+        compose.onNodeWithText("30 minutes").performClick()
+        for (tap in taps) compose.onNodeWithText(tap).performScrollTo().performClick()
+        compose.onNodeWithText("Continue").performClick()
+        compose.onNodeWithText("Set up protection on your own phone?").assertIsDisplayed()
+    }
+
+    private fun savedKey(): org.json.JSONObject {
+        compose.onNodeWithText("Continue").performClick()
+        var key: org.json.JSONObject? = null
+        compose.runOnIdle { key = LightSetup.selfKey(compose.activity) }
+        return checkNotNull(key)
+    }
+
+    @Test fun theKeyStepOffersMildFirmAndStrictWithOneLineEach() {
+        compose.onNodeWithText("Myself").performClick()
+        compose.onNodeWithText("No, use Plainphone VPN").performClick()
+        compose.onNodeWithText("30 minutes").performClick()
+        compose.onNodeWithText("Mild").assertIsDisplayed()
+        compose.onNodeWithText("A looser rule waits 1 hour.").assertIsDisplayed()
+        compose.onNodeWithText("Firm").assertIsDisplayed()
+        compose.onNodeWithText("A looser rule waits 24 hours.").assertIsDisplayed()
+        compose.onNodeWithText("Strict").assertIsDisplayed()
+        compose.onNodeWithText("A person you trust approves a looser rule.").assertIsDisplayed()
+        // The other wait times are one tap away, not in the way.
+        compose.onNodeWithText("Advanced").assertIsDisplayed()
+        compose.onNodeWithText("Wait 6 h").assertDoesNotExist()
+        compose.onNodeWithText("Advanced").performScrollTo().performClick()
+        compose.onNodeWithText("Choose your own wait time").assertIsDisplayed()
+        compose.onNodeWithText("Wait 6 h").assertIsDisplayed()
+        capture("setup-key-levels")
+    }
+
+    @Test fun mildSavesAOneHourWait() {
+        chooseKey("Mild")
+        compose.onNodeWithText("Level: Mild").assertIsDisplayed()
+        val key = savedKey()
+        assertEquals("delay", key.getString("keyType"))
+        assertEquals(1, key.getInt("delayHours"))
+    }
+
+    @Test fun firmSavesA24HourWait() {
+        chooseKey("Firm")
+        compose.onNodeWithText("Level: Firm").assertIsDisplayed()
+        val key = savedKey()
+        assertEquals("delay", key.getString("keyType"))
+        assertEquals(24, key.getInt("delayHours"))
+    }
+
+    @Test fun strictSavesATrustedPersonAsBefore() {
+        chooseKey("Strict", "Invite by QR code")
+        compose.onNodeWithText("Level: Strict").assertIsDisplayed()
+        assertEquals("trustedQr", savedKey().getString("keyType"))
+    }
+
+    @Test fun anotherWaitTimeIsCustomUnderAdvanced() {
+        chooseKey("Advanced", "Wait 48 h")
+        compose.onNodeWithText("Level: Custom").assertIsDisplayed()
+        val key = savedKey()
+        assertEquals("delay", key.getString("keyType"))
+        assertEquals(48, key.getInt("delayHours"))
     }
 
     @Test fun refusedRuntimePermissionIsRememberedPerStepAndClearedWhenGranted() {
@@ -120,19 +187,21 @@ class LightSetupAudienceUiTest {
         compose.onNodeWithText("Myself").performClick()
         compose.onNodeWithText("No, use Plainphone VPN").performClick()
         compose.onNodeWithText("30 minutes").performClick()
-        compose.onNodeWithText("Wait 12 h").performClick()
-        compose.onNodeWithText("Removing Plainphone takes 12 h.").assertExists()
+        compose.onNodeWithText("Advanced").performScrollTo().performClick()
+        compose.onNodeWithText("Wait 12 h").performScrollTo().performClick()
+        compose.onNodeWithText("Custom: A looser rule waits 12 hours.").assertExists()
         compose.onNodeWithText("Continue").performClick()
         compose.onNodeWithText("Set up protection on your own phone?").assertIsDisplayed()
         compose.onNodeWithText("You can undo setup for 30 minutes. Undoing switches Plainphone off without your key.").assertIsDisplayed()
         compose.onNodeWithText("Looser rules and removing Plainphone wait 12 h.").assertIsDisplayed()
+        compose.onNodeWithText("Level: Custom").assertIsDisplayed()
         capture("setup-summary-wait")
 
         compose.onNodeWithText("Back").performClick()
         compose.onNodeWithText("Choose your key").assertIsDisplayed()
-        compose.onNodeWithText("Removing Plainphone takes 12 h.").assertExists()
-        compose.onNodeWithText("A person I trust").performClick()
-        compose.onNodeWithText("Invite by QR code").performClick()
+        compose.onNodeWithText("Custom: A looser rule waits 12 hours.").assertExists()
+        compose.onNodeWithText("Strict").performScrollTo().performClick()
+        compose.onNodeWithText("Invite by QR code").performScrollTo().performClick()
         capture("setup-key-qr")
         compose.onNodeWithText("Continue").performClick()
         compose.onNodeWithText(

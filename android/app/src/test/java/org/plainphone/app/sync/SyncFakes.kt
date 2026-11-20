@@ -175,6 +175,17 @@ class FakeSyncApi : SyncApi {
         return ackResult
     }
 
+    /** Emergency openings the server has heard of (POST /device/emergency-openings), in order, repeats included. */
+    val emergencyReports = mutableListOf<org.plainphone.app.light.EmergencyOpening>()
+    var emergencyFailure: IOException? = null
+    /** False: the server answers 400 (malformed). */
+    var emergencyAccepted = true
+    override fun reportEmergencyOpening(token: String, opening: org.plainphone.app.light.EmergencyOpening): Boolean {
+        emergencyFailure?.let { throw it }
+        emergencyReports += opening
+        return emergencyAccepted
+    }
+
     /** Asks for more time that reached the server (target, reason) and what it answers. */
     val moreTimeAsked = mutableListOf<Pair<String, String?>>()
     var moreTimeFailure: IOException? = null
