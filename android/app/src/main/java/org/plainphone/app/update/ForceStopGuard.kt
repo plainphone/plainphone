@@ -24,7 +24,7 @@ internal object ForceStopGuard {
     fun needed(sdkInt: Int) = sdkInt < 30
 
     /** Sets or clears the guard. Never throws: a failed guard must not stop an install or a relock. */
-    fun set(context: Context, on: Boolean, sdkInt: Int = Build.VERSION.SDK_INT) {
+    fun update(context: Context, on: Boolean, sdkInt: Int = Build.VERSION.SDK_INT) {
         if (!needed(sdkInt)) return
         val device = AndroidDeviceControls(context.applicationContext)
         runCatching {

@@ -30,16 +30,16 @@ class ForceStopGuardTest {
 
     @Test
     fun `android 10 takes app controls away while a window is open`() {
-        ForceStopGuard.set(context, true)
+        ForceStopGuard.update(context, true)
         assertThat(appsControlBlocked()).isTrue()
 
-        ForceStopGuard.set(context, false)
+        ForceStopGuard.update(context, false)
         assertThat(appsControlBlocked()).isFalse()
     }
 
     @Test
     fun `android 11 and later leave app controls alone`() {
-        ForceStopGuard.set(context, true, sdkInt = 30)
+        ForceStopGuard.update(context, true, sdkInt = 30)
 
         assertThat(appsControlBlocked()).isFalse()
     }

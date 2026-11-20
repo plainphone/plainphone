@@ -450,7 +450,7 @@ class InstallLease(
                 onCatalogAccountsClosed = { id, allowSuccess ->
                     CatalogAccounts.recordFallbackOutcome(app, id, allowSuccess)
                 },
-                guardWindow = { open -> ForceStopGuard.set(app, open) },
+                guardWindow = { open -> ForceStopGuard.update(app, open) },
                 restrictionLifted = {
                     val sync = org.plainphone.app.sync.SyncStore(app)
                     !lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
