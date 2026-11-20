@@ -159,3 +159,21 @@ A **Set up like me** code contains a link to a 15-minute snapshot of time limits
 schedules, app choices and web filter categories. It excludes contacts, domain
 exceptions, location, history and the key. Importing the snapshot creates no
 relationship between the two accounts.
+
+## Billing (switched off)
+
+The hosted service does not charge anything yet: billing is off until a trial with families is
+done, and self-hosted servers keep it off ([billing.md](billing.md)). When it is on, the server
+stores:
+
+| Data | For how long | Where it is set |
+|---|---|---|
+| The household's plan (free or paid), who granted it (Google Play, Stripe or by hand) and until when | with the household | `households.plan`, `plan_source`, `plan_until` |
+| The payment provider's subscription id (Stripe) or purchase token (Google Play), the Stripe customer id, the product and the subscription's status | until the household is deleted; the subscription is cancelled at the provider then | `billing_subscriptions` |
+| Provider event ids and their type (no content), so a retried webhook is handled once | kept | `billing_events` |
+| A paid early unlock on Myself: amount, currency, status, the provider's checkout or order id and payment reference, and when consent, payment, unlock, delivery, withdrawal and refund happened | kept as a purchase record, as bookkeeping law requires; the links to the phone, household and account become empty when those are deleted | `early_unlocks` |
+
+Card numbers and other card data are never sent to or stored by Plainphone. Payments are handled
+by Stripe (the web dashboard) or Google Play (the Play app). Receipts for an early unlock and for a
+withdrawal are mailed to the account's address. A name typed into the withdrawal form is only
+written into that receipt and is not stored.
