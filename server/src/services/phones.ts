@@ -34,6 +34,7 @@ import { APP_CATEGORIES, categoryPackages } from "../lib/open-mode.js";
 import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 import { sosRulesExtras } from "./quick-messages.js";
+import { inboxRules } from "./family-inbox.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -137,7 +138,7 @@ function hhmm(minute: number): string {
 }
 
 async function loadRulesInputs(ctx: Ctx, phone: Phone) {
-  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds, sosExtras] = await Promise.all([
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds, sosExtras, inbox] = await Promise.all([
     ctx.db
       .select({
         packageName: phoneApps.packageName,
@@ -196,6 +197,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     readPhoneSettings(ctx.db, phone.id),
     householdAccountIds(ctx, phone.householdId),
     sosRulesExtras(ctx, phone),
+    inboxRules(ctx, phone),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {
@@ -250,6 +252,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     own,
     accountIds,
     sosExtras,
+    inbox,
   };
 }
 
@@ -265,7 +268,7 @@ export function nextRulesRevision(dns = false) {
 }
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
   const apps = allApps.filter((a) => a.installed);
   // Open mode: everything is allowed except the block list (apps blocked one by one plus the
   // known apps of the blocked categories, also when they are not installed yet).
@@ -313,6 +316,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     timeLimits: { total: limits.total, apps: limits.apps.map((a) => ({ packageName: a.packageName, ...a.limit })), bonuses: limits.bonuses },
     contacts: contactRows.map((c) => ({ name: c.name, number: c.number })),
     ...(phone.profile === "child" ? { sos: { name: phone.name, parents: contactRows.filter((c) => c.sosParent).map(({ name, number }) => ({ name, number })), ...sosExtras } } : {}),
+    // The family inbox (docs/family-inbox.md); left out while it is off.
+    ...(inbox ? { inbox } : {}),
     schedules: scheduleRows.map((s) => ({
       id: s.id,
       kind: s.kind,

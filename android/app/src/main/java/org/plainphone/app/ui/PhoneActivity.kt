@@ -231,7 +231,7 @@ fun placeCall(context: Context, number: String): String? {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PhoneApp(route: Route, resumed: Int) {
+internal fun PhoneApp(route: Route, resumed: Int) {
     val context = LocalContext.current
     var tab by remember(route) { mutableStateOf(route.tab) }
     val threadListState = rememberLazyListState()
@@ -441,7 +441,7 @@ private fun RoleBanner(resumed: Int) {
 }
 
 @Composable
-private fun ContactsScreen(
+internal fun ContactsScreen(
     rules: ContactRules, resumed: Int, onRulesChanged: () -> Unit,
     onCall: (String) -> Unit, onMessage: (ApprovedContact) -> Unit,
 ) {
@@ -570,7 +570,7 @@ private fun ContactsScreen(
 private data class RecentCall(val number: String, val type: Int, val atMs: Long)
 
 @Composable
-private fun RecentsScreen(rules: ContactRules, resumed: Int, onCall: (String) -> Unit) {
+internal fun RecentsScreen(rules: ContactRules, resumed: Int, onCall: (String) -> Unit) {
     val context = LocalContext.current
     val calls by produceState<List<RecentCall>?>(null, resumed) {
         value = withContext(Dispatchers.IO) { readRecentCalls(context) }

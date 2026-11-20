@@ -9,6 +9,7 @@ import { phones, quickMessages } from "../db/schema.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { wakePhone } from "../services/phones.js";
+import { deviceFamilyInboxRoutes, parentFamilyInboxRoutes } from "./family-inbox.js";
 import {
   addQuickMessage, approveSuggestion, listQuickMessages, QUICK_TEXT_MAX, QuickMessageError, quickMessageJson,
   sendQuickMessage, suggestQuickMessage,
@@ -25,11 +26,17 @@ function rethrow(err: unknown): never {
 
 export function deviceQuickMessageRoutes<E extends { Variables: { phone: Phone } }>(app: Hono<E>, ctx: Ctx) {
   app.post("/quick-messages/send", async (c) => {
-    const input = await body(c, z.strictObject({ id: z.uuid(), text }));
+    // `inbox`, `kind` and `sentAt` come from the family inbox (docs/family-inbox.md).
+    const input = await body(c, z.strictObject({
+      id: z.uuid(), text, kind: z.enum(["quick", "checkin"]).optional(), inbox: z.boolean().optional(),
+      sentAt: z.iso.datetime().optional(),
+    }));
     const [phone] = await ctx.db.select().from(phones).where(eq(phones.id, c.get("phone").id));
     if (!phone || phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
-    return c.json(await sendQuickMessage(ctx, phone, input));
+    return c.json(await sendQuickMessage(ctx, phone, { ...input, sentAt: input.sentAt ? new Date(input.sentAt) : undefined }));
   });
+
+  deviceFamilyInboxRoutes(app, ctx);
 
   app.post("/quick-messages/suggest", async (c) => {
     const input = await body(c, z.strictObject({ text }));
@@ -52,6 +59,7 @@ export function parentQuickMessageRoutes<E extends { Variables: { user: { id: st
     return phone;
   }
   const key = (phoneId: string, id: string) => and(eq(quickMessages.phoneId, phoneId), eq(quickMessages.id, id));
+  parentFamilyInboxRoutes(app, ctx, childPhone);
 
   app.get("/phones/:pid/quick-messages", async (c) => {
     const phone = await childPhone(c);

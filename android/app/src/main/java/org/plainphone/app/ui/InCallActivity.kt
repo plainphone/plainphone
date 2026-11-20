@@ -88,7 +88,7 @@ class InCallActivity : ComponentActivity() {
 }
 
 @Composable
-private fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
+internal fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
     var showKeypad by remember { mutableStateOf(false) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(

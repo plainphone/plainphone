@@ -9,10 +9,12 @@ import { pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
-async function setup(profile: "child" | "self" = "child") {
+async function setup(profile: "child" | "self" = "child", quick = false) {
   const parent = await signIn(h, "parent@example.org");
   const paired = await pairPhone(h, parent, { profile });
   const { user } = (await parent.get("/api/me")).json;
+  // Quick messages are off for a new phone since the family inbox (#119).
+  if (quick) await parent.put(`/api/phones/${paired.phoneId}/sos`, { quickMessagesEnabled: true });
   return { parent, ...paired, userId: user.id as string };
 }
 
@@ -26,11 +28,11 @@ describe("hidden SOS settings", () => {
     const path = `/api/phones/${phoneId}/sos`;
     expect((await parent.get(path)).json.settings).toEqual({
       hiddenPower: false, hiddenPresses: 4, hiddenClock: false, hiddenFeedback: "vibrate",
-      quickMessagesEnabled: true, quickSuggestionsEnabled: true,
+      quickMessagesEnabled: false, quickSuggestionsEnabled: true, familyInbox: false, checkIns: false,
     });
     expect((await device.get("/api/device/rules")).json.sos).toMatchObject({
       hidden: { power: false, presses: 4, clock: false, feedback: "vibrate" },
-      quickMessages: { enabled: true, suggest: true, items: [] },
+      quickMessages: { enabled: false, suggest: false, items: [] },
     });
     expect((await parent.put(path, { hiddenPower: true, hiddenPresses: 5 })).status).toBe(204);
     expect((await parent.put(path, { hiddenClock: true, hiddenFeedback: "none" })).status).toBe(204);
@@ -83,7 +85,7 @@ describe("hidden and code-word SOS reports", () => {
 
 describe("quick messages", () => {
   it("are written by the parents, limited to six and sent to the phone with the code-word flag", async () => {
-    const { parent, phoneId, device } = await setup();
+    const { parent, phoneId, device } = await setup("child", true);
     const path = `/api/phones/${phoneId}/quick-messages`;
     const first = await parent.post(path, { text: "  Pick me up " });
     expect(first.status).toBe(201);
@@ -107,7 +109,7 @@ describe("quick messages", () => {
   });
 
   it("notifies the parents once per id and tells the phone when nobody got a push", async () => {
-    const { phoneId, device, userId } = await setup();
+    const { phoneId, device, userId } = await setup("child", true);
     const id = randomUUID();
     // No push registration yet: the phone falls back to SMS.
     expect((await device.post("/api/device/quick-messages/send", { id, text: "I'm okay" })).json).toEqual({ notified: 0 });
@@ -125,7 +127,7 @@ describe("quick messages", () => {
   });
 
   it("goes quiet over the limit without refusing the phone", async () => {
-    const { device, userId } = await setup();
+    const { device, userId } = await setup("child", true);
     await subscribe(userId);
     for (let i = 0; i < 10; i++) {
       expect((await device.post("/api/device/quick-messages/send", { id: randomUUID(), text: "Hi" })).json.notified).toBe(1);
@@ -138,7 +140,7 @@ describe("quick messages", () => {
   });
 
   it("answers a repeat during the first send with pending, and gives up on a stale one", async () => {
-    const { phoneId, device } = await setup();
+    const { phoneId, device } = await setup("child", true);
     const id = randomUUID();
     await h.ctx.db.insert(quickMessageSends).values({ phoneId, id, createdAt: h.ctx.now(), notified: -2 });
     expect((await device.post("/api/device/quick-messages/send", { id, text: "Hi" })).json).toEqual({ notified: 0, pending: true });
@@ -147,7 +149,7 @@ describe("quick messages", () => {
   });
 
   it("lets the child suggest one and a parent approve or decline it", async () => {
-    const { parent, phoneId, device, userId } = await setup();
+    const { parent, phoneId, device, userId } = await setup("child", true);
     await subscribe(userId);
     const path = `/api/phones/${phoneId}/quick-messages`;
     const suggested = await device.post("/api/device/quick-messages/suggest", { text: "Can I stay longer?" });
@@ -178,7 +180,7 @@ describe("quick messages", () => {
   });
 
   it("does not approve a suggestion past six messages", async () => {
-    const { parent, phoneId, device } = await setup();
+    const { parent, phoneId, device } = await setup("child", true);
     const path = `/api/phones/${phoneId}/quick-messages`;
     const { id } = (await device.post("/api/device/quick-messages/suggest", { text: "Later" })).json;
     for (let i = 0; i < 6; i++) await parent.post(path, { text: `Message ${i}` });
