@@ -307,6 +307,39 @@ class MaintenanceInstallTest {
     }
 
     @Test
+    fun `a second fallback does not report its own account as late for an expired one`() {
+        expireFallback()
+        // A second fallback is open (its outcome is not recorded yet) next to the expired first one.
+        val prefs = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val first = JSONArray(prefs.all.values.single() as String)
+        val second = JSONArray(first.toString()).put(6, org.json.JSONObject.NULL).put(7, org.json.JSONObject.NULL)
+        prefs.edit().putString("second-fallback", second.toString()).commit()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("parent", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `an open sign-in keeps tracking across a maintenance unlock`() {
+        submit(installPrompt(), pin, expectAccountRequest = true)
+        val lifted = CountDownLatch(1)
+        Lock.liftAsync(context) { lifted.countDown() }
+        pumpUntil { lifted.count == 0L }
+        relockAfterUnlock()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+
+        // The window closes and the login left open before the unlock finishes afterwards.
+        InstallWindow.close(context, "test window end", pkg)
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
     fun `account listener warns about a new non Google account after fallback expiry`() {
         expireFallback()
 

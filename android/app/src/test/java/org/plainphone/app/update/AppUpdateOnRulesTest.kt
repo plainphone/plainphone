@@ -176,6 +176,19 @@ class AppUpdateOnRulesTest {
     }
 
     @Test
+    fun `a report about a newer window ends the retry of an older close`() {
+        assertThat(open(AppUpdateLog.Trigger.NIGHT)).isEqualTo(AppUpdateWindow.OpenResult.OPENED)
+        val log = AppUpdateWindow.log(context)
+        AppUpdateWindow.close(context, "test")
+        AppUpdateWindow.onLeaseClosed(context)
+        val closed = checkNotNull(log.report(System.currentTimeMillis(), leaseOpen = false))
+        assertThat(AppUpdateWindow.closeReportPending(context)).isTrue()
+
+        AppUpdateWindow.onReported(context, closed.copy(id = "newer-window", closedAtMs = null))
+        assertThat(AppUpdateWindow.closeReportPending(context)).isFalse()
+    }
+
+    @Test
     fun `plan keeps held-back apps when the phone has no window yet`() {
         val rules = AppUpdateRules(reportedWindow = "w1", recordedApps = setOf("com.game"))
         val plan = AppUpdateWindow.plan(rules, setOf("com.game"), 0L, null, 0L, currentWindowId = null)

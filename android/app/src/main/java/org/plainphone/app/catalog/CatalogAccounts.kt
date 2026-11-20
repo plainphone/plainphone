@@ -147,12 +147,15 @@ internal object CatalogAccounts {
         val current = fingerprints(context, allTypes = markers.values.any { it.optBoolean(5) })
         if (Lock.isInMaintenanceWindow(context)) {
             // The parents may add accounts while the phone is unlocked: not a late account.
-            absorb(context, markers, current.keys)
+            absorb(context, markers, current)
             return
         }
         val google = current.filterValues { it == GOOGLE }
         val lease = InstallLease.android(context)
-        val approvedOpen = markers.any { (_, m) -> !m.optBoolean(5) && isOpen(context, m.getString(2), m.getString(0)) }
+        // An open approved sign-in or an open fallback (no outcome yet) expects its own new account.
+        val approvedOpen = markers.any { (_, m) ->
+            if (m.optBoolean(5)) !m.hasOutcome() else isOpen(context, m.getString(2), m.getString(0))
+        }
         markers.forEach { (id, marker) ->
             val baseline = baseline(marker)
             if (marker.optBoolean(5)) {
@@ -178,17 +181,20 @@ internal object CatalogAccounts {
     fun maintenanceEnded(context: Context) {
         val markers = recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
         if (markers.isEmpty()) return
-        absorb(context, markers, fingerprints(context, allTypes = true).keys)
+        absorb(context, markers, fingerprints(context, allTypes = true))
     }
 
     @SuppressLint("ApplySharedPref")
-    private fun absorb(context: Context, markers: Map<String, JSONArray>, current: Set<String>) {
+    private fun absorb(context: Context, markers: Map<String, JSONArray>, current: Map<String, String>) {
         val edit = prefs(context).edit()
         markers.forEach { (id, marker) ->
             when {
-                !marker.optBoolean(5) && !marker.hasOutcome() -> edit.remove(id)
+                // Keep tracking an open sign-in: only accounts added after the unlock count as late.
+                !marker.optBoolean(5) && !marker.hasOutcome() -> edit.putString(
+                    id, marker.put(1, JSONArray(current.filterValues { it == GOOGLE }.keys)).toString(),
+                )
                 marker.optBoolean(5) && marker.hasOutcome() ->
-                    edit.putString(id, marker.put(7, JSONArray(current)).toString())
+                    edit.putString(id, marker.put(7, JSONArray(current.keys)).toString())
             }
         }
         edit.commit()

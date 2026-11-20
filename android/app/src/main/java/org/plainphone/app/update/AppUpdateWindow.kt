@@ -230,9 +230,9 @@ object AppUpdateWindow {
     /** The server accepted a status report: a closed window in it ends the pending retry. */
     fun onReported(context: Context, report: AppUpdateLog.Report) {
         val p = prefs(context)
-        if (report.closedAtMs != null && p.getString(CLOSE_PENDING, null) == report.id) {
-            p.edit().remove(CLOSE_PENDING).apply()
-        }
+        val pending = p.getString(CLOSE_PENDING, null) ?: return
+        // A report about another window means a newer window has opened: stop retrying the old close.
+        if (report.id != pending || report.closedAtMs != null) p.edit().remove(CLOSE_PENDING).apply()
     }
 
     /** The nightly check (AppUpdateWorker). Returns whether a window opened. */

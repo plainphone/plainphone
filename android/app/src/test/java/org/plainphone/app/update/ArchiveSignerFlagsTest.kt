@@ -18,7 +18,8 @@ import org.robolectric.shadows.ShadowApplicationPackageManager
 
 /**
  * Android 10's archive parser fills `signatures` only when GET_SIGNATURES is requested (AOSP
- * PackageParser.collectCertificates). The shadow models that rule, so dropping the flag from
+ * PackageParser.collectCertificates). That is our reading of AOSP, not something Robolectric proves;
+ * the real-phone test (#33) is the check. The shadow models that rule, so dropping the flag from
  * [AndroidUpdateHost.inspect] would leave the candidate APK without signers and refuse every update.
  */
 @RunWith(RobolectricTestRunner::class)
