@@ -4,7 +4,7 @@
 // number, a parent's confirmation of it, and the switch. Same states and copy as the dashboard
 // (web/src/components/CallbackSettings). The switch needs a confirmed number.
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { Button, Card, Field, Notice, Stack as VStack, Switch, Text } from "./ui";
 
@@ -20,8 +20,13 @@ export function CallbackSettings({ number, confirmed, enabled, saving, error, on
   const { t } = useI18n();
   const { callback } = useLocalSearchParams<{ callback?: string }>();
   const [open, setOpen] = useState(callback === "1");
-  // "Open the settings" on a callback request lands here with the card open.
-  useEffect(() => { if (callback === "1") setOpen(true); }, [callback]);
+  // "Open the settings" on a callback request lands here with the card open. Adjust during render
+  // when the param changes (https://react.dev/learn/you-might-not-need-an-effect).
+  const [seenCallback, setSeenCallback] = useState(callback);
+  if (callback !== seenCallback) {
+    setSeenCallback(callback);
+    if (callback === "1") setOpen(true);
+  }
   const [draft, setDraft] = useState<string | null>(null);
   const [sure, setSure] = useState(false);
   const value = draft ?? number ?? "";
