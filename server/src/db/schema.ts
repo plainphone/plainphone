@@ -301,8 +301,12 @@ export const phones = pgTable(
     hiddenSosPresses: smallint("hidden_sos_presses").notNull().default(4),
     hiddenSosClock: boolean("hidden_sos_clock").notNull().default(false),
     hiddenSosFeedback: text("hidden_sos_feedback", { enum: ["vibrate", "none"] }).notNull().default("vibrate"),
-    quickMessagesEnabled: boolean("quick_messages_enabled").notNull().default(true),
+    /** Off for new phones since the family inbox (#119); phones from before keep what they had. */
+    quickMessagesEnabled: boolean("quick_messages_enabled").notNull().default(false),
     quickSuggestionsEnabled: boolean("quick_suggestions_enabled").notNull().default(true),
+    /** The family inbox and its "I'm home" check-in (docs/family-inbox.md); off until a parent turns them on. */
+    familyInboxEnabled: boolean("family_inbox_enabled").notNull().default(false),
+    checkInsEnabled: boolean("check_ins_enabled").notNull().default(false),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
@@ -857,6 +861,33 @@ export const quickMessageSends = pgTable("quick_message_sends", {
   notified: integer("notified").notNull().default(0),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.phoneId, t.id] }), index("quick_message_sends_created_idx").on(t.createdAt)]);
+
+/**
+ * The family inbox (docs/family-inbox.md): one short thread between a Child phone and its parents.
+ * Bounded to the newest 50 per phone and 30 days. Code words never land here; they stay in the SOS flow.
+ */
+export const familyMessages = pgTable("family_messages", {
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  /** The phone's own id for what the child sent (a retry repeats it); the server's for a parent reply. */
+  id: uuid("id").notNull(),
+  sender: text("sender", { enum: ["child", "parent"] }).notNull(),
+  kind: text("kind", { enum: ["quick", "checkin", "reply"] }).notNull(),
+  text: text("text").notNull(),
+  authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+  /** The name the child knows the parent by, as the parent typed it. */
+  authorName: text("author_name"),
+  /** When the child pressed send (never later than the server's clock), or when the parent replied. */
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+  /** Child messages: how many parent devices got a push (0 = none, so the phone sent an SMS). */
+  delivered: integer("delivered"),
+  /** Parent replies: when the child's phone fetched it (the device receipt). */
+  receivedAt: timestamp("received_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.phoneId, t.id] }),
+  index("family_messages_phone_sent_idx").on(t.phoneId, t.sentAt),
+  index("family_messages_created_idx").on(t.createdAt),
+]);
 
 /** Transfer signing identity. The private key stays on the server. */
 export const moveIdentity = pgTable("move_identity", {

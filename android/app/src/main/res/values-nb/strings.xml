@@ -99,7 +99,6 @@
     <string name="history_unknown">Ukjent nummer</string>
     <string name="history_mms">Bilde eller gruppesamtale</string>
     <string name="history_mms_placeholder">Bilde- eller gruppemelding. Innholdet kan ikke vises.</string>
-    <string name="message_hint">Beskjed</string>
     <string name="message_failed">Ikke sendt</string>
     <string name="message_send_failed">Meldingen kunne ikke sendes. Teksten din står her fortsatt.</string>
     <string name="message_not_approved">%1$s er ikke en godkjent kontakt, så meldinger kan ikke sendes.</string>

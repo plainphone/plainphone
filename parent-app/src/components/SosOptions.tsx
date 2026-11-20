@@ -6,6 +6,7 @@ import { useState } from "react";
 import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "../shared/lib/sos-options";
+import { FamilyInbox } from "./FamilyInbox";
 import { QuickMessages } from "./QuickMessages";
 import { Button, Card, Segmented, Stack as VStack, Switch, Text, useLoad } from "./ui";
 
@@ -66,6 +67,7 @@ export function SosOptions({ pid }: { pid: string }) {
         ) : null}
       </Card>
       <QuickMessages pid={pid} settings={settings} saving={saving} onSetting={(patch) => void save(patch)} />
+      <FamilyInbox pid={pid} settings={settings} saving={saving} onSetting={(patch) => void save(patch)} />
     </>
   );
 }

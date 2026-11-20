@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="when_today">Heute</string>
+    <string name="when_yesterday">Gestern</string>
+
+    <string name="reach_title">Immer erreichbar</string>
+    <string name="reach_help">Hilfetelefone</string>
+    <string name="reach_footnote">Deine Eltern und die 112 kannst du immer anrufen. Plainphone zeigt deinen Eltern nicht, dass du ein Hilfetelefon genutzt hast.</string>
+    <string name="missed_notice">Du hast einen Anruf von %1$s um %2$s verpasst.</string>
+    <string name="missed_call_back">Zurückrufen</string>
+
+    <string name="contacts_parent">Elternteil</string>
+    <string name="contacts_approved">Erlaubte Kontakte</string>
+    <string name="contacts_all">Kontakte</string>
+    <string name="contacts_empty_title">Noch keine Kontakte</string>
+    <string name="contacts_not_now">Wegen einer Regel gerade nicht erreichbar.</string>
+
+    <string name="history_loading">Wird geladen …</string>
+    <string name="recents_empty_hint">Anrufe, die du machst und bekommst, erscheinen hier.</string>
+    <string name="recent_declined">Abgelehnt</string>
+    <string name="recent_blocked">Blockiert</string>
+    <string name="recent_not_approved">Kein erlaubter Kontakt</string>
+    <string name="action_call_back">%1$s zurückrufen</string>
+
+    <string name="messages_empty_hint">Nachrichten von deinen erlaubten Kontakten erscheinen hier.</string>
+    <string name="messages_new">Neue Nachricht</string>
+    <string name="message_hint_to">Nachricht an %1$s</string>
+    <string name="message_sending">Wird gesendet …</string>
+    <string name="message_sent_at">Gesendet %1$s</string>
+    <string name="conversation_read_only_unknown">Du kannst sie lesen, aber nicht antworten. Nur Personen, die deine Eltern erlaubt haben, können dir schreiben.</string>
+    <string name="conversation_read_only_help">Diese Unterhaltung kann hier nur gelesen werden. Öffne Hilfetelefone, um sie zu erreichen.</string>
+    <string name="conversation_read_only_mms">Bilder und Gruppennachrichten können hier nicht angezeigt oder beantwortet werden.</string>
+
+    <string name="inbox_title">Familie</string>
+    <string name="inbox_row_hint">Schick deinen Eltern eine Schnellnachricht</string>
+    <string name="inbox_to">An %1$s</string>
+    <string name="inbox_to_parents">An deine Eltern</string>
+    <string name="inbox_empty_title">Hier ist noch nichts</string>
+    <string name="inbox_empty">Deine Nachrichten an deine Eltern erscheinen hier. Sie können hier auch antworten.</string>
+    <string name="inbox_who_reads">Deine Eltern können diese Unterhaltung lesen. Der Plainphone-Server kann sie auch lesen und löscht sie nach 30 Tagen.</string>
+    <string name="inbox_check_in">Ich bin zu Hause</string>
+    <string name="inbox_check_in_text">Ich bin zu Hause</string>
+    <string name="inbox_nothing_to_send">Deine Eltern haben noch keine Schnellnachrichten angelegt.</string>
+    <string name="inbox_state_sent">Gesendet %1$s</string>
+    <string name="inbox_state_delivered">Zugestellt %1$s</string>
+    <string name="inbox_state_sms">Als SMS gesendet %1$s</string>
+    <string name="inbox_notification_from">%1$s in Familie</string>
+
+    <string name="sharing_inbox">Das Familienpostfach ist an. Deine Eltern sehen die Nachrichten, die du dort schickst, und der Plainphone-Server speichert sie 30 Tage lang.</string>
+    <string name="sharing_inbox_check_in">„Ich bin zu Hause“ sendet nicht, wo du bist.</string>
+</resources>

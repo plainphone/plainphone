@@ -36,6 +36,8 @@ const sosSettingsInput = z.strictObject({
   hiddenFeedback: z.enum(["vibrate", "none"]).optional(),
   quickMessagesEnabled: z.boolean().optional(),
   quickSuggestionsEnabled: z.boolean().optional(),
+  familyInbox: z.boolean().optional(),
+  checkIns: z.boolean().optional(),
 });
 
 export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: Hono<E>, ctx: Ctx) {
@@ -117,9 +119,11 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
       ...(input.hiddenFeedback !== undefined ? { hiddenSosFeedback: input.hiddenFeedback } : {}),
       ...(input.quickMessagesEnabled !== undefined ? { quickMessagesEnabled: input.quickMessagesEnabled } : {}),
       ...(input.quickSuggestionsEnabled !== undefined ? { quickSuggestionsEnabled: input.quickSuggestionsEnabled } : {}),
+      ...(input.familyInbox !== undefined ? { familyInboxEnabled: input.familyInbox } : {}),
+      ...(input.checkIns !== undefined ? { checkInsEnabled: input.checkIns } : {}),
     };
     if (Object.keys(set).length) await ctx.db.update(phones).set(set).where(eq(phones.id, phone.id));
-    // Everything but the callback number is in the rules' sos block.
+    // Everything but the callback number is in the rules (the sos and inbox blocks).
     if (Object.keys(set).some((k) => k !== "sosCallbackNumber")) await wakePhone(ctx, phone.id, "rules");
     return c.body(null, 204);
   });

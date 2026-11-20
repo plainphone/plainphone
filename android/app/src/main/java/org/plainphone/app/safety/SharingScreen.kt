@@ -50,6 +50,7 @@ class SharingActivity : ComponentActivity() {
                     appUpdates = org.plainphone.app.light.Mode.isStrong(this),
                     appUpdatesNightly = org.plainphone.app.update.AppUpdateWindow.automatic(this),
                     hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
+                    inbox = rules?.takeIf { it.profile == "child" && !it.release }?.inbox ?: org.plainphone.app.sync.InboxRules.OFF,
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },
@@ -74,6 +75,7 @@ fun SharingScreen(
     appUpdates: Boolean = false,
     appUpdatesNightly: Boolean = true,
     hiddenSos: org.plainphone.app.sos.SosSharing = org.plainphone.app.sos.SosSharing.NONE,
+    inbox: org.plainphone.app.sync.InboxRules = org.plainphone.app.sync.InboxRules.OFF,
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -115,6 +117,11 @@ fun SharingScreen(
         if (hiddenSos.codeWords.isNotEmpty()) {
             val words = hiddenSos.codeWords.joinToString(", ") { "«$it»" }
             Text(stringResource(R.string.sharing_code_words, words), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // The family inbox: who reads it, and that a check-in has no position (docs/family-inbox.md).
+        if (inbox.enabled) {
+            Text(stringResource(R.string.sharing_inbox), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (inbox.checkIns) Text(stringResource(R.string.sharing_inbox_check_in), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.sharing_latest), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)

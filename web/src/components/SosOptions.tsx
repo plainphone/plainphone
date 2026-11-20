@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
 import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "../lib/sos-options";
+import { FamilyInbox } from "./FamilyInbox";
 import { QuickMessages } from "./QuickMessages";
 import { PickGroup, Switch, useLoad } from "./ui";
 
@@ -66,6 +67,7 @@ export function SosOptions({ pid }: { pid: string }) {
       </details>
       <QuickMessages pid={pid} settings={settings} saving={saving}
         onSetting={(patch) => void save(patch)} />
+      <FamilyInbox pid={pid} settings={settings} saving={saving} onSetting={(patch) => void save(patch)} />
     </section>
   );
 }

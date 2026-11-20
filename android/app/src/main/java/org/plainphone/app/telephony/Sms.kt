@@ -38,6 +38,8 @@ data class SmsMessage(
     val outgoing: Boolean,
     val failed: Boolean,
     val read: Boolean,
+    /** Still in the outbox or queued: not handed to the network yet. */
+    val pending: Boolean = false,
 )
 
 enum class SmsThreadKind { CONTACT, HELP, LEGACY, MMS }
