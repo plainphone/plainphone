@@ -12,9 +12,10 @@ export const appUpdatesEn = {
   "appUpdates.none": "No update window yet.",
   "appUpdates.open": "Updating apps since {time}.",
   "appUpdates.last": "Last update window: {from} to {to}. Apps updated: {count}.",
-  "appUpdates.caught": "New apps kept hidden: {count}. Each one waits for your answer as a request.",
+  "appUpdates.caught": "New apps kept hidden: {count}. Each one was sent to you as a request.",
   "appUpdates.failedBattery": "The update window could not open. On the phone, let Plainphone run without battery limits.",
   "appUpdates.failed": "The update window could not open. Try again later.",
+  "appUpdates.receipt": "Apps may update until {time}. New apps stay hidden.",
 };
 
 export const appUpdatesDa: Record<keyof typeof appUpdatesEn, string> = {
@@ -26,9 +27,10 @@ export const appUpdatesDa: Record<keyof typeof appUpdatesEn, string> = {
   "appUpdates.none": "Ingen opdateringer endnu.",
   "appUpdates.open": "Opdaterer apps siden {time}.",
   "appUpdates.last": "Seneste opdatering: {from} til {to}. Opdaterede apps: {count}.",
-  "appUpdates.caught": "Nye apps holdt skjult: {count}. Hver af dem venter på dit svar som en anmodning.",
+  "appUpdates.caught": "Nye apps holdt skjult: {count}. Hver af dem er sendt til dig som en anmodning.",
   "appUpdates.failedBattery": "Opdateringen kunne ikke starte. Lad Plainphone køre uden batteribegrænsning på telefonen.",
   "appUpdates.failed": "Opdateringen kunne ikke starte. Prøv igen senere.",
+  "appUpdates.receipt": "Apps kan blive opdateret indtil {time}. Nye apps forbliver skjulte.",
 };
 
 export const appUpdatesSv: Record<keyof typeof appUpdatesEn, string> = {
@@ -40,9 +42,10 @@ export const appUpdatesSv: Record<keyof typeof appUpdatesEn, string> = {
   "appUpdates.none": "Inga uppdateringar ännu.",
   "appUpdates.open": "Uppdaterar appar sedan {time}.",
   "appUpdates.last": "Senaste uppdatering: {from} till {to}. Uppdaterade appar: {count}.",
-  "appUpdates.caught": "Nya appar som hålls dolda: {count}. Var och en väntar på ditt svar som en förfrågan.",
+  "appUpdates.caught": "Nya appar som hålls dolda: {count}. Var och en har skickats till dig som en förfrågan.",
   "appUpdates.failedBattery": "Uppdateringen kunde inte starta. Låt Plainphone köras utan batteribegränsning på telefonen.",
   "appUpdates.failed": "Uppdateringen kunde inte starta. Försök igen senare.",
+  "appUpdates.receipt": "Appar kan uppdateras till {time}. Nya appar förblir dolda.",
 };
 
 export const appUpdatesNb: Record<keyof typeof appUpdatesEn, string> = {
@@ -54,9 +57,10 @@ export const appUpdatesNb: Record<keyof typeof appUpdatesEn, string> = {
   "appUpdates.none": "Ingen oppdateringer ennå.",
   "appUpdates.open": "Oppdaterer apper siden {time}.",
   "appUpdates.last": "Siste oppdatering: {from} til {to}. Oppdaterte apper: {count}.",
-  "appUpdates.caught": "Nye apper holdt skjult: {count}. Hver av dem venter på svaret ditt som en forespørsel.",
+  "appUpdates.caught": "Nye apper holdt skjult: {count}. Hver av dem er sendt til deg som en forespørsel.",
   "appUpdates.failedBattery": "Oppdateringen kunne ikke starte. La Plainphone kjøre uten batteribegrensning på telefonen.",
   "appUpdates.failed": "Oppdateringen kunne ikke starte. Prøv igjen senere.",
+  "appUpdates.receipt": "Apper kan oppdateres til {time}. Nye apper forblir skjult.",
 };
 
 export const appUpdatesDe: Record<keyof typeof appUpdatesEn, string> = {
@@ -68,7 +72,8 @@ export const appUpdatesDe: Record<keyof typeof appUpdatesEn, string> = {
   "appUpdates.none": "Noch keine Updates.",
   "appUpdates.open": "Apps werden seit {time} aktualisiert.",
   "appUpdates.last": "Letztes Update-Fenster: {from} bis {to}. Aktualisierte Apps: {count}.",
-  "appUpdates.caught": "Neue Apps, die versteckt bleiben: {count}. Jede wartet als Anfrage auf deine Antwort.",
+  "appUpdates.caught": "Neue Apps, die versteckt bleiben: {count}. Jede wurde dir als Anfrage geschickt.",
   "appUpdates.failedBattery": "Das Update-Fenster konnte nicht öffnen. Erlaube Plainphone auf dem Telefon, ohne Akku-Beschränkung zu laufen.",
   "appUpdates.failed": "Das Update-Fenster konnte nicht öffnen. Versuche es später noch einmal.",
+  "appUpdates.receipt": "Apps können bis {time} aktualisiert werden. Neue Apps bleiben versteckt.",
 };

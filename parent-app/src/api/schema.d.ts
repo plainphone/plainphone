@@ -3190,8 +3190,10 @@ export interface components {
                  * @description Set when a parent pressed "Update apps now"; the phone opens the window once for each new value.
                  */
                 requestedAt?: string | null;
-                /** @description The last window whose new apps the server turned into requests. The phone stops holding those apps back itself. */
+                /** @description The last window whose new apps the server turned into requests. */
                 reportedWindow?: string | null;
+                /** @description The new apps of `reportedWindow` the server has turned into requests. The phone stops holding exactly these back itself. */
+                recordedApps?: string[];
             };
             location: {
                 /** @description `mode` is not off. Kept for phones from before `mode`. */

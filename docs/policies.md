@@ -252,7 +252,9 @@ therefore opens an **app update window**
 - **Toggle:** "Update approved apps automatically" per phone, on by default (`appUpdatesEnabled`).
   Off stops the nightly window and closes one that is open; "Update apps now" still works.
 - **What the parents see:** the last window (opened, closed, number of apps updated, new apps kept
-  hidden, or why it could not open) under **App updates** on the phone page.
+  hidden, or why it could not open) under **App updates** on the phone page. While a window is
+  open, the rule receipt ("Current rules") adds until when apps may update, because for that while
+  the phone shows Play, which the confirmed rules alone do not say.
 - **What the child sees:** "What can my parents see?" explains the window in strong mode, also
   with the toggle off (then only "Update apps now" opens one). When an app tries to open
   Play (a `market://` link, for example an app's own "Update" button) while Play is hidden, the

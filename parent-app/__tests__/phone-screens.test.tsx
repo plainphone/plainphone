@@ -176,7 +176,7 @@ describe("overview", () => {
     phoneApi(phone);
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByText(/Apps updated: 3\./)).toBeTruthy();
-    expect(screen.getByText("New apps kept hidden: 1. Each one waits for your answer as a request.")).toBeTruthy();
+    expect(screen.getByText("New apps kept hidden: 1. Each one was sent to you as a request.")).toBeTruthy();
   });
 
   it("offers no approval on the phone for a Self phone, which has no parent PIN", async () => {

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "../i18n/translate";
 import { api, type Phone, type PhoneStatus } from "../lib/api";
-import { appUpdateLines, type AppUpdateWindow } from "../lib/app-updates";
+import { appUpdateLines, appUpdateReceiptLine, type AppUpdateWindow } from "../lib/app-updates";
 import { AppUpdates } from "./AppUpdates";
 
 const t = makeT("en");
@@ -93,4 +93,22 @@ it("describes every state of a window", () => {
     .toEqual([{ key: "appUpdates.failedBattery", tone: "warn" }]);
   expect(appUpdateLines({ ...night, openedAt: null, error: "failed" }, "en"))
     .toEqual([{ key: "appUpdates.failed", tone: "warn" }]);
+});
+
+it("does not say the request is on its way while a nightly window that serves it is open", async () => {
+  const open = await mount(withReport({ ...night, closedAt: null }, { appUpdatesRequestedAt: "2026-11-16T02:20:00Z" }));
+  expect(open.container.textContent).not.toContain(t("appUpdates.requested"));
+  expect(open.container.textContent).toContain("Updating apps since");
+  await open.unmount();
+});
+
+it("adds the open window to the rule receipt until it ends", () => {
+  const opened = Date.parse(night.openedAt!);
+  const open = { ...night, closedAt: null };
+  const end = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(opened + 45 * 60_000));
+  expect(appUpdateReceiptLine(open, opened + 60_000, "en")).toEqual({ key: "appUpdates.receipt", params: { time: end }, tone: "normal" });
+  expect(appUpdateReceiptLine(open, opened + 45 * 60_000, "en")).toBeNull();
+  expect(appUpdateReceiptLine(night, opened + 60_000, "en")).toBeNull();
+  expect(appUpdateReceiptLine(undefined, opened, "en")).toBeNull();
+  expect(appUpdateReceiptLine({ ...open, openedAt: null, error: "failed" }, opened, "en")).toBeNull();
 });

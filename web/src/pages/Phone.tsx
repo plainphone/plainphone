@@ -34,6 +34,7 @@ import { MoreTimeSection } from "../components/MoreTimeSection";
 import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 import { AppUpdates } from "../components/AppUpdates";
+import { appUpdateReceiptLine } from "../lib/app-updates";
 import { healthRows, receiptText } from "../lib/phone-health";
 
 interface PhoneCtx {
@@ -369,10 +370,12 @@ function RuleReceipt({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
   const now = useNow(30_000);
   if (phone.changeReceiptsEnabled === false || !phone.ruleReceipt) return null;
+  const updating = phone.mode === "strong" ? appUpdateReceiptLine(phone.status?.appUpdates, now, locale) : null;
   return (
     <p className="rule-receipt" role="status" aria-atomic="true">
       <strong>{t("receipt.title")}</strong>
       <span>{receiptText(phone.ruleReceipt, phone, now, locale, t)}</span>
+      {updating && <span>{t(updating.key, updating.params)}</span>}
     </p>
   );
 }

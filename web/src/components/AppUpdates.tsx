@@ -22,7 +22,9 @@ export function AppUpdates({ phone, setPhone, notify }: {
   // A request newer than the last window the phone reported is still on its way.
   const reportedAt = report?.openedAt ?? report?.closedAt;
   const asked = [requestedAt, phone.appUpdatesRequestedAt].filter((at): at is string => !!at).map(Date.parse);
-  const waiting = asked.length > 0 && (!reportedAt || Date.parse(reportedAt) < Math.max(...asked));
+  // A window that is open already serves the request (the phone does not open a second one).
+  const openNow = !!report?.openedAt && !report.closedAt;
+  const waiting = !openNow && asked.length > 0 && (!reportedAt || Date.parse(reportedAt) < Math.max(...asked));
 
   async function toggle(enabled: boolean) {
     setSaving(true);
