@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Supply-chain summary for one harness crate.
 
-Usage: audit_deps.py <crate-dir> [--ages]
+Usage: audit_deps.py <crate-dir> [--target <triple>] [--ages]
 
-Prints every package in the resolved (host, default-feature) build graph with
-its licence and whether it has a build script. With --ages it also asks the
-crates.io API for each version's publish date and flags versions younger than
-three days. Read-only; makes no change to the crate.
+Prints the licences and build scripts of every package in the resolved build
+graph for the host (or the given target). With --ages it asks the crates.io
+API for the publish date of EVERY package in Cargo.lock, for all targets, and
+flags versions younger than three days. Read-only; changes nothing.
 """
 import json
 import subprocess
@@ -16,17 +16,21 @@ import urllib.request
 from datetime import datetime, timezone
 
 
+def metadata(crate: str, target: str | None) -> list[dict]:
+    cmd = ["cargo", "metadata", "--format-version", "1"]
+    if target:
+        cmd += ["--filter-platform", target]
+    meta = json.loads(subprocess.check_output(cmd, cwd=crate))
+    used = {n["id"] for n in meta["resolve"]["nodes"]}
+    return [p for p in meta["packages"] if p["id"] in used and p["source"]]
+
+
 def main() -> int:
     crate = sys.argv[1]
     ages = "--ages" in sys.argv
-    meta = json.loads(
-        subprocess.check_output(
-            ["cargo", "metadata", "--format-version", "1", "--filter-platform", "x86_64-unknown-linux-gnu"],
-            cwd=crate,
-        )
-    )
-    used = {n["id"] for n in meta["resolve"]["nodes"]}
-    pkgs = [p for p in meta["packages"] if p["id"] in used and p["source"]]
+    target = sys.argv[sys.argv.index("--target") + 1] if "--target" in sys.argv else "x86_64-unknown-linux-gnu"
+    pkgs = metadata(crate, target)
+    print(f"target: {target}")
     now = datetime.now(timezone.utc)
     licences: dict[str, int] = {}
     build_scripts = []
@@ -36,7 +40,10 @@ def main() -> int:
         licences[lic] = licences.get(lic, 0) + 1
         if any("custom-build" in t["kind"] for t in p["targets"]):
             build_scripts.append(f"{p['name']}@{p['version']}")
-        if ages:
+    if ages:
+        everything = metadata(crate, None)
+        print(f"age check over all {len(everything)} packages in Cargo.lock (every target)")
+        for p in sorted(everything, key=lambda p: p["name"]):
             req = urllib.request.Request(
                 f"https://crates.io/api/v1/crates/{p['name']}/{p['version']}",
                 headers={"User-Agent": "plainphone-research-audit"},

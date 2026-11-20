@@ -1,0 +1,19 @@
+[package]
+name = "matrix-sdk-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "Dependency, licence and size probe for matrix-sdk-crypto (Plainphone #120). Not part of the app."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+matrix-sdk-crypto = { version = "=0.19.1", default-features = false }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

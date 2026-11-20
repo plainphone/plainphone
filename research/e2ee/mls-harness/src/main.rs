@@ -281,7 +281,7 @@ fn revoke_then_send() -> Res {
 
 fn lost_device() -> Res {
     let mut notes = vec![];
-    let (mut server, mut pa, mut pb, mut cp, mut tab) = family()?;
+    let (mut server, mut pa, mut pb, cp, mut tab) = family()?;
     pa.send(&mut server, "SYNTH-CANARY before the loss")?;
     pb.sync(&mut server)?;
     tab.sync(&mut server)?;
@@ -484,7 +484,7 @@ fn family_with_past_epochs(n: usize) -> Result<(Server, Device, Device, Device, 
 
 fn local_storage() -> Res {
     let mut notes = vec![];
-    let (mut server, mut pa, _pb, mut cp, _tab) = family()?;
+    let (mut server, mut pa, _pb, cp, _tab) = family()?;
     pa.send(&mut server, "SYNTH-CANARY before restart")?;
     let (bytes, contains_sig_key) = cp.snapshot();
     notes.push(format!(
