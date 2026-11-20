@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Live updates over server-sent events (docs/live-updates.md). The harness clock is fixed.
 import { randomUUID } from "node:crypto";
+import type { AddressInfo } from "node:net";
+import { serve } from "@hono/node-server";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
@@ -156,6 +158,33 @@ describe("GET /api/events", () => {
     const ready = await stream!.until("ready");
     expect(ready.data).toEqual({ resumed: false });
     expect(ready.id).toMatch(/^[0-9a-f]{8}\.\d+$/);
+  });
+
+  it("flushes each event through a real HTTP server at once, and frees the slot on disconnect", async () => {
+    const hub = useHub();
+    const { parent, device } = await household("a@example.org");
+    const server = serve({ fetch: h.app.fetch, port: 0, hostname: "127.0.0.1" });
+    await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+    const { port } = server.address() as AddressInfo;
+    const abort = new AbortController();
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/events`, {
+        headers: { authorization: `Bearer ${parent.token}` }, signal: abort.signal,
+      });
+      expect(res.status).toBe(200);
+      const stream = new Stream(res, res.body!.getReader());
+      await stream.until("ready");
+      const id = randomUUID();
+      await sos(device, id);
+      expect((await stream.until("sos.created", 1000)).data.id).toBe(id);
+      expect(hub.connectionCount).toBe(1);
+      abort.abort();
+      // A closed tab must not keep using one of the parent's connections.
+      await vi.waitFor(() => expect(hub.connectionCount).toBe(0));
+    } finally {
+      abort.abort();
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 
   it("works with the session cookie, as EventSource sends it", async () => {
