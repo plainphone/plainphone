@@ -181,6 +181,27 @@ class AlwaysReachableTest {
         put("released", base.copyJson().put("release", true))
         put("no sos block", base.copyJson().apply { remove("sos"); remove("inbox") })
         if (profile == "child") put("no parents marked", base.copyJson().apply { getJSONObject("sos").put("parents", JSONArray()) })
+        // Modes (docs/modes.md): a mode that opens no contact group and no app, all day, quiet or not.
+        for (quiet in listOf(false, true)) put("modes: a mode with no group all day, quiet=$quiet", withModes(base, quiet))
+        put("modes: the parent's stored group is Others", withModes(base, quiet = false, dadGroup = "others"))
+        put("modes: the parent is missing from the list", withModes(base, quiet = false).apply {
+            put("contacts", JSONArray("[${JSONObject(mum).put("group", "others")}]"))
+        })
+        if (profile == "child") {
+            put("modes, no parents marked", withModes(base, quiet = false).apply { getJSONObject("sos").put("parents", JSONArray()) })
+        }
+        put("modes: a broken modes block", base.copyJson().put("modes", JSONObject("""{"enabled":true,"list":"broken"}""")))
+    }
+
+    /** [json] with modes on and one mode, on all day, that opens no contact group and allows no app. */
+    private fun withModes(json: JSONObject, quiet: Boolean, dadGroup: String = "family"): JSONObject = json.copyJson().apply {
+        put("contacts", JSONArray("[${JSONObject(mum).put("group", "others")},${JSONObject(dad).put("group", dadGroup)}]"))
+        put("modes", JSONObject(
+            """{"enabled":true,"defaultModeId":"free","list":[
+              {"id":"free","preset":"free","name":null,"allApps":true,"allowedPackages":[],"contactGroups":["family","friends","others"],"quiet":false},
+              {"id":"closed","preset":"custom","name":"Closed","allApps":false,"allowedPackages":[],"contactGroups":[],"quiet":$quiet}],
+             "slots":[{"id":"m1","modeId":"closed","days":[1,2,3,4,5,6,7],"start":"00:00","end":"00:00"}]}""",
+        ))
     }
 
     private fun parentsOf(json: JSONObject): List<ApprovedContact> {
@@ -255,6 +276,17 @@ class AlwaysReachableTest {
         SyncStore(context).saveRules("e", json.toString(), 0L)
         val rules = ContactPolicySources.get(context).rules()
         assertThat(violations("control", rules, parentsOf(maxRules()))).isNotEmpty()
+    }
+
+    @Test
+    fun `the modes states really narrow the list, so their checks are not vacuous`() {
+        pairedPhone(strong = true)
+        SyncStore(context).saveRules("e", withModes(maxRules(), quiet = false).toString(), 0L)
+        val rules = ContactPolicySources.get(context).rules()
+        val policy = context.contactPolicy()
+        // Mum is in Others, which the mode does not open; Dad is the parent.
+        assertThat(policy.decide(rules, Channel.CALL, Direction.INCOMING, "+4512345678").allowed).isFalse()
+        assertThat(policy.decide(rules, Channel.CALL, Direction.INCOMING, "+4587654321").allowed).isTrue()
     }
 
     @Test
