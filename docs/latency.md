@@ -137,6 +137,9 @@ app signed in and notifications allowed. There is nothing to time by hand: the s
 
 - The native parent app only confirms arrival while it is running; a notification the system shows
   in the background confirms when it is opened. A background notification task would close the gap.
+- Android lets an app set a channel's sound, vibration and Do Not Disturb wish only when the channel
+  is first created. A parent app installed before this change keeps its old **Urgent SOS** channel
+  settings until it is reinstalled (or the parent changes them in the channel's settings).
 - iOS Critical Alerts wait for Apple's entitlement.
 - A self-hosted ntfy for UnifiedPush is being set up separately; the server side is ready for it.
 - The public status page (status.plainphone.org, Uptime Kuma) does not show these numbers yet; it
