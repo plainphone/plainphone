@@ -8,11 +8,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.SystemClock
 import android.os.UserManager
+import android.provider.Settings
 import android.util.Log
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.UUID
 import org.json.JSONArray
+import org.json.JSONObject
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.Lock
 import org.plainphone.app.sync.StatusNotices
@@ -70,7 +72,7 @@ internal object CatalogAccounts {
         val ttlMs = remainingMs + LATE_ACCOUNT_GRACE_MS
         val marker = JSONArray().put(pkg).put(JSONArray(baseline)).put(id)
             .put(System.currentTimeMillis() + ttlMs).put(SystemClock.elapsedRealtime() + ttlMs)
-            .put(request.fallback)
+            .put(request.fallback).put(JSONObject.NULL).put(JSONObject.NULL).put(bootId(context))
         // The authenticator can outlive Plainphone. Record the baseline before starting it.
         check(prefs(context).edit().putString(request.id, marker.toString()).commit())
         try {
@@ -82,14 +84,14 @@ internal object CatalogAccounts {
                 })
                 check(!context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
             }
-            // A new approved request takes over from settled fallbacks. Check for additions
-            // already present in its baseline in case the account listener has not run yet.
+            // A new approved request must not end the tracking of an expired fallback: its login can still
+            // finish. Check for additions already present in case the account listener has not run yet,
+            // then move the fallback's relock snapshot to the current accounts and keep it until its TTL.
             val settledFallbacks = markers.filterValues { it.optBoolean(5) && it.hasOutcome() }
             if (settledFallbacks.isNotEmpty()) {
-                if (settledFallbacks.values.any { hasLateGoogleAddition(it, current) }) reportUnexpectedChange(context)
-                val edit = prefs(context).edit()
-                settledFallbacks.keys.forEach { edit.remove(it) }
-                check(edit.commit())
+                val all = if (request.fallback) current else fingerprints(context, allTypes = true)
+                if (settledFallbacks.values.any { hasLateAddition(it, all) }) reportUnexpectedChange(context)
+                check(foldRelocked(context, settledFallbacks, all.keys))
             }
             return request
         } catch (e: Exception) {
@@ -104,13 +106,18 @@ internal object CatalogAccounts {
             InstallLease.android(context).finishCatalogAccounts(request.id)
             val outcome = recentMarkers(context)[request.id]?.takeIf { it.hasOutcome() } ?: return false
             val current = fingerprints(context, allTypes = true)
-            val lateAddition = hasLateGoogleAddition(outcome, current)
+            val lateAddition = hasLateAddition(outcome, current)
             if (lateAddition) reportUnexpectedChange(context)
             prefs(context).edit().remove(request.id).apply()
             return !lateAddition && outcome.optBoolean(6) && expectedGoogleAddition(request.baseline, current)
         }
         reconcile(context)
         val added = fingerprints(context, allTypes = false).keys.any { it !in request.baseline }
+        if (added) {
+            // The parent approved this sign-in: it is not a late account of an expired fallback.
+            val settled = recentMarkers(context).filterValues { it.optBoolean(5) && it.hasOutcome() }
+            foldRelocked(context, settled, fingerprints(context, allTypes = true).keys)
+        }
         prefs(context).edit().remove(request.id).apply()
         return added
     }
@@ -138,14 +145,23 @@ internal object CatalogAccounts {
         val markers = recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
         if (markers.isEmpty()) return
         val current = fingerprints(context, allTypes = markers.values.any { it.optBoolean(5) })
+        if (Lock.isInMaintenanceWindow(context)) {
+            // The parents may add accounts while the phone is unlocked: not a late account.
+            absorb(context, markers, current.keys)
+            return
+        }
         val google = current.filterValues { it == GOOGLE }
         val lease = InstallLease.android(context)
+        val approvedOpen = markers.any { (_, m) -> !m.optBoolean(5) && isOpen(context, m.getString(2), m.getString(0)) }
         markers.forEach { (id, marker) ->
             val baseline = baseline(marker)
             if (marker.optBoolean(5)) {
                 if (!marker.hasOutcome()) {
                     if (baseline != current.keys) lease.finishCatalogAccounts(id)
-                } else if (hasLateGoogleAddition(marker, current)) {
+                } else if (approvedOpen) {
+                    // An approved sign-in is open: its account is expected, not a late one.
+                    foldRelocked(context, mapOf(id to marker), current.keys)
+                } else if (hasLateAddition(marker, current)) {
                     reportUnexpectedChange(context)
                     prefs(context).edit().remove(id).apply()
                 }
@@ -157,19 +173,49 @@ internal object CatalogAccounts {
         }
     }
 
+    /** The maintenance unlock ended: accounts the parents added meanwhile are not late ones. */
+    @Synchronized
+    fun maintenanceEnded(context: Context) {
+        val markers = recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
+        if (markers.isEmpty()) return
+        absorb(context, markers, fingerprints(context, allTypes = true).keys)
+    }
+
+    @SuppressLint("ApplySharedPref")
+    private fun absorb(context: Context, markers: Map<String, JSONArray>, current: Set<String>) {
+        val edit = prefs(context).edit()
+        markers.forEach { (id, marker) ->
+            when {
+                !marker.optBoolean(5) && !marker.hasOutcome() -> edit.remove(id)
+                marker.optBoolean(5) && marker.hasOutcome() ->
+                    edit.putString(id, marker.put(7, JSONArray(current)).toString())
+            }
+        }
+        edit.commit()
+    }
+
+    @SuppressLint("ApplySharedPref")
+    private fun foldRelocked(context: Context, markers: Map<String, JSONArray>, current: Set<String>): Boolean {
+        val edit = prefs(context).edit()
+        markers.forEach { (id, marker) -> edit.putString(id, marker.put(7, JSONArray(current)).toString()) }
+        return edit.commit()
+    }
+
     private fun baseline(marker: JSONArray): Set<String> {
         return marker.getJSONArray(1).accountKeys()
     }
 
     private fun JSONArray.accountKeys() = (0 until length()).map(::getString).toSet()
 
-    private fun hasLateGoogleAddition(marker: JSONArray, current: Map<String, String>): Boolean {
+    // The fallback lifted the restriction for every account type, so any new account is late.
+    private fun hasLateAddition(marker: JSONArray, current: Map<String, String>): Boolean {
         // Older outcomes did not record the account set at relock.
         val relocked = marker.optJSONArray(7)?.accountKeys() ?: return false
-        return current.any { (key, type) -> type == GOOGLE && key !in relocked }
+        return current.keys.any { it !in relocked }
     }
 
-    private fun JSONArray.hasOutcome() = length() > 6
+    // Markers are padded with null up to the boot id, so a null outcome slot means "no outcome yet".
+    private fun JSONArray.hasOutcome() = length() > 6 && !isNull(6)
 
     private fun expectedGoogleAddition(baseline: Set<String>, current: Map<String, String>): Boolean =
         current.keys.containsAll(baseline) && (current.keys - baseline).singleOrNull()?.let(current::get) == GOOGLE
@@ -178,6 +224,7 @@ internal object CatalogAccounts {
         val p = prefs(context)
         val wallNow = System.currentTimeMillis()
         val elapsedNow = SystemClock.elapsedRealtime()
+        val boot = bootId(context)
         val validRemainingMs = 1..(InstallLease.MAX_MS + LATE_ACCOUNT_GRACE_MS)
         val recent = mutableMapOf<String, JSONArray>()
         val cleanup = p.edit()
@@ -185,7 +232,15 @@ internal object CatalogAccounts {
             val marker = JSONArray(value as String)
             val wallRemainingMs = marker.optLong(3, 0L) - wallNow
             val elapsedRemainingMs = marker.optLong(4, 0L) - elapsedNow
-            if (wallRemainingMs in validRemainingMs && elapsedRemainingMs in validRemainingMs) {
+            val markerBoot = marker.optInt(8, -1)
+            // Within one boot the monotonic clock decides, so a wall-clock correction cannot drop a marker.
+            // After a reboot only the wall clock is comparable. Without a boot id both must agree.
+            val live = when {
+                boot >= 0 && markerBoot == boot -> elapsedRemainingMs in validRemainingMs
+                boot >= 0 && markerBoot >= 0 -> wallRemainingMs in validRemainingMs
+                else -> wallRemainingMs in validRemainingMs && elapsedRemainingMs in validRemainingMs
+            }
+            if (live) {
                 recent[id] = marker
             } else {
                 cleanup.remove(id)
@@ -194,6 +249,9 @@ internal object CatalogAccounts {
         cleanup.apply()
         return recent
     }
+
+    private fun bootId(context: Context): Int =
+        Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
     private fun isOpen(context: Context, id: String, pkg: String) =
         InstallLease.android(context).catalogId() == id && InstallWindow.current(context) == pkg
