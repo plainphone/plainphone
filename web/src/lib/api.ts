@@ -112,11 +112,14 @@ export interface Phone {
   lastSeenAt: string | null;
   /** Only on a single phone: whether it has confirmed the rules the server holds now. Null while it has confirmed none. */
   rulesCurrent?: boolean | null;
-  dnsHost: string;
+  /** The phone's own filter host; null until the DNS service confirmed it (`dnsReady`). */
+  dnsHost: string | null;
   dnsSynced: boolean;
-  /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
   dnsConfigured?: boolean;
+  /** The DNS service confirmed the ClientID with its current settings: gates showing the address. */
   dnsReady: boolean;
+  /** The phone is filtered by its own host. "Being set up" texts follow this, not `dnsReady`. Missing on old servers. */
+  rulesDnsReady?: boolean;
   hasLocation: boolean;
   /** Hardware attestation of the boot state (#23); null until the phone attested once. Missing on old servers. */
   attestation?: PhoneAttestation | null;
@@ -236,6 +239,8 @@ export interface Contact {
 export interface DnsState {
   filterMethod?: FilterMethod;
   host: string | null;
+  /** The phone is filtered already; the address may still be missing. Missing on old servers. */
+  rulesReady?: boolean;
   synced: boolean;
   blockedCategories: DnsCategory[];
   allowDomains: string[];

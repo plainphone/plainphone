@@ -57,7 +57,7 @@ import {
 import { childContactSettingsInput, pendingContactSuggestions, reviewContactSuggestions, reviewContactSuggestionsInput, updateChildContactSettings } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
-import { isDnsReady, syncDns } from "../services/dns.js";
+import { isDnsReady, isRulesDnsReady, syncDns } from "../services/dns.js";
 import { invalidateEnrollments, issueEnrollment } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, nextRulesRevision, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { mountServerMoveRoutes } from "./server-move.js";
@@ -996,6 +996,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       host: isDnsReady(ctx, phone)
         ? `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`
         : null,
+      rulesReady: isRulesDnsReady(ctx, phone),
       synced: !phone.dnsDirty,
       filterMethod: phone.filterMethod,
       blockedCategories: row?.blockedCategories ?? [],

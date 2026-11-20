@@ -491,6 +491,28 @@ describe("DNS readiness", () => {
     expect((await parent.get(`/api/phones/${phoneId}`)).json.dnsReady).toBe(true);
   });
 
+  it("tells a legacy-confirmed phone apart from one still waiting, and only shows the address once re-tagged", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const waiting = await pairPhone(h, parent);
+    const waitingSummary = (await parent.get(`/api/phones/${waiting.phoneId}`)).json;
+    expect(waitingSummary).toMatchObject({ dnsReady: false, rulesDnsReady: false, dnsHost: null });
+    expect((await parent.get(`/api/phones/${waiting.phoneId}/dns`)).json).toMatchObject({ host: null, rulesReady: false });
+
+    // Confirmed before the confirmation was tagged with the resolver: the phone is filtered already.
+    const { phoneId } = await pairPhone(h, parent);
+    await h.ctx.db.update(phones).set({ dnsConfirmedProvider: "http" }).where(eq(phones.id, phoneId));
+    const legacy = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(legacy).toMatchObject({ dnsReady: false, rulesDnsReady: true, dnsHost: null });
+    expect((await parent.get(`/api/phones/${phoneId}/dns`)).json).toMatchObject({ host: null, rulesReady: true });
+
+    await sweep(h.ctx);
+    const tagged = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(tagged).toMatchObject({ dnsReady: true, rulesDnsReady: true });
+    expect(tagged.dnsHost).toMatch(/\.dns\.plainphone\.org$/);
+  });
+
   it("keeps the first confirmation time when later syncs succeed", async () => {
     const parent = await signIn(h, "parent@example.org");
     const { phoneId } = await pairPhone(h, parent);
