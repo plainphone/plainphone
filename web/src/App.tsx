@@ -22,6 +22,8 @@ import { PairPage } from "./pages/Pair";
 import { AddPhonePage, SetupPhonePage } from "./pages/AddPhone";
 import { PhoneLayout, PhoneOverview } from "./pages/Phone";
 import { PhoneSettingsPage } from "./pages/PhoneSettings";
+import { GrowingUpPage } from "./pages/GrowingUp";
+import { AgreementPage } from "./pages/Agreement";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
 import { SettingsPage } from "./pages/Settings";
@@ -71,6 +73,8 @@ function AppRoutes() {
           <Route path="settings" element={<PhoneSettingsPage />} />
           <Route path="home" element={<HomeScreenPage />} />
           <Route path="key" element={<KeyPage />} />
+          <Route path="growing" element={<GrowingUpPage />} />
+          <Route path="agreement" element={<AgreementPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

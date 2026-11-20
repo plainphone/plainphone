@@ -3,6 +3,7 @@
 // Thin client for the parent API. The session lives in an HttpOnly cookie (path /api),
 // so the app never sees or stores a token.
 
+import type { AgePreset, AgePresetId, AgeState, Agreement } from "./age";
 import type { Language, PhoneLanguage } from "./phone-language";
 
 export type Locale = Language;
@@ -135,6 +136,15 @@ export interface Phone {
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
   weeklySummaryEnabled?: boolean;
+  /** Age presets, the review reminder and the family agreement (Child phones). Missing on old servers. */
+  agePreset?: AgePresetId | null;
+  reviewEnabled?: boolean;
+  reviewIntervalMonths?: number;
+  reviewDueAt?: string | null;
+  reviewDue?: boolean;
+  agreementEnabled?: boolean;
+  agreementOnHome?: boolean;
+  agreementHasText?: boolean;
   /** Bedtime is silent except parents, 112 and help lines. Missing on old servers (treated as on). */
   silentBedtime?: boolean;
   /** A parent may approve a request on the phone with the parent PIN. Missing on old servers (treated as on). */
@@ -506,6 +516,16 @@ export const setHomeFreePromise = (pid: string, showFreePromise: boolean) =>
   api.patch<ChangeResult>(`/phones/${pid}/home`, { showFreePromise });
 /** Never waits for the key. Send the whole object. */
 export const putHome = (pid: string, home: Home) => api.put<ChangeResult>(`/phones/${pid}/home`, home);
+
+export const getAgePresets = () => api.get<{ presets: AgePreset[] }>("/age-presets").then((r) => r.presets);
+export const getAgeState = (pid: string) => api.get<AgeState>(`/phones/${pid}/age`);
+export const applyAgePreset = (pid: string, preset: AgePresetId) => api.post<AgeState>(`/phones/${pid}/age-preset`, { preset });
+export const putReview = (pid: string, review: { enabled?: boolean; intervalMonths?: number; dueDate?: string }) =>
+  api.put<AgeState>(`/phones/${pid}/review`, review);
+export const markReviewed = (pid: string) => api.post<AgeState>(`/phones/${pid}/review/done`, {});
+export const getAgreement = (pid: string) => api.get<Agreement>(`/phones/${pid}/agreement`);
+export const putAgreement = (pid: string, agreement: Partial<Pick<Agreement, "lines" | "adultLines" | "enabled" | "onHome">>) =>
+  api.put<Agreement>(`/phones/${pid}/agreement`, agreement);
 
 /** Mail is configured on this server. Works without a session via /api/health. */
 export async function serverHasMail(): Promise<boolean | null> {

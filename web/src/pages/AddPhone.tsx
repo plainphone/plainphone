@@ -7,7 +7,9 @@ import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
 import { intlLocale } from "../lib/format";
 import { lightSetupLink } from "../lib/light-setup";
-import { api, ApiError, type Phone, type Profile } from "../lib/api";
+import { api, ApiError, applyAgePreset, getAgePresets, type Phone, type Profile, putAgreement, putReview } from "../lib/api";
+import { type AgePresetId, parseLines } from "../lib/age";
+import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import {
   hashPin,
   isValidPin,
@@ -58,13 +60,22 @@ export function AddPhonePage() {
   const [params] = useSearchParams();
   const choice = params.get("mode");
   const [mode, setMode] = useState<Mode | null>(choice === "light" || choice === "strong" ? choice : null);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<SetupStep>("who");
+  const [age, setAge] = useState<AgeChoices>({ preset: null, review: true, months: 3 });
+  const [agreement, setAgreement] = useState<AgreementDraft>({ lines: "", adultLines: "" });
+  const [setupNote, setSetupNote] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [language, setLanguage] = useState<PhoneLanguage>(null);
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [privateDns, setPrivateDns] = useState(false);
   const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
+
+  // A Child phone has two optional steps before the code: where the rules start (docs/age-presets.md)
+  // and the family agreement (docs/family-agreement.md). Light mode has no PIN step.
+  const flow = setupFlow(mode, profile, Boolean(template));
+  const at = flow.indexOf(step);
+  const previous = flow[at - 1];
 
   async function makeQr(pin?: string) {
     if (!mode) return;
@@ -75,40 +86,174 @@ export function AddPhonePage() {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;
     }
+    // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the code.
+    if (profile === "child") {
+      const failed = await saveAgeChoices(out.phone!.id, age, agreement);
+      setSetupNote(failed ? t("age.setupSaveFailed") : null);
+    }
     setQr(buildQr(out, out.phone!, pinned, locale));
-    setStep(3);
+    setStep("qr");
+  }
+
+  /** The next step, or the code itself after the last one. */
+  async function advance(pin?: string) {
+    const next = flow[at + 1];
+    if (!next || next === "qr") await makeQr(pin);
+    else setStep(next);
   }
 
   return (
-    <div className={step === 3 ? "setup" : "narrow"}>
+    <div className={step === "qr" ? "setup" : "narrow"}>
       <p className="back">
         <Link to="/">{t("nav.phones")}</Link>
       </p>
       {template && <p className="notice notice-info">{t("template.importHelp")}</p>}
       {!mode && <ModeStep onChoose={setMode} />}
-      {mode && step !== 3 && <Progress step={step} total={mode === "light" || template ? 2 : 3} />}
-      {mode && step === 1 && (
+      {mode && step !== "qr" && <Progress step={at + 1} total={flow.length - 1} />}
+      {mode && step === "who" && (
         <WhoStep
           name={name}
           profile={profile}
           onName={setName}
           onProfile={setProfile}
           selfOnly={Boolean(template)}
-          onNext={mode === "light" || template ? () => makeQr() : () => setStep(2)}
-          makeLink={mode === "light"}
+          onNext={() => advance()}
+          makeLink={mode === "light" && flow.length === 2}
           privateDns={privateDns}
           onPrivateDns={setPrivateDns}
           onBack={() => setMode(null)}
         />
       )}
-      {step === 2 && (
-        <PinStep onBack={() => setStep(1)} onDone={makeQr}>
+      {step === "age" && (
+        <AgeStep name={name.trim()} choices={age} onChange={setAge} onBack={() => setStep(previous!)}
+          onNext={() => void (flow[at + 1] === "qr" ? makeQr() : setStep(flow[at + 1]!))} />
+      )}
+      {step === "agreement" && (
+        <AgreementStep draft={agreement} onChange={setAgreement} light={mode === "light"} onBack={() => setStep(previous!)}
+          onNext={() => advance()} />
+      )}
+      {step === "pin" && (
+        <PinStep onBack={() => setStep(previous!)} onDone={(pin) => advance(pin)}>
           <PhoneLanguagePicker value={language} onChange={setLanguage} setup={profile === "child"} />
           <SetupTimezonePicker value={timezone} onChange={setTimezone} />
         </PinStep>
       )}
-      {step === 3 && qr && <QrStep key={qr.enrollmentId} qr={qr} />}
+      {step === "qr" && qr && (
+        <>
+          {setupNote && <p className="notice notice-warn" role="status">{setupNote}</p>}
+          <QrStep key={qr.enrollmentId} qr={qr} progress={{ step: flow.length, total: flow.length }} />
+        </>
+      )}
     </div>
+  );
+}
+
+type SetupStep = "who" | "age" | "agreement" | "pin" | "qr";
+
+/** The steps of a new phone, in order. Light mode has no PIN; a Self phone and a template have no age or agreement. */
+function setupFlow(mode: Mode | null, profile: Profile, template: boolean): SetupStep[] {
+  const child = profile === "child" && !template;
+  return [
+    "who",
+    ...(child ? ["age", "agreement"] as const : []),
+    ...(mode === "strong" && !template ? ["pin"] as const : []),
+    "qr",
+  ];
+}
+
+interface AgeChoices {
+  preset: AgePresetId | null;
+  review: boolean;
+  months: number;
+}
+
+/** Saves the setup choices on the new phone. True when something could not be saved. */
+async function saveAgeChoices(phoneId: string, age: AgeChoices, agreement: AgreementDraft): Promise<boolean> {
+  let failed = false;
+  const attempt = async (call: () => Promise<unknown>) => {
+    try {
+      await call();
+    } catch {
+      failed = true;
+    }
+  };
+  if (age.preset) await attempt(() => applyAgePreset(phoneId, age.preset!));
+  if (age.review) await attempt(() => putReview(phoneId, { enabled: true, intervalMonths: age.months }));
+  const lines = parseLines(agreement.lines);
+  const adultLines = parseLines(agreement.adultLines);
+  if (lines.length > 0 || adultLines.length > 0) await attempt(() => putAgreement(phoneId, { lines, adultLines }));
+  return failed;
+}
+
+/** Where the rules start, and when to look at them again. Both can be skipped or changed later. */
+function AgeStep({ name, choices, onChange, onBack, onNext }: {
+  name: string;
+  choices: AgeChoices;
+  onChange: (choices: AgeChoices) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useI18n();
+  const presets = useLoad(getAgePresets, []);
+  return (
+    <>
+      <PageTitle sub={t("age.setupIntro")}>{t("age.setupTitle", { name })}</PageTitle>
+      <div className="stack">
+        <LoadGate res={presets}>
+          {(list) => <AgePicker presets={list} value={choices.preset} onChange={(preset) => onChange({ ...choices, preset })} name="age" />}
+        </LoadGate>
+        <ReviewPicker enabled={choices.review} months={choices.months}
+          onEnabled={(review) => onChange({ ...choices, review })} onMonths={(months) => onChange({ ...choices, months })} />
+        <div className="actions">
+          <button type="button" className="btn btn-primary" onClick={onNext}>{t("age.continue")}</button>
+          <button type="button" className="btn-link" onClick={onBack}>{t("app.back")}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** An optional few lines the family agrees on, in the child's words. */
+function AgreementStep({ draft, onChange, light, onBack, onNext }: {
+  draft: AgreementDraft;
+  onChange: (draft: AgreementDraft) => void;
+  light: boolean;
+  onBack: () => void;
+  onNext: () => Promise<void>;
+}) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const problems = agreementProblems(draft);
+  const empty = parseLines(draft.lines).length === 0 && parseLines(draft.adultLines).length === 0;
+  async function go(skip: boolean) {
+    if (skip) onChange({ lines: "", adultLines: "" });
+    setBusy(true);
+    setError(null);
+    try {
+      await onNext();
+    } catch (err) {
+      setError(errorMessage(err, t));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <PageTitle sub={t("age.agreement.intro")}>{t("age.agreement.title")}</PageTitle>
+      <div className="stack">
+        <p className="help">{t("age.agreement.optional")}</p>
+        <AgreementFields draft={draft} onChange={onChange} disabled={busy} />
+        <LiveStatus notice={error ? { tone: "error", text: error } : null} />
+        <div className="actions">
+          <button type="button" className="btn btn-primary" disabled={busy || problems.lines !== null || problems.adultLines !== null}
+            onClick={() => void go(empty)}>
+            {t(busy ? "add.making" : light ? "add.makeLink" : empty ? "age.skip" : "age.continue")}
+          </button>
+          {!empty && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void go(true)}>{t("age.skip")}</button>}
+          <button type="button" className="btn-link" onClick={onBack} disabled={busy}>{t("app.back")}</button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -245,7 +390,7 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
   );
 }
 
-function Progress({ step, total = 3 }: { step: 1 | 2 | 3; total?: number }) {
+function Progress({ step, total = 3 }: { step: number; total?: number }) {
   const { t } = useI18n();
   return (
     <div className="steps" role="img" aria-label={t("add.stepOf", { n: step, total })}>
@@ -421,7 +566,7 @@ function PinStep({ light = false, onBack, onDone, children }: { light?: boolean;
   );
 }
 
-function QrStep({ qr: first }: { qr: Qr }) {
+function QrStep({ qr: first, progress }: { qr: Qr; progress?: { step: number; total: number } }) {
   const { t, locale } = useI18n();
   const [qr, setQr] = useState(first);
   const [restarting, setRestarting] = useState(false);
@@ -525,7 +670,7 @@ function QrStep({ qr: first }: { qr: Qr }) {
 
   return (
     <>
-      <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
+      <Progress step={progress?.step ?? (light ? 2 : 3)} total={progress?.total ?? (light ? 2 : 3)} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
       {!gone && (
         <p className="setup-first" ref={startRef} tabIndex={-1}>

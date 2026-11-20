@@ -8,12 +8,14 @@ import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { lightSetupIntent } from "../lib/light-setup";
 import { AddPhonePage } from "./AddPhone";
+import { skipAgeSteps } from "./setup-test-helpers";
 
 it("puts the custom origin returned by enrollment in the Light setup link and QR", async () => {
   const origin = "https://my-plainphone.example.org:8443";
   const enrollment = { token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
   const phone = { id: "test-phone", name: "Test phone", mode: "light", pairedAt: null };
-  const fetch = vi.fn(async (_url: string, request: RequestInit) => {
+  const fetch = vi.fn(async (url: string, request: RequestInit) => {
+    if (url === "/api/age-presets") return Response.json({ presets: [] });
     if (request.method === "GET") return Response.json(phone);
     return Response.json({
       phone, enrollment,
@@ -46,6 +48,7 @@ it("puts the custom origin returned by enrollment in the Light setup link and QR
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
+    await skipAgeSteps(container, act);
     expect(fetch).toHaveBeenCalledWith("/api/phones/enroll", expect.objectContaining({
       method: "POST",
       body: expect.stringContaining('"mode":"light"'),

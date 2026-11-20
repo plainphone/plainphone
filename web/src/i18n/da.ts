@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Messages } from "./en";
+import { ageDa } from "./age";
 import { appUpdatesDa } from "./app-updates";
 import { platformDa } from "./platform";
 import { statusDa } from "./status";
@@ -13,6 +14,7 @@ const changeTiming = `Gælder, ${nextOnline}`;
 export const da: Messages = {
   ...statusDa,
   ...appUpdatesDa,
+  ...ageDa,
   ...platformDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",
