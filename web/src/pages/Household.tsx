@@ -23,6 +23,8 @@ export function HouseholdPage() {
   const [emailError, setEmailError] = useState<string | undefined>();
   const [sending, setSending] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Removing a parent (or leaving) cuts them off the phones and their SOS alerts, so it asks first.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [link, setLink] = useState<{ url: string; email: string } | null>(null);
 
@@ -84,6 +86,7 @@ export function HouseholdPage() {
         navigate("/");
         return;
       }
+      setConfirmingId(null);
       setNotice({ tone: "success", text: t("house.removed") });
       await res.reload();
     } catch (err) {
@@ -125,17 +128,35 @@ export function HouseholdPage() {
                           </p>
                           <p className="row-meta">{t(m.role === "owner" ? "house.owner" : "house.parent")}</p>
                         </div>
-                        {canRemove && (
+                        {canRemove && confirmingId === m.id ? (
+                          <div className="stack-sm" role="group" aria-labelledby={`remove-q-${m.id}`}>
+                            <p id={`remove-q-${m.id}`}>
+                              <strong>{self ? t("house.leaveQuestion") : t("house.removeQuestion", { email: m.email })}</strong>
+                            </p>
+                            <div className="actions">
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-small"
+                                onClick={() => void removeMember(m.id)}
+                                disabled={busyId === m.id}
+                              >
+                                {self ? t("house.leaveYes") : t("house.removeYes")}
+                              </button>
+                              <button type="button" className="btn btn-secondary btn-small" onClick={() => setConfirmingId(null)} disabled={busyId === m.id}>
+                                {t("app.cancel")}
+                              </button>
+                            </div>
+                          </div>
+                        ) : canRemove ? (
                           <button
                             type="button"
                             className="btn btn-secondary btn-small"
-                            onClick={() => void removeMember(m.id)}
-                            disabled={busyId === m.id}
+                            onClick={() => setConfirmingId(m.id)}
                             aria-label={self ? undefined : t("house.removeLabel", { email: m.email })}
                           >
                             {self ? t("house.leave") : t("app.remove")}
                           </button>
-                        )}
+                        ) : null}
                       </li>
                     );
                   })}

@@ -38,7 +38,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (state.status === "loading") return <Loading />;
   if (state.status === "anon") {
     const approvalFragment = loc.pathname === "/approvals" || loc.pathname === "/add" ? loc.hash : "";
-    rememberNext(loc.pathname + loc.search + approvalFragment);
+    // After logging out, the next person to log in starts on the home page.
+    if (!state.signedOut) rememberNext(loc.pathname + loc.search + approvalFragment);
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
