@@ -51,6 +51,7 @@ class SharingActivity : ComponentActivity() {
                     appUpdatesNightly = org.plainphone.app.update.AppUpdateWindow.automatic(this),
                     hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
                     inbox = rules?.takeIf { it.profile == "child" && !it.release }?.inbox ?: org.plainphone.app.sync.InboxRules.OFF,
+                    agreement = org.plainphone.app.sync.AgreementRules.forChild(rules),
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },
@@ -76,6 +77,7 @@ fun SharingScreen(
     appUpdatesNightly: Boolean = true,
     hiddenSos: org.plainphone.app.sos.SosSharing = org.plainphone.app.sos.SosSharing.NONE,
     inbox: org.plainphone.app.sync.InboxRules = org.plainphone.app.sync.InboxRules.OFF,
+    agreement: org.plainphone.app.sync.AgreementRules = org.plainphone.app.sync.AgreementRules.NONE,
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -123,6 +125,7 @@ fun SharingScreen(
             Text(stringResource(R.string.sharing_inbox), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (inbox.checkIns) Text(stringResource(R.string.sharing_inbox_check_in), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        AgreementSection(agreement)
         Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.sharing_latest), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         if (log.isEmpty()) {

@@ -73,6 +73,8 @@ data class HomeUi(
     val limitWarning: String? = null,
     /** Holding the clock sends a silent SOS (docs/sos.md). Off: the clock is only a clock. */
     val hiddenClock: Boolean = false,
+    /** The family's agreement lines, when the parents chose to show them here (docs/family-agreement.md). */
+    val agreementLines: List<String> = emptyList(),
 )
 
 class HomeActions(
@@ -138,6 +140,10 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
                     Spacer(Modifier.height(10.dp))
                     SilentBedtime()
                 }
+            }
+            if (ui.agreementLines.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                AgreementCard(ui.agreementLines)
             }
             if (ui.openRequests > 0) {
                 Spacer(Modifier.height(20.dp))
