@@ -124,8 +124,9 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         defaultHome(home)?.let(found::add)
         found += context.packageName
         // Messages: apps that can really be the SMS app (the default may not be set yet during setup).
-        // Not every `smsto:` handler, which would keep WhatsApp and other messengers visible.
-        found += smsDeliverReceivers()
+        // Not every `smsto:` handler, which would keep WhatsApp and other messengers visible. Only the
+        // phone's own: an SMS app from Play must stay hideable (telephonyApps() still lists it).
+        smsDeliverReceivers().filterTo(found, ::isSystemApp)
         found += dynamicCore
         return found
     }
@@ -218,10 +219,13 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         )
     }
 
-    /** Packages that can be the default SMS app. Unlike `smsto:` handlers, this excludes WhatsApp and friends. */
+    /**
+     * Packages that can be the default SMS app, wherever they came from. Unlike `smsto:` handlers, this
+     * excludes WhatsApp and friends. Not narrowed to system apps: telephonyApps() hides every one of them.
+     */
     private fun smsDeliverReceivers(): Set<String> =
         Compat.queryReceivers(pm, Intent(Telephony.Sms.Intents.SMS_DELIVER_ACTION), 0)
-            .map { it.activityInfo.packageName }.filter(::isSystemApp).toSet()
+            .map { it.activityInfo.packageName }.toSet()
 
     private fun defaultHome(home: Intent): String? = runCatching {
         val info = if (Build.VERSION.SDK_INT >= 33) {
