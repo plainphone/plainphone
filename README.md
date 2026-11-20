@@ -251,6 +251,12 @@ phone shows a quiet update notification for manual installation. See
 watchdog, deadline recovery even when lease storage fails, release metadata, and the
 real-phone release check.
 
+Strong mode also blocks Play from updating other apps, so approved apps get a nightly
+**app update window**: once a night between 02:00 and 05:00, while the phone charges on
+Wi-Fi, Play may update them for up to 45 minutes. A new app installed meanwhile stays
+hidden and becomes a request. Parents can switch this off per phone or press **Update
+apps now**. See [App updates](docs/policies.md#app-updates-strong-mode).
+
 ## Roadmap
 
 1. Proof of lock

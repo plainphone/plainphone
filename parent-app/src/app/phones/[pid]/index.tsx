@@ -11,6 +11,7 @@ import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/mode
 import { MoreTimeRequests } from "../../../components/MoreTimeRequests";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
 import { PhoneSwitch } from "../../../components/BedtimeSettings";
+import { AppUpdates } from "../../../components/AppUpdates";
 import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
@@ -25,6 +26,7 @@ import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../.
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { HOME_PALETTES } from "../../../shared/lib/settings";
 import { describeOp } from "../../../shared/lib/ops";
+import { appUpdateReceiptLine } from "../../../shared/lib/app-updates";
 import { healthRows, receiptText } from "../../../shared/lib/phone-health";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
@@ -509,6 +511,8 @@ function Overview() {
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
+  // An open app update window: Play is shown for a while, which the confirmed rules do not say.
+  const updating = phone.mode === "strong" ? appUpdateReceiptLine(phone.status?.appUpdates, now, locale) : null;
 
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
@@ -582,6 +586,7 @@ function Overview() {
           <Card>
             <Text variant="label">{t("receipt.title")}</Text>
             <Text accessibilityLiveRegion="polite">{receiptText(phone.ruleReceipt, phone, now, locale, t)}</Text>
+            {updating && <Text>{t(updating.key, updating.params)}</Text>}
           </Card>
         )}
         {groups.map((g) => (
@@ -606,6 +611,7 @@ function Overview() {
         <PushPreferences />
         {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />
+        <AppUpdates />
         <PhoneDisplayPreferences />
         {phone.profile === "child" && phone.pairedAt ? (
           <Card>

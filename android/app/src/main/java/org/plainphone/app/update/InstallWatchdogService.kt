@@ -53,6 +53,7 @@ class InstallWatchdogService : Service() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
             val title = when (ticket?.holder) {
                 InstallLease.CATALOG, InstallLease.CATALOG_ACCOUNTS -> R.string.install_watchdog_catalog
+                InstallLease.APP_UPDATES -> R.string.install_watchdog_app_updates
                 else -> R.string.install_watchdog_update
             }
             val notification = Notification.Builder(this, CHANNEL)
@@ -75,7 +76,7 @@ class InstallWatchdogService : Service() {
             } else {
                 val remaining = (ticket.deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0)
                 check(hasBatteryExemption(this)) { "Install watchdog needs a battery exemption" }
-                wakeLock.acquire(InstallLease.MAX_MS + 5_000L)
+                wakeLock.acquire(InstallLease.LONGEST_MS + 5_000L)
                 check(timer.postDelayed({ onDeadline(ticket.deadline) }, remaining))
                 ticket.ready.complete(Unit)
             }

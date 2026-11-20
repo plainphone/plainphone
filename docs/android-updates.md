@@ -66,7 +66,10 @@ version code must also match the metadata. Android checks the restriction when
 Plainphone lifts it only for that call, with a ten-second
 recovery deadline, and restores it synchronously before writing or committing the APK.
 A separate approved Play Store window can keep installs open until its own deadline or
-install completion. A process restart closes both windows.
+install completion. A process restart closes both windows. The nightly app update window
+(lease holder `app-updates`, at most 45 minutes, see
+[Policies, App updates](policies.md#app-updates-strong-mode)) uses the same lease and every
+recovery path below.
 
 ### Restoring the install restriction
 

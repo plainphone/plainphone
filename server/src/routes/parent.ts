@@ -702,11 +702,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         weeklySummaryEnabled: z.boolean().optional(),
         silentBedtime: z.boolean().optional(),
         pinApprovalEnabled: z.boolean().optional(),
+        appUpdatesEnabled: z.boolean().optional(),
       }),
     );
-    const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled, silentBedtime, pinApprovalEnabled } = input;
+    const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled, silentBedtime, pinApprovalEnabled, appUpdatesEnabled } = input;
     const rulesField = changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined
-      || weeklySummaryEnabled !== undefined || silentBedtime !== undefined || pinApprovalEnabled !== undefined;
+      || weeklySummaryEnabled !== undefined || silentBedtime !== undefined || pinApprovalEnabled !== undefined
+      || appUpdatesEnabled !== undefined;
     if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
@@ -717,6 +719,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
       ...(silentBedtime !== undefined ? { silentBedtime } : {}),
       ...(pinApprovalEnabled !== undefined ? { pinApprovalEnabled } : {}),
+      ...(appUpdatesEnabled !== undefined ? { appUpdatesEnabled } : {}),
       ...(input.name ? { name: input.name } : {}),
       ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
       ...(input.releaseWarningsEnabled !== undefined ? { releaseWarningsEnabled: input.releaseWarningsEnabled } : {}),
@@ -1074,6 +1077,15 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     await ctx.db.update(phones).set({ updateRequestedAt: requestedAt }).where(eq(phones.id, phone.id));
     updateWake.notify(phone.id, requestedAt.getTime());
     await wakePhone(ctx, phone.id, "update");
+    return c.body(null, 202);
+  });
+
+  // "Update apps now" (docs/policies.md, "App updates"): the phone opens its app update window.
+  app.post("/phones/:pid/app-updates", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.mode !== "strong") return c.json({ error: "app update windows are only needed in strong mode" }, 409);
+    await ctx.db.update(phones).set({ appUpdatesRequestedAt: ctx.now() }).where(eq(phones.id, phone.id));
+    await wakePhone(ctx, phone.id, "rules");
     return c.body(null, 202);
   });
 

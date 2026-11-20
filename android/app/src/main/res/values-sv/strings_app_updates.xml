@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="install_watchdog_app_updates">Godkända appar uppdateras</string>
+    <string name="play_explain_title">Appar uppdateras av sig själva</string>
+    <string name="play_explain_automatic">På natten, när telefonen laddar och är ansluten till wifi, uppdateras apparna du redan har. Du behöver inte göra något.</string>
+    <string name="play_explain_manual">Dina föräldrar uppdaterar apparna på telefonen. Fråga dem om en app säger att den behöver uppdateras.</string>
+    <string name="play_explain_new_app">Vill du ha en ny app? Fråga en förälder. De kan lägga till den på din telefon.</string>
+    <string name="sharing_app_updates">På natten när telefonen laddar på wifi, eller när en förälder ber om det, kan dina appar uppdateras. En ny app som installeras då är dold tills dina föräldrar säger ja. Dina föräldrar ser när det hände och hur många appar som uppdaterades.</string>
+    <string name="sharing_app_updates_manual">När en förälder ber om det kan dina appar uppdateras. En ny app som installeras då är dold tills dina föräldrar säger ja. Dina föräldrar ser när det hände och hur många appar som uppdaterades.</string>
+</resources>

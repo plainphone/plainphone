@@ -75,6 +75,9 @@ export interface Phone {
   weeklySummaryEnabled?: boolean;
   silentBedtime?: boolean;
   pinApprovalEnabled?: boolean;
+  /** Strong mode: the nightly app update window. Missing on old servers (treated as on). */
+  appUpdatesEnabled?: boolean;
+  appUpdatesRequestedAt?: string | null;
   ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
 }
 export interface App {

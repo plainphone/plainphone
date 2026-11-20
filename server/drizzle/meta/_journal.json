@@ -239,6 +239,13 @@
       "when": 1795169486593,
       "tag": "0045_sos_hidden_quick",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795177236337,
+      "tag": "0046_app_updates",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,7 @@ import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety
 import { approveRequestOnPhone, createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
+import { recordAppUpdateWindow } from "../services/app-updates.js";
 import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson, sendMoreTimeReceipts } from "../services/more-time.js";
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
@@ -753,6 +754,15 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           .record(limitTarget, z.number().int().min(0).max(1440))
           .refine((r) => Object.keys(r).length <= 200, "at most 200 entries")
           .optional(),
+        appUpdates: z.object({
+          id: z.string().min(1).max(64),
+          trigger: z.enum(["night", "parent"]),
+          openedAt: z.iso.datetime({ offset: true }).nullable(),
+          closedAt: z.iso.datetime({ offset: true }).nullable(),
+          updated: z.number().int().min(0).max(1000),
+          caught: z.array(packageName).max(20),
+          error: z.enum(["batteryExemption", "failed"]).optional(),
+        }).optional(),
       }),
     );
     const appliedAt = input.rulesAppliedAt ? new Date(input.rulesAppliedAt) : null;
@@ -854,6 +864,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         await notifyAlertRecipients(ctx, recipients, { ...event, trusted: true });
       }
     }
+    // New apps caught during an app update window become requests (docs/policies.md, "App updates").
+    if (lost !== null) await recordAppUpdateWindow(ctx, phone, input.appUpdates);
     // A parent who answered "more time" from a notification hears when this report shows the phone applied it.
     await sendMoreTimeReceipts(ctx, phone.id);
     return c.body(null, 204);

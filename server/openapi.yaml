@@ -887,6 +887,24 @@ components:
           type: object
           properties:
             requestedAt: { type: [string, "null"], format: date-time }
+        appUpdates:
+          type: object
+          description: Strong mode only (docs/policies.md, "App updates"). Missing means a nightly window and no request.
+          properties:
+            automatic:
+              type: boolean
+              description: Open a window once a night (02:00 to 05:00 local, charging, unmetered network) in which Play may update approved apps.
+            requestedAt:
+              type: [string, "null"]
+              format: date-time
+              description: Set when a parent pressed "Update apps now"; the phone opens the window once for each new value.
+            reportedWindow:
+              type: [string, "null"]
+              description: The last window whose new apps the server turned into requests.
+            recordedApps:
+              type: array
+              items: { type: string }
+              description: The new apps of `reportedWindow` the server has turned into requests. The phone stops holding exactly these back itself.
         location:
           type: object
           properties:
@@ -1102,6 +1120,13 @@ components:
         weeklySummaryEnabled: { type: boolean }
         silentBedtime: { type: boolean }
         pinApprovalEnabled: { type: boolean }
+        appUpdatesEnabled:
+          type: boolean
+          description: "Strong mode: the nightly window in which Play may update approved apps."
+        appUpdatesRequestedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When a parent last pressed "Update apps now".
         ruleReceipt:
           type: [object, "null"]
           description: Confirmation for the current rules document. Null if disabled or unpaired.
@@ -1221,6 +1246,22 @@ components:
         filterIssue: { type: string, enum: ["off", automatic, wrongHost, waiting, unverified, alwaysOn, strictDns] }
         protections: { $ref: "#/components/schemas/Protections" }
         timeUsed: { $ref: "#/components/schemas/TimeUsed" }
+        appUpdates:
+          type: object
+          description: The last app update window in strong mode. The server records it and turns `caught` into app requests once per `id`.
+          required: [id, trigger, openedAt, closedAt, updated, caught]
+          properties:
+            id: { type: string, maxLength: 64 }
+            trigger: { type: string, enum: [night, parent] }
+            openedAt: { type: [string, "null"], format: date-time, description: "Null when the window could not open." }
+            closedAt: { type: [string, "null"], format: date-time, description: "Null while it is open." }
+            updated: { type: integer, minimum: 0, description: "Installed apps that were updated." }
+            caught:
+              type: array
+              maxItems: 20
+              description: New apps installed during the window. The phone hid them at once.
+              items: { $ref: "#/components/schemas/PackageName" }
+            error: { type: string, enum: [batteryExemption, failed], description: "Why the window could not open." }
 
     PhoneStatus:
       description: What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC.
@@ -3050,6 +3091,7 @@ paths:
                 weeklySummaryEnabled: { type: boolean, description: "Include this phone in the weekly summary (default on)." }
                 silentBedtime: { type: boolean }
                 pinApprovalEnabled: { type: boolean }
+                appUpdatesEnabled: { type: boolean, description: "Strong mode: update approved apps in a nightly window (default on)." }
                 pushWakeups: { type: boolean }
                 preferUnifiedPush: { type: boolean }
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
@@ -4183,6 +4225,19 @@ paths:
       responses:
         "202": { description: "Requested" }
         "404": { description: "Phone not found" }
+
+  /phones/{pid}/app-updates:
+    post:
+      operationId: requestAppUpdates
+      tags: [rules]
+      summary: Ask a strong-mode phone to open its app update window now ("Update apps now")
+      description: Sets `appUpdates.requestedAt` in the rules and wakes the phone. The phone reports the window in its status.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "202": { description: "Requested" }
+        "404": { description: "Phone not found" }
+        "409": { description: "The phone is in light mode, which never blocks app updates", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
   /phones/{pid}/locate:
     post:
