@@ -4,6 +4,7 @@
 // Placeholders look like {name}. Never use em dashes in copy.
 
 import { appUpdatesEn } from "./app-updates";
+import { platformEn } from "./platform";
 import { statusEn } from "./status";
 
 const filterSummary = "The web filter makes you less likely to encounter websites in the categories you choose, but some can still get through.";
@@ -14,6 +15,7 @@ const changeTiming = `Takes effect ${nextOnline}`;
 export const en = {
   ...statusEn,
   ...appUpdatesEn,
+  ...platformEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",
@@ -38,6 +40,7 @@ export const en = {
   "nav.logout": "Log out",
   "nav.language": "Language",
   "nav.privacy": "Privacy",
+  "nav.status": "Status",
 
   "error.generic": "Something went wrong. Please try again.",
   "error.network": "Could not reach the server. Check your connection and try again.",

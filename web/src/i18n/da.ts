@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Messages } from "./en";
 import { appUpdatesDa } from "./app-updates";
+import { platformDa } from "./platform";
 import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
@@ -12,6 +13,7 @@ const changeTiming = `Gælder, ${nextOnline}`;
 export const da: Messages = {
   ...statusDa,
   ...appUpdatesDa,
+  ...platformDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",
   "app.loading": "Henter…",
@@ -36,6 +38,7 @@ export const da: Messages = {
   "nav.logout": "Log ud",
   "nav.language": "Sprog",
   "nav.privacy": "Privatliv",
+  "nav.status": "Status",
 
   "error.generic": "Noget gik galt. Prøv igen.",
   "error.network": "Kunne ikke få forbindelse til serveren. Tjek din forbindelse, og prøv igen.",

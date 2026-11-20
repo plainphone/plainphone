@@ -10,6 +10,7 @@ import { Button, LinkRow, LiveStatus, LoadGate, PageTitle, Screen, Stack as VSta
 import { useI18n } from "../i18n/I18n";
 import { phoneStateText } from "../lib/phoneStateText";
 import { space } from "../lib/theme";
+import { isIphone } from "../shared/lib/platform";
 
 interface Row {
   phone: Phone;
@@ -82,7 +83,7 @@ function PhonesList() {
                   title={phone.name}
                   meta={[
                     t(phone.profile === "child" ? "profile.child" : "profile.self"),
-                    phone.mode === "light" ? t("mode.light") : null,
+                    isIphone(phone) ? t("platform.iphone") : phone.mode === "light" ? t("mode.light") : null,
                     phone.pairedAt ? phoneStateText(phone, now, t, locale).title : null,
                   ]
                     .filter(Boolean)

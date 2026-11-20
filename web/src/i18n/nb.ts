@@ -2,11 +2,13 @@
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
 import { appUpdatesNb } from "./app-updates";
+import { platformNb } from "./platform";
 import { statusEn } from "./status";
 
 export const nb: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesNb,
+  ...platformNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",
   "status.stale.title": "Sist online {when}",
@@ -34,6 +36,7 @@ export const nb: Messages = {
   "nav.logout": "Logg ut",
   "nav.language": "Språk",
   "nav.privacy": "Personvern",
+  "nav.status": "Status",
 
   "error.generic": "Noe gikk galt. Prøv igjen.",
   "error.network": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen.",

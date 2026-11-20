@@ -1089,6 +1089,55 @@ components:
         ring: { oneOf: [{ type: "null" }, { $ref: "#/components/schemas/Ring" }] }
         checkin: { oneOf: [{ type: "null" }, { $ref: "#/components/schemas/Checkin" }] }
 
+    Support:
+      enum: ["yes", "partial", "no"]
+      description: "yes: Plainphone does it. partial: it does part of it, or the platform's own setting does the rest. no: not possible on this platform and tier."
+
+    Capabilities:
+      type: object
+      description: "What the phone can do, derived from `platform` and `tier` (docs/ios/architecture.md, Capability map). Clients show a short line for features that are not `yes` on an iPhone."
+      required: [apps, appNames, installBlock, uninstallProtection, factoryResetBlock, resetProtection, accountLock, usbBlock, vpnBlock, webFilter, adultFilter, safeSearch, systemLanguage, openMode, schoolTime, bedtimeApps, bedtimeSilence, timeLimits, limitWarning, moreTime, contacts, callScreening, callLog, helpLines, sos, location, ring, checkin, pinApproval, receipts, health, updateAlarm, weeklySummary, calmHome, release, maintenance, selfKeys, phoneSettings]
+      additionalProperties: false
+      properties:
+        apps: { $ref: "#/components/schemas/Support" }
+        appNames: { $ref: "#/components/schemas/Support" }
+        installBlock: { $ref: "#/components/schemas/Support" }
+        uninstallProtection: { $ref: "#/components/schemas/Support" }
+        factoryResetBlock: { $ref: "#/components/schemas/Support" }
+        resetProtection: { $ref: "#/components/schemas/Support" }
+        accountLock: { $ref: "#/components/schemas/Support" }
+        usbBlock: { $ref: "#/components/schemas/Support" }
+        vpnBlock: { $ref: "#/components/schemas/Support" }
+        webFilter: { $ref: "#/components/schemas/Support" }
+        adultFilter: { $ref: "#/components/schemas/Support" }
+        safeSearch: { $ref: "#/components/schemas/Support" }
+        systemLanguage: { $ref: "#/components/schemas/Support" }
+        openMode: { $ref: "#/components/schemas/Support" }
+        schoolTime: { $ref: "#/components/schemas/Support" }
+        bedtimeApps: { $ref: "#/components/schemas/Support" }
+        bedtimeSilence: { $ref: "#/components/schemas/Support" }
+        timeLimits: { $ref: "#/components/schemas/Support" }
+        limitWarning: { $ref: "#/components/schemas/Support" }
+        moreTime: { $ref: "#/components/schemas/Support" }
+        contacts: { $ref: "#/components/schemas/Support" }
+        callScreening: { $ref: "#/components/schemas/Support" }
+        callLog: { $ref: "#/components/schemas/Support" }
+        helpLines: { $ref: "#/components/schemas/Support" }
+        sos: { $ref: "#/components/schemas/Support" }
+        location: { $ref: "#/components/schemas/Support" }
+        ring: { $ref: "#/components/schemas/Support" }
+        checkin: { $ref: "#/components/schemas/Support" }
+        pinApproval: { $ref: "#/components/schemas/Support" }
+        receipts: { $ref: "#/components/schemas/Support" }
+        health: { $ref: "#/components/schemas/Support" }
+        updateAlarm: { $ref: "#/components/schemas/Support" }
+        weeklySummary: { $ref: "#/components/schemas/Support" }
+        calmHome: { $ref: "#/components/schemas/Support" }
+        release: { $ref: "#/components/schemas/Support" }
+        maintenance: { $ref: "#/components/schemas/Support" }
+        selfKeys: { $ref: "#/components/schemas/Support" }
+        phoneSettings: { $ref: "#/components/schemas/Support" }
+
     PhoneSummary:
       type: object
       properties:
@@ -1096,6 +1145,11 @@ components:
         name: { type: string }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
+        platform: { enum: [android, ios], description: "Existing phones are android. See docs/ios/architecture.md." }
+        tier:
+          enum: [strong, light, family_controls, supervised]
+          description: "Android: the mode. iPhone: Family Controls alone, or supervised with Apple Configurator."
+        capabilities: { $ref: "#/components/schemas/Capabilities" }
         language: { $ref: "#/components/schemas/PhoneLanguage" }
         lockSystemLanguage:
           type: boolean
