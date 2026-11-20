@@ -89,10 +89,12 @@ internal object CatalogAccounts {
             // then move the fallback's relock snapshot to the current accounts and keep it until its TTL.
             val settledFallbacks = markers.filterValues { it.optBoolean(5) && it.hasOutcome() }
             if (settledFallbacks.isNotEmpty()) {
-                // Read the accounts now, not the baseline above: an account added since then (a fallback
-                // lifts the restriction first) would otherwise be missing from the new relock snapshot.
+                // Lateness is judged on the accounts read before the restriction was lifted: an account that
+                // appears while this fallback is open is its own login, which the listener folds silently.
+                // The fold snapshot is read now, so the account added in that gap is not lost from it.
+                val seen = if (request.fallback) current else fingerprints(context, allTypes = true)
                 val all = fingerprints(context, allTypes = true)
-                if (settledFallbacks.values.any { hasLateAddition(it, all) }) reportUnexpectedChange(context)
+                if (settledFallbacks.values.any { hasLateAddition(it, seen) }) reportUnexpectedChange(context)
                 check(foldRelocked(context, settledFallbacks, all.keys))
             }
             return request

@@ -424,7 +424,7 @@ class MaintenanceInstallTest {
 
     @Test
     @Config(shadows = [AccountRelockShadow::class])
-    fun `a fallback start reports an account added after its own snapshot as late for an expired one`() {
+    fun `a fallback start folds an account added while it is open instead of reporting it`() {
         val expired = expireFallback()
         val manager = AccountManager.get(context)
         // An account appears after start() took its account snapshot, while the restriction is lifted. Android
@@ -459,6 +459,34 @@ class MaintenanceInstallTest {
         assertThat(relocked.length()).isEqualTo(manager.accounts.size)
         assertThat(manager.getAccountsByType("com.google")).hasLength(1)
         assertThat(checkNotNull(second).fallback).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `a fallback start reports an account added after the relock snapshot but before start`() {
+        val expired = expireFallback()
+        val manager = AccountManager.get(context)
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        listeners.clear()
+        try {
+            assertThat(manager.addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        } finally {
+            listeners.putAll(registered)
+        }
+
+        var failure: Throwable? = null
+        Thread {
+            try {
+                val fallbackId = InstallLease.android(context)
+                    .armCatalogAccounts(expired.leaseId, SystemClock.elapsedRealtime() + CatalogAccounts.FALLBACK_MS)
+                CatalogAccounts.start(context, pkg, expired.leaseId, fallbackId)
+            } catch (e: Throwable) {
+                failure = e
+            }
+        }.also { it.start(); pumpUntil { !it.isAlive } }
+        failure?.let { throw it }
+
         assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
     }
 
