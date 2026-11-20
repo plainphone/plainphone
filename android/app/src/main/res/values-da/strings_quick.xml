@@ -1,0 +1,22 @@
+<resources>
+    <string name="quick_title">Hurtigbeskeder</string>
+    <string name="quick_sent">Sendt til dine forældre</string>
+    <string name="quick_send_failed">Beskeden kunne ikke sendes. Ring eller skriv selv til dine forældre.</string>
+    <string name="quick_suggest">Foreslå en hurtigbesked</string>
+    <string name="quick_suggest_label">Din besked</string>
+    <string name="quick_suggest_send">Send</string>
+    <string name="quick_suggest_cancel">Annullér</string>
+    <string name="quick_suggest_sent">Sendt til dine forældre, så de kan godkende den</string>
+    <string name="quick_suggest_waiting">Dine forældre har ikke svaret på dine tidligere forslag endnu</string>
+    <string name="quick_suggest_failed">Forslaget kunne ikke sendes. Prøv igen senere.</string>
+    <plurals name="sharing_hidden_power">
+        <item quantity="one">Hvis du trykker hurtigt %1$d gange på tænd/sluk-knappen, får dine forældre en stille SOS.</item>
+        <item quantity="other">Hvis du trykker hurtigt %1$d gange på tænd/sluk-knappen, får dine forældre en stille SOS.</item>
+    </plurals>
+    <plurals name="sharing_hidden_power_position">
+        <item quantity="one">Hvis du trykker hurtigt %1$d gange på tænd/sluk-knappen, får dine forældre en stille SOS med din placering.</item>
+        <item quantity="other">Hvis du trykker hurtigt %1$d gange på tænd/sluk-knappen, får dine forældre en stille SOS med din placering.</item>
+    </plurals>
+    <string name="sharing_hidden_clock">Hvis du holder fingeren på uret på startskærmen, får dine forældre en stille SOS.</string>
+    <string name="sharing_code_words">Disse hurtigbeskeder sender også en SOS til dine forældre: %1$s</string>
+</resources>

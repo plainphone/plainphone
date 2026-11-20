@@ -1013,6 +1013,18 @@ input[type="radio"] {
   box-shadow: var(--shadow);
 }
 
+.sos-options > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.sos-options[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
 .sched-list + .form-card,
 .list + p,
 .form-card + p {

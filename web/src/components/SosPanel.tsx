@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { acknowledgeSos, api } from "../lib/api";
+import { type SosTrigger, triggerLabel } from "../lib/sos-options";
 import { useLoad } from "./ui";
 
 interface SosEvent {
@@ -12,6 +13,8 @@ interface SosEvent {
   seenAt: string | null;
   seenByName?: string | null;
   deliveryFailedAt?: string | null;
+  trigger?: SosTrigger;
+  message?: string | null;
   location: { lat: number; lon: number } | null;
 }
 
@@ -62,6 +65,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   }
 
   function eventRow(event: SosEvent, active: boolean) {
+    const how = triggerLabel(event.trigger, event.message);
     return (
       <article key={event.id} data-kind={event.kind} className={active ? "sos-alert stack" : "item stack"}>
         <div className="sos-event-heading">
@@ -71,6 +75,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
             {new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}
           </time>
         </div>
+        {how && <p className="row-meta" data-trigger={event.trigger}>{t(how.key, how.values)}</p>}
         {event.deliveryFailedAt && !event.seenAt && <p role="alert">{t("sos.notDelivered")}</p>}
         <div className="actions">
           {event.location && <a className="btn btn-secondary" href={`https://maps.google.com/?q=${event.location.lat},${event.location.lon}`}>{t("sos.map")}</a>}

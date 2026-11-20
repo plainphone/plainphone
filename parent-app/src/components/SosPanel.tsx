@@ -5,6 +5,7 @@ import { Linking } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n/I18n";
+import { triggerLabel } from "../shared/lib/sos-options";
 import { Button, Card, Field, Notice, Text, useLoad } from "./ui";
 
 type SosEvent = components["schemas"]["SosEvent"];
@@ -42,11 +43,13 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   function row(event: SosEvent) {
     const map = event.location && `https://maps.google.com/?q=${event.location.lat},${event.location.lon}`;
     const callback = res.data?.callbackNumber;
+    const how = triggerLabel(event.trigger, event.message);
     return (
       <Card key={event.id} testID={event.seenAt ? "sos-history-event" : "sos-banner"}>
         {phoneName !== undefined && <Text variant="heading">{phoneName}</Text>}
         <Text variant="heading">{t(event.kind === "urgent" ? "sos.urgent" : "sos.help")}</Text>
         <Text>{new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}</Text>
+        {how && <Text testID="sos-trigger">{t(how.key, how.values)}</Text>}
         {event.deliveryFailedAt && !event.seenAt && <Text accessibilityRole="alert">{t("sos.notDelivered")}</Text>}
         {map && <Button kind="secondary" title={t("sos.map")} onPress={() => void Linking.openURL(map).catch(() => setError(true))} />}
         {callback && <Button kind="secondary" title={t("sos.call")} onPress={() => void Linking.openURL(`tel:${callback}`).catch(() => setError(true))} />}

@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ class SharingActivity : ComponentActivity() {
                     weeklySummary = rules?.profile == "child" && rules.weeklySummaryEnabled,
                     appUpdates = org.plainphone.app.light.Mode.isStrong(this) &&
                         org.plainphone.app.update.AppUpdateWindow.automatic(this),
+                    hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },
@@ -69,6 +71,7 @@ fun SharingScreen(
     format: (Long) -> String,
     weeklySummary: Boolean = false,
     appUpdates: Boolean = false,
+    hiddenSos: org.plainphone.app.sos.SosSharing = org.plainphone.app.sos.SosSharing.NONE,
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -97,6 +100,18 @@ fun SharingScreen(
         }
         if (appUpdates) {
             Text(stringResource(R.string.sharing_app_updates), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // The hidden SOS is hidden from others, never from the child.
+        hiddenSos.powerPresses?.let { presses ->
+            val text = if (hiddenSos.withPosition) R.plurals.sharing_hidden_power_position else R.plurals.sharing_hidden_power
+            Text(pluralStringResource(text, presses, presses), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (hiddenSos.clock) {
+            Text(stringResource(R.string.sharing_hidden_clock), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (hiddenSos.codeWords.isNotEmpty()) {
+            val words = hiddenSos.codeWords.joinToString(", ") { "«$it»" }
+            Text(stringResource(R.string.sharing_code_words, words), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.sharing_latest), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)

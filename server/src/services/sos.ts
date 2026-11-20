@@ -14,6 +14,7 @@ export function sosJson(row: typeof sosEvents.$inferSelect) {
     id: row.id, kind: row.kind, createdAt: row.createdAt, seenAt: row.seenAt, seenByName: row.seenByName,
     deliveredVia: row.deliveredVia, deliveryFailedAt: row.deliveryFailedAt, battery: row.battery,
     location: row.lat === null || row.lon === null ? null : { lat: row.lat, lon: row.lon },
+    trigger: row.trigger, message: row.message,
   };
 }
 
@@ -59,7 +60,7 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
   const sent = await ctx.db.select().from(sosDeliveries)
     .where(and(eq(sosDeliveries.phoneId, phoneId), eq(sosDeliveries.eventId, id)));
   const state = new Map(sent.map((delivery) => [delivery.userId, delivery]));
-  const event = { type: "sos", id, phoneId, phoneName: phone.name, kind: row.kind } as const;
+  const event = { type: "sos", id, phoneId, phoneName: phone.name, kind: row.kind, trigger: row.trigger, message: row.message } as const;
   let pushedNow = 0;
   // Each parent is tracked on their own: a retry only repeats what failed for them.
   const finished = await Promise.all(members.map(async (member) => {

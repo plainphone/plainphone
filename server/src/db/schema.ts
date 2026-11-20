@@ -296,6 +296,13 @@ export const phones = pgTable(
     /** A calm notice five minutes before an app or the daily cap runs out. */
     limitWarningEnabled: boolean("limit_warning_enabled").notNull().default(true),
     sosCallbackNumber: text("sos_callback_number"),
+    /** Hidden SOS and quick messages (docs/sos.md); sent in the rules' `sos` block. */
+    hiddenSosPower: boolean("hidden_sos_power").notNull().default(false),
+    hiddenSosPresses: smallint("hidden_sos_presses").notNull().default(4),
+    hiddenSosClock: boolean("hidden_sos_clock").notNull().default(false),
+    hiddenSosFeedback: text("hidden_sos_feedback", { enum: ["vibrate", "none"] }).notNull().default("vibrate"),
+    quickMessagesEnabled: boolean("quick_messages_enabled").notNull().default(true),
+    quickSuggestionsEnabled: boolean("quick_suggestions_enabled").notNull().default(true),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
@@ -807,6 +814,10 @@ export const sosEvents = pgTable("sos_events", {
   notificationLeaseUntil: timestamp("notification_lease_until", { withTimezone: true }),
   /** Set when delivery to every parent was still incomplete at the final timeout. */
   deliveryFailedAt: timestamp("delivery_failed_at", { withTimezone: true }),
+  /** How the child sent it; null is the SOS screen (and phones before hidden SOS). */
+  trigger: text("trigger", { enum: ["power", "clock", "code"] }),
+  /** The quick message's text when it was a code word. */
+  message: text("message"),
 }, (t) => [
   primaryKey({ columns: [t.phoneId, t.id] }),
   index("sos_phone_created_idx").on(t.phoneId, t.createdAt),
@@ -826,6 +837,25 @@ export const sosDeliveries = pgTable("sos_deliveries", {
   primaryKey({ columns: [t.phoneId, t.eventId, t.userId] }),
   foreignKey({ columns: [t.phoneId, t.eventId], foreignColumns: [sosEvents.phoneId, sosEvents.id] }).onDelete("cascade"),
 ]);
+/** Quick messages the child sends with one tap; `suggested` rows wait for a parent (docs/sos.md). */
+export const quickMessages = pgTable("quick_messages", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  /** A code word: the child's phone shows an ordinary message, the parents get an urgent SOS. */
+  meansSos: boolean("means_sos").notNull().default(false),
+  status: text("status", { enum: ["active", "suggested"] }).notNull().default("active"),
+  createdAt: createdAt(),
+}, (t) => [index("quick_messages_phone_idx").on(t.phoneId, t.createdAt)]);
+
+/** Ids of quick messages the phone sent online, kept a day so a retry does not notify twice. */
+export const quickMessageSends = pgTable("quick_message_sends", {
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  id: uuid("id").notNull(),
+  notified: integer("notified").notNull().default(0),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.phoneId, t.id] }), index("quick_message_sends_created_idx").on(t.createdAt)]);
+
 /** Transfer signing identity. The private key stays on the server. */
 export const moveIdentity = pgTable("move_identity", {
   id: integer("id").primaryKey(),

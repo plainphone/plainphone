@@ -25,6 +25,25 @@ it("shows the urgent banner with map, callback and acknowledgment", () => {
   expect(html).toContain("I’ve seen it");
 });
 
+it("says how a hidden SOS was sent, and nothing for the SOS screen", () => {
+  vi.stubGlobal("localStorage", { getItem: () => "en" });
+  vi.stubGlobal("navigator", { languages: ["en"] });
+  state.response = {
+    events: [
+      { ...report, id: "a", trigger: "power" },
+      { ...report, id: "b", trigger: "clock" },
+      { ...report, id: "c", trigger: "code", message: "Pizza tonight?" },
+      { ...report, id: "d", trigger: null, message: null },
+    ],
+    callbackNumber: null,
+  };
+  const html = renderToStaticMarkup(<I18nProvider><SosPanel pid="phone" /></I18nProvider>);
+  expect(html).toContain('data-trigger="power">Power button<');
+  expect(html).toContain('data-trigger="clock">Clock<');
+  expect(html).toContain("Code word «Pizza tonight?»");
+  expect(html.match(/data-trigger/g)).toHaveLength(3);
+});
+
 it("warns that an alert did not reach every parent", () => {
   vi.stubGlobal("localStorage", { getItem: () => "en" });
   vi.stubGlobal("navigator", { languages: ["en"] });

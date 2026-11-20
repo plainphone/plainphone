@@ -119,6 +119,7 @@ class HomeActivity : ComponentActivity() {
                         phone = ::openPhone,
                         messages = ::openMessages,
                         sos = { showSos = true },
+                        clockHeld = { org.plainphone.app.sos.SilentSos.clockHeld(this@HomeActivity) },
                         help = { startActivity(Intent(this@HomeActivity, HelpActivity::class.java)) },
                         makeDefault = ::askToBeHome,
                         requests = { startActivity(org.plainphone.app.requests.RequestsActivity.intent(this@HomeActivity)) },
@@ -259,6 +260,7 @@ class HomeActivity : ComponentActivity() {
                 // The parent can switch approval on the phone off; then there is nothing to open.
                 openRequests = if (rules?.pinApproval == true) SyncStore(context).openRequests else 0,
                 limitWarning = runCatching { HomeTimeLimits.warning(context) }.getOrNull(),
+                hiddenClock = org.plainphone.app.sos.SilentSos.childSos(rules)?.hidden?.clock == true,
             )
         }
 

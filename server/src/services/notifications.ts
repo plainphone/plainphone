@@ -32,7 +32,10 @@ export type NotifyEvent =
   | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null; receipts?: boolean }
   /** The phone applied an answer the parent gave from a notification: updates that notification. `at` is in the phone's time zone. */
   | { type: "moreTimeReceipt"; requestId: string; phoneId: string; phoneName: string; answer: "15" | "60" | "day"; at: Date; clockAhead: boolean; timezone: string }
-  | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
+  | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help"; trigger?: "power" | "clock" | "code" | null; message?: string | null }
+  /** An ordinary quick message from the child's phone, or the child's suggestion for a new one (docs/sos.md). */
+  | { type: "quickMessage"; id: string; phoneId: string; phoneName: string; text: string }
+  | { type: "quickSuggestion"; phoneId: string; phoneName: string; text: string }
   | { type: "test" }
   /** The weekly summary is ready (docs/weekly-summary.md). */
   | { type: "summary"; summaryId: string };
@@ -55,6 +58,8 @@ function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"
     case "moreTime": return pushWords.moreTime(e, locale);
     case "safety": return pushWords.safety(e, locale);
     case "sos": return pushWords.sos(e, locale);
+    case "quickMessage": return pushWords.quickMessage(e, locale);
+    case "quickSuggestion": return pushWords.quickSuggestion(e, locale);
     case "test": return pushWords.test(locale);
   }
 }
@@ -99,6 +104,10 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
     case "sos":
       return { ...t, url: `/phones/${e.phoneId}`, tag: e.id.replaceAll("-", ""),
         data: { type: e.kind === "urgent" ? "sos-urgent" : "sos-help", phoneId: e.phoneId } };
+    case "quickMessage":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-${e.id.replaceAll("-", "")}`, data: { type: "quick-message", phoneId: e.phoneId } };
+    case "quickSuggestion":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-suggestion-${e.phoneId}`, data: { type: "quick-suggestion", phoneId: e.phoneId } };
     case "test":
       return { ...t, url: "/settings", tag: "test" };
   }

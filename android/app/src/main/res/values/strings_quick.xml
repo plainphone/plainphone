@@ -1,0 +1,22 @@
+<resources>
+    <string name="quick_title">Quick messages</string>
+    <string name="quick_sent">Sent to your parents</string>
+    <string name="quick_send_failed">The message could not be sent. Call or text your parents yourself.</string>
+    <string name="quick_suggest">Suggest a quick message</string>
+    <string name="quick_suggest_label">Your message</string>
+    <string name="quick_suggest_send">Send</string>
+    <string name="quick_suggest_cancel">Cancel</string>
+    <string name="quick_suggest_sent">Sent to your parents for approval</string>
+    <string name="quick_suggest_waiting">Your parents have not answered your earlier suggestions yet</string>
+    <string name="quick_suggest_failed">The suggestion could not be sent. Try again later.</string>
+    <plurals name="sharing_hidden_power">
+        <item quantity="one">Pressing the power button %1$d times quickly sends your parents a silent SOS.</item>
+        <item quantity="other">Pressing the power button %1$d times quickly sends your parents a silent SOS.</item>
+    </plurals>
+    <plurals name="sharing_hidden_power_position">
+        <item quantity="one">Pressing the power button %1$d times quickly sends your parents a silent SOS with your position.</item>
+        <item quantity="other">Pressing the power button %1$d times quickly sends your parents a silent SOS with your position.</item>
+    </plurals>
+    <string name="sharing_hidden_clock">Holding the clock on the home screen sends your parents a silent SOS.</string>
+    <string name="sharing_code_words">These quick messages also send your parents an SOS: %1$s</string>
+</resources>
