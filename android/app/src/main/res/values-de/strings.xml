@@ -376,4 +376,10 @@
     <string name="self_approval_outcome_cancelled">Diese Anfrage wurde zurückgezogen. Nichts wurde geändert.</string>
     <string name="self_approval_outcome_failed">Die Änderung konnte nicht angewendet werden. Stelle eine neue Anfrage.</string>
     <string name="self_approval_outcome_expired">Der Code ist abgelaufen. Nichts wurde genehmigt. Zeige einen neuen Code an.</string>
+    <!-- The fallback SOS SMS, built on the phone: keep it to one SMS segment. -->
+    <string name="sos_sms_text">SOS von %1$s: %2$s. Standort: %3$s. Gesendet über Plainphone.</string>
+    <string name="sos_sms_hidden">dringend (verdeckter SOS)</string>
+    <string name="sos_sms_urgent">dringend</string>
+    <string name="sos_sms_help">braucht Hilfe</string>
+    <string name="sos_sms_unknown_position">unbekannt</string>
 </resources>

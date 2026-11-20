@@ -85,6 +85,8 @@ Privacy: quick messages themselves are not stored as history. The server keeps o
 the id of an online quick message for a day, to recognise a retry. A hidden SOS is
 an SOS event like the others (30 days), with how it was sent and a code word's text.
 
+The fallback SMS is written in the phone's language (da, en, sv, nb, de), from Android string resources. A hidden SOS says "(hidden SOS)" in every language, so the parent knows not to call back loudly.
+
 Self-hosting: update the server before the phone app. An older server rejects the
 `trigger` and `message` fields of a hidden SOS report, and the phone does not fall
 back to SMS after a rejection.
