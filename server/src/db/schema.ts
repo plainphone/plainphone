@@ -575,7 +575,32 @@ export const selfKeys = pgTable("self_keys", {
   payUnlockAmount: integer("pay_unlock_amount").notNull().default(50000),
   payUnlockCurrency: text("pay_unlock_currency").notNull().default("DKK"),
   payUnlockRecipient: text("pay_unlock_recipient").notNull().default("plainphone"),
+  /** Limited emergency openings (docs/emergency-openings.md). Off for every existing Self phone. */
+  emergencyEnabled: boolean("emergency_enabled").notNull().default(false),
+  /** Openings per calendar month in the phone's time zone; each lasts 15 minutes for one app. */
+  emergencyAllowance: integer("emergency_allowance").notNull().default(3),
 });
+
+/**
+ * One emergency opening the Self phone used. The phone is the authority: it opens first and
+ * reports later, so a row is never refused, only recorded. `id` is the phone's own UUID, so a
+ * retried report is the same row. `month` is YYYY-MM in the phone's time zone when it opened.
+ */
+export const emergencyOpenings = pgTable(
+  "emergency_openings",
+  {
+    id: uuid("id").primaryKey(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    packageName: text("package_name").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+    minutes: integer("minutes").notNull(),
+    month: text("month").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("emergency_openings_phone_month_idx").on(t.phoneId, t.month)],
+);
 
 export type ChangeStatus = "pending" | "applied" | "cancelled" | "rejected" | "failed";
 

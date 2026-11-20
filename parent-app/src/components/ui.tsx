@@ -417,6 +417,41 @@ export function Choice<V extends string>({
   );
 }
 
+/** A row that opens and closes the rarely needed options under it (the PWA's details element). */
+export function Disclosure({
+  title,
+  open,
+  onToggle,
+  children,
+  testID,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  children: ReactNode;
+  testID?: string;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ gap: space.sm }}>
+      <Pressable
+        testID={testID}
+        onPress={() => onToggle(!open)}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: open }}
+        style={styles.disclosure}
+      >
+        <Text variant="label">{title}</Text>
+        <RNText style={{ color: c.muted, fontSize: 18 }} importantForAccessibility="no" accessibilityElementsHidden>
+          {open ? "▾" : "▸"}
+        </RNText>
+      </Pressable>
+      {open ? children : null}
+    </View>
+  );
+}
+
 /** A short row of equal choices, like 5, 10, 15 and 30 minutes (segmented control). */
 export function Segmented<V extends string | number>({
   label,
@@ -556,6 +591,7 @@ const styles = StyleSheet.create({
   choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radiusControl, borderWidth: 1.5 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
+  disclosure: { minHeight: touch, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm },
   segmented: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   segment: { flexGrow: 1, flexBasis: 72, minHeight: touch, paddingHorizontal: space.sm, borderRadius: radiusControl, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   state: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.lg },

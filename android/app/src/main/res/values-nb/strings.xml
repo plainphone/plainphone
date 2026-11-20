@@ -381,4 +381,34 @@
     <string name="sos_sms_urgent">akutt</string>
     <string name="sos_sms_help">trenger hjelp</string>
     <string name="sos_sms_unknown_position">ukjent</string>
+    <string name="setup_level_mild">Mild</string>
+    <string name="setup_level_firm">Fast</string>
+    <string name="setup_level_strict">Streng</string>
+    <string name="setup_level_custom">Eget valg</string>
+    <plurals name="setup_level_wait_line">
+        <item quantity="one">En løsere regel venter %1$d time.</item>
+        <item quantity="other">En løsere regel venter %1$d timer.</item>
+    </plurals>
+    <string name="setup_level_strict_line">En person du stoler på, godkjenner en løsere regel.</string>
+    <string name="setup_key_advanced">Avansert</string>
+    <string name="setup_key_advanced_hide">Skjul avansert</string>
+    <string name="setup_key_advanced_body">Velg din egen ventetid</string>
+    <string name="setup_summary_level">Nivå: %1$s</string>
+    <string name="emergency_button">Nødåpning</string>
+    <plurals name="emergency_left">
+        <item quantity="one">%1$d igjen denne måneden</item>
+        <item quantity="other">%1$d igjen denne måneden</item>
+    </plurals>
+    <string name="emergency_none_left">Ingen nødåpninger igjen denne måneden</string>
+    <string name="emergency_confirm_title">Åpne %1$s i %2$d minutter?</string>
+    <string name="emergency_confirm_told">Personen du stoler på, får beskjed.</string>
+    <string name="emergency_open">Åpne</string>
+    <string name="emergency_cancel">Avbryt</string>
+    <string name="emergency_busy">En annen app er åpen med en nødåpning. Prøv igjen når den er over.</string>
+    <string name="emergency_refused">Det kan ikke åpnes akkurat nå.</string>
+    <plurals name="emergency_status">
+        <item quantity="one">Nødåpninger: %1$d igjen denne måneden</item>
+        <item quantity="other">Nødåpninger: %1$d igjen denne måneden</item>
+    </plurals>
+    <string name="emergency_this_app">denne appen</string>
 </resources>

@@ -26,6 +26,7 @@ import kotlinx.coroutines.withContext
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.Compat
 import org.plainphone.app.MaintenanceActivity
+import org.plainphone.app.R
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.time.MoreTime
 import org.plainphone.app.ui.PhoneActivity
@@ -69,6 +70,13 @@ class BlockedActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val active = onScreen
             val tick = rulesChanged
+            // Emergency opening (Self phone, light mode): offered only when the rules switch it on.
+            val emergency = remember(pkg, reason) { EmergencyController(this@BlockedActivity, pkg, reason) }
+            val offer by produceState<EmergencyOffer?>(null, tick, active) {
+                value = withContext(Dispatchers.IO) { runCatching { emergency.offer() }.getOrNull() }
+            }
+            var confirming by rememberSaveable { mutableStateOf(false) }
+            var emergencyMessage by remember { mutableStateOf<Int?>(null) }
             // Fresh at once, after every rules sync, and every 15 s while the screen can be seen.
             LaunchedEffect(asking, active, tick) {
                 while (asking != null && active) {
@@ -87,6 +95,26 @@ class BlockedActivity : ComponentActivity() {
                     onEnterPin = {
                         startActivity(Intent(this, MaintenanceActivity::class.java))
                         finish()
+                    },
+                    emergency = if (showParent) null else offer,
+                    emergencyConfirming = confirming,
+                    emergencyMessage = emergencyMessage,
+                    onEmergency = { emergencyMessage = null; confirming = true },
+                    onEmergencyCancel = { confirming = false },
+                    onEmergencyOpen = {
+                        confirming = false
+                        scope.launch {
+                            val outcome = withContext(Dispatchers.IO) {
+                                runCatching { emergency.open() }.getOrDefault(EmergencyOutcome.Refused(R.string.emergency_refused))
+                            }
+                            when (outcome) {
+                                is EmergencyOutcome.Opened -> {
+                                    runCatching { startActivity(outcome.launch) }
+                                    finish()
+                                }
+                                is EmergencyOutcome.Refused -> emergencyMessage = outcome.message
+                            }
+                        }
                     },
                     ask = ask?.let { if (it == MoreTime.Ui.Offer && composing) MoreTime.Ui.Composing else it },
                     onAsk = { composing = true },

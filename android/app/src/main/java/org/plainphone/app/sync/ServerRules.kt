@@ -113,6 +113,8 @@ data class ServerRules(
      */
     val weeklySummaryEnabled: Boolean = false,
     val appUpdates: AppUpdateRules = AppUpdateRules(),
+    /** Limited emergency openings for a Self phone in light mode. Off when missing (older servers). */
+    val selfEmergency: org.plainphone.app.light.EmergencyRules = org.plainphone.app.light.EmergencyRules.OFF,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -142,6 +144,7 @@ data class ServerRules(
                 pinApproval = j.optBoolean("pinApprovalEnabled", false),
                 weeklySummaryEnabled = j.optBoolean("weeklySummaryEnabled", false),
                 appUpdates = AppUpdateRules.parse(j.optJSONObject("appUpdates")),
+                selfEmergency = org.plainphone.app.light.EmergencyRules.parse(j.optJSONObject("selfEmergency")),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {
                     ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))

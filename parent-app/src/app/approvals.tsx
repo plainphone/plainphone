@@ -3,15 +3,24 @@ import { useRouter } from "expo-router";
 import { Linking } from "react-native";
 import { useRef, useState } from "react";
 import { ApiError, client, unwrap } from "../api/client";
-import type { Approval } from "../api/models";
+import type { Approval, EmergencyOpening, EmergencySettings } from "../api/models";
+import { EmergencyBlock } from "../components/EmergencyOpenings";
 import { ScanCode } from "../components/ScanCode";
 import { ApprovalQueue } from "../components/ApprovalQueue";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Text, useLoad } from "../components/ui";
+import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
 import { savePendingInvite } from "../lib/pendingInvite";
 import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../shared/lib/approval-state";
+
+/** `emergency` is missing when the server is older. */
+interface HelpedPerson {
+  id: string;
+  name: string;
+  owner: string;
+  emergency?: EmergencySettings & { openings?: EmergencyOpening[] };
+}
 
 function selfCode(raw: string) {
   try {
@@ -33,6 +42,11 @@ function ApprovalsList() {
   const [code, setCode] = useState<string | null>(null);
   const selected = code?.split(".")[1];
   const res = useLoad(() => unwrap<{ approvals: Approval[] }>(client.GET("/approvals")).then((r) => r.approvals), []);
+  // The people I help only add their emergency openings; a failure here must not hide the requests.
+  const people = useLoad(
+    () => unwrap<{ people: HelpedPerson[] }>(client.GET("/people-i-help")).then((r) => r.people).catch(() => [] as HelpedPerson[]),
+    [],
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const sending = useRef(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
@@ -111,6 +125,14 @@ function ApprovalsList() {
           );
         }}
       </LoadGate>
+      {/* A person without an emergency block (an older server) shows nothing here. */}
+      {(people.data ?? []).filter((p) => p.emergency).map((p) => (
+        <Card key={p.id} testID="helped-person">
+          <Text variant="heading" accessibilityRole="header">{p.name}</Text>
+          <Text variant="small">{p.owner}</Text>
+          <EmergencyBlock emergency={p.emergency} />
+        </Card>
+      ))}
     </Screen>
   );
 }

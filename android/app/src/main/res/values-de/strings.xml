@@ -381,4 +381,34 @@
     <string name="sos_sms_urgent">dringend</string>
     <string name="sos_sms_help">braucht Hilfe</string>
     <string name="sos_sms_unknown_position">unbekannt</string>
+    <string name="setup_level_mild">Mild</string>
+    <string name="setup_level_firm">Fest</string>
+    <string name="setup_level_strict">Streng</string>
+    <string name="setup_level_custom">Eigene Wahl</string>
+    <plurals name="setup_level_wait_line">
+        <item quantity="one">Eine lockerere Regel wartet %1$d Stunde.</item>
+        <item quantity="other">Eine lockerere Regel wartet %1$d Stunden.</item>
+    </plurals>
+    <string name="setup_level_strict_line">Eine Vertrauensperson genehmigt eine lockerere Regel.</string>
+    <string name="setup_key_advanced">Erweitert</string>
+    <string name="setup_key_advanced_hide">Erweitert ausblenden</string>
+    <string name="setup_key_advanced_body">Eigene Wartezeit wählen</string>
+    <string name="setup_summary_level">Stufe: %1$s</string>
+    <string name="emergency_button">Notöffnung</string>
+    <plurals name="emergency_left">
+        <item quantity="one">Noch %1$d in diesem Monat</item>
+        <item quantity="other">Noch %1$d in diesem Monat</item>
+    </plurals>
+    <string name="emergency_none_left">Keine Notöffnungen mehr in diesem Monat</string>
+    <string name="emergency_confirm_title">%1$s für %2$d Minuten öffnen?</string>
+    <string name="emergency_confirm_told">Deine Vertrauensperson wird informiert.</string>
+    <string name="emergency_open">Öffnen</string>
+    <string name="emergency_cancel">Abbrechen</string>
+    <string name="emergency_busy">Eine andere App ist gerade per Notöffnung geöffnet. Versuch es noch einmal, wenn sie zu Ende ist.</string>
+    <string name="emergency_refused">Das lässt sich gerade nicht öffnen.</string>
+    <plurals name="emergency_status">
+        <item quantity="one">Notöffnungen: noch %1$d in diesem Monat</item>
+        <item quantity="other">Notöffnungen: noch %1$d in diesem Monat</item>
+    </plurals>
+    <string name="emergency_this_app">diese App</string>
 </resources>

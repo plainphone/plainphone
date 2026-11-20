@@ -2,6 +2,7 @@
 
 Choose **Myself** on Android and select a key before confirming setup. A wait-time
 key takes 1, 6, 12, 24, 48 or 72 hours to loosen rules or release the phone.
+Most people pick one of [three strictness levels](#strictness-levels) instead of a number.
 Stricter rules take effect at the next connection. A trusted person can approve
 loosening requests. Until the person joins, new requests use a 24-hour wait. When a QR helper
 joins, requests made while waiting for that helper switch to trusted approval
@@ -10,6 +11,34 @@ Existing phones and older Android versions keep their established key or the
 legacy 24-hour default. You can edit a draft's rules, favourites and key in the
 dashboard before connecting. The key selected on the phone during setup replaces
 the draft key.
+
+## Strictness levels
+
+The main choice, in the phone's own Myself setup, the dashboard's **Key** page and the parent app, is one
+of three levels:
+
+| Level | The key | A looser rule... |
+|---|---|---|
+| **Mild** | a 1-hour wait | waits 1 hour |
+| **Firm** | a 24-hour wait | waits 24 hours |
+| **Strict** | a person you trust | needs that person to say yes (24 hours if they have not joined yet) |
+
+Custom wait times (6, 12, 48 and 72 hours, and the plain 1 and 24) live under **Advanced**. A level is a
+name for the key, not a stored setting: the server derives it (`level` in `GET /phones/{pid}/key`:
+`mild`, `firm`, `strict` or `custom`), so phones, older apps and older servers keep working unchanged.
+A Self phone that chose a custom delay before levels existed keeps that delay exactly and shows as
+**Custom** under Advanced until its owner picks a level.
+
+Changing the level is an ordinary key change (`PUT /phones/{pid}/key`). A milder level (Firm to Mild, or
+any level to Strict from a wait) loosens, so it waits for the current key; a stricter one (a longer wait)
+applies at once. Evidence: no direct evidence, reason: three named presets cut the number of decisions
+at setup; the durations are the ones the key already offered ([evidence.md](evidence.md), commitment delay).
+
+## Emergency openings
+
+A Self phone can allow itself a few emergency openings a month: one blocked app for 15 minutes, counted,
+logged and shown to the person you trust. It is a switch, off by default, and changing it goes through the
+key. See [emergency-openings.md](emergency-openings.md).
 
 ## Undo setup
 

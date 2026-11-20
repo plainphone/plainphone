@@ -381,4 +381,34 @@
     <string name="sos_sms_urgent">akut</string>
     <string name="sos_sms_help">behöver hjälp</string>
     <string name="sos_sms_unknown_position">okänd</string>
+    <string name="setup_level_mild">Mild</string>
+    <string name="setup_level_firm">Fast</string>
+    <string name="setup_level_strict">Sträng</string>
+    <string name="setup_level_custom">Eget val</string>
+    <plurals name="setup_level_wait_line">
+        <item quantity="one">En lösare regel väntar %1$d timme.</item>
+        <item quantity="other">En lösare regel väntar %1$d timmar.</item>
+    </plurals>
+    <string name="setup_level_strict_line">En person du litar på godkänner en lösare regel.</string>
+    <string name="setup_key_advanced">Avancerat</string>
+    <string name="setup_key_advanced_hide">Dölj avancerat</string>
+    <string name="setup_key_advanced_body">Välj din egen väntetid</string>
+    <string name="setup_summary_level">Nivå: %1$s</string>
+    <string name="emergency_button">Nödöppning</string>
+    <plurals name="emergency_left">
+        <item quantity="one">%1$d kvar den här månaden</item>
+        <item quantity="other">%1$d kvar den här månaden</item>
+    </plurals>
+    <string name="emergency_none_left">Inga nödöppningar kvar den här månaden</string>
+    <string name="emergency_confirm_title">Öppna %1$s i %2$d minuter?</string>
+    <string name="emergency_confirm_told">Personen du litar på får veta det.</string>
+    <string name="emergency_open">Öppna</string>
+    <string name="emergency_cancel">Avbryt</string>
+    <string name="emergency_busy">En annan app är öppen med en nödöppning. Försök igen när den har tagit slut.</string>
+    <string name="emergency_refused">Det går inte att öppna just nu.</string>
+    <plurals name="emergency_status">
+        <item quantity="one">Nödöppningar: %1$d kvar den här månaden</item>
+        <item quantity="other">Nödöppningar: %1$d kvar den här månaden</item>
+    </plurals>
+    <string name="emergency_this_app">den här appen</string>
 </resources>

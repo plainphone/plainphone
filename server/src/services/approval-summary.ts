@@ -70,7 +70,7 @@ export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
   const limitsFor = phonesFor("timeLimit.set", "timeLimit.bonus");
   const schedulesFor = phonesFor("schedule.update", "schedule.delete");
   const settingsFor = phonesFor("setting.set", "home.set");
-  const keysFor = phonesFor("key.set");
+  const keysFor = phonesFor("key.set", "emergency.set");
   const contactsFor = phonesFor("contact.add", "contact.remove");
   const dnsFor = phonesFor("dns.category", "openMode.category", "dns.allowDomain", "dns.blockDomain");
   const bonusesFor = phonesFor("timeLimit.bonus");
@@ -160,6 +160,7 @@ function approvalBeforeState(state: ApprovalState, phoneId: string, op: Op, bonu
     case "home.set":
       return state.settings.find((row) => row.phoneId === phoneId)?.home;
     case "key.set":
+    case "emergency.set":
       return state.keys.find((row) => row.phoneId === phoneId);
     case "phone.release":
     case "phone.remove":
@@ -318,6 +319,15 @@ export function formatApprovalSummary(
         const key = copy("Key", "Nøgle");
         const from = current ? describe(current) : copy("none", "ingen")[locale];
         return `${key[locale]}: ${from} → ${describe(next, changedHelper)}`;
+      });
+    }
+    case "emergency.set": {
+      const current = state.keys.find((row) => row.phoneId === phoneId);
+      return localized((locale) => {
+        const describe = (on: boolean | undefined, allowance: number | undefined) => !on
+          ? (locale === "da" ? "fra" : "off")
+          : locale === "da" ? `${allowance} om måneden (15 min hver)` : `${allowance} a month (15 min each)`;
+        return `${locale === "da" ? "Nødåbninger" : "Emergency openings"}: ${describe(current?.emergencyEnabled, current?.emergencyAllowance)} → ${describe(op.enabled, op.allowance)}`;
       });
     }
     case "catalog.add": return copy(`Add ${app} to the app list`, `Tilføj ${app} til applisten`);

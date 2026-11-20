@@ -35,6 +35,7 @@ import {
   settingLoosens,
 } from "../lib/phone-settings.js";
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
+import { effectiveAllowance } from "../lib/self-level.js";
 import { approvalBonusDate, approvalRevision, loadApprovalSummaries } from "./approval-summary.js";
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
@@ -63,6 +64,7 @@ export type Op =
   | { type: "setting.set"; key: SettingKey; setting: SettingState }
   | { type: "home.set"; home: HomeUpdate }
   | { type: "key.set"; key: KeyInput }
+  | { type: "emergency.set"; enabled: boolean; allowance: number }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
   | { type: "move.allow"; allowed: boolean }
@@ -207,6 +209,13 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
       return true;
     case "catalog.remove":
       return false;
+    case "emergency.set": {
+      // Openings let an app through that the rules block, so more of them loosen. Fewer, or
+      // switching them off, tighten.
+      const [current] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
+      const before = current ? effectiveAllowance(current) : 0;
+      return effectiveAllowance({ emergencyEnabled: op.enabled, emergencyAllowance: op.allowance }) > before;
+    }
     case "key.set": {
       const [current] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
       if (!current) return false;
@@ -237,6 +246,9 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
     }
     case "contact.schedule":
       if (phone.profile !== "self") throw new ChangeError(400, "only Self phones can change scheduled contacts");
+      return;
+    case "emergency.set":
+      if (phone.profile !== "self") throw new ChangeError(400, "only Self phones have emergency openings");
       return;
     case "contact.remove": {
       const [c] = await db
@@ -426,6 +438,14 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
     case "schedule.delete":
       await db.delete(schedules).where(and(eq(schedules.id, op.scheduleId), eq(schedules.phoneId, phone.id)));
       return { dns: false };
+    case "emergency.set": {
+      const values = { emergencyEnabled: op.enabled, emergencyAllowance: op.allowance };
+      await db
+        .insert(selfKeys)
+        .values({ phoneId: phone.id, ...values })
+        .onConflictDoUpdate({ target: selfKeys.phoneId, set: values });
+      return { dns: false };
+    }
     case "key.set": {
       const k = op.key;
       let trustedUserId: string | null = null;
@@ -672,7 +692,7 @@ export async function canDecideTrusted(db: DbLike, phone: Phone, change: typeof 
   return !(await isPhoneHouseholdMember(db, phone, userId));
 }
 
-async function isPhoneHouseholdMember(db: DbLike, phone: Phone, userId: string) {
+export async function isPhoneHouseholdMember(db: DbLike, phone: Phone, userId: string) {
   const [member] = await db.select({ userId: householdMembers.userId }).from(householdMembers)
     .where(and(eq(householdMembers.householdId, phone.householdId), eq(householdMembers.userId, userId)));
   return Boolean(member);

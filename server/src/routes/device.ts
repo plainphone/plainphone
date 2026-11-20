@@ -37,6 +37,7 @@ import { approveRequestOnPhone, createRequest, phoneRequestList, RequestError, r
 
 import type { UpdateWake } from "../services/update-wake.js";
 import { recordAppUpdateWindow } from "../services/app-updates.js";
+import { openingReport, recordOpening } from "../services/emergency-openings.js";
 import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson, sendMoreTimeReceipts } from "../services/more-time.js";
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
@@ -912,6 +913,15 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (err instanceof RequestError || err instanceof ChangeError) return c.json({ error: err.message }, err.status);
       throw err;
     }
+  });
+
+  // The phone opened an app with an emergency opening and reports it afterwards, maybe much later
+  // (it works offline). The phone is the authority, so this never refuses: it records the opening
+  // once per id and tells the trusted person.
+  app.post("/emergency-openings", async (c) => {
+    const report = await body(c, openingReport);
+    await recordOpening(ctx, c.get("phone"), report);
+    return c.body(null, 204);
   });
 
   app.put("/push-token", async (c) => {
