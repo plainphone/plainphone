@@ -72,6 +72,7 @@ import { summaryRoutes } from "./summary.js";
 import { parentMoreTimeRoutes } from "./more-time.js";
 import { locationRoutes, setLocationMode } from "./location.js";
 import { parentSosRoutes } from "./sos.js";
+import { parentAgeRoutes } from "./age-agreement.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -947,6 +948,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   parentMoreTimeRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   parentSosRoutes(app, ctx, requirePhone);
+  parentAgeRoutes(app, ctx, requirePhone);
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts

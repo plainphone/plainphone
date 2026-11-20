@@ -161,6 +161,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/age-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The age presets and what each one sets
+         * @description One table for setup in the dashboard and the parent app (docs/age-presets.md).
+         */
+        get: operations["listAgePresets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/age": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** The age preset and the review reminder of a Child phone */
+        get: operations["getAgeState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/age-preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply an age preset
+         * @description Sets the daily cap, bedtime, school time and blocked web categories to the preset's values, and counts as a review. Nothing is locked; every value stays editable.
+         */
+        post: operations["applyAgePreset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Turn the review reminder on or off, change how often it comes, or move the date
+         * @description Turning it on starts the clock one interval from now. A new interval restarts the clock; a date moves it to 09:00 that day on the phone's clock. The reminder goes out by the household's summary channels (mail and notification).
+         */
+        put: operations["setReview"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/review/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** We looked at the rules: the next review is one interval away */
+        post: operations["markReviewed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/agreement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** The family agreement of a Child phone */
+        get: operations["getAgreement"];
+        /**
+         * Write the family agreement, or switch it on or off
+         * @description Any field may be left out. The phone gets it in the rules (`ageAgreement`) and shows it on "What can my parents see?". It is never written to logs.
+         */
+        put: operations["setAgreement"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/quick-messages": {
         parameters: {
             query?: never;
@@ -2804,6 +2929,65 @@ export interface components {
             recipients: string[];
             messages: components["schemas"]["FamilyMessage"][];
         };
+        /** @description What an age preset starts with (docs/age-presets.md). Every value stays editable; a preset locks nothing. */
+        AgePreset: {
+            /** @enum {string} */
+            id: "8-9" | "10-11" | "12-13" | "14plus";
+            dailyMinutes: {
+                weekday: number;
+                /** @description Saturday and Sunday */
+                weekend: number;
+            };
+            /** @description Every day; minutes after local midnight, the window crosses midnight */
+            bedtime: {
+                startMinute: number;
+                endMinute: number;
+            };
+            /** @description Monday to Friday; null for no school window */
+            school: {
+                startMinute?: number;
+                endMinute?: number;
+            } | null;
+            blockedCategories: string[];
+        };
+        /** @description One idea for what to open next, from the current rules. `time` and `bedtime` carry minutes (bedtime as minutes after midnight); `category` carries the web filter category. */
+        AgeSuggestion: {
+            /** @enum {string} */
+            kind: "time" | "bedtime" | "school" | "category" | "talk";
+            from?: number;
+            to?: number;
+            category?: string;
+        };
+        AgeState: {
+            /** @enum {string|null} */
+            agePreset: "8-9" | "10-11" | "12-13" | "14plus" | null;
+            review: {
+                enabled: boolean;
+                /** @enum {integer} */
+                intervalMonths: 1 | 2 | 3 | 6 | 12;
+                /**
+                 * Format: date-time
+                 * @description The reminder moment (09:00 on the phone's wall clock)
+                 */
+                dueAt: string | null;
+                due: boolean;
+                /** @description Up to three ideas; empty while the reminder is off */
+                suggestions: components["schemas"]["AgeSuggestion"][];
+            };
+        };
+        /** @description The family agreement (docs/family-agreement.md). The family's own words, kept per phone and shown on the child's phone only. */
+        Agreement: {
+            /** @description In the child's words */
+            lines: string[];
+            /** @description Rules for the adults */
+            adultLines: string[];
+            /** @description Show it on the child's phone (default on) */
+            enabled: boolean;
+            /** @description Also on the home screen (default off) */
+            onHome: boolean;
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
         QuickMessage: {
             /** Format: uuid */
             id: string;
@@ -3313,6 +3497,17 @@ export interface components {
                  */
                 latest: string | null;
             };
+            /** @description The family agreement of a Child phone (docs/family-agreement.md), in the family's own words. Left out while it is off or empty; old phones ignore it. */
+            ageAgreement?: {
+                /** @description What the family agreed */
+                lines: string[];
+                /** @description Rules the adults set for themselves (a suggestion */
+                adultLines: string[];
+                /** @description Also show the agreement on the home screen */
+                onHome: boolean;
+                /** Format: date-time */
+                updatedAt: string | null;
+            };
             allowServerMove?: boolean;
             /** @description This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready. */
             fallbackDnsHost?: string | null;
@@ -3783,6 +3978,23 @@ export interface components {
             changeReceiptsEnabled?: boolean;
             healthBoardEnabled?: boolean;
             weeklySummaryEnabled?: boolean;
+            /**
+             * @description The age preset last applied; null for none
+             * @enum {string|null}
+             */
+            agePreset?: "8-9" | "10-11" | "12-13" | "14plus" | null;
+            /** @description The "review the rules" reminder (off for phones from before it existed) */
+            reviewEnabled?: boolean;
+            reviewIntervalMonths?: number;
+            /** Format: date-time */
+            reviewDueAt?: string | null;
+            /** @description The review date has come */
+            reviewDue?: boolean;
+            /** @description Show the family agreement on the child's phone */
+            agreementEnabled?: boolean;
+            /** @description Also show it on the home screen */
+            agreementOnHome?: boolean;
+            agreementHasText?: boolean;
             silentBedtime?: boolean;
             pinApprovalEnabled?: boolean;
             /** @description Modes on one weekly schedule (docs/modes.md). Always false on a Self phone. */
@@ -4469,6 +4681,263 @@ export interface operations {
             };
             /** @description The family inbox is off for this phone */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listAgePresets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The presets, youngest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        presets: components["schemas"]["AgePreset"][];
+                    };
+                };
+            };
+        };
+    };
+    getAgeState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state, with ideas for what to open next */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeState"];
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    applyAgePreset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    preset: "8-9" | "10-11" | "12-13" | "14plus";
+                };
+            };
+        };
+        responses: {
+            /** @description Applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeState"];
+                };
+            };
+            /** @description Unknown preset */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled?: boolean;
+                    /** @enum {integer} */
+                    intervalMonths?: 1 | 2 | 3 | 6 | 12;
+                    /** @description A local date */
+                    dueDate?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeState"];
+                };
+            };
+            /** @description Not a date */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The reminder is off */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markReviewed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeState"];
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The reminder is off */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAgreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agreement */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agreement"];
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setAgreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    lines?: string[];
+                    adultLines?: string[];
+                    enabled?: boolean;
+                    onHome?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agreement"];
+                };
+            };
+            /** @description Too many or too long lines */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

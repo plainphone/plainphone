@@ -9,6 +9,7 @@ import {
   phoneAlertText, sosButton, sosMail,
 } from "../src/lib/mail-templates.js";
 import { moreTimeActions, pushTables, pushWords, type SafetyNews } from "../src/lib/push-text.js";
+import { reviewTable } from "../src/lib/review-words.js";
 import { summaryTable } from "../src/lib/summary-text.js";
 import { pushMessage, type NotifyEvent } from "../src/services/notifications.js";
 
@@ -45,6 +46,7 @@ const events: Record<string, NotifyEvent> = {
   "quick suggestion": { type: "quickSuggestion", phoneId: "p1", phoneName: "Robin", text: "Pick me up" },
   test: { type: "test" },
   summary: { type: "summary", summaryId: "w1" },
+  review: { type: "review", phoneId: "p1", phoneName: "Robin" },
   ...Object.fromEntries(SAFETY.map((what) => [`safety ${what}`, { type: "safety", phoneId: "p1", phoneName: "Robin", what } as NotifyEvent])),
 };
 
@@ -67,6 +69,7 @@ describe("every message has all five languages", () => {
     "mail phone alert": phoneAlertText,
     "mail SOS button": sosButton,
     "weekly summary": summaryTable,
+    "review reminder": reviewTable,
   };
   it.each(Object.entries(tables))("%s", (_name, table) => {
     expect(sorted(table)).toEqual([...LOCALES].sort());

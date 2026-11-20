@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { AddPhonePage } from "./AddPhone";
+import { skipAgeSteps } from "./setup-test-helpers";
 
 const phone = { id: "test-phone", name: "Test phone", mode: "light", pairedAt: null, setupEnrollmentId: "enr-1" };
 const provisioning = {
@@ -21,6 +22,7 @@ it("puts the first instruction before the code and restarts an expired code for 
   const tokens = ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", "pp_e_9x8-AbCdEfGhIjKlMnOpQr"];
   let current = "enr-1";
   const fetch = vi.fn(async (url: string, request: RequestInit) => {
+    if (url === "/api/age-presets") return Response.json({ presets: [] });
     if (request.method === "GET") return Response.json({ ...phone, setupEnrollmentId: current });
     const first = url === "/api/phones/enroll";
     current = first ? "enr-1" : "enr-2";
@@ -46,6 +48,7 @@ it("puts the first instruction before the code and restarts an expired code for 
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
+    await skipAgeSteps(container, act);
 
     const first = container.querySelector(".setup-first")!;
     const qr = container.querySelector(".qr")!;
@@ -76,6 +79,7 @@ it("puts the first instruction before the code and restarts an expired code for 
 
 it("hides the restart button after a 409 while the phone waits for confirmation", async () => {
   const fetch = vi.fn(async (url: string, request: RequestInit) => {
+    if (url === "/api/age-presets") return Response.json({ presets: [] });
     if (request.method === "GET") return Response.json(phone);
     if (url === "/api/phones/enroll") {
       return Response.json({ phone, enrollment: { id: "enr-1", token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 300).toISOString() }, provisioning }, { status: 201 });
@@ -100,6 +104,7 @@ it("hides the restart button after a 409 while the phone waits for confirmation"
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
+    await skipAgeSteps(container, act);
     await act(async () => { await new Promise((r) => setTimeout(r, 500)); });
     const restart = [...container.querySelectorAll("button")].find((b) => b.textContent === "Create a new setup link")!;
     await act(async () => restart.click());
@@ -116,6 +121,7 @@ it("hides the restart button after a 409 while the phone waits for confirmation"
 it("shows the paired screen when restarting an expired code hits 409 because the phone paired", async () => {
   let paired = false;
   const fetch = vi.fn(async (url: string, request: RequestInit) => {
+    if (url === "/api/age-presets") return Response.json({ presets: [] });
     if (request.method === "GET") return Response.json({ ...phone, pairedAt: paired ? "2026-01-01T00:00:00Z" : null });
     if (url === "/api/phones/enroll") {
       return Response.json({ phone, enrollment: { id: "enr-1", token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 300).toISOString() }, provisioning }, { status: 201 });
@@ -141,6 +147,7 @@ it("shows the paired screen when restarting an expired code hits 409 because the
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
+    await skipAgeSteps(container, act);
     await act(async () => { await new Promise((r) => setTimeout(r, 500)); });
     const restart = [...container.querySelectorAll("button")].find((b) => b.textContent === "Create a new setup link")!;
     expect(document.activeElement).toBe(restart);

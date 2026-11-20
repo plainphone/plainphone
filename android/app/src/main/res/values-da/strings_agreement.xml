@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="agreement_title">Vores familieaftale</string>
+    <string name="agreement_adults_title">Også for de voksne</string>
+    <string name="agreement_adults_hint">Det er forslag til de voksne. Der er intet, der håndhæves.</string>
+    <string name="agreement_see_all">Se alle</string>
+</resources>

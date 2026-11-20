@@ -554,7 +554,22 @@ export function PhoneOverview() {
         ...(phone.profile === "self" ? [{ to: "key", label: t("phone.key"), hint: t("phone.keyHint") }] : []),
       ],
     },
+    ...(phone.profile === "child" && phone.agePreset !== undefined
+      ? [{
+        title: t("age.title"),
+        items: [
+          { to: "growing", label: t("age.nav"), hint: t("age.navHint") },
+          { to: "agreement", label: t("age.agreement.nav"), hint: t("age.agreement.navHint") },
+        ],
+      }]
+      : []),
   ];
+
+  // The "release" line on the Growing up page links to the manage section further down.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === "#manage-h") document.getElementById("manage-h")?.scrollIntoView({ block: "start" });
+  }, [hash]);
 
   return (
     <>
@@ -590,6 +605,14 @@ export function PhoneOverview() {
       {phone.pairedAt && phone.profile === "child" && <MoreTimeSection phone={phone} setPhone={setPhone} notify={notify} />}
 
       {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
+
+      {phone.reviewDue && (
+        <section className="section notice notice-info" aria-labelledby="review-due-h">
+          <h2 id="review-due-h" className="h3">{t("age.review.dueTitle")}</h2>
+          <p>{t("age.review.dueBody")}</p>
+          <p><Link to={`${base}/growing`} className="btn btn-secondary">{t("age.review.done")}</Link></p>
+        </section>
+      )}
 
       {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">

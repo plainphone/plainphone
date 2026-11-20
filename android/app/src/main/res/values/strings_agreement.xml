@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="agreement_title">Our family agreement</string>
+    <string name="agreement_adults_title">For the adults too</string>
+    <string name="agreement_adults_hint">These are suggestions for the adults. Nothing is enforced.</string>
+    <string name="agreement_see_all">See all</string>
+</resources>

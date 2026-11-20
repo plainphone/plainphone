@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
+import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import { RequireAuth } from "../components/RequireAuth";
 import { ScanCode } from "../components/ScanCode";
-import { Button, Choice, errorMessage, Field, LiveStatus, type NoticeValue, PageTitle, Screen, Stack, Switch, Text } from "../components/ui";
+import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack, Switch, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
+import { DEFAULT_AGE_CHOICES, saveSetupChoices, type AgeChoices } from "../lib/setup-choices";
 import { fonts } from "../lib/theme";
+import { type AgePreset, parseLines } from "../shared/lib/age";
 import { normaliseCode } from "../shared/lib/format";
 
 function PairForm() {
@@ -24,6 +27,11 @@ function PairForm() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
   const [notice, setNotice] = useState<NoticeValue | null>(null);
+  // A Child phone has two optional steps before the phone is added: where the rules start, and the agreement.
+  const [stage, setStage] = useState<"form" | "age" | "agreement">("form");
+  const [age, setAge] = useState<AgeChoices>(DEFAULT_AGE_CHOICES);
+  const [agreement, setAgreement] = useState<AgreementDraft>({ lines: "", adultLines: "" });
+  const presets = useLoad(async () => (await unwrap<{ presets: AgePreset[] }>(client.GET("/age-presets"))).presets, []);
 
   // A pairing link opened while this screen is already showing fills in its code.
   const [seenParam, setSeenParam] = useState(params.code);
@@ -65,6 +73,11 @@ function PairForm() {
     if (!name.trim()) next.name = t("pair.nameRequired");
     setErrors(next);
     if (next.code || next.name) return;
+    if (profile === "child") setStage("age");
+    else await claim();
+  }
+
+  async function claim(skipAgreement = false) {
     setBusy(true);
     try {
       let timezone: string | undefined;
@@ -74,9 +87,13 @@ function PairForm() {
         timezone = undefined;
       }
       const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone, ...(lookup.light && profile === "self" && privateDns ? { filterMethod: "privateDns" as const } : {}) } }));
+      // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the phone.
+      const failed = profile === "child" && await saveSetupChoices(phone.id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement);
+      if (failed) setNotice({ tone: "warn", text: t("age.setupSaveFailed") });
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else router.replace({ pathname: "/phones/[pid]", params: { pid: phone.id } });
     } catch (err) {
+      if (err instanceof ApiError && [400, 404, 409].includes(err.status)) setStage("form");
       if (err instanceof ApiError && err.status === 409) setNotice({ tone: "error", text: t("pair.profileMismatch") });
       else if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
       else if (err instanceof ApiError && err.status === 400 && err.issues.length) {
@@ -96,6 +113,48 @@ function PairForm() {
       <Button title={t("nav.phones")} onPress={() => router.replace("/")} />
     </Screen>
   );
+
+  if (stage === "age") {
+    return (
+      <Screen testID="pair-age">
+        <PageTitle sub={t("age.setupIntro")}>{t("age.setupTitle", { name: name.trim() })}</PageTitle>
+        <Stack>
+          <LoadGate res={presets}>
+            {(list) => <AgePicker presets={list} value={age.preset} onChange={(preset) => setAge({ ...age, preset })} />}
+          </LoadGate>
+          <ReviewPicker enabled={age.review} months={age.months} onEnabled={(review) => setAge({ ...age, review })} onMonths={(months) => setAge({ ...age, months })} />
+          <Button testID="pair-age-next" title={t("age.continue")} onPress={() => setStage("agreement")} />
+          <Button kind="secondary" title={t("app.back")} onPress={() => setStage("form")} />
+        </Stack>
+      </Screen>
+    );
+  }
+
+  if (stage === "agreement") {
+    const problems = agreementProblems(agreement);
+    const empty = parseLines(agreement.lines).length === 0 && parseLines(agreement.adultLines).length === 0;
+    return (
+      <Screen testID="pair-agreement">
+        <PageTitle sub={t("age.agreement.intro")}>{t("age.agreement.title")}</PageTitle>
+        <Stack>
+          <Text variant="small">{t("age.agreement.optional")}</Text>
+          <AgreementFields draft={agreement} onChange={setAgreement} disabled={busy} />
+          <LiveStatus notice={notice} />
+          <Button
+            testID="pair-agreement-next"
+            title={t(busy ? "pair.adding" : empty ? "age.skip" : "pair.submit")}
+            busy={busy}
+            disabled={problems.lines !== null || problems.adultLines !== null}
+            onPress={() => void claim()}
+          />
+          {!empty ? (
+            <Button kind="secondary" title={t("age.skip")} disabled={busy} onPress={() => { setAgreement({ lines: "", adultLines: "" }); void claim(true); }} />
+          ) : null}
+          <Button kind="secondary" title={t("app.back")} disabled={busy} onPress={() => setStage("age")} />
+        </Stack>
+      </Screen>
+    );
+  }
 
   const canScan = Platform.OS !== "web";
   return (
