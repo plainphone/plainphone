@@ -379,6 +379,18 @@ the same work on every poll. `PUT /api/device/status` reports `appVersion`,
 `GET /download/android/latest.json` describes the release before the phone downloads
 the binary. See [Android updates](android-updates.md).
 
+### Updates of approved apps (strong mode)
+
+The rules carry `appUpdates`: `automatic` (the per-phone toggle, default on), `requestedAt`
+(set by `POST /api/phones/{pid}/app-updates`, "Update apps now") and `reportedWindow`. The
+phone reports its last window in `PUT /device/status` as `appUpdates`: `id`, `trigger`
+(`night` or `parent`), `openedAt`, `closedAt`, `updated` (count), `caught` (new packages it
+hid) and an optional `error`. The server always records it; for a new `id` with caught
+packages it creates app requests (blocking them in open mode), sets `reportedWindow` to the
+id and advances the rules revision. Once the phone sees that id it stops holding those
+packages back itself. Older servers send no `appUpdates`: the phone keeps the nightly
+window on. See [Policies, App updates](policies.md#app-updates-strong-mode).
+
 ### Support tools
 
 `PATCH /phones/{pid}` accepts `supportEnabled` and `releaseWarningsEnabled`

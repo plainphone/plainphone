@@ -216,7 +216,49 @@ The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, ran
 - **Time limits** ([time-limits.md](time-limits.md)): an app whose minutes are used up today is suspended with `setPackagesSuspended` (the icon stays; Android says the app is paused) and comes back at local midnight. Core apps (phone, messages, maps, clock, Settings, launcher, keyboard, camera, contacts) are never counted and never suspended, so calls and emergency calls are never affected. Counting needs usage access, which only the user can grant (Plainphone > Today); until then the step "usage access (time limits)" fails and the parent sees it.
 - **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone. The ordinary Install button keeps account changes blocked. Adding an account through the parent PIN is limited to the same watchdog-backed catalog window described in [Android updates](android-updates.md).
 
+- **App updates** (below): `DISALLOW_INSTALL_APPS` also blocks updates of installed apps, and a hidden Play cannot run its own updates, so approved apps are updated in a bounded window.
+
 Light mode, where none of this is available, is described in [light-mode.md](light-mode.md).
+
+## App updates (strong mode)
+
+Strong mode keeps `DISALLOW_INSTALL_APPS` set and Play hidden. That also stopped every update of
+the apps the parents approved (issue #168), which leaves known security holes open. Plainphone
+therefore opens an **app update window**
+([AppUpdateWindow.kt](../android/app/src/main/java/org/plainphone/app/update/AppUpdateWindow.kt)):
+
+- **When:** once a night between 02:00 and 05:00 local time (the phone's time zone from the rules),
+  while the phone charges on Wi-Fi or another unmetered network. A WorkManager job with those
+  constraints looks every 30 minutes ([AppUpdateNight.kt](../android/app/src/main/java/org/plainphone/app/update/AppUpdateNight.kt)).
+  On the night the clocks go forward the hours are shorter; on the night they go back the window
+  still opens only once. A parent can also press **Update apps now** in the dashboard or the
+  parent app (`POST /api/phones/{pid}/app-updates`); the phone opens the same window on its next sync
+  and ignores requests older than 24 hours.
+- **What it lifts:** for at most 45 minutes `DISALLOW_INSTALL_APPS` is cleared and Play is shown,
+  so Play can update installed apps. Other hidden apps stay hidden. The window uses the same
+  install lease as the catalog window (holder `app-updates`): the foreground watchdog, the expiry
+  alarm, the WorkManager backup and recovery on app start put the restriction back after the
+  deadline, a crash, process death or a reboot. A window cannot be extended by opening it again.
+- **The guard:** an update of an installed app (`ACTION_PACKAGE_ADDED` with `EXTRA_REPLACING`) is
+  allowed and counted. A package that was not on the phone when the window opened is hidden at once
+  if it has an icon, and held back until the server has made it an app request for the parents
+  (in open mode it is also put on the block list until a parent approves). Packages without an
+  icon, such as libraries Play installs with an update, are left alone so the updated app keeps
+  working. Packages installed while Plainphone's process was not running are still hidden by the
+  next policy run, as any unapproved app, but are not turned into a request.
+- **Toggle:** "Update approved apps automatically" per phone, on by default (`appUpdatesEnabled`).
+  Off stops the nightly window and closes one that is open; "Update apps now" still works.
+- **What the parents see:** the last window (opened, closed, number of apps updated, new apps kept
+  hidden, or why it could not open) under **App updates** on the phone page.
+- **What the child sees:** "What can my parents see?" explains the window. When an app tries to open
+  Play (a `market://` link, for example an app's own "Update" button) while Play is hidden, the
+  phone says in plain words that apps update by themselves at night and to ask a parent for a new
+  app ([PlayExplanation.kt](../android/app/src/main/java/org/plainphone/app/update/PlayExplanation.kt)).
+  The screen only answers Play links while Play is hidden, so it never competes with Play.
+- **Limits:** Play decides when within the window it updates. A phone that is not charging on
+  Wi-Fi at night, or a Play without a signed-in account, gets no updates; "Update apps now" is
+  the way out. Opening the window needs the battery exemption, like self-updates; without it the
+  parents see "could not open".
 
 ## Help lines
 
