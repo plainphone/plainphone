@@ -68,7 +68,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
     const how = triggerLabel(event.trigger, event.message);
     return (
       <article key={event.id} data-kind={event.kind} className={active ? "sos-alert stack" : "item stack"}>
-        <div className="sos-event-heading">
+        <div className="sos-event-heading" id={`sos-${event.id}`}>
           {phoneName !== undefined && <Link to={`/phones/${pid}`}>{phoneName}</Link>}
           <strong>{t(event.kind === "urgent" ? "sos.urgent" : "sos.help")}</strong>
           <time className="row-meta" dateTime={event.createdAt}>
@@ -81,19 +81,25 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
           {event.location && <a className="btn btn-secondary" href={`https://maps.google.com/?q=${event.location.lat},${event.location.lon}`}>{t("sos.map")}</a>}
           {res.data?.callbackNumber && <a className="btn btn-secondary" href={`tel:${res.data.callbackNumber}`}>{t("sos.call")}</a>}
           {event.seenAt ? <span>{event.seenByName ? t("sos.seenBy", { name: event.seenByName }) : t("sos.acknowledged")}</span> : (
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void ack(event.id)}>{t("sos.seen")}</button>
+            // With two alerts open, the button says which child and which alert it answers.
+            <button type="button" className="btn btn-primary" disabled={busy} aria-describedby={`sos-${event.id}`} onClick={() => void ack(event.id)}>{t("sos.seen")}</button>
           )}
         </div>
       </article>
     );
   }
 
-  if (!res.data) return res.error && phoneName === undefined ? <p role="status">{t("sos.unavailable")}</p> : null;
+  // A failed check is said out loud on the phones list too: silence there reads as "no SOS".
+  if (!res.data) {
+    if (!res.error) return null;
+    return <p role="status" className="notice notice-error">{phoneName !== undefined && `${phoneName}: `}{t("sos.unavailable")}</p>;
+  }
   const active = res.data.events.filter((event) => !event.seenAt);
   if (phoneName !== undefined && !active.length) return null;
   return (
     <section className="section stack" aria-label={t("sos.title")}>
-      {active.map((event) => eventRow(event, true))}
+      {/* A new alert that arrives while the page is open is read out by screen readers. */}
+      <div className="stack" aria-live="assertive">{active.map((event) => eventRow(event, true))}</div>
       {active.length > 0 && <details>
         <summary>{t("sos.yourName")}</summary>
         <input aria-label={t("sos.yourName")} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />

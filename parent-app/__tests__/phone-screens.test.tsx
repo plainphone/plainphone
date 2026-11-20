@@ -61,11 +61,22 @@ it("shows an urgent SOS, then moves it to history after acknowledgment", async (
   expect(screen.getByText("Urgent SOS")).toBeTruthy();
   expect(screen.getByText("View on map")).toBeTruthy();
   expect(screen.getByText("Call back")).toBeTruthy();
+  // With several alerts open, a screen reader hears which one the button answers.
+  expect(screen.getByLabelText(/^I’ve seen it, Urgent SOS, /)).toBeTruthy();
   await fireEvent.press(screen.getByText("I’ve seen it"));
   await waitFor(() => expect(screen.queryByTestId("sos-banner")).toBeNull());
   expect(api.calls.some((call) => call.path === `${path}/${event.id}/seen`)).toBe(true);
   await fireEvent.press(screen.getByText("SOS history"));
   expect(await screen.findByTestId("sos-history-event")).toBeTruthy();
+});
+
+it("says on the phones list when SOS could not be checked, instead of showing nothing", async () => {
+  phoneApi(PHONE, {
+    "GET /phones": { body: { phones: [PHONE] } },
+    [`GET /phones/${PHONE.id}/sos`]: { status: 500, body: { error: "boom" } },
+  });
+  await renderRouter(routes, { initialUrl: "/" });
+  expect(await screen.findByText("Alma: Could not load SOS.")).toBeTruthy();
 });
 
 describe("pairing", () => {
