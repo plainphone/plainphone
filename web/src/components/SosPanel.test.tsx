@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { acknowledgeSos } from "../lib/api";
 import { SosPanel } from "./SosPanel";
 
 const report = { id: "event", kind: "urgent", createdAt: "2026-11-19T14:32:00Z", seenAt: null, location: { lat: 55.6, lon: 12.5 } };
-const state = vi.hoisted(() => ({ response: {} as unknown }));
+const state = vi.hoisted(() => ({ response: {} as unknown, error: null as unknown }));
 vi.mock("./ui", () => ({
-  useLoad: () => ({ data: state.response, reload: () => Promise.resolve(), setData: () => undefined }),
+  useLoad: () => ({ data: state.response, error: state.error, reload: () => Promise.resolve(), setData: () => undefined }),
 }));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  state.error = null;
+});
 
 it("shows the urgent banner with map, callback and acknowledgment", () => {
   vi.stubGlobal("localStorage", { getItem: () => "en" });
@@ -23,6 +27,19 @@ it("shows the urgent banner with map, callback and acknowledgment", () => {
   expect(html).toContain("tel:+4512345678");
   expect(html).toContain("https://maps.google.com/?q=55.6,12.5");
   expect(html).toContain("I’ve seen it");
+  // The button names the alert it answers, and new alerts are read out.
+  expect(html).toContain('id="sos-event"');
+  expect(html).toContain('aria-describedby="sos-event"');
+  expect(html).toContain('aria-live="assertive"');
+});
+
+it("says on the phones list when SOS could not be checked, instead of showing nothing", () => {
+  vi.stubGlobal("localStorage", { getItem: () => "en" });
+  vi.stubGlobal("navigator", { languages: ["en"] });
+  state.response = undefined;
+  state.error = new Error("network");
+  const html = renderToStaticMarkup(<I18nProvider><MemoryRouter><SosPanel pid="phone" phoneName="Alma" /></MemoryRouter></I18nProvider>);
+  expect(html).toContain("Alma: Could not load SOS.");
 });
 
 it("says how a hidden SOS was sent, and nothing for the SOS screen", () => {

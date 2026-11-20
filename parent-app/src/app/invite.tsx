@@ -53,7 +53,8 @@ export default function InviteScreen() {
   }, [anon, token, setNext]);
 
   useEffect(() => {
-    if (!token || state.status !== "in" || (trusted && !confirmed)) return;
+    // Every invitation waits for a tap: a link from a stranger must not add this parent to their household.
+    if (!token || state.status !== "in" || !confirmed) return;
     let p = inflight.get(token);
     if (!p) {
       p = unwrap(client.POST("/invites/accept", { body: { token } }));
@@ -89,10 +90,18 @@ export default function InviteScreen() {
       <PageTitle>{t("invite.title")}</PageTitle>
       {!token ? (
         <Notice tone="error" text={t("invite.missing")} />
-      ) : trusted && !confirmed ? (
+      ) : !confirmed ? (
         <>
-          <Text>{t("invite.trustedHelp")}</Text>
-          <Button title={t("invite.trustedAccept")} onPress={() => setConfirmed(true)} />
+          <Text>{t(trusted ? "invite.trustedHelp" : "invite.householdHelp")}</Text>
+          <Button testID="invite-accept" title={t(trusted ? "invite.trustedAccept" : "invite.householdAccept")} onPress={() => setConfirmed(true)} />
+          <Button
+            kind="secondary"
+            title={t("app.cancel")}
+            onPress={() => {
+              void clearPendingInvite();
+              router.replace("/");
+            }}
+          />
         </>
       ) : result === null ? (
         <Notice tone="info" text={t("invite.accepting")} />

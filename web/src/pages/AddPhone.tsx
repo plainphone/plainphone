@@ -22,6 +22,7 @@ import {
 import { useIosPairing } from "../lib/session";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
 import type { PhoneLanguage } from "../lib/phone-language";
+import { useHouseholdId } from "../lib/session";
 import "./add-phone.css";
 
 interface EnrollmentOut {
@@ -52,6 +53,7 @@ interface Qr {
 
 /** /add: a new phone. */
 export function AddPhonePage() {
+  const householdId = useHouseholdId();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const [template] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("template"));
@@ -82,7 +84,7 @@ export function AddPhonePage() {
     if (!mode) return;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, householdId, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
     if (template) {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;

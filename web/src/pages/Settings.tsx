@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router";
 import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone } from "../lib/api";
-import { useMe, useSession } from "../lib/session";
+import { clearAccountState, useMe, useSession } from "../lib/session";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { NotificationsSection } from "./Notifications";
 import { planNowKey } from "../lib/billing";
@@ -57,6 +57,7 @@ function AccountSection() {
     setBlocking([]);
     try {
       await api.del("/me", { confirmEmail: email.trim() });
+      clearAccountState();
       // Leave the protected page before the session state turns anonymous.
       navigate("/login", { replace: true, state: { deleted: true } });
       await refresh();

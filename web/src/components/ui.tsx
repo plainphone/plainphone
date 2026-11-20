@@ -42,26 +42,28 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
   const [loading, setLoading] = useState(true);
   const fnRef = useRef(fn);
   fnRef.current = fn;
-  const alive = useRef(true);
+  // Only the newest request may set the state. An older one (for the previous phone, or a poll
+  // that started before a change) can finish last and would show stale data.
+  const latest = useRef(0);
   const reload = useCallback(async () => {
+    const id = ++latest.current;
     setLoading(true);
     try {
       const d = await fnRef.current();
-      if (alive.current) {
+      if (latest.current === id) {
         setDataState(d);
         setError(null);
       }
     } catch (err) {
-      if (alive.current) setError(err);
+      if (latest.current === id) setError(err);
     } finally {
-      if (alive.current) setLoading(false);
+      if (latest.current === id) setLoading(false);
     }
   }, []);
   useEffect(() => {
-    alive.current = true;
     void reload();
     return () => {
-      alive.current = false;
+      latest.current++;
     };
   }, deps);
   const setData = useCallback((f: (d: D | undefined) => D | undefined) => setDataState(f), []);
