@@ -254,9 +254,11 @@ async function publishCheckinLocations(ctx: Ctx, cutoff: Date): Promise<number> 
         return null;
       }
       const receivedAt = new Date(fix.receivedAt);
+      // An older client may upload a few seconds before the deadline. The position is as of the deadline.
+      const locatedAt = receivedAt > req.endsAt ? receivedAt : req.endsAt;
       await storeLatestLocation(tx, phone.id, { ...fix, recordedAt: new Date(fix.recordedAt), receivedAt });
       await tx.update(safetyRequests)
-        .set({ locatedAt: receivedAt, pendingLocation: null, noReplyNotifiedAt: ctx.now() })
+        .set({ locatedAt, pendingLocation: null, noReplyNotifiedAt: ctx.now() })
         .where(eq(safetyRequests.id, id));
       return phone;
     });

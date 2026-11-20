@@ -116,6 +116,20 @@ class AppUpdateLog(private val store: Store) {
         }
     }
 
+    /**
+     * New apps that arrived while Plainphone's process was dead: no "added" broadcast reached the guard.
+     * Found at the end of the window by comparing [installed] with what was there when it opened.
+     * [approved] are apps the parents allowed, which are not new for the parents. Only for a window that
+     * ended a moment ago: later installs (a maintenance unlock, say) are not this window's.
+     */
+    fun missed(installed: Set<String>, nowMs: Long, approved: (String) -> Boolean): Set<String> {
+        val w = store.load() ?: return emptySet()
+        if (w.openedAtMs == null || nowMs - (w.closedAtMs ?: w.untilMs) > MISSED_MAX_AGE_MS) return emptySet()
+        val found = (installed - w.snapshot - w.caught).filterNot(approved).toSet()
+        if (found.isNotEmpty()) store.save(w.copy(caught = w.caught + found))
+        return found
+    }
+
     /** The last window, with its end filled in once the lease is gone. */
     fun report(nowMs: Long, leaseOpen: Boolean): Report? {
         if (!leaseOpen) closed(nowMs)
@@ -125,5 +139,6 @@ class AppUpdateLog(private val store: Store) {
 
     companion object {
         const val LATE_BROADCAST_MS = 60_000L
+        const val MISSED_MAX_AGE_MS = 30 * 60_000L
     }
 }

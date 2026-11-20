@@ -10,7 +10,7 @@ import { FilterPage } from "./Filter";
 
 const { host, state, methodChanged, reload } = vi.hoisted(() => ({
   host: "phone.dns.example.test",
-  state: { method: "privateDns" as "vpn" | "privateDns" },
+  state: { configured: true, method: "privateDns" as "vpn" | "privateDns", host: "phone.dns.example.test" as string | null, rulesReady: undefined as boolean | undefined },
   methodChanged: vi.fn<(checked: boolean) => void>(),
   reload: vi.fn(),
 }));
@@ -18,7 +18,7 @@ const { host, state, methodChanged, reload } = vi.hoisted(() => ({
 vi.mock("./Phone", async (importOriginal) => ({
   ...await importOriginal<typeof import("./Phone")>(),
   usePhone: () => ({
-    phone: { id: "phone", mode: "light", dnsReady: false, dnsConfigured: true },
+    phone: { id: "phone", mode: "light", dnsReady: false, dnsConfigured: state.configured },
     pending: [],
     run: (action: () => Promise<unknown>) => action(),
   }),
@@ -33,7 +33,7 @@ vi.mock("../components/ui", async (importOriginal) => {
       return <ui.Switch {...props} />;
     },
     useLoad: () => ({
-      data: { host, filterMethod: state.method, synced: false, blockedCategories: [], allowDomains: [], blockDomains: [] },
+      data: { host: state.host, rulesReady: state.rulesReady, filterMethod: state.method, synced: false, blockedCategories: [], allowDomains: [], blockDomains: [] },
       reload,
     }),
   };
@@ -41,6 +41,9 @@ vi.mock("../components/ui", async (importOriginal) => {
 
 beforeEach(() => {
   state.method = "privateDns";
+  state.host = host;
+  state.rulesReady = undefined;
+  state.configured = true;
   methodChanged.mockReset();
   reload.mockClear();
   vi.stubGlobal("localStorage", { getItem: () => "en" });
@@ -72,6 +75,18 @@ it("shows a newly confirmed DNS address and its sync status despite a stale phon
   expect(html).toMatch(/role="switch"[^>]*aria-checked="true"/);
   expect(html).toContain(t("filter.notSynced"));
   expect(html).not.toContain(t("filter.waitingDns"));
+});
+
+it.each([
+  ["a phone the resolver has not confirmed yet", null, false, true],
+  ["a phone that is filtered but whose address is not tagged yet", null, true, false],
+  ["a phone with a confirmed address", host, true, false],
+] as const)("says the filter is being set up only for %s", (_name, dnsHost, rulesReady, waiting) => {
+  state.host = dnsHost;
+  state.rulesReady = rulesReady;
+  const html = renderFilter();
+  expect(html.includes(makeT("en")("filter.waitingDns"))).toBe(waiting);
+  expect(html.includes(host)).toBe(dnsHost !== null);
 });
 
 it.each([
@@ -134,4 +149,11 @@ it("shows the Private DNS repair notice when the health card is off", () => {
   );
   expect(html).toContain(makeT("en")("filter.privateUnverified"));
   expect(html).not.toContain("<dt>Web filter</dt>");
+});
+
+it("says the server has no web filter service even when the phone counts as ready", () => {
+  state.configured = false;
+  state.rulesReady = true;
+  const html = renderFilter();
+  expect(html).toContain(makeT("en")("filter.noDnsService"));
 });

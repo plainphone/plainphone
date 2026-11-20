@@ -74,8 +74,6 @@ class PlainphoneApplication : Application() {
                 },
             )
         }.onFailure { Log.e("Plainphone", "could not watch package changes", it) }
-        // Package broadcasts can be missed while the process is stopped.
-        SyncStore(this).markAppsDirty()
         runCatching {
             registerReceiver(
                 object : BroadcastReceiver() {
@@ -86,6 +84,9 @@ class PlainphoneApplication : Application() {
                 IntentFilter(Intent.ACTION_LOCALE_CHANGED),
             )
         }.onFailure { Log.e("Plainphone", "could not watch locale changes", it) }
+        // Package and locale broadcasts can be missed while the process is stopped. Mark after both
+        // receivers are registered, so a change between the two registrations is not lost.
+        SyncStore(this).markAppsDirty()
         Lock.recoverInstallAsync(this)
         runCatching { CatalogAccounts.watchAccounts(this) }
             .onFailure { Log.w("Plainphone", "Could not watch Google accounts", it) }

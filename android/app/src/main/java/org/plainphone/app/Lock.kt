@@ -25,6 +25,7 @@ import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
 import org.plainphone.app.sync.StatusNotices
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.light.LightLock
 import org.plainphone.app.light.LightRelease
@@ -40,6 +41,7 @@ import org.plainphone.app.update.UpdateBatteryExemption
 object Lock {
     private const val TAG = "Plainphone"
     private const val BEDTIME_STEP = "silent bedtime (Do Not Disturb)"
+    private const val ACCOUNT_RELOCK_PENDING = "account_relock_pending"
     private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
     private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
@@ -200,6 +202,7 @@ object Lock {
                 listOfNotNull(UpdateBatteryExemption.failure(context))
         }
         val results = locked + silentBedtimeStep(context, config.server?.quietBedtime == true)
+        prefs(context).edit().remove(ACCOUNT_RELOCK_PENDING).apply()
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
         saveApplied(context, config, results, receiptEtag = receiptEtag?.takeIf { it == sync.etag })
@@ -238,7 +241,8 @@ object Lock {
         val vpnRecovered = Mode.isLight(context) && LightLock.vpnUses(config.dnsHost) &&
             (p.getBoolean("vpn_waiting", false) ||
                 p.getString("applied_failed", null)?.lineSequence()?.any { it == LightLock.DNS_STEP } == true)
-        if (fresh && !receiptPending && !vpnRecovered &&
+        val accountRelockPending = p.getBoolean(ACCOUNT_RELOCK_PENDING, false)
+        if (fresh && !receiptPending && !vpnRecovered && !accountRelockPending &&
             p.getString("applied_fingerprint", null) == appliedFingerprint(context, config)
         ) {
             // Back-to-back windows can leave the config unchanged: still arm the next change.
@@ -471,6 +475,14 @@ object Lock {
     fun isInMaintenanceWindow(context: Context): Boolean =
         prefs(context).getLong("relock_at_wall", 0L) > System.currentTimeMillis()
 
+    /**
+     * The account restriction stayed lifted because a release was asked for. If the release is withdrawn,
+     * the next [applyIfNeeded] must lock again even though the rules are unchanged.
+     */
+    internal fun accountRelockSkippedForRelease(context: Context) {
+        prefs(context).edit().putBoolean(ACCOUNT_RELOCK_PENDING, true).apply()
+    }
+
     fun lastReport(context: Context): String =
         prefs(context).getString("last_report", null) ?: "No policy run yet."
 
@@ -490,7 +502,9 @@ object Lock {
     }
 
     private fun clearMaintenanceWindow(context: Context) {
+        val wasOpen = prefs(context).contains("relock_at_wall")
         prefs(context).edit().remove("relock_at_wall").apply()
+        if (wasOpen) runCatching { CatalogAccounts.maintenanceEnded(context) }
     }
 
     private fun relockIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(

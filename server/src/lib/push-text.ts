@@ -18,6 +18,7 @@ export type SafetyNews = "here" | "ok" | "call" | "noReplyLocating" | "noReplyNo
 export interface PushFacts {
   protection: { phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean };
   offline: { phoneName: string; hours: number; lastSeenAt: Date; timezone: string };
+  neverConnected: { phoneName: string };
   approval: { phoneName: string };
   request: { phoneName: string; what: string; kind: "app" | "contact" };
   /** `what` is null for the daily limit. */
@@ -131,6 +132,29 @@ const offline = {
     body: `Letzter Kontakt: ${lastSeen(e, "de")}. Das Handy kann ausgeschaltet, leer oder zurückgesetzt worden sein.`,
   }),
 } satisfies Record<Locale, (e: PushFacts["offline"]) => Words>;
+
+const neverConnected = {
+  en: (e) => ({
+    title: `${e.phoneName} has not connected yet`,
+    body: "Set-up was confirmed on the phone, but it has not been in touch. Open Plainphone on the phone, or remove it from the list.",
+  }),
+  da: (e) => ({
+    title: `${e.phoneName} er ikke forbundet endnu`,
+    body: "Opsætningen blev bekræftet på telefonen, men den har ikke været i kontakt. Åbn Plainphone på telefonen, eller fjern den fra listen.",
+  }),
+  sv: (e) => ({
+    title: `${e.phoneName} har inte anslutit än`,
+    body: "Installationen bekräftades på telefonen, men den har inte hörts av. Öppna Plainphone på telefonen eller ta bort den från listan.",
+  }),
+  nb: (e) => ({
+    title: `${e.phoneName} er ikke koblet til ennå`,
+    body: "Oppsettet ble bekreftet på telefonen, men den har ikke vært i kontakt. Åpne Plainphone på telefonen, eller fjern den fra listen.",
+  }),
+  de: (e) => ({
+    title: `${e.phoneName} hat sich noch nicht verbunden`,
+    body: "Die Einrichtung wurde auf dem Handy bestätigt, aber es hat sich noch nicht gemeldet. Öffnen Sie Plainphone auf dem Handy oder entfernen Sie es aus der Liste.",
+  }),
+} satisfies Record<Locale, (e: PushFacts["neverConnected"]) => Words>;
 
 const approval = {
   en: (e) => ({ title: "A request is waiting for you", body: `Someone asks to loosen a rule on "${e.phoneName}".` }),
@@ -326,11 +350,12 @@ const test = {
 } satisfies Record<Locale, Words>;
 
 /** Every push message, one table each. The completeness test walks this. */
-export const pushTables = { protection, offline, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, checkIn, test };
+export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, checkIn, test };
 
 export const pushWords = {
   protection: (e: PushFacts["protection"], l: Locale): Words => protection[l](e),
   offline: (e: PushFacts["offline"], l: Locale): Words => offline[l](e),
+  neverConnected: (e: PushFacts["neverConnected"], l: Locale): Words => neverConnected[l](e),
   approval: (e: PushFacts["approval"], l: Locale): Words => approval[l](e),
   request: (e: PushFacts["request"], l: Locale): Words => request[l](e),
   requestOnPhone: (e: PushFacts["requestOnPhone"], l: Locale): Words => requestOnPhone[l](e),

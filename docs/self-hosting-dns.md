@@ -167,8 +167,11 @@ household members after the DNS service confirms provisioning with
 format, the background sync provisions existing phones with the configured
 resolver before the dashboard shows their addresses.
 
-Migration `0015_dns_confirmation_provider` keeps the existing confirmation
-timestamps. Previously confirmed phones keep using their filter during retries,
+Migration `0015_dns_confirmation_provider` only adds the column that records
+which resolver confirmed a phone. The first successful sync with the current
+resolver then tags the confirmation and resets its timestamp to that time.
+Until then the dashboard shows the phone as filtered (it is) but does not show
+its address. Previously confirmed phones keep using their filter during retries,
 including when the resolver's administration API is temporarily unavailable.
 A phone with a confirmation from the mock provider waits for a successful HTTP
 sync when the server switches to HTTP DNS.

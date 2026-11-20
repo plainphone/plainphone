@@ -25,6 +25,7 @@ in this table against the production source, including both branches of platform
 | `light/GuardService.kt` `if (isInteractive()) main.postDelayed(tick, TICK_MS)` | On connection, first tick in 30 s | On | Start foreground time checks when already interactive. |
 | `light/GuardService.kt` `VPN_RETRY_DELAYS_MS.forEach { main.postDelayed(vpnRetry, it) }` | 50, 150, 300, 600 and 1,000 ms | On | Retry dismissing the VPN settings dialog. |
 | `light/GuardService.kt` `if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, SETTINGS_MAX_WAIT_MS)` | 150 ms maximum wait | On | Bound how long settings enforcement waits to examine a window. |
+| `safety/RingService.kt` `context.startForegroundService(i)` | When a parent rings the phone and the sync sees the request | Either | Start the audible ring service. |
 | `safety/RingService.kt` `main.postDelayed(timeout, (endsAt - now).coerceAtLeast(1_000L))` | At ring expiry | Either | Stop the audible ring. |
 | `safety/Safety.kt` `if (exact) am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsed, pi)` | 2 min idle poll or check-in deadline + 2 s | Either | Wake for a safety request or deadline using an exact alarm where available. |
 | `safety/Safety.kt` `else am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsed, pi)` | 2 min idle poll or check-in deadline + 2 s | Either | Use an inexact alarm when exact alarms are unavailable. |
@@ -63,6 +64,7 @@ in this table against the production source, including both branches of platform
 | `update/AppUpdateWorker.kt` `val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))` | Once per nightly check | Either | Read the sticky battery state without subscribing. |
 | `update/InstallRecoveryWorker.kt` `val request = OneTimeWorkRequestBuilder<InstallRecoveryWorker>()` | At install-lease expiry | Either | Build the recovery backup with a delay. |
 | `update/InstallRecoveryWorker.kt` `WorkManager.getInstance(context).enqueue(request).result.get(5, TimeUnit.SECONDS)` | At install-lease expiry | Either | Persist the recovery backup before lifting the restriction. |
+| `update/InstallWatchdogService.kt` `checkNotNull(context.startForegroundService(intent))` | When an install lease is armed | Either | Start the watchdog service that restores the install restriction. |
 | `update/InstallWatchdogService.kt` `.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:install-watchdog")` | When the watchdog starts | Either | Create the partial wake lock used for install recovery. |
 | `update/InstallWatchdogService.kt` `wakeLock.acquire(InstallLease.LONGEST_MS + 5_000L)` | When a lease is armed | Either | Keep the CPU available until recovery, bounded by the longest lease (45 min app update window). |
 | `update/InstallWatchdogService.kt` `check(timer.postDelayed({ onDeadline(ticket.deadline) }, remaining))` | At install-lease expiry | Either | Restore the install restriction before releasing the watchdog’s bounded wake lock. |

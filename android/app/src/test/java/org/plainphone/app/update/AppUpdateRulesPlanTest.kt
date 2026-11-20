@@ -17,7 +17,7 @@ class AppUpdateRulesPlanTest {
         heldBack: Set<String> = emptySet(),
         handled: Long = 0L,
         open: Trigger? = null,
-    ) = AppUpdateWindow.plan(rules, heldBack, handled, open, now)
+    ) = AppUpdateWindow.plan(rules, heldBack, handled, open, now, currentWindowId = rules.reportedWindow)
 
     @Test fun `nothing to do with default rules`() {
         assertThat(plan()).isEqualTo(AppUpdateWindow.RulesPlan())
@@ -34,6 +34,13 @@ class AppUpdateRulesPlanTest {
         val rules = AppUpdateRules(reportedWindow = "w1", recordedApps = setOf("com.game"))
         assertThat(plan(rules, heldBack = setOf("com.game", "com.chat")).letGo).containsExactly("com.game")
         assertThat(plan(AppUpdateRules(reportedWindow = "w1"), heldBack = setOf("com.chat")).letGo).isEmpty()
+    }
+
+    @Test fun `an app listed from an earlier window is not let go before this window is recorded`() {
+        val rules = AppUpdateRules(reportedWindow = "w1", recordedApps = setOf("com.game"))
+        assertThat(AppUpdateWindow.plan(rules, setOf("com.game"), 0L, null, now, currentWindowId = "w2").letGo).isEmpty()
+        assertThat(AppUpdateWindow.plan(rules, setOf("com.game"), 0L, null, now, currentWindowId = "w1").letGo)
+            .containsExactly("com.game")
     }
 
     @Test fun `switching the toggle off closes a nightly window but not one a parent asked for`() {

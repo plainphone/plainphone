@@ -24,25 +24,23 @@ Related: [apple-applications.md](apple-applications.md) (entitlement requests) a
 
 ## Bundle IDs
 
-The existing parent app's bundle ID is `org.plainphone.parent` (team `P7698GU4AV`, see
+The iPhone app uses the existing App Store Connect record for `org.plainphone.app` (team `P7698GU4AV`, see
 [parent-app.md](../parent-app.md)). Apple requires an extension's bundle ID to start with its app's
 bundle ID, so the extensions live under it:
 
 | Target | Bundle ID |
 |---|---|
-| App (Parent, Child, Myself) | `org.plainphone.parent` |
-| Device Activity Monitor extension | `org.plainphone.parent.activity-monitor` |
-| Shield Configuration extension | `org.plainphone.parent.shield-configuration` |
-| Shield Action extension | `org.plainphone.parent.shield-action` |
-| Device Activity Report extension | `org.plainphone.parent.activity-report` |
-| Location Push Service extension | `org.plainphone.parent.location-push` |
-| App Group (shared container) | `group.org.plainphone.parent` |
+| App (Parent, Child, Myself) | `org.plainphone.app` |
+| Device Activity Monitor extension | `org.plainphone.app.activity-monitor` |
+| Shield Configuration extension | `org.plainphone.app.shield-configuration` |
+| Shield Action extension | `org.plainphone.app.shield-action` |
+| Device Activity Report extension | `org.plainphone.app.activity-report` |
+| Location Push Service extension | `org.plainphone.app.location-push` |
+| App Group (shared container) | `group.org.plainphone.app` |
 
-**Open decision:** the phase 0 brief named the app `org.plainphone.app`. That is the Android phone
-app's package name, not the iOS parent app's bundle ID. Keeping `org.plainphone.parent` keeps the
-existing app, its universal links (`APPLE_APP_IDS`) and its push setup. Choosing
-`org.plainphone.app` means a new App ID and a new App Store record. Decide before sending the
-entitlement requests, because Apple grants them per bundle ID.
+The maintainer confirmed this ID on 2026-11-20. The App Store Connect record already has Family
+Controls and In-App Purchase. Register the Firebase iOS app as `org.plainphone.app` as well.
+See [push setup](../push-setup.md) for the APNs topic and Firebase configuration.
 
 ## Targets
 
@@ -73,7 +71,7 @@ parent-app/modules/plainphone-screentime/
     PlainphoneScreenTimeModule.swift   # Expo module: authorization, picker, apply, status
     RulesCompiler.swift        # rules document -> named stores, schedules and events
     Stores.swift               # ManagedSettingsStore names: base, school, bedtime, limits, maintenance
-    AppGroup.swift             # compiled plan and event log in group.org.plainphone.parent
+    AppGroup.swift             # compiled plan and event log in group.org.plainphone.app
     Receipt.swift              # what the app reports back (status additions below)
   targets/
     activity-monitor/          # DeviceActivityMonitor subclass, reads the compiled plan
@@ -107,7 +105,7 @@ the child never opens the app. The dashboard has to say so on iPhones.
 
 Server additions in later phases, all additive: iOS app entries as opaque token blobs with an
 optional EU bundle ID, `PUT /phones/{id}/ios-selection` and `PUT /device/ios-selection`, the
-`location` push type (topic `org.plainphone.parent.location-query`), and status fields
+`location` push type (topic `org.plainphone.app.location-query`), and status fields
 (`authorizationStatus`, `communicationLimits`, `dnsEnabled`, `locationAuth`, `iosVersion`,
 `effectiveStores`).
 

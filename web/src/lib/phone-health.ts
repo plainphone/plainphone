@@ -11,6 +11,7 @@ type PhoneHealth = PhoneStateInput & {
   mode: "strong" | "light";
   dnsConfigured?: boolean;
   dnsReady?: boolean;
+  rulesDnsReady?: boolean;
   status?: {
     reportedAt: string;
     lockIntact: boolean;
@@ -71,6 +72,8 @@ export function healthRows(phone: PhoneHealth, now: number, locale: Locale, t: T
   const filterKey = filterStatusKey(status);
   const filter = filterKey ? status?.filterWorking : status?.webFilterActive;
   const inconclusive = status?.filterIssue === "waiting" || status?.filterIssue === "unverified";
+  // What the phone uses, not whether the address is tagged yet: a filtered phone is not "being set up".
+  const filterReady = phone.rulesDnsReady ?? phone.dnsReady;
   const role = status?.protections?.phoneRole ?? (status?.callRoleActionNeeded ? false : undefined);
   const rows: HealthRow[] = [
     {
@@ -82,10 +85,10 @@ export function healthRows(phone: PhoneHealth, now: number, locale: Locale, t: T
     {
       key: "filter", label: t("health.filter"),
       detail: phone.dnsConfigured === false ? t("health.noFilterService") :
-        phone.dnsReady === false ? t("health.filterWaiting") :
+        filterReady === false ? t("health.filterWaiting") :
         !status ? unknown : filterKey ? t(filterKey) : filter === true ? t("health.filterOn") :
         filter === false ? t("health.fixFilter") : t("health.filterUnknown"),
-      action: phone.dnsReady === true && filter === false && !inconclusive,
+      action: filterReady === true && filter === false && !inconclusive,
     },
     {
       key: "dialer", label: t("prot.phoneRole"),

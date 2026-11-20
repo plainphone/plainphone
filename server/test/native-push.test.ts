@@ -23,6 +23,34 @@ describe("native push", () => {
     }
   });
 
+  it.each([undefined, ""])("keeps APNs disabled without credentials when the bundle ID is %s", (bundle) => {
+    const { apns, errors } = configureNativePush(config({ APNS_BUNDLE_ID: bundle }));
+    expect(apns).toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+
+  it.each(["org.plainphone.app", "org.example.app"])("reports an incomplete APNs setup when only %s is configured", (bundle) => {
+    const { apns, errors } = configureNativePush(config({ APNS_BUNDLE_ID: bundle }));
+    expect(apns).toBeUndefined();
+    expect(errors).toEqual(["apns: incomplete configuration"]);
+  });
+
+  it.each([
+    [undefined, "org.plainphone.app"],
+    ["", "org.plainphone.app"],
+    ["org.example.app", "org.example.app"],
+  ])("uses bundle ID %s as APNs topic %s", async (bundle, topic) => {
+    const http = vi.fn().mockResolvedValue({ status: 200, body: "" });
+    const { apns, errors } = configureNativePush(config({
+      APNS_KEY_P8: privateKey(generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey),
+      APNS_KEY_ID: "key-id", APNS_TEAM_ID: "team-id", APNS_BUNDLE_ID: bundle,
+    }), http);
+    expect(errors).toEqual([]);
+    const push = new NativeParentPush(web, undefined, apns);
+    expect(await push.send({ ...parentTarget, platform: "apns" }, notification)).toBe("sent");
+    expect(http.mock.calls[0]![1]).toMatchObject({ "apns-topic": topic });
+  });
+
   it("authorizes FCM HTTP v1, marks SOS urgent and strips all content from wakeups", async () => {
     const http = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ access_token: "fake-access", expires_in: 3600 }))
@@ -68,14 +96,14 @@ describe("native push", () => {
   it("sends time-sensitive APNs alerts and treats an expired token as gone", async () => {
     const http = vi.fn().mockResolvedValueOnce({ status: 200, body: "" }).mockResolvedValueOnce({ status: 410, body: "" });
     const apns = new Apns(privateKey(generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey),
-      "key-id", "team-id", "org.plainphone.parent", true, http);
+      "key-id", "team-id", "org.plainphone.app", true, http);
     const push = new NativeParentPush(web, undefined, apns);
     const target = { ...parentTarget, platform: "apns" } as const;
     expect(await push.send(target, notification, { urgent: true })).toBe("sent");
     expect(http.mock.calls[0]![0]).toBe("https://api.sandbox.push.apple.com");
     expect(http.mock.calls[0]![1]).toMatchObject({
       ":path": `/3/device/${target.endpoint}`, "apns-priority": "10", "apns-push-type": "alert",
-      "apns-topic": "org.plainphone.parent", authorization: expect.stringMatching(/^bearer /),
+      "apns-topic": "org.plainphone.app", authorization: expect.stringMatching(/^bearer /),
     });
     expect(JSON.parse(http.mock.calls[0]![2])).toMatchObject({ aps: { "interruption-level": "time-sensitive" } });
     expect(http.mock.calls[0]![1]).toMatchObject({ "apns-collapse-id": "alert" });
@@ -93,7 +121,7 @@ describe("native push", () => {
     it("gives APNs the category and the ids the app needs to answer", async () => {
       const http = vi.fn().mockResolvedValue({ status: 200, body: "" });
       const apns = new Apns(privateKey(generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey),
-        "key-id", "team-id", "org.plainphone.parent", true, http);
+        "key-id", "team-id", "org.plainphone.app", true, http);
       const push = new NativeParentPush(web, undefined, apns);
       expect(await push.send({ ...parentTarget, platform: "apns" }, moreTime)).toBe("sent");
       expect(JSON.parse(http.mock.calls[0]![2])).toMatchObject({
@@ -138,7 +166,7 @@ describe("native push", () => {
     it("is silent on APNs (no sound) and keeps the sound on a loud message", async () => {
       const http = vi.fn().mockResolvedValue({ status: 200, body: "" });
       const apns = new Apns(privateKey(generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey),
-        "key-id", "team-id", "org.plainphone.parent", true, http);
+        "key-id", "team-id", "org.plainphone.app", true, http);
       const push = new NativeParentPush(web, undefined, apns);
       await push.send({ ...parentTarget, platform: "apns" }, receipt);
       await push.send({ ...parentTarget, platform: "apns" }, notification);

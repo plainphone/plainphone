@@ -28,6 +28,7 @@ const events: Record<string, NotifyEvent> = {
   "offline hours": { type: "offline", phoneId: "p1", phoneName: "Robin", hours: 5, lastSeenAt, timezone: "Europe/Copenhagen" },
   "offline one hour": { type: "offline", phoneId: "p1", phoneName: "Robin", hours: 1, lastSeenAt, timezone: "Europe/Copenhagen" },
   "offline days": { type: "offline", phoneId: "p1", phoneName: "Robin", hours: 72, lastSeenAt, timezone: "Europe/Copenhagen" },
+  "never connected": { type: "neverConnected", phoneId: "p1", phoneName: "Robin" },
   approval: { type: "approval", phoneName: "Robin" },
   "request app": { type: "request", phoneId: "p1", phoneName: "Robin", what: "Maps", kind: "app" },
   "request contact": { type: "request", phoneId: "p1", phoneName: "Robin", what: "Sam", kind: "contact" },

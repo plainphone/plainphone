@@ -59,6 +59,16 @@ describe("phone health", () => {
     expect(rows.find((row) => row.key === "lock")?.detail).toBe(t("health.waitForReport"));
   });
 
+  it("does not call a filtered phone 'being set up' while its address is not tagged yet", () => {
+    const filtered = healthRows({ ...phone, dnsReady: false, rulesDnsReady: true }, now, "en", t);
+    expect(filtered.find((row) => row.key === "filter")?.detail).not.toBe(t("health.filterWaiting"));
+    const waiting = healthRows({ ...phone, dnsReady: false, rulesDnsReady: false }, now, "en", t);
+    expect(waiting.find((row) => row.key === "filter")?.detail).toBe(t("health.filterWaiting"));
+    // Servers from before the field: the address flag stands in for it.
+    const old = healthRows({ ...phone, dnsReady: false }, now, "en", t);
+    expect(old.find((row) => row.key === "filter")?.detail).toBe(t("health.filterWaiting"));
+  });
+
   it("keeps an unconfigured filter and a maintenance pause neutral", () => {
     const rows = healthRows({ ...phone, dnsConfigured: false, dnsReady: false,
       status: { ...phone.status, maintenance: true } }, now, "en", t);

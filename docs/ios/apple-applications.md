@@ -8,10 +8,8 @@ Apple's request forms sit behind the developer sign-in, so this page could not r
 names marked **(unverified)** come from Apple's documentation and developer reports, not from the
 form itself. Paste the text into whatever field asks for the same thing.
 
-**Decide first:** which bundle ID the app keeps. This page uses the existing parent app's
-`org.plainphone.parent`. If you choose `org.plainphone.app` instead, replace the prefix everywhere
-before sending, because Apple grants each entitlement to one bundle ID. See
-[architecture.md](architecture.md#bundle-ids).
+The iPhone app uses the existing App Store Connect record for `org.plainphone.app`, which already
+has Family Controls and In-App Purchase. See [architecture.md](architecture.md#bundle-ids).
 
 ## Before you start
 
@@ -24,28 +22,29 @@ before sending, because Apple grants each entitlement to one bundle ID. See
 
    | Description | Bundle ID |
    |---|---|
-   | Plainphone | `org.plainphone.parent` (exists) |
-   | Plainphone Activity Monitor | `org.plainphone.parent.activity-monitor` |
-   | Plainphone Shield Configuration | `org.plainphone.parent.shield-configuration` |
-   | Plainphone Shield Action | `org.plainphone.parent.shield-action` |
-   | Plainphone Activity Report | `org.plainphone.parent.activity-report` |
-   | Plainphone Location Push | `org.plainphone.parent.location-push` |
+   | Plainphone | `org.plainphone.app` (exists) |
+   | Plainphone Activity Monitor | `org.plainphone.app.activity-monitor` |
+   | Plainphone Shield Configuration | `org.plainphone.app.shield-configuration` |
+   | Plainphone Shield Action | `org.plainphone.app.shield-action` |
+   | Plainphone Activity Report | `org.plainphone.app.activity-report` |
+   | Plainphone Location Push | `org.plainphone.app.location-push` |
 
-4. Create the App Group `group.org.plainphone.parent` under **Identifiers → App Groups**, and tick
+4. Create the App Group `group.org.plainphone.app` under **Identifiers → App Groups**, and tick
    **App Groups** on all six App IDs.
 
 The texts below are in English, which Apple's review team reads. They describe the app as it is
 planned; nothing in them promises a feature that is not in [architecture.md](architecture.md).
 
-## 1. Family Controls (distribution), five requests
+## 1. Family Controls (distribution), four extension requests
 
 Apple: "Request the Family Controls entitlement at family-controls-distribution. If your app
 includes a Screen Time API app extension such as Device Activity Monitor, Device Activity Report,
 Shield Action, or Shield Configuration, submit the same request for the extension."
 ([Requesting the Family Controls entitlement](https://developer.apple.com/documentation/familycontrols/requesting-the-family-controls-entitlement))
 
-Send one request for the app and one for each of the four Screen Time extensions: five requests.
-The Location Push extension does not use Family Controls and needs no request here.
+Confirm the main app’s existing distribution approval and submit one request for each of the four
+Screen Time extensions that still needs approval. The Location Push extension does not use Family
+Controls.
 
 **Where:** [developer.apple.com/contact/request/family-controls-distribution](https://developer.apple.com/contact/request/family-controls-distribution).
 Apple also accepts the request from the **Capability Requests** tab of the App ID in
@@ -65,16 +64,15 @@ Certificates, Identifiers & Profiles ([Capability requests](https://developer.ap
 **Fields (unverified) and text:**
 
 - **App name:** `Plainphone`
-- **Bundle ID:** one of the five below.
+- **Bundle ID:** one of the four Screen Time extension IDs below.
 - **App Store URL:** leave empty (the iPhone app is not in the App Store yet), or the parent app's URL
   if it has been published by then.
 - **Is the app a parental control app?** Yes.
-- **Describe how your app uses the Family Controls entitlement** (paste for the app,
-  `org.plainphone.parent`):
+- **Main app description** (reference for the extension requests):
 
 > Plainphone is an open-source (Apache-2.0) parental control app for families who want their child's
 > phone to be a calm, simple phone first: calls and messages with approved people, a few approved
-> apps, school time and bedtime. It is free and has no ads, no tracking and no in-app purchases.
+> apps, school time and bedtime. It has no ads or tracking.
 > The same app has a parent role and a child role. On the child's iPhone, a parent in the same
 > Family Sharing group authorizes Plainphone with AuthorizationCenter.requestAuthorization(for:
 > .child). Plainphone then uses ManagedSettings to shield every app except the ones the parents
@@ -88,30 +86,30 @@ Certificates, Identifiers & Profiles ([Capability requests](https://developer.ap
 
 - **Text for each extension** (change the first sentence per bundle ID):
 
-  - `org.plainphone.parent.activity-monitor`:
+  - `org.plainphone.app.activity-monitor`:
 
-> This is the Device Activity Monitor extension of Plainphone (org.plainphone.parent), a parental
+> This is the Device Activity Monitor extension of Plainphone (org.plainphone.app), a parental
 > control app. It receives intervalDidStart and intervalDidEnd for school time and bedtime and
 > eventDidReachThreshold for daily time limits, and applies or lifts the matching ManagedSettings
 > stores that the app compiled from the parents' rules. It makes no network requests.
 
-  - `org.plainphone.parent.shield-configuration`:
+  - `org.plainphone.app.shield-configuration`:
 
-> This is the Shield Configuration extension of Plainphone (org.plainphone.parent), a parental
+> This is the Shield Configuration extension of Plainphone (org.plainphone.app), a parental
 > control app. It shows a calm, Plainphone-styled shield that tells the child why an app is
 > unavailable (not approved, school time, bedtime or time used up) and offers "Ask for more time".
 > It makes no network requests.
 
-  - `org.plainphone.parent.shield-action`:
+  - `org.plainphone.app.shield-action`:
 
-> This is the Shield Action extension of Plainphone (org.plainphone.parent), a parental control
+> This is the Shield Action extension of Plainphone (org.plainphone.app), a parental control
 > app. When the child taps "Ask for more time" on a shield, it records the request in the app's App
 > Group and posts a local notification that opens Plainphone, where the child sends the request to
 > the parents. It makes no network requests.
 
-  - `org.plainphone.parent.activity-report`:
+  - `org.plainphone.app.activity-report`:
 
-> This is the Device Activity Report extension of Plainphone (org.plainphone.parent), a parental
+> This is the Device Activity Report extension of Plainphone (org.plainphone.app), a parental
 > control app. It shows the child (and an adult using the app for themselves) their own screen time
 > per day inside the app. The data stays on the device and is not sent anywhere.
 
@@ -123,7 +121,7 @@ notifications, which the app already has.
 **Where:** [developer.apple.com/contact/request/notifications-critical-alerts-entitlement](https://developer.apple.com/contact/request/notifications-critical-alerts-entitlement/)
 (linked from Apple's [Critical Alerts entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.usernotifications.critical-alerts) page).
 
-**Steps:** open the link, sign in, fill in the fields below for `org.plainphone.parent`, submit.
+**Steps:** open the link, sign in, fill in the fields below for `org.plainphone.app`, submit.
 When granted, the entitlement `com.apple.developer.usernotifications.critical-alerts` appears for the
 App ID; phase 3 adds it to `app.config.ts`. Apple grants it rarely: whether a family safety app
 qualifies is unverified.
@@ -131,7 +129,7 @@ qualifies is unverified.
 **Fields (unverified) and text:**
 
 - **App name:** `Plainphone`
-- **Bundle ID:** `org.plainphone.parent`
+- **Bundle ID:** `org.plainphone.app`
 - **App Store URL:** as above.
 - **Category:** choose the closest to personal safety (for example "Public Safety" or "Other").
 - **Describe how the app uses critical alerts:**
@@ -160,7 +158,7 @@ capability in Xcode. Earlier it needed a request form at
 
 **Steps:**
 
-1. Open **Identifiers → `org.plainphone.parent` → Capabilities** and look for **Location Push
+1. Open **Identifiers → `org.plainphone.app` → Capabilities** and look for **Location Push
    Service Extension**. If it can be ticked, tick it and save; that is all.
 2. If it is not listed or says it needs approval, open the request link above and send the text
    below.
@@ -171,7 +169,7 @@ capability in Xcode. Earlier it needed a request form at
 > parent can press "Find" to see where their child's iPhone is, and a parent can send an "Are you
 > okay?" check-in; if the child does not answer by the deadline, the child's phone sends one position.
 > The child's iPhone answers these requests with a Location Push Service Extension
-> (org.plainphone.parent.location-push), which gets one location fix and sends it to the family's
+> (org.plainphone.app.location-push), which gets one location fix and sends it to the family's
 > Plainphone server. Location sharing is off until the parents turn it on, it requires Always
 > authorization that the child sees being granted, the child can see every request in the app, iOS
 > shows its location indicator, and only the latest position is kept on the server.
@@ -186,13 +184,13 @@ Applicable: most Plainphone families are in Denmark, Sweden, Norway and Germany.
 EU, so Norwegian families get tokens only.
 
 **Where:** Apple's page says "Enable the capability on your Xcode target". Whether distribution needs
-a separate request, and where, is **unverified**. Check **Identifiers → `org.plainphone.parent` →
+a separate request, and where, is **unverified**. Check **Identifiers → `org.plainphone.app` →
 Capabilities** for **Family Controls (App and Website Usage)**; if it says it needs approval, use the
 **Capability Requests** tab.
 
 **Text (if a request is needed):**
 
-> Plainphone (org.plainphone.parent) is a free, open-source parental control app. In the EU we want
+> Plainphone (org.plainphone.app) is a free, open-source parental control app. In the EU we want
 > parents to approve their child's apps by name in the family's web dashboard, as they can on
 > Android, instead of only through the picker on an Apple device. With the child's and parent's
 > approval (approvedWithDataAccess), the child's iPhone reads installedApplications to send the

@@ -421,6 +421,9 @@ class InstallLease(
                         canRestoreRestrictions()
                     ) {
                         device.addRestriction(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                    } else if (sync.releaseAsked && !sync.released) {
+                        // A withdrawn release must not leave accounts unlocked until something else applies.
+                        lock.accountRelockSkippedForRelease(app)
                     }
                 },
                 onCatalogAccountsClosed = { id, allowSuccess ->

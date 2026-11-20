@@ -334,8 +334,12 @@ class PlainphoneApiReleaseTest {
         assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
         answer = 409
         assertThat(api().reportSetupUndo("test-token")).isFalse()
+        // A proxy answering 200 is not the server's 204: the phone must not drop device admin on it.
+        answer = 200
+        responseBody = ""
+        assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
         assertThat(seen).containsExactlyElementsIn(
-            List(6) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
+            List(7) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
         )
     }
 

@@ -286,6 +286,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: compose-validation-only
           PUBLIC_URL: https://example.org
+          DNS_PROVIDER: mock
         run: |
           docker compose config --quiet
           docker compose -f deploy/dokploy-compose.yaml config --quiet

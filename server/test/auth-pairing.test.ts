@@ -124,7 +124,8 @@ describe("pairing", () => {
     const typed = start.json.code.toLowerCase().replace("-", " ");
     const claim = await parent.post("/api/phones/claim", { code: typed, name: "Alma", profile: "child" });
     expect(claim.status).toBe(201);
-    expect(claim.json.dnsHost).toMatch(/^[a-z2-7]{20}\.dns\.plainphone\.org$/);
+    // The mock resolver never confirms an address, so the summary does not show one.
+    expect(claim.json.dnsHost).toBeNull();
 
     const got = await poll();
     expect(got.status).toBe(200);
@@ -142,7 +143,9 @@ describe("pairing", () => {
     // A device token cannot use the parent API.
     expect((await device.get("/api/phones")).status).toBe(403);
     // The phone was registered with the DNS service with every category blocked.
-    const dnsClient = h.dns.clients.get(claim.json.dnsHost.split(".")[0])!;
+    const host = (await device.get("/api/device/rules")).json.dns.host as string;
+    expect(host).toMatch(/^[a-z2-7]{20}\.dns\.plainphone\.org$/);
+    const dnsClient = h.dns.clients.get(host.split(".")[0]!)!;
     expect(dnsClient.profile).toBe("child");
     expect(dnsClient.blockedCategories).toHaveLength(6);
   });
@@ -160,6 +163,33 @@ describe("pairing", () => {
     expect(claim.status).toBe(201);
     expect([200, 202]).toContain(first.status);
     if (first.status === 202) expect((await poll()).status).toBe(200);
+  });
+
+  it("does not ask for confirmation on the phone when there is nothing left to confirm", async () => {
+    const parent = await signIn(h, "p@example.org");
+    // A strong phone paired by code has nothing to confirm.
+    const strong = new Client(h);
+    const sStart = await strong.post("/api/device/pairings", { mode: "strong" });
+    const sClaim = await parent.post("/api/phones/claim", { code: sStart.json.code, name: "A", profile: "child" });
+    expect(sClaim.status).toBe(201);
+    const sAgain = await parent.post(`/api/phones/${sClaim.json.id}/enrollment`);
+    expect(sAgain.status).toBe(409);
+    expect(sAgain.json.error).not.toMatch(/confirm/i);
+
+    // A light phone that confirmed but has not synced yet has already confirmed.
+    const light = new Client(h);
+    const lStart = await light.post("/api/device/pairings", { mode: "light", profile: "child", confirmOnPhone: true });
+    const path = `/api/device/pairings/${lStart.json.pairingId}`;
+    const headers = { "x-poll-secret": lStart.json.pollSecret };
+    const lClaim = await parent.post("/api/phones/claim", { code: lStart.json.code, name: "B", profile: "child" });
+    expect(lClaim.status).toBe(201);
+    const waiting = await parent.post(`/api/phones/${lClaim.json.id}/enrollment`);
+    expect(waiting.status).toBe(409);
+    expect(waiting.json.error).toMatch(/confirm the account on the phone/i);
+    expect((await light.call("POST", path, { action: "confirm" }, headers)).status).toBe(200);
+    const confirmed = await parent.post(`/api/phones/${lClaim.json.id}/enrollment`);
+    expect(confirmed.status).toBe(409);
+    expect(confirmed.json.error).not.toMatch(/confirm/i);
   });
 
   it("limits invitations per recipient", async () => {
@@ -223,7 +253,7 @@ describe("app links", () => {
     const res = await new Client(h).get("/.well-known/apple-app-site-association");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/application\/json/);
-    expect(res.json.applinks.details[0].appIDs).toEqual(["P7698GU4AV.org.plainphone.parent"]);
+    expect(res.json.applinks.details[0].appIDs).toEqual(["P7698GU4AV.org.plainphone.app"]);
     expect(res.json.applinks.details[0].components.map((c: { "/": string }) => c["/"])).toEqual(["/auth/app", "/pair", "/invite"]);
   });
 

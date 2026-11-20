@@ -5,7 +5,7 @@ import { platformDa } from "./platform";
 import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
-const filterSummary = "Webfilteret gør det mindre sandsynligt, at du møder hjemmesider i de kategorier, du vælger, men noget kan stadig slippe igennem.";
+const filterSummary = "Webfilteret gør det mindre sandsynligt, at telefonen viser hjemmesider i de kategorier, du vælger, men noget kan stadig slippe igennem.";
 const filterLimits = "Nyttige sider kan også blive blokeret. Hjælpelinjer og udvalgte sider med sundhedsinfo er altid åbne.";
 const nextOnline = "næste gang telefonen er online (normalt inden for et minut).";
 const changeTiming = `Gælder, ${nextOnline}`;
@@ -247,6 +247,7 @@ export const da: Messages = {
   "phone.updateNow": "Opdatér nu",
   "phone.updateRequested": "Telefonen tjekker, næste gang den er online.",
   "phone.updateSigningKeyLight": "Denne opdatering kræver en ny opsætning. Indtast forældre-PIN i telefonens vedligeholdelsesmenu, og vælg Slå Plainphone fra. Hvis du bruger Frigiv telefonen i dashboardet i stedet, så skriv telefonens regler ned først. Frigivelse derfra sletter de gemte regler, bl.a. godkendte kontakter og webfilterets indstillinger. For en telefon med profilen Mig selv afventer frigivelsen den valgte ventetid (som standard 24 timer uden en nøgle) eller godkendelse fra den betroede person. Ved frigivelse fra dashboardet skal du vente på, at telefonen synkroniserer og slår Plainphone fra. Afinstaller derefter Plainphone, installer den nyeste version, og par telefonen igen.",
+  "phone.updateCheckFailed": "Kunne ikke tjekke, om denne opdatering kræver en ny opsætning, så Opdatér nu er slået fra. Træk ned for at prøve igen.",
   "phone.updateSigningKeyStrong": "Opdateringen bruger en ny signeringsnøgle. Tag en sikkerhedskopi. Vælg Frigiv Device Owner (testtelefoner) på skærmen med forældre-PIN. Nulstil så telefonen, og sæt den op igen med en ny QR-kode.",
   "phone.updateFailed": "Opdatering fejlede",
   "phone.updateDetails": "Vis tekniske detaljer",
@@ -427,9 +428,13 @@ export const da: Messages = {
   "filter.addressTls": "DNS-over-TLS-adresse til klienter, der bruger tls://",
   "filter.addressAndroidTitle": "Privat DNS på Android",
   "filter.addressAndroid": "Indsæt kun værtsnavnet i Androids indstillinger for Privat DNS. Udelad tls:// og porten.",
+  "filter.addressAndroidStrong": "Brug disse trin på en anden Android-telefon eller tablet. På denne telefon har Plainphone låst indstillingerne for Privat DNS, og filteret er allerede i brug, så der er intet at sætte op her.",
+  "filter.addressAndroidLight": "På denne telefon skal du først skifte filtermetoden til Privat DNS ovenfor og derefter følge trinene. De virker også på enhver anden Android-telefon eller tablet.",
   "filter.addressUnverified": "Endnu ikke afprøvet på en telefon.",
   "filter.addressTailscale": "Hvis du kan undvære MagicDNS, skal du angive værtsnavnet under Privat DNS på Android og slå “Use Tailscale DNS settings” fra på telefonen. Så virker MagicDNS-navne ikke længere på telefonen.",
   "filter.addressTailscaleAdmin": "Hvis du har brug for MagicDNS, kan din administrator sætte en privat DNS-videresender op på jeres tailnet, som sender offentlige DNS-forespørgsler hertil over DNS-over-TLS. Administratoren angiver videresenderens IP-adresse i Tailscale. Hvis den erstatter lokal DNS globalt, bruger alle enheder på jeres tailnet, der accepterer og bruger den DNS-indstilling, telefonens filterregler for de forespørgsler. Slå “Use Tailscale DNS settings” til på telefonen, og sæt Privat DNS på Android til Automatisk, så Tailscale håndterer DNS.",
+  "filter.addressTailscaleStrong": "Brug disse trin på en anden enhed. Denne telefon kan ikke køre Tailscale, fordi Plainphone har låst dens VPN-indstillinger.",
+  "filter.addressTailscaleLight": "På denne telefon afløser Tailscale Plainphones eget filter, fordi Android kun kører én VPN ad gangen. Skift først filtermetoden til Privat DNS ovenfor og følg så trinene.",
   "filter.addressRouterTitle": "Router eller virksomhedens VPN",
   "filter.addressRouter": "Find feltet til en DNS-over-TLS-server. Brug værtsnavnet og porten ovenfor, og brug samme værtsnavn til TLS-verifikation.",
   "filter.addressCompany": "På virksomhedens VPN kan du spørge it-afdelingen, om de kan godkende og opsætte videresendelse af offentlige DNS-forespørgsler og beholde interne domæner på virksomhedens DNS.",
@@ -558,7 +563,7 @@ export const da: Messages = {
   "checkin.noReplyLocated": "Intet svar i tide. Telefonen sendte sin placering kl. {time}.",
 
   "key.title": "Nøgle",
-  "key.intro": "Strammere regler gælder, næste gang telefonen er online. Løsere regler venter på nøglen.",
+  "key.intro": `Strammere regler gælder, ${nextOnline} Løsere regler venter på nøglen.`,
   "key.type": "Hvad der skal til for at løsne en regel",
   "key.delay": "En ventetid",
   "key.delayHelp": "En løsere regel venter det antal timer, du vælger. Du kan annullere, mens den venter.",

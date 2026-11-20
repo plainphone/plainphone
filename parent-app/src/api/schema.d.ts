@@ -3606,12 +3606,15 @@ export interface components {
             lastSeenAt?: string | null;
             /** @description Only on a single phone. Whether the phone has confirmed the rules the server holds now. Null while it has confirmed none. */
             rulesCurrent?: boolean | null;
-            dnsHost?: string;
+            /** @description The phone's own filter host. Null until the HTTP DNS resolver has confirmed it (`dnsReady`), so the address is never shown before it works. */
+            dnsHost?: string | null;
             dnsSynced?: boolean;
             /** @description Whether this server has a DNS filter service configured */
             dnsConfigured?: boolean;
-            /** @description The configured HTTP DNS resolver has confirmed provisioning of this phone's ClientID. */
+            /** @description The configured HTTP DNS resolver has confirmed provisioning of this phone's ClientID with its current settings. Gates showing the address (`dnsHost`). */
             dnsReady?: boolean;
+            /** @description The phone is filtered by its own host (what `/device/rules` tells it). True for confirmations made before they were tagged with the resolver, so "waiting" texts follow this field, not `dnsReady`. */
+            rulesDnsReady?: boolean;
             hasLocation?: boolean;
             /** @description The phone's last hardware attestation (#23); null when it has not attested. */
             attestation?: components["schemas"]["Attestation"] | null;
@@ -5160,6 +5163,13 @@ export interface operations {
         responses: {
             /** @description Accepted. A check-in fix is held for publication after the reply grace period. */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid fix: recorded in the future, at or before the check-in was created, or (with a check-in purpose) before its reply deadline. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7871,7 +7881,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description host (null in mock mode or before provisioning), synced, blockedCategories, allowDomains, blockDomains */
+            /** @description host (null in mock mode or until the resolver confirmed it), rulesReady (the phone is filtered; show waiting texts only while false), synced, blockedCategories, allowDomains, blockDomains */
             200: {
                 headers: {
                     [name: string]: unknown;

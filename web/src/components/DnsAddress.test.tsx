@@ -20,6 +20,24 @@ describe("DNS address", () => {
     expect(renderToStaticMarkup(<DnsAddress host={null} />)).toBe("");
   });
 
+  it.each([
+    ["strong", "filter.addressAndroidStrong", "filter.addressTailscaleStrong", "filter.addressAndroidLight", "filter.addressTailscaleLight"],
+    ["light", "filter.addressAndroidLight", "filter.addressTailscaleLight", "filter.addressAndroidStrong", "filter.addressTailscaleStrong"],
+  ] as const)("says which phone the Android and Tailscale steps are for on a %s phone", (mode, android, tailscale, otherAndroid, otherTailscale) => {
+    const t = makeT("en");
+    const html = renderToStaticMarkup(<DnsAddress host="test-profile.dns.example.org" mode={mode} />);
+    expect(html).toContain(t(android));
+    expect(html).toContain(t(tailscale));
+    expect(html).not.toContain(t(otherAndroid));
+    expect(html).not.toContain(t(otherTailscale));
+  });
+
+  it("keeps the steps unscoped when the mode is unknown", () => {
+    const html = renderToStaticMarkup(<DnsAddress host="test-profile.dns.example.org" />);
+    expect(html).not.toContain("On this phone");
+    expect(html).not.toContain("another Android phone or tablet. On this phone");
+  });
+
   it("presents both clipboard values and labels in the connection details", () => {
     const host = "test-profile.dns.example.org";
     const html = renderToStaticMarkup(<DnsAddress host={host} />);

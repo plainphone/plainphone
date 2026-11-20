@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { sweep } from "../src/services/sweeper.js";
-import { households } from "../src/db/schema.js";
-import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
+import { households, phones } from "../src/db/schema.js";
+import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
@@ -341,6 +342,47 @@ describe("offline (#22)", () => {
     h.clock.advance(3 * 86_400_000 + 3_600_000);
     await sweep(h.ctx);
     expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma has not been in touch for 3 days"]);
+  });
+});
+
+describe("confirmed light phone that never connects (#88)", () => {
+  async function confirmedButSilent(parent: Awaited<ReturnType<typeof signIn>>, name: string) {
+    const device = new Client(h);
+    const start = await device.post("/api/device/pairings", { mode: "light", profile: "child", confirmOnPhone: true });
+    const path = `/api/device/pairings/${start.json.pairingId}`;
+    const headers = { "x-poll-secret": start.json.pollSecret };
+    expect((await parent.post("/api/phones/claim", { code: start.json.code, name, profile: "child" })).status).toBe(201);
+    expect((await device.call("POST", path, { action: "confirm" }, headers)).status).toBe(200);
+    return device;
+  }
+
+  it("reminds the parents once, after two days, with a push and a mail", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    await confirmedButSilent(mum, "Alma");
+    await withoutSummary();
+    const mails = h.mail.outbox.length;
+    h.clock.advance(47 * 3_600_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(0);
+    h.clock.advance(2 * 3_600_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(1);
+    await sweep(h.ctx);
+    h.clock.advance(3 * 86_400_000);
+    await sweep(h.ctx);
+    expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma has not connected yet"]);
+    expect(h.mail.outbox.slice(mails).map((m) => [m.to, m.subject])).toEqual([["mum@example.org", "Alma has not connected yet"]]);
+  });
+
+  it("stays quiet when the parents turned offline alerts off for the phone", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    await confirmedButSilent(mum, "Alma");
+    await withoutSummary();
+    const [phone] = await h.ctx.db.select({ id: phones.id }).from(phones);
+    await h.ctx.db.update(phones).set({ offlineAlertHours: 0 }).where(eq(phones.id, phone!.id));
+    h.clock.advance(5 * 86_400_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(0);
+    expect(h.parentPush.sent).toHaveLength(0);
   });
 });
 

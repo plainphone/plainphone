@@ -323,6 +323,28 @@ class GuardServiceTest {
         assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
     }
 
+    @Test fun vpnDialogStillGetsItsBackWhenSettingsTakesTheBackInTheSameBatch() {
+        for (vpnFirst in listOf(true, false)) {
+            val service = Robolectric.buildService(GuardService::class.java).create().get()
+            val shadow = prepareGuard(service)
+            val looper = shadowOf(Looper.getMainLooper())
+            shadow.root = protectedSettingsRoot()
+
+            if (vpnFirst) service.event(STATE, SettingsGuard.VPN_DIALOGS)
+            service.event(STATE, SETTINGS)
+            if (!vpnFirst) service.event(STATE, SettingsGuard.VPN_DIALOGS)
+
+            // The Settings text rule takes the one Back of this batch, the VPN dialog is not forgotten.
+            assertEquals("vpnFirst=$vpnFirst", listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+            val handler = ReflectionHelpers.getField<Handler>(service, "main")
+            assertTrue(handler.hasCallbacks(ReflectionHelpers.getField<Runnable>(service, "vpnRetry")))
+
+            shadow.root = AccessibilityNodeInfo().apply { packageName = SettingsGuard.VPN_DIALOGS }
+            looper.idleFor(Duration.ofMillis(50))
+            assertEquals("vpnFirst=$vpnFirst", List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+        }
+    }
+
     @Test fun maintenanceCancelsBothPendingChecks() = assertCancelsBothPendingChecks { service ->
         service.getSharedPreferences("plainphone_state", Context.MODE_PRIVATE)
             .edit().putLong("relock_at_wall", Long.MAX_VALUE).apply()
