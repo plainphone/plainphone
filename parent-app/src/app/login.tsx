@@ -10,6 +10,7 @@ import { Disclosure } from "../components/parts";
 import { Button, errorMessage, Field, Loading, LiveStatus, Notice, PageTitle, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
+import { noteLinkAsked } from "../lib/link-asked";
 import { useSession } from "../lib/session";
 import { space, touch, useColors } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
@@ -88,6 +89,8 @@ export default function LoginScreen() {
       const r = await unwrap<{ mailEnabled?: boolean } | undefined>(
         client.POST("/auth/request", { body: { email: value, locale, client: "native" } }),
       );
+      // The link this app asked for is used without a question (app/auth/app.tsx).
+      await noteLinkAsked();
       if (r && typeof r.mailEnabled === "boolean") setMail(r.mailEnabled);
       setSentTo(r?.mailEnabled === false ? null : value);
     } catch (err) {

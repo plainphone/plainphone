@@ -5,6 +5,7 @@
 // enforces the allowance itself, offline, and reports each use. The server never refuses a
 // report: it records it, and tells the trusted person.
 
+import { errorSummary } from "../lib/log.js";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { emergencyOpenings, householdMembers, phoneApps, phones, selfKeys } from "../db/schema.js";
@@ -144,6 +145,6 @@ async function tellTrustedPerson(ctx: Ctx, phone: Phone, pkg: string, openedAt: 
     }, { respectMuteFor: phone.id });
   } catch (err) {
     // A failed push never fails the report: the phone has already opened the app.
-    console.error(`could not tell the trusted person about an emergency opening: ${(err as Error).message}`);
+    console.error(`could not tell the trusted person about an emergency opening: ${errorSummary(err)}`);
   }
 }

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { alertOfflinePhones } from "../src/services/notifications.js";
 import { sweep } from "../src/services/sweeper.js";
 import { households, phones } from "../src/db/schema.js";
 import { Client, pairPhone, signIn, useHarness } from "./harness.js";
@@ -330,6 +331,28 @@ describe("offline (#22)", () => {
     h.clock.advance(13 * 3_600_000);
     await sweep(h.ctx);
     expect(h.parentPush.sent).toHaveLength(2);
+  });
+
+  it("still alerts the other claimed phones when one alert fails", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    const a = await pairPhone(h, mum, { name: "Alma" });
+    const b = await pairPhone(h, mum, { name: "Bo" });
+    await withoutSummary();
+    await a.device.get("/api/device/rules");
+    await b.device.get("/api/device/rules");
+    h.clock.advance(13 * 3_600_000);
+    const select = vi.spyOn(h.ctx.db, "select").mockImplementationOnce(() => {
+      throw new Error("database unavailable");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await alertOfflinePhones(h.ctx)).toBe(2);
+    } finally {
+      select.mockRestore();
+      log.mockRestore();
+    }
+    expect(h.parentPush.sent).toHaveLength(1);
   });
 
   it("says how long the phone has really been quiet, in days after two days", async () => {

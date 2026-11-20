@@ -26,10 +26,16 @@ describe("location modes", () => {
     const { parent, phoneId, device } = await setup();
     const mode = `/api/phones/${phoneId}/location/mode`;
     expect((await parent.put(mode, { mode: "always", alwaysFor: "hour" })).status).toBe(200);
+    const payload = JSON.stringify(fix(h.clock.now));
+    // With a length, as real clients send, the body limit passes the request on unwrapped.
     const request = new Request("https://app.example.test/api/device/location", {
       method: "PUT",
-      headers: { authorization: `Bearer ${device.token}`, "content-type": "application/json" },
-      body: JSON.stringify(fix(h.clock.now)),
+      headers: {
+        authorization: `Bearer ${device.token}`,
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(payload)),
+      },
+      body: payload,
     });
     const read = request.text.bind(request);
     request.text = async () => {

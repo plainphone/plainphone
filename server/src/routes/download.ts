@@ -6,6 +6,7 @@
 // The QR code pins the signing certificate, not the file, so any release signed with the
 // same key passes the check.
 
+import { errorSummary } from "../lib/log.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Ctx } from "../services/context.js";
@@ -86,7 +87,7 @@ export function downloadRoutes(ctx: Ctx, fetchImpl: typeof fetch = fetch) {
         return download ?? cached?.download ?? null;
       } catch (err) {
         failedAt = Date.now();
-        console.error(`APK lookup failed: ${(err as Error).message}`);
+        console.error(`APK lookup failed: ${errorSummary(err)}`);
         // Keep serving the last known APK while GitHub is unreachable.
         return cached?.download ?? null;
       } finally {
