@@ -124,6 +124,7 @@ internal fun FamilyThread(
             subtitle = if (recipients.isEmpty()) stringResource(R.string.inbox_to_parents)
                 else stringResource(R.string.inbox_to, recipients.joinToString()),
             onBack = onBack,
+            subtitleIsNumber = false,
         )
         val list = entries.orEmpty().asReversed()
         LazyColumn(

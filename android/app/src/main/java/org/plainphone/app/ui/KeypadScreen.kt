@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -70,17 +71,28 @@ internal fun KeypadScreen(
             }
             ScreenTitle(stringResource(R.string.tab_keypad), Modifier.padding(start = if (onBack != null) 8.dp else 0.dp))
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (showParents) OutlinedButton(
+        val parent = @Composable { m: Modifier ->
+            OutlinedButton(
                 onClick = onParents,
-                modifier = Modifier.weight(1f).heightIn(min = 64.dp),
+                modifier = m.heightIn(min = 64.dp),
                 border = BorderStroke(1.dp, t.outline),
                 shape = MaterialTheme.shapes.large,
             ) {
                 Text(stringResource(R.string.dialer_call_parent), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium, color = t.ink)
             }
-            Box(Modifier.weight(1f)) {
-                HoldAction(stringResource(R.string.sos_emergency), { hint = R.string.sos_hold_emergency }, onEmergency)
+        }
+        val emergency = @Composable { m: Modifier ->
+            Box(m) { HoldAction(stringResource(R.string.sos_emergency), { hint = R.string.sos_hold_emergency }, onEmergency) }
+        }
+        if (LocalDensity.current.fontScale >= LARGE_TEXT) {
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (showParents) parent(Modifier.fillMaxWidth())
+                emergency(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (showParents) parent(Modifier.weight(1f))
+                emergency(Modifier.weight(1f))
             }
         }
         hint?.let {

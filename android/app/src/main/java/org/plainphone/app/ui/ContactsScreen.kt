@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -33,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -131,17 +131,13 @@ internal fun ContactsScreen(
                     ContactRow(p, rules, parent = true, onCall = onCall, onMessage = onMessage)
                 }
                 if (reachableParents.isNotEmpty()) RowDivider(inset = false)
-                Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.weight(1f)) {
-                        HoldAction(stringResource(R.string.sos_emergency), { emergencyHint = true }, onEmergency)
-                    }
+                val emergency = @Composable { m: Modifier ->
+                    Box(m) { HoldAction(stringResource(R.string.sos_emergency), { emergencyHint = true }, onEmergency) }
+                }
+                val help = @Composable { m: Modifier ->
                     OutlinedButton(
                         onClick = onHelp,
-                        modifier = Modifier.weight(1f).heightIn(min = 64.dp),
+                        modifier = m.heightIn(min = 64.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         shape = MaterialTheme.shapes.large,
                     ) {
@@ -152,6 +148,22 @@ internal fun ContactsScreen(
                             style = MaterialTheme.typography.titleMedium,
                             textAlign = TextAlign.Center,
                         )
+                    }
+                }
+                // Side by side, or one above the other at large text so neither label is cut.
+                if (LocalDensity.current.fontScale >= LARGE_TEXT) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        emergency(Modifier.fillMaxWidth())
+                        help(Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        emergency(Modifier.weight(1f))
+                        help(Modifier.weight(1f))
                     }
                 }
                 if (emergencyHint) Text(

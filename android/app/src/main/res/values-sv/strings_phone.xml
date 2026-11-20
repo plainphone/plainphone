@@ -36,7 +36,7 @@
     <string name="inbox_to">Till %1$s</string>
     <string name="inbox_to_parents">Till dina föräldrar</string>
     <string name="inbox_empty_title">Här finns inget än</string>
-    <string name="inbox_empty">Skicka ett snabbmeddelande. Dina föräldrar kan svara här.</string>
+    <string name="inbox_empty">Dina meddelanden till dina föräldrar visas här. De kan också svara här.</string>
     <string name="inbox_who_reads">Dina föräldrar kan läsa konversationen. Plainphone-servern kan också läsa den och raderar den efter 30 dagar.</string>
     <string name="inbox_check_in">Jag är hemma</string>
     <string name="inbox_check_in_text">Jag är hemma</string>

@@ -335,6 +335,8 @@ private fun DayLabel(atMs: Long) {
 internal fun ConversationTopBar(
     title: String, subtitle: String?, onBack: () -> Unit,
     callDescription: String? = null, onCall: () -> Unit = {},
+    /** A phone number: mono. Words are not. */
+    subtitleIsNumber: Boolean = true,
 ) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 4.dp, vertical = 4.dp),
@@ -345,7 +347,11 @@ internal fun ConversationTopBar(
         }
         Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
-            if (subtitle != null) Text(subtitle, style = MonoSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (subtitle != null) Text(
+                subtitle,
+                style = if (subtitleIsNumber) MonoSmall else MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (callDescription != null) Box(Modifier.padding(end = 8.dp)) { CallButton(callDescription, onCall) }
     }

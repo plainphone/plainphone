@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -121,23 +122,29 @@ fun PersonRow(
     lines: @Composable ColumnScope.() -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    // At large text the buttons move under the text, so names and numbers keep the full width.
+    val stacked = LocalDensity.current.fontScale >= LARGE_TEXT
     Row(
         modifier.fillMaxWidth().heightIn(min = 72.dp)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically,
     ) {
         Avatar(initial, emphasis)
-        Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = if (stacked) 0.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = titleWeight, color = titleColor)
                 aside?.invoke()
             }
             lines()
+            if (stacked) Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), content = actions)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+        if (!stacked) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
     }
 }
+
+/** From this font scale on, rows and button pairs stack instead of sitting side by side. */
+const val LARGE_TEXT = 1.5f
 
 /** A round initial instead of a photo. Neutral, or ink for a parent; never signal green. */
 @Composable

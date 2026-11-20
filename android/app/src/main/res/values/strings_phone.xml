@@ -37,7 +37,7 @@
     <string name="inbox_to">To %1$s</string>
     <string name="inbox_to_parents">To your parents</string>
     <string name="inbox_empty_title">Nothing here yet</string>
-    <string name="inbox_empty">Send a quick message. Your parents can answer here.</string>
+    <string name="inbox_empty">Your messages to your parents show up here. They can answer here too.</string>
     <string name="inbox_who_reads">Your parents can read this conversation. The Plainphone server can read it too, and deletes it after 30 days.</string>
     <string name="inbox_check_in">I\'m home</string>
     <string name="inbox_check_in_text">I\'m home</string>
