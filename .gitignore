@@ -29,3 +29,4 @@ dns/tests/.certs/
 # Local native push configuration and Apple signing keys
 google-services.json
 *.p8
+site/.screenshots-tmp/

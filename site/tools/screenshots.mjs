@@ -20,6 +20,8 @@ for (const width of [390, 1280]) {
       const res = await page.goto(base + path, { waitUntil: "networkidle" });
       if (!res.ok()) throw new Error(`${path}: ${res.status()}`);
       await page.evaluate(() => document.fonts.ready);
+      // Lazy pictures below the fold would be blank in a full-page capture.
+      await page.evaluate(() => Promise.all([...document.images].map((img) => { img.loading = "eager"; return img.decode().catch(() => {}); })));
       await page.screenshot({ path: join(out, `${prefix}-${lang}-${width}-${scheme}.png`), fullPage: true });
     }
     await ctx.close();
