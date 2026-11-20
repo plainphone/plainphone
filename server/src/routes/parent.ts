@@ -1205,7 +1205,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.get("/people-i-help", async (c) => {
     const helper = c.get("user").id;
-    const people = await ctx.db.select({ id: phones.id, name: phones.name, owner: users.email })
+    // One row per phone: with several owners in the household, the one who joined first.
+    const rows = await ctx.db.selectDistinctOn([phones.id], { id: phones.id, name: phones.name, owner: users.email })
       .from(selfKeys)
       .innerJoin(phones, eq(phones.id, selfKeys.phoneId))
       .innerJoin(householdMembers, and(eq(householdMembers.householdId, phones.householdId), eq(householdMembers.role, "owner")))
@@ -1213,7 +1214,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .where(and(eq(selfKeys.keyType, "trusted"), eq(selfKeys.trustedUserId, helper), eq(phones.profile, "self"),
         sql`not exists (select 1 from household_members as helper_membership
           where helper_membership.household_id = ${phones.householdId} and helper_membership.user_id = ${helper})`,
-      )).orderBy(phones.name);
+      )).orderBy(phones.id, householdMembers.createdAt);
+    const people = rows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     return c.json({ people });
   });
 

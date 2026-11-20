@@ -491,6 +491,24 @@ describe("Self profile with a trusted person", () => {
     expect((await friend.get(`${base}/contacts`)).status).toBe(404);
   });
 
+  it("lists a person once, even when their household has several owners", async () => {
+    const { me, phoneId } = await selfPhone();
+    const friend = await signIn(h, "buddy@example.org");
+    const key = { keyType: "trusted", delayHours: 24, payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" };
+    await me.put(`/api/phones/${phoneId}/key`, { ...key, trustedEmail: "buddy@example.org" });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    const second = await signIn(h, "second@example.org");
+    const household = (await me.get("/api/me")).json.households[0].id;
+    await h.ctx.db.insert(householdMembers).values({
+      householdId: household, userId: (await second.get("/api/me")).json.user.id, role: "owner",
+    });
+    const { people } = (await friend.get("/api/people-i-help")).json;
+    expect(people).toHaveLength(1);
+    // Deterministic: the owner who joined first.
+    expect(people[0]).toMatchObject({ id: phoneId, owner: "adult@example.org" });
+  });
+
   it("supports reciprocal keys and ends an outgoing key only with its current helper", async () => {
     const { me, phoneId } = await selfPhone();
     const friend = await signIn(h, "buddy@example.org");
