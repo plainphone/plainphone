@@ -4,11 +4,9 @@ import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "../i18n/translate";
 import { ApiError, api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
+import { INBOX_NAME_KEY } from "../lib/session";
 import { type FamilyInboxThread, familyState, REPLY_LENGTH, type SosSettings } from "../lib/sos-options";
 import { Field, Switch, useLoad } from "./ui";
-
-/** The name a parent signs replies with, kept on this device only. */
-const NAME_KEY = "pp.inboxName"; // a display name, not a credential
 
 /**
  * The family inbox of one Child phone (docs/family-inbox.md): its switches, the thread and a short
@@ -44,7 +42,7 @@ function Thread({ pid }: { pid: string }) {
   const res = useLoad(() => api.get<FamilyInboxThread>(path), [path]);
   const { reload, data } = res;
   const [text, setText] = useState("");
-  const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? "");
+  const [name, setName] = useState(() => localStorage.getItem(INBOX_NAME_KEY) ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
   const sending = useRef(false);
@@ -64,8 +62,8 @@ function Thread({ pid }: { pid: string }) {
     setError(null);
     try {
       const signed = name.trim();
-      if (signed) localStorage.setItem(NAME_KEY, signed);
-      else localStorage.removeItem(NAME_KEY);
+      if (signed) localStorage.setItem(INBOX_NAME_KEY, signed);
+      else localStorage.removeItem(INBOX_NAME_KEY);
       await api.post(path, { text: text.trim(), name: signed || undefined });
       setText("");
       await reload();

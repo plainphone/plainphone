@@ -77,7 +77,8 @@ application-level retry.
   survive reboots. Schedules keep switching on time, because they are evaluated on the phone.
 - **A broken answer** (not JSON, missing fields, unknown time zone, bad weekday) is thrown away
   before it is stored; the last good rules stay.
-- **Removed in the dashboard** (`401`): the phone keeps the last rules, stops polling and shows
+- **Removed in the dashboard** (`401` with the server's `unknown device; pair again`; any other
+  `401`, for example from a proxy, is retried like a server error): the phone keeps the last rules, stops polling and shows
   "pair again from the maintenance screen". Only its DNS goes back to the QR code's host, because
   the DNS service deletes a removed phone's ClientID (otherwise the phone would have no DNS).
 - **During a maintenance unlock** the sync stores new rules but does not re-apply the lock;

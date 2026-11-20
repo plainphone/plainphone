@@ -23,6 +23,14 @@ function readToken(): string | null {
   }
 }
 
+function forget() {
+  try {
+    sessionStorage.removeItem(INVITE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function InvitePage() {
   const { t } = useI18n();
   const { state, refresh } = useSession();
@@ -32,7 +40,8 @@ export function InvitePage() {
   const [result, setResult] = useState<"ok" | string | null>(null);
 
   useEffect(() => {
-    if (!token || state.status !== "in" || (trusted && !confirmed)) return;
+    // Every invitation waits for a tap: a link from a stranger must not add this parent to their household.
+    if (!token || state.status !== "in" || !confirmed) return;
     let p = inflight.get(token);
     if (!p) {
       p = api.post("/invites/accept", { token });
@@ -44,13 +53,7 @@ export function InvitePage() {
         void refresh();
       },
       (err) => setResult(err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t)),
-    ).finally(() => {
-      try {
-        sessionStorage.removeItem(INVITE_KEY);
-      } catch {
-        // ignore
-      }
-    });
+    ).finally(forget);
   }, [token, state.status, refresh, t, trusted, confirmed]);
 
   if (state.status === "loading") return <Loading />;
@@ -64,10 +67,15 @@ export function InvitePage() {
           <p className="notice notice-error" role="alert">{t("invite.missing")}</p>
           <Link className="btn btn-secondary" to="/">{t("invite.back")}</Link>
         </div>
-      ) : trusted && !confirmed ? (
+      ) : !confirmed ? (
         <div className="stack">
-          <p>{t("invite.trustedHelp")}</p>
-          <button className="btn btn-primary" type="button" onClick={() => setConfirmed(true)}>{t("invite.trustedAccept")}</button>
+          <p>{t(trusted ? "invite.trustedHelp" : "invite.householdHelp")}</p>
+          <div className="actions">
+            <button className="btn btn-primary" type="button" onClick={() => setConfirmed(true)}>
+              {t(trusted ? "invite.trustedAccept" : "invite.householdAccept")}
+            </button>
+            <Link className="btn btn-secondary" to="/" onClick={forget}>{t("app.cancel")}</Link>
+          </div>
         </div>
       ) : result === null ? (
         <p role="status">

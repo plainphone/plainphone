@@ -128,6 +128,7 @@ phone                                      server                         parent
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
+   | `liftedPolicies` | Lock steps the phone lifted on purpose for a parent-approved window, each `{ "name", "until" }` (name 1 to 200 characters, `until` ISO 8601 with a time zone; at most 10). Today only `restriction no_modify_accounts` during **Allow accounts briefly** ([policies](policies.md#account-changes-during-an-approved-sign-in)). Within its deadline a lifted step is not a failure: `lockIntact` stays true and the dashboard shows "allowed until HH:MM". More than 2 minutes past `until`, the server stores the name in `failedPolicies` and `lockIntact: false`, which raises the usual protection alert. If the phone has not reported for 10 minutes after `until`, the sweeper tells the parents once (protection alert, reason `lifted`) |
 
    In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,
    `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. For a
@@ -160,8 +161,10 @@ phone                                      server                         parent
    outage. The filter screen still shows the resolver's sync status.
    In Light mode a VPN start request is provisional until the tunnel is running
    with the requested resolver.
-6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
+6. **Removed.** `401` with `{"error":"unknown device; pair again"}` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
+   Any other `401` (a proxy or login wall in front of a self-hosted server) is an ordinary
+   error that is retried, so it cannot unpair every phone.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again
    as a Child phone and leave the key behind.
 

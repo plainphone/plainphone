@@ -41,6 +41,30 @@ beforeEach(async () => {
   await SecureStore.setItemAsync("pp.session", "pp_s_saved");
 });
 
+it("reads out an SOS that arrives while the phones list is open, not the ones it opened with", async () => {
+  jest.useFakeTimers();
+  const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+  try {
+    const event = { id: "11111111-2b65-4b68-8c27-30afb2f84a0f", kind: "urgent", createdAt: "2026-11-19T14:32:00Z", seenAt: null, location: null };
+    const later = { ...event, id: "22222222-2b65-4b68-8c27-30afb2f84a0f", kind: "help", createdAt: "2026-11-19T14:40:00Z" };
+    let events = [event];
+    phoneApi(PHONE, {
+      "GET /phones": { body: { phones: [PHONE] } },
+      [`GET /phones/${PHONE.id}/sos`]: () => ({ body: { events, callbackNumber: null } }),
+    });
+    await renderRouter(routes, { initialUrl: "/" });
+    expect(await screen.findByTestId("sos-banner")).toBeTruthy();
+    expect(announce).not.toHaveBeenCalled();
+    events = [event, later];
+    await act(async () => { await jest.advanceTimersByTimeAsync(10_000); });
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith(`${PHONE.name}: Needs help`);
+  } finally {
+    announce.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
 it("shows an urgent SOS, then moves it to history after acknowledgment", async () => {
   const event = {
     id: "3b276ba0-2b65-4b68-8c27-30afb2f84a0f", kind: "urgent", createdAt: "2026-11-19T14:32:00Z",
@@ -61,11 +85,22 @@ it("shows an urgent SOS, then moves it to history after acknowledgment", async (
   expect(screen.getByText("Urgent SOS")).toBeTruthy();
   expect(screen.getByText("View on map")).toBeTruthy();
   expect(screen.getByText("Call back")).toBeTruthy();
+  // With several alerts open, a screen reader hears which one the button answers.
+  expect(screen.getByLabelText(/^I’ve seen it, Urgent SOS, /)).toBeTruthy();
   await fireEvent.press(screen.getByText("I’ve seen it"));
   await waitFor(() => expect(screen.queryByTestId("sos-banner")).toBeNull());
   expect(api.calls.some((call) => call.path === `${path}/${event.id}/seen`)).toBe(true);
   await fireEvent.press(screen.getByText("SOS history"));
   expect(await screen.findByTestId("sos-history-event")).toBeTruthy();
+});
+
+it("says on the phones list when SOS could not be checked, instead of showing nothing", async () => {
+  phoneApi(PHONE, {
+    "GET /phones": { body: { phones: [PHONE] } },
+    [`GET /phones/${PHONE.id}/sos`]: { status: 500, body: { error: "boom" } },
+  });
+  await renderRouter(routes, { initialUrl: "/" });
+  expect(await screen.findByText("Alma: Could not load SOS.")).toBeTruthy();
 });
 
 describe("pairing", () => {
@@ -85,7 +120,7 @@ describe("pairing", () => {
       await fireEvent.press(screen.getByTestId("setup-age-next"));
       await fireEvent.press(await screen.findByRole("button", { name: "Continue in the browser" }));
       await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
-      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child" });
+      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child", householdId: ME.households[0].id });
     } finally {
       open.mockRestore();
     }
@@ -414,6 +449,16 @@ describe("overview", () => {
     expect(screen.queryByText("App installation stayed open longer than planned during an update.")).toBeNull();
     expect(screen.getByRole("button", { name: "Show technical details" })).toBeTruthy();
     expect(screen.queryByText(failedPolicy)).toBeNull();
+  });
+
+  it.each([
+    // Far from any real clock, so the test does not depend on the date.
+    { name: "open window", until: "2099-01-01T12:00:00Z", text: /^Account changes are allowed for an approved sign-in until / },
+    { name: "past deadline, phone silent", until: "2000-01-01T12:00:00Z", text: /^Account changes were allowed for a sign-in until .* The phone has not reported since\.$/ },
+  ])("shows the lifted account window: $name", async ({ until, text }) => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: [], liftedPolicies: [{ name: "restriction no_modify_accounts", until }] } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(text)).toBeTruthy();
   });
 
   it("lists waiting changes on a Self phone and cancels one", async () => {
@@ -980,6 +1025,7 @@ describe("invitations", () => {
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce(link);
     const api = phoneApi(PHONE, { "POST /invites/accept": { body: { ok: true } }, "GET /phones": { body: { phones: [] } } });
     await renderRouter(routes, { initialUrl: "/invite" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     expect(await screen.findByText("You are now part of the household and can manage its phones.")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_abcdefghij" });
     await fireEvent.press(screen.getByTestId("invite-done"));
@@ -1002,6 +1048,7 @@ describe("invitations", () => {
     await SecureStore.setItemAsync("pp.invite", "pp_i_keptinvite1");
     const api = phoneApi(PHONE, { "POST /invites/accept": { body: { ok: true } } });
     await renderRouter(routes, { initialUrl: "/invite" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     expect(await screen.findByText("You are now part of the household and can manage its phones.")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_keptinvite1" });
     // Used or failed: forgotten.
@@ -1021,6 +1068,7 @@ describe("invitations", () => {
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/invite#token=pp_i_usedinvite1");
     phoneApi(PHONE, { "POST /invites/accept": { status: 400, body: { error: "invalid or expired invitation" } } });
     await renderRouter(routes, { initialUrl: "/invite" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
     expect(await screen.findByText("This invitation is expired or already used. Ask for a new one.")).toBeTruthy();
   });
 });

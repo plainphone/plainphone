@@ -125,6 +125,13 @@ SMS handoff is reserved in local storage before dispatch to prevent a retry
 from repeating it after a crash. A carrier handoff can fail, and neither an
 accepted online report nor a submitted SMS proves a parent has received it.
 A parent may receive an SMS plus the queued report's later email and push.
+When the server refuses the report for good (a 4xx other than 404: the phone was
+released or removed in the dashboard and has not synced yet, or a proxy rejects
+it), or the phone has no usable device token, the SMS and the urgent call to the
+parents still go out. Neither needs the server. Once the SMS has gone out, the
+phone reports once more saying so: the server records an SOS that was sent by
+SMS whatever the phone's state, so it still shows in the dashboard and the
+parents get the push.
 
 The background delivery job starts the urgent call even when the SOS screen
 is closed. The phone records that the call has been handled only after a call

@@ -28,6 +28,12 @@ The app claims three paths on the server's host:
 
 If the app is not installed, the same links open the web app, which handles all three. A login link for the app that opens in a browser anyway (in a mail app's own browser, or on Android before `ANDROID_APP_CERT_SHA256` is set) is not used up there: the page offers "Open in the app" (`plainphone://auth/app#token=…`) or "Log in here".
 
+A login link that someone else sends would sign the app or browser into their account. A parent who then adds a phone would give that account the child's phone. So the app and the web app use a login link straight away only when they asked for it themselves in the last 15 minutes (the link's lifetime). Any other link, or a link opened while someone is signed in, first asks "Log in with this link?" and names the signed-in account. When a link replaces a session in the app, the app ends the old session on the server.
+
+An invitation to a household always waits for the parent to tap **Join the household**, also when it was kept across the login. New phones go to the first household in `/api/me`, the one the Household page shows, with an explicit `householdId`.
+
+Logging out ends the session on the server, which also removes the device's push registrations. The web dashboard stays signed in and says so when the server can't be reached, because only the server can end its HttpOnly cookie. The app always signs out locally. If the server can't be reached, the app keeps the token and tries again at every start until the server confirms. Switching to another server ends the session on the old server the same way. Logging out also forgets the page to return to and any invitation kept for the login.
+
 The server publishes the association files:
 
 - `GET /.well-known/apple-app-site-association` lists `APPLE_APP_IDS` (default `P7698GU4AV.org.plainphone.app`). Update any explicit override that still points to the old iOS bundle ID.
@@ -111,7 +117,7 @@ EAS Build is optional for compiling and signing. Push does not need an Expo acco
 Select **Use your own server** on the sign-in screen or in Settings, enter the HTTPS origin
 (e.g. `https://plainphone.example.org`), and select **Connect**. The app checks
 `/api/health` for `ok: true` and `compatibility: 1` before saving the address.
-Changing servers clears the session and you sign in again. Select **Use plainphone.org**
+Changing servers ends the session on the old server, and you sign in again. Select **Use plainphone.org**
 to return to the hosted service. If the sign-in link opens your browser, choose **Open in the app**
 from the page served by your server.
 
