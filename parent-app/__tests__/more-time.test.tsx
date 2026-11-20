@@ -230,7 +230,7 @@ describe("answer button on the notification, with the app running", () => {
     await waitFor(() => expect(Notifications.addNotificationResponseReceivedListener).toHaveBeenCalled());
     await act(async () => { listener()(press("60") as never); });
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
-    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ answer: "60" });
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ answer: "60", source: "notification" });
     expect(screen).toHavePathname("/settings");
   });
 
@@ -251,6 +251,6 @@ describe("answer button on the notification, with the app running", () => {
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     const post = api.calls.find((c) => c.method === "POST")!;
     expect(post.auth).toBe("Bearer pp_s_saved");
-    expect(post.body).toEqual({ answer: "no" });
+    expect(post.body).toEqual({ answer: "no", source: "notification" });
   });
 });

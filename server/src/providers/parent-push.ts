@@ -11,7 +11,9 @@ export interface PushMessage {
   url: string;
   /** Same tag = the newer notification replaces the older one on the device. */
   tag: string;
-  data?: { type: string; phoneId?: string; requestId?: string };
+  data?: { type: string; phoneId?: string; requestId?: string; phoneName?: string; receipts?: boolean; words?: Record<string, unknown> };
+  /** No sound or vibration: a follow-up that updates a notification the parent already saw. */
+  silent?: boolean;
   /**
    * Buttons on the notification (Web Push actions, FCM/APNs categories). The id is the answer sent back
    * to the server; the title is already in the parent's language. Max 4, titles short.

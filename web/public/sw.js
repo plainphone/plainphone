@@ -110,13 +110,19 @@ self.addEventListener("push", (event) => {
     type: msg.data?.type,
     phoneId: msg.data?.phoneId,
     requestId: msg.data?.requestId,
+    // For the follow-up after an answer from a button: the phone's name and the lines in the parent's language.
+    phoneName: typeof msg.data?.phoneName === "string" ? msg.data.phoneName : undefined,
+    words: msg.data?.words && typeof msg.data.words === "object" ? msg.data.words : undefined,
   };
+  // A silent message only updates a notification the parent already saw (the receipt): no sound, no new buzz.
+  const silent = msg.silent === true;
   event.waitUntil(
     self.registration.showNotification(title, {
       body: msg.body || "",
       // Same tag: a newer message about the same thing replaces the older one.
       tag: msg.tag || undefined,
-      renotify: Boolean(msg.tag),
+      renotify: Boolean(msg.tag) && !silent,
+      ...(silent ? { silent: true } : {}),
       requireInteraction: msg.data?.type === "sos-urgent",
       icon: "/icons/icon-192.png",
       // Android only reads the alpha of the badge: a white switch outline on transparent.
@@ -139,16 +145,52 @@ function openUrl(url) {
 
 // Answers a request for more time straight from the notification. The session cookie goes along
 // (the worker cannot read localStorage). The server is idempotent: a second tap changes nothing.
+// `source` tells the server to send a silent follow-up when the phone has applied the answer.
 function answerMoreTime(data, answer) {
   const path = `/api/phones/${encodeURIComponent(data.phoneId)}/more-time-requests/${encodeURIComponent(data.requestId)}/answer`;
   return fetch(path, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ answer }),
+    body: JSON.stringify({ answer, source: "notification" }),
   }).then((res) => {
     if (!res.ok) throw new Error(`answer failed: ${res.status}`);
+    return res.json();
   });
+}
+
+// What to tell the parent after tapping a button, from the decided request the server returned.
+// First answer wins: when someone else got there first, their answer is shown, not an error.
+// Returns [text, failed]. The lines come with the push, in the parent's language.
+function followUpText(words, result) {
+  const done = (a) => (words.done && words.done[a]) || "";
+  // A push from before the follow-up existed carries no lines: the answer went through, say nothing.
+  if (!words.done && (result.status === "approved" || result.status === "declined")) return ["", false];
+  if (result.status === "expired") return [words.expired, true];
+  if ((result.status === "approved" || result.status === "declined") && done(result.answer)) {
+    if (result.won || result.answeredByYou) {
+      // Declining changes nothing on the phone, so there is nothing for it to confirm.
+      return [result.status === "approved" && words.wait ? `${done(result.answer)}. ${words.wait}` : done(result.answer), false];
+    }
+    return [`${words.other}: ${done(result.answer)}`, false];
+  }
+  return [words.failed, true];
+}
+
+// The follow-up replaces the notification with the buttons (same tag): quiet when it went through,
+// a normal one when the parent has to do something. A tap opens the request in the dashboard.
+function showFollowUp(notification, data, text, failed) {
+  const options = {
+    body: text,
+    tag: notification.tag || undefined,
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
+    // Not "more-time": a tap on this one only opens the page, it never answers again.
+    data: { url: data.url, type: failed ? "more-time-failed" : "more-time-done", phoneId: data.phoneId, requestId: data.requestId },
+  };
+  if (failed) options.renotify = Boolean(options.tag);
+  else options.silent = true;
+  return self.registration.showNotification(data.phoneName || "Plainphone", options);
 }
 
 self.addEventListener("notificationclick", (event) => {
@@ -157,8 +199,15 @@ self.addEventListener("notificationclick", (event) => {
   const url = new URL(data.url || "/", self.location.origin).href;
   const answer = event.action;
   if (data.type === "more-time" && MORE_TIME_ANSWERS.includes(answer) && data.phoneId && data.requestId) {
-    // Not signed in or offline: open the phone page, where the parent can answer.
-    event.waitUntil(answerMoreTime(data, answer).catch(() => openUrl(url)));
+    const words = data.words || {};
+    const tell = ([text, failed]) => (text ? showFollowUp(event.notification, data, text, failed) : failed ? openUrl(url) : undefined);
+    // Not signed in, offline or refused: say so in plain words; a tap opens the phone page, where the parent can answer.
+    event.waitUntil(
+      answerMoreTime(data, answer).then(
+        (result) => tell(followUpText(words, result)),
+        () => tell([words.failed, true]),
+      ),
+    );
     return;
   }
   event.waitUntil(openUrl(url));
