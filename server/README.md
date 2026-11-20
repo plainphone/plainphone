@@ -21,6 +21,19 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
 | `src/services/sweeper.ts` | Every minute: due delayed changes, DNS retries, expired rows |
 | `test/` | Integration tests against a real PostgreSQL |
 
+## Tests and the database
+
+`pnpm test` runs against a real PostgreSQL (`DATABASE_URL`, or an embedded one when it is unset).
+
+- `test/global-setup.ts` runs all migrations **once per run** into a template database.
+- `useHarness()` (`test/harness.ts`) copies that template for each test file with
+  `CREATE DATABASE ... TEMPLATE` and drops the copy afterwards. Use it for every normal test.
+- A test of one migration's backfill needs a database that stops before that migration. Use
+  `createLegacyDatabase(upToIdx)` from `test/db.ts`, insert the old-shape rows, call
+  `runMigrations`, and assert. Replaying migrations is slow on a busy machine, so pass
+  `MIGRATION_TEST_TIMEOUT` (60 s) as the test timeout instead of the default 20 s.
+- Never create a database by hand in a test. The helpers drop theirs, also when the test fails.
+
 ## Design notes
 
 - **Optional config degrades, it does not crash.** Required settings (database, `DNS_PROVIDER=http`
