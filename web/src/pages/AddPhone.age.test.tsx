@@ -100,6 +100,16 @@ it("changes nothing on the phone when both steps are skipped and the reminder is
   expect(calls.filter((c) => c.method !== "GET").map((c) => c.url)).toEqual(["/api/phones/enroll"]);
 });
 
+it("does not save typed agreement lines when the agreement step is skipped", async () => {
+  const { calls } = await run(async (c) => {
+    await act(async () => button(c, "Continue").click());
+    const [lines] = c.querySelectorAll("textarea");
+    await act(async () => type(lines!, "The phone stays in the hall at dinner"));
+    await act(async () => button(c, "Skip").click());
+  });
+  expect(calls.filter((c) => c.method !== "GET").map((c) => c.url)).not.toContain("/api/phones/test-phone/agreement");
+});
+
 it("still shows the code, with a note, when a choice could not be saved", async () => {
   const { text } = await run(async (c) => {
     await act(async () => c.querySelector<HTMLInputElement>('input[name="age"][value="8-9"]')!.click());

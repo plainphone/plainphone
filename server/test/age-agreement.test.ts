@@ -146,6 +146,11 @@ describe("review date", () => {
     expect(state).toMatchObject({ enabled: true, due: true });
     expect(state.suggestions[0]).toEqual({ kind: "time", from: 60, to: 90 });
 
+    // Sending the same settings again is not a new date: no second reminder for the one already sent.
+    await parent.put(`/api/phones/${phoneId}/review`, { enabled: true });
+    await sweep(h.ctx);
+    expect(reviewPushes()).toHaveLength(1);
+
     // "We looked at the rules" moves the date, and the next date is reminded again.
     const done = (await parent.post(`/api/phones/${phoneId}/review/done`, {})).json.review;
     expect(done).toMatchObject({ due: false, dueAt: "2027-05-16T07:00:00.000Z" });

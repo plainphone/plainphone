@@ -77,7 +77,7 @@ export function AddPhonePage() {
   const at = flow.indexOf(step);
   const previous = flow[at - 1];
 
-  async function makeQr(pin?: string) {
+  async function makeQr(pin?: string, skipAgreement = false) {
     if (!mode) return;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
@@ -88,7 +88,7 @@ export function AddPhonePage() {
     }
     // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the code.
     if (profile === "child") {
-      const failed = await saveAgeChoices(out.phone!.id, age, agreement);
+      const failed = await saveAgeChoices(out.phone!.id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement);
       setSetupNote(failed ? t("age.setupSaveFailed") : null);
     }
     setQr(buildQr(out, out.phone!, pinned, locale));
@@ -96,9 +96,9 @@ export function AddPhonePage() {
   }
 
   /** The next step, or the code itself after the last one. */
-  async function advance(pin?: string) {
+  async function advance(pin?: string, skipAgreement = false) {
     const next = flow[at + 1];
-    if (!next || next === "qr") await makeQr(pin);
+    if (!next || next === "qr") await makeQr(pin, skipAgreement);
     else setStep(next);
   }
 
@@ -126,11 +126,11 @@ export function AddPhonePage() {
       )}
       {step === "age" && (
         <AgeStep name={name.trim()} choices={age} onChange={setAge} onBack={() => setStep(previous!)}
-          onNext={() => void (flow[at + 1] === "qr" ? makeQr() : setStep(flow[at + 1]!))} />
+          onNext={() => void advance()} />
       )}
       {step === "agreement" && (
         <AgreementStep draft={agreement} onChange={setAgreement} light={mode === "light"} onBack={() => setStep(previous!)}
-          onNext={() => advance()} />
+          onNext={(skip) => advance(undefined, skip)} />
       )}
       {step === "pin" && (
         <PinStep onBack={() => setStep(previous!)} onDone={(pin) => advance(pin)}>
@@ -219,7 +219,7 @@ function AgreementStep({ draft, onChange, light, onBack, onNext }: {
   onChange: (draft: AgreementDraft) => void;
   light: boolean;
   onBack: () => void;
-  onNext: () => Promise<void>;
+  onNext: (skip: boolean) => Promise<void>;
 }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -231,7 +231,7 @@ function AgreementStep({ draft, onChange, light, onBack, onNext }: {
     setBusy(true);
     setError(null);
     try {
-      await onNext();
+      await onNext(skip);
     } catch (err) {
       setError(errorMessage(err, t));
       setBusy(false);

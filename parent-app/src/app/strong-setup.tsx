@@ -10,31 +10,11 @@ import { RequireAuth } from "../components/RequireAuth";
 import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
-import { type AgePreset, type AgePresetId, parseLines } from "../shared/lib/age";
+import { DEFAULT_AGE_CHOICES, saveSetupChoices, type AgeChoices } from "../lib/setup-choices";
+import { type AgePreset, parseLines } from "../shared/lib/age";
 import type { PhoneLanguage } from "../shared/lib/phone-language";
 
 type Stage = "who" | "age" | "agreement";
-
-/** Saves the setup choices on the new phone. True when something could not be saved. */
-async function saveChoices(pid: string, age: { preset: AgePresetId | null; review: boolean; months: number }, agreement: AgreementDraft): Promise<boolean> {
-  let failed = false;
-  const attempt = async (call: () => Promise<unknown>) => {
-    try {
-      await call();
-    } catch {
-      failed = true;
-    }
-  };
-  const params = { params: { path: { pid } } };
-  if (age.preset) await attempt(() => unwrap(client.POST("/phones/{pid}/age-preset", { ...params, body: { preset: age.preset! } })));
-  if (age.review) await attempt(() => unwrap(client.PUT("/phones/{pid}/review", { ...params, body: { enabled: true, intervalMonths: age.months } as never })));
-  const lines = parseLines(agreement.lines);
-  const adultLines = parseLines(agreement.adultLines);
-  if (lines.length > 0 || adultLines.length > 0) {
-    await attempt(() => unwrap(client.PUT("/phones/{pid}/agreement", { ...params, body: { lines, adultLines } as never })));
-  }
-  return failed;
-}
 
 function StrongSetup() {
   const { t } = useI18n();
@@ -43,7 +23,7 @@ function StrongSetup() {
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>("child");
   const [language, setLanguage] = useState<PhoneLanguage>(null);
-  const [age, setAge] = useState<{ preset: AgePresetId | null; review: boolean; months: number }>({ preset: null, review: true, months: 3 });
+  const [age, setAge] = useState<AgeChoices>(DEFAULT_AGE_CHOICES);
   const [agreement, setAgreement] = useState<AgreementDraft>({ lines: "", adultLines: "" });
   const [phoneId, setPhoneId] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -73,7 +53,7 @@ function StrongSetup() {
         id = phone.id;
         setPhoneId(id);
         // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the setup.
-        if (profile === "child" && await saveChoices(id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement)) {
+        if (profile === "child" && await saveSetupChoices(id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement)) {
           setNotice({ tone: "warn", text: t("age.setupSaveFailed") });
         }
       }

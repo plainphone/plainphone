@@ -118,8 +118,6 @@ function GrowingUp({ presets, first }: { presets: AgePreset[]; first: AgeState }
               <VStack>
                 <Text variant="label">{t("age.review.ideas")}</Text>
                 {review.suggestions.map((s, i) => <Text key={`${s.kind}-${i}`}>{`• ${suggestionText(t, s)}`}</Text>)}
-                <Text variant="small">{t("age.review.release")}</Text>
-                <Button kind="secondary" title={t("age.review.releaseLink")} onPress={() => router.dismissTo({ pathname: "/phones/[pid]", params: { pid: phone.id } })} />
               </VStack>
             ) : null}
             <Button
@@ -134,6 +132,8 @@ function GrowingUp({ presets, first }: { presets: AgePreset[]; first: AgeState }
             />
           </VStack>
         ) : null}
+        <Text variant="small">{t("age.review.release")}</Text>
+        <Button kind="secondary" title={t("age.review.releaseLink")} onPress={() => router.dismissTo({ pathname: "/phones/[pid]", params: { pid: phone.id } })} />
       </Card>
     </VStack>
   );

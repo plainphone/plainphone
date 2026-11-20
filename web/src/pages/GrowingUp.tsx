@@ -103,7 +103,6 @@ function GrowingUp({ presets, first }: { presets: Awaited<ReturnType<typeof getA
                 <ul>
                   {review.suggestions.map((s, i) => <li key={`${s.kind}-${i}`}>{suggestionText(t, s)}</li>)}
                 </ul>
-                <p className="help">{t("age.review.release")} <Link to={{ pathname: `/phones/${phone.id}`, hash: "manage-h" }}>{t("age.review.releaseLink")}</Link></p>
               </div>
             )}
             <div>
@@ -114,6 +113,7 @@ function GrowingUp({ presets, first }: { presets: Awaited<ReturnType<typeof getA
             </div>
           </>
         )}
+        <p className="help">{t("age.review.release")} <Link to={{ pathname: `/phones/${phone.id}`, hash: "manage-h" }}>{t("age.review.releaseLink")}</Link></p>
       </section>
     </>
   );

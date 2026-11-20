@@ -42,7 +42,7 @@ will be set before anything is changed.
 
 | Setting | Default |
 |---|---|
-| Remind me to review the rules | on for phones added in setup, off for phones that existed before and for phones added by other clients |
+| Remind me to review the rules | on for Child phones added in setup (dashboard, and parent app by code or strong setup), off for phones that existed before |
 | How often | every 3 months (1, 2, 3, 6 or 12) |
 | Next review | one interval after the reminder was switched on (09:00 on the phone's clock), movable to any later date |
 

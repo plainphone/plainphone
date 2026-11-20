@@ -147,7 +147,8 @@ export async function setReview(ctx: Ctx, phone: Phone, input: ReviewInput): Pro
       reviewEnabled: enabled,
       reviewIntervalMonths: interval,
       reviewDueAt: enabled ? dueAt : null,
-      reviewRemindedFor: null,
+      // Only a new date earns a new reminder; resending the same settings must not repeat one.
+      ...(enabled && dueAt?.getTime() === fresh.reviewDueAt?.getTime() ? {} : { reviewRemindedFor: null }),
     }).where(eq(phones.id, phone.id));
   });
 }
@@ -207,7 +208,7 @@ async function sendReminder(ctx: Ctx, phone: Phone) {
     }
   }
   if (h.summaryByPush) {
-    await notifyUsers(ctx, members.map((m) => m.id), { type: "review", phoneId: phone.id, phoneName: phone.name });
+    await notifyUsers(ctx, members.map((m) => m.id), { type: "review", phoneId: phone.id, phoneName: phone.name }, { respectMuteFor: phone.id });
   }
 }
 
