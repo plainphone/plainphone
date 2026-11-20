@@ -13,7 +13,7 @@ export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$clang"
 export CC_aarch64_linux_android="$clang"
 export AR_aarch64_linux_android="$(dirname "$clang")/llvm-ar"
 
-for crate in mls-harness matrix-harness; do
+for crate in mls-harness matrix-harness matrix-sdk-probe; do
   lib="${crate//-/_}"
   (cd "$here/$crate"
     cargo build --release --quiet --lib --target aarch64-linux-android
@@ -39,4 +39,5 @@ for path, sym in zip(sys.argv[1::2], sys.argv[2::2]):
 PY
 python3 -I "$probe/probe.py" \
   "$here/mls-harness/target/release/libmls_harness.so" plainphone_mls_selftest \
-  "$here/matrix-harness/target/release/libmatrix_harness.so" plainphone_matrix_selftest
+  "$here/matrix-harness/target/release/libmatrix_harness.so" plainphone_matrix_selftest \
+  "$here/matrix-sdk-probe/target/release/libmatrix_sdk_probe.so" plainphone_matrix_sdk_selftest
