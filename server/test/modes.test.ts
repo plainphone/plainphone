@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { phones } from "../src/db/schema.js";
+import { phones, summaryEvents } from "../src/db/schema.js";
 import { overlaps } from "../src/services/modes.js";
 import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -244,6 +244,20 @@ describe("contact groups", () => {
       { name: "Gran", number: "+4512345678", group: "family" },
     ]);
     expect((await mum.get(`/api/phones/${phoneId}/modes`)).json.parentsMarked).toBe(true);
+  });
+
+  it("count as a contact change in the weekly summary when modes are on", async () => {
+    const { mum, phoneId } = await setup();
+    const gran = await addContact(mum, phoneId, "Gran", "+4512345678");
+    const changes = async () =>
+      (await h.ctx.db.select().from(summaryEvents).where(eq(summaryEvents.phoneId, phoneId))).filter((e) => e.detail === "contacts");
+    const before = (await changes()).length;
+    // With modes off the phone does not see groups, so nothing changes on it.
+    await mum.patch(`/api/phones/${phoneId}/contacts/${gran}`, { group: "family" });
+    expect(await changes()).toHaveLength(before);
+    await mum.patch(`/api/phones/${phoneId}`, { modesEnabled: true });
+    await mum.patch(`/api/phones/${phoneId}/contacts/${gran}`, { group: "friends" });
+    expect(await changes()).toHaveLength(before + 1);
   });
 
   it("keep other households out", async () => {

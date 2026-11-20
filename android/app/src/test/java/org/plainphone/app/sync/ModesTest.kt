@@ -156,6 +156,18 @@ class ModesTest {
     }
 
     @Test
+    fun `the phone names the groups only where they narrow calls`() {
+        val school = at("2027-01-04T10:00")
+        assertThat(Modes.shown(rules(), contactsEnforced = true, now = school)!!.contactGroups).containsExactly("family")
+        // A light phone with "Only approved contacts" off: everyone can call, so no groups are named.
+        val open = Modes.shown(rules(), contactsEnforced = false, now = school)!!
+        assertThat(open.mode!!.id).isEqualTo("school")
+        assertThat(open.contactGroups).isNull()
+        assertThat(Modes.shown(rules(parents = "[]"), contactsEnforced = true, now = school)!!.contactGroups).isNull()
+        assertThat(Modes.shown(rules(profile = "self"), contactsEnforced = true, now = school)).isNull()
+    }
+
+    @Test
     fun `with modes off, on a Self phone or with a broken block, every contact can call`() {
         val night = at("2027-01-04T23:00")
         val off = rules(modes = null)

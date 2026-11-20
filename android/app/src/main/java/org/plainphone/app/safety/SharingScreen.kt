@@ -51,9 +51,12 @@ class SharingActivity : ComponentActivity() {
                     appUpdatesNightly = org.plainphone.app.update.AppUpdateWindow.automatic(this),
                     hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
                     inbox = rules?.takeIf { it.profile == "child" && !it.release }?.inbox ?: org.plainphone.app.sync.InboxRules.OFF,
-                    // Groups only narrow calls once a parent is marked (docs/modes.md).
-                    activeMode = org.plainphone.app.sync.Modes.current(rules?.takeIf { it.profile == "child" }, java.time.Instant.now())
-                        ?.let { if (rules?.sos?.parents.isNullOrEmpty()) it.copy(contactGroups = null) else it },
+                    // Groups only narrow calls on an enforced list with a parent marked (docs/modes.md).
+                    activeMode = org.plainphone.app.sync.Modes.shown(
+                        rules,
+                        org.plainphone.app.contacts.ContactPolicySources.get(this).rules().enforced,
+                        java.time.Instant.now(),
+                    ),
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },

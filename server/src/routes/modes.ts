@@ -25,6 +25,7 @@ import {
   updateMode,
 } from "../services/modes.js";
 import { nextRulesRevision, wakePhone } from "../services/phones.js";
+import { recordSummaryEvent } from "../services/summary-record.js";
 
 type Phone = typeof phones.$inferSelect;
 
@@ -108,7 +109,10 @@ export function modeRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requirePhone
     const [row] = await ctx.db.update(contacts).set({ contactGroup: group })
       .where(and(eq(contacts.phoneId, phone.id), eq(contacts.id, cid))).returning();
     if (phone.modesEnabled) {
-      await ctx.db.update(phones).set(nextRulesRevision()).where(eq(phones.id, phone.id));
+      const [fresh] = await ctx.db.update(phones).set(nextRulesRevision()).where(eq(phones.id, phone.id))
+        .returning({ weeklySummaryEnabled: phones.weeklySummaryEnabled });
+      // The phone feels it, so the weekly summary counts it like any other contact change.
+      if (fresh?.weeklySummaryEnabled) await recordSummaryEvent(ctx.db, phone.id, "change", ctx.now(), "contacts");
       await wakePhone(ctx, phone.id, "rules");
     }
     return c.json({ id: row!.id, name: row!.name, number: row!.number, group: row!.contactGroup, ...(row!.sosParent ? { sosParent: true } : {}) });

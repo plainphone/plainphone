@@ -127,6 +127,34 @@ describe("modes page", () => {
     await m.unmount();
   });
 
+  it("keeps unsaved slots when a new mode is added", async () => {
+    const homework: Mode = { ...school, id: "m-homework", preset: "homework", allowedPackages: [] };
+    let s = state();
+    vi.spyOn(api, "get").mockImplementation(async (path: string) => {
+      if (path.endsWith("/modes")) return s as never;
+      if (path.endsWith("/apps")) return { apps: [] } as never;
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.spyOn(api, "post").mockImplementation(async () => {
+      s = state({ modes: [free, school, night, homework] });
+      return homework as never;
+    });
+    const put = vi.spyOn(api, "put").mockResolvedValue({ slots: [] });
+    const m = await mount();
+    await act(async () => m.button(t("modes.addSlot")).click());
+    const slotForm = Array.from(m.container.querySelectorAll("form")).at(-1)!;
+    await act(async () => { slotForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await act(async () => m.button(t("modes.add")).click());
+    const modeForm = m.container.querySelector("form")!;
+    await act(async () => { modeForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect(m.container.textContent).toContain(t("modes.preset.homework"));
+    await act(async () => m.button(t("modes.save")).click());
+    expect(put).toHaveBeenCalledWith("/phones/p1/mode-schedule", {
+      slots: [{ modeId: "m-school", days: [1, 2, 3, 4, 5], startMinute: 480, endMinute: 840 }],
+    });
+    await m.unmount();
+  });
+
   it("shows the overlap message when the server answers 400 overlap", async () => {
     mockGet(state());
     const put = vi.spyOn(api, "put").mockRejectedValue(new ApiError(400, "overlap"));

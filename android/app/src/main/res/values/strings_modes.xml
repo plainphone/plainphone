@@ -16,4 +16,11 @@
     <string name="sharing_mode_groups">Who can call and text now: %1$s. Your parents, 112 and help lines always can.</string>
     <string name="sharing_mode_only_parents">Only your parents, 112 and help lines can call and text now.</string>
     <string name="sharing_mode_everyone">Everyone on your list can call and text now.</string>
+    <!-- Plainphone status screen. -->
+    <string name="status_mode">Mode now: %1$s.</string>
+    <string name="status_mode_until">Mode now: %1$s, until %2$s.</string>
+    <plurals name="status_mode_contacts">
+        <item quantity="one">In this mode, %1$d of them can call and text. Parents, 112 and help lines always can.</item>
+        <item quantity="other">In this mode, %1$d of them can call and text. Parents, 112 and help lines always can.</item>
+    </plurals>
 </resources>

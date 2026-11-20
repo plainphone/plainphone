@@ -152,7 +152,10 @@ shows "School time" or "Bedtime" instead of the mode's name. Update the phone ap
 
 - The home screen shows the mode under the date, *School until 14:00*, with the quiet line at bedtime.
   The default mode shows nothing, like a phone without schedules.
-- "What can my parents see?" lists the current mode and which groups can call.
+- "What can my parents see?" lists the current mode and which groups can call. It names groups only
+  where they narrow calls (list enforced and a parent marked); otherwise it says everyone on the list can.
+- The Plainphone status screen shows the mode and when it ends, the whole approved list, and how many
+  of those can call and text in this mode.
 - A call or text that a mode blocks is treated like a number that is not on the list: no ring, and it
   goes to the blocked log (number and time only).
 
@@ -166,7 +169,7 @@ shows "School time" or "Bedtime" instead of the mode's name. Update the phone ap
 | `PUT /api/phones/{pid}/modes/{mid}` | Change a mode. The default mode takes only `name` |
 | `DELETE /api/phones/{pid}/modes/{mid}` | Delete a mode and its slots. `409` for the default mode |
 | `PUT /api/phones/{pid}/mode-schedule` | Replace the weekly schedule: `{ slots: [{ modeId, days, startMinute, endMinute }] }`. `400` for an overlap or the default mode |
-| `PATCH /api/phones/{pid}/contacts/{cid}` `{ "group": "friends" }` | Move a contact. `400` for a parent outside Family |
+| `PATCH /api/phones/{pid}/contacts/{cid}` `{ "group": "friends" }` | Move a contact. `400` for a parent outside Family. With modes on, it counts as a contact change in the weekly summary |
 | `GET /api/phones/{pid}/contacts` | Each contact now has `group` |
 
 Every write advances the rules revision and wakes the phone. Modes are only for child phones: on a Self

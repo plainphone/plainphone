@@ -232,7 +232,9 @@ function Enabled({ state, apps, reload }: { state: ModesState; apps: App[]; relo
         )}
       </section>
       <Plan
-        key={JSON.stringify([state.modes.map((m) => m.id), state.slots])}
+        // Only the saved slots reset the plan: adding or renaming a mode keeps unsaved slots.
+        // Deleting a mode takes its slots on the server, so that still resets it.
+        key={JSON.stringify(state.slots)}
         modes={state.modes}
         defaultName={defaultMode ? modeName(defaultMode, t) : ""}
         slots={state.slots}
@@ -391,7 +393,9 @@ export function dayBlocks(slots: ModeSlotInput[], day: number): { modeId: string
 function Plan({ modes, defaultName, slots, reload }: { modes: Mode[]; defaultName: string; slots: ModeSlot[]; reload: () => Promise<unknown> | void }) {
   const { t, locale } = useI18n();
   const { phone, notify } = usePhone();
-  const [drafts, setDrafts] = useState<Draft[]>(() => slots.map((s) => ({ key: s.id, modeId: s.modeId, days: s.days, startMinute: s.startMinute, endMinute: s.endMinute })));
+  const [allDrafts, setDrafts] = useState<Draft[]>(() => slots.map((s) => ({ key: s.id, modeId: s.modeId, days: s.days, startMinute: s.startMinute, endMinute: s.endMinute })));
+  // An unsaved slot of a mode that was deleted meanwhile goes with the mode.
+  const drafts = allDrafts.filter((d) => modes.some((m) => m.id === d.modeId));
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Draft | "new" | null>(null);
   const [saving, setSaving] = useState(false);

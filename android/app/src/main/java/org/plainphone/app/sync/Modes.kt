@@ -127,6 +127,15 @@ object Modes {
         return kept + parents.filter { p -> kept.none { it.number == p.number } }
     }
 
+    /**
+     * The mode as the phone tells it: on a child phone only, and with groups only where they really
+     * narrow calls, that is with the list enforced and a parent marked (same rule as [allowedContacts]).
+     */
+    fun shown(rules: ServerRules?, contactsEnforced: Boolean, now: Instant): ActiveMode? =
+        current(rules?.takeIf { it.profile == "child" }, now)?.let {
+            if (!contactsEnforced || rules?.sos?.parents.isNullOrEmpty()) it.copy(contactGroups = null) else it
+        }
+
     /** The next start or end of a slot, so the phone switches modes on time also when nothing else wakes it. */
     fun nextBoundary(rules: ServerRules?, now: Instant): Instant? {
         val modes = rules?.modes ?: return null

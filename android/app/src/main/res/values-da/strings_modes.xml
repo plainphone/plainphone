@@ -13,4 +13,10 @@
     <string name="sharing_mode_groups">Hvem kan ringe og skrive nu: %1$s. Dine forældre, 112 og hjælpelinjer kan altid.</string>
     <string name="sharing_mode_only_parents">Kun dine forældre, 112 og hjælpelinjer kan ringe og skrive nu.</string>
     <string name="sharing_mode_everyone">Alle på din liste kan ringe og skrive nu.</string>
+    <string name="status_mode">Tilstand nu: %1$s.</string>
+    <string name="status_mode_until">Tilstand nu: %1$s, til %2$s.</string>
+    <plurals name="status_mode_contacts">
+        <item quantity="one">I denne tilstand kan %1$d af dem ringe og skrive. Forældre, 112 og hjælpelinjer kan altid.</item>
+        <item quantity="other">I denne tilstand kan %1$d af dem ringe og skrive. Forældre, 112 og hjælpelinjer kan altid.</item>
+    </plurals>
 </resources>
