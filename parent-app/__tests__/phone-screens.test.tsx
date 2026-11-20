@@ -789,6 +789,8 @@ describe("key", () => {
       [`PUT /phones/${SELF_ID}/key`]: { body: { status: "applied" } },
     });
     await renderRouter(routes, { initialUrl: at(SELF, "key") });
+    // The hours live under Advanced.
+    await fireEvent.press(await screen.findByTestId("key-advanced"));
     await fireEvent.changeText(await screen.findByTestId("key-hours"), "99");
     await fireEvent.press(screen.getByTestId("key-save"));
     expect(await screen.findByText("Choose a number from 1 to 72.")).toBeTruthy();

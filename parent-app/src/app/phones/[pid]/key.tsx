@@ -5,8 +5,10 @@ import { Share } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, KeyInput, SelfKey } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, Choice, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
+import { EmergencySection } from "../../../components/EmergencyOpenings";
+import { Button, Card, Choice, Disclosure, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
+import type { MessageKey } from "../../../shared/i18n/translate";
 import { useMe } from "../../../lib/session";
 import { EMAIL_RE } from "../../../lib/validate";
 import { formatMoney } from "../../../shared/lib/format";
@@ -28,20 +30,36 @@ function KeyLoader() {
           />
         )}
       </LoadGate>
+      <EmergencySection />
     </Screen>
   );
+}
+
+// The level is only a name for the key: Mild is a 1 hour delay, Firm 24 hours, Strict a trusted
+// person. Any other delay is "custom", with no card picked until the user picks one.
+type Level = "mild" | "firm" | "strict";
+type Picked = Level | "custom";
+
+function choiceOf(key: Pick<SelfKey, "keyType" | "delayHours">): Picked {
+  if (key.keyType === "trusted") return "strict";
+  return key.delayHours === 1 ? "mild" : key.delayHours === 24 ? "firm" : "custom";
 }
 
 function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }) {
   const { t, locale } = useI18n();
   const me = useMe();
   const { phone, run, notify } = usePhone();
-  const [keyType, setKeyType] = useState(current.keyType);
+  const [choice, setChoice] = useState<Picked>(choiceOf(current));
+  // The delay in hours: what Advanced shows for a custom key, and what Strict keeps as its fallback wait.
   const [hours, setHours] = useState(String(current.delayHours));
+  const [advancedOpen, setAdvancedOpen] = useState(choiceOf(current) === "custom");
   const [email, setEmail] = useState(current.trustedEmail ?? "");
   const [qrInvite, setQrInvite] = useState(current.keyType === "trusted" && !current.trustedEmail);
   const [errors, setErrors] = useState<{ hours?: string; email?: string }>({});
   const [saving, setSaving] = useState(false);
+  const keyType: KeyInput["keyType"] = choice === "strict" ? "trusted" : "delay";
+  const shownHours = choice === "mild" ? "1" : choice === "firm" ? "24" : hours;
+  const sentHours = choice === "mild" ? 1 : choice === "firm" ? 24 : Number(hours);
   const waitingForInvite = current.keyType === "trusted" && !current.trustedEmail && !current.trustedAccepted;
 
   async function shareInvite() {
@@ -54,7 +72,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   }
 
   async function submit() {
-    const h = Number(hours);
+    const h = sentHours;
     const mail = email.trim().toLowerCase();
     const next: typeof errors = {};
     if (!Number.isInteger(h) || h < 1 || h > 72) next.hours = t("key.hoursInvalid");
@@ -102,30 +120,25 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           text={t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting", { hours: current.delayHours })}
         />
       ) : null}
-      <Choice<KeyInput["keyType"]>
+      <Choice<Picked>
+        testID="key-levels"
         label={t("key.type")}
-        value={keyType}
-        onChange={setKeyType}
-        options={[
-          { value: "delay", label: t("key.delay"), help: t("key.delayHelp") },
-          { value: "trusted", label: t("key.trusted"), help: t("key.trustedHelp") },
-        ]}
+        value={choice}
+        onChange={(next) => {
+          setChoice(next);
+          setErrors({});
+        }}
+        options={(["mild", "firm", "strict"] as const).map((l) => ({
+          value: l,
+          label: t(`key.level.${l}` as MessageKey),
+          help: t(`key.level.${l}Help` as MessageKey),
+          testID: `key-level-${l}`,
+        }))}
       />
-      {keyType === "delay" ? (
-        <Field
-          testID="key-hours"
-          label={t("key.hours")}
-          help={t("key.hoursHelp")}
-          error={errors.hours}
-          value={hours}
-          onChangeText={setHours}
-          keyboardType="number-pad"
-          maxLength={2}
-          autoComplete="off"
-        />
-      ) : (
-        <Switch testID="key-qr-invite" label={t("key.qrInvite")} value={qrInvite} onValueChange={setQrInvite} />
-      )}
+      {choice === "custom" ? (
+        <Text variant="small" testID="key-custom">{t("key.level.custom", { hours: Number(hours) || current.delayHours })}</Text>
+      ) : null}
+      {keyType === "trusted" ? <Switch testID="key-qr-invite" label={t("key.qrInvite")} value={qrInvite} onValueChange={setQrInvite} /> : null}
       {keyType === "trusted" && !qrInvite ? (
         <Field
           testID="key-email"
@@ -140,6 +153,22 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           autoComplete="off"
         />
       ) : null}
+      <Disclosure testID="key-advanced" title={t("key.advanced")} open={advancedOpen} onToggle={setAdvancedOpen}>
+        <Field
+          testID="key-hours"
+          label={t("key.hours")}
+          help={`${t("key.advancedHelp")} ${t("key.hoursHelp")}`}
+          error={errors.hours}
+          value={shownHours}
+          onChangeText={(value) => {
+            setHours(value);
+            setChoice(value === "1" ? "mild" : value === "24" ? "firm" : "custom");
+          }}
+          keyboardType="number-pad"
+          maxLength={2}
+          autoComplete="off"
+        />
+      </Disclosure>
       {waitingForInvite && keyType === "trusted" && qrInvite ? (
         <VStack>
           <Button testID="key-share-invite" title={t("key.openInvite")} onPress={() => void shareInvite()} />
