@@ -303,14 +303,17 @@ data class AppUpdateRules(
     val automatic: Boolean = true,
     /** Set when a parent pressed "Update apps now". */
     val requestedAt: Instant? = null,
-    /** The last window the server recorded; from then on its rules decide about held-back apps. */
+    /** The last window the server recorded. */
     val reportedWindow: String? = null,
+    /** The new apps the server has made requests of; from then on its rules decide about them. */
+    val recordedApps: Set<String> = emptySet(),
 ) {
     companion object {
         fun parse(j: JSONObject?): AppUpdateRules = if (j == null) AppUpdateRules() else AppUpdateRules(
             automatic = j.optBoolean("automatic", true),
             requestedAt = j.optString("requestedAt", "").takeIf { it.isNotEmpty() && it != "null" }?.let(Instant::parse),
             reportedWindow = j.optString("reportedWindow", "").takeIf { it.isNotEmpty() && it != "null" },
+            recordedApps = j.optJSONArray("recordedApps")?.let { a -> List(a.length()) { a.getString(it) }.toSet() }.orEmpty(),
         )
     }
 }

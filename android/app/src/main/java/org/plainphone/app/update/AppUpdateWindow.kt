@@ -14,6 +14,8 @@ import java.util.concurrent.Executors
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.Lock
 import org.plainphone.app.light.Mode
+import org.plainphone.app.sync.AppUpdateRules
+import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 
 /**
@@ -109,43 +111,94 @@ object AppUpdateWindow {
     fun onPackageAdded(context: Context, packageName: String, replacing: Boolean) {
         val app = context.applicationContext
         if (!Mode.isStrong(app)) return
+        // A catalog app the parents approved may finish installing during or just after the window.
+        val rules = SyncStore(app).rules()
+        if (!replacing && rules != null && !rules.openApps && packageName in rules.allowedApps) return
         val verdict = log(app).packageAdded(packageName, replacing, System.currentTimeMillis(), isOpen(app))
         if (verdict != AppUpdateLog.Verdict.HIDE) return
         holdBack(app, packageName)
         if (!Lock.hideNewApp(app, packageName)) Log.i(TAG, "new app $packageName has no icon to hide")
         Lock.applyAsync(app, "new app during app update window")
+        // The sync the install itself started may have reported before this verdict was saved.
+        SyncScheduler.appUpdates(app, "new app caught in the app update window")
     }
 
     @Synchronized
     @SuppressLint("ApplySharedPref") // On disk before the lock reads it.
     private fun holdBack(app: Context, packageName: String) {
-        val window = log(app).current()?.id
-        prefs(app).edit().putStringSet(HELD_BACK, heldBack(app) + packageName).putString(HELD_BACK_WINDOW, window).commit()
+        prefs(app).edit().putStringSet(HELD_BACK, heldBack(app) + packageName).commit()
+    }
+
+    @Synchronized
+    @SuppressLint("ApplySharedPref")
+    private fun letGo(app: Context, packages: Set<String>) {
+        prefs(app).edit().putStringSet(HELD_BACK, heldBack(app) - packages).commit()
+    }
+
+    /** What [onRules] does; pure, so the decisions are tested on the JVM. */
+    internal data class RulesPlan(
+        /** Held-back apps the server has made requests of: its rules decide about them now. */
+        val letGo: Set<String> = emptySet(),
+        /** The parents switched the nightly window off while one was open. */
+        val closeNightly: Boolean = false,
+        /** A new "Update apps now" to mark as handled, before acting on it. */
+        val handleRequest: Long? = null,
+        /** Whether that request is fresh enough to open a window. */
+        val openForParent: Boolean = false,
+    )
+
+    /** [openTrigger] is what opened the window that is open now, or null when none is. */
+    internal fun plan(
+        rules: AppUpdateRules,
+        heldBack: Set<String>,
+        handledRequestMs: Long,
+        openTrigger: AppUpdateLog.Trigger?,
+        nowMs: Long,
+    ): RulesPlan {
+        val requested = rules.requestedAt?.toEpochMilli()?.takeIf { it > handledRequestMs }
+        return RulesPlan(
+            letGo = heldBack intersect rules.recordedApps,
+            closeNightly = !rules.automatic && openTrigger == AppUpdateLog.Trigger.NIGHT,
+            handleRequest = requested,
+            openForParent = requested != null && nowMs - requested <= REQUEST_MAX_AGE_MS,
+        )
     }
 
     /**
-     * After every sync: lets go of held-back apps once the server has recorded the window that
-     * caught them (its rules decide from then on), closes a nightly window the parents switched
-     * off, and acts on a new "Update apps now".
+     * After every sync: lets go of held-back apps once the server has recorded them (its rules
+     * decide from then on), closes a nightly window the parents switched off, and acts on a new
+     * "Update apps now".
      */
     fun onRules(context: Context, nowMs: Long = System.currentTimeMillis()) {
         val app = context.applicationContext
         val rules = SyncStore(app).rules()?.appUpdates ?: return
         val p = prefs(app)
-        val heldWindow = p.getString(HELD_BACK_WINDOW, null)
-        if (heldWindow != null && heldWindow == rules.reportedWindow) {
-            synchronized(this) { p.edit().remove(HELD_BACK).remove(HELD_BACK_WINDOW).commit() }
+        val openTrigger = if (isOpen(app)) log(app).current()?.trigger else null
+        val plan = plan(rules, heldBack(app), p.getLong(HANDLED_REQUEST, 0L), openTrigger, nowMs)
+        if (plan.letGo.isNotEmpty()) {
+            letGo(app, plan.letGo)
             Lock.applyAsync(app, "new apps from the app update window reached the parents")
         }
-        if (!rules.automatic && isOpen(app) && log(app).current()?.trigger == AppUpdateLog.Trigger.NIGHT) {
-            close(app, "automatic app updates switched off")
-        }
-        val requested = rules.requestedAt?.toEpochMilli() ?: return
-        if (requested <= p.getLong(HANDLED_REQUEST, 0L)) return
+        if (plan.closeNightly) close(app, "automatic app updates switched off")
         // Handled first: a failure is reported once, never retried in a loop.
-        p.edit().putLong(HANDLED_REQUEST, requested).apply()
-        if (nowMs - requested > REQUEST_MAX_AGE_MS) return
-        open(app, AppUpdateLog.Trigger.PARENT)
+        plan.handleRequest?.let { p.edit().putLong(HANDLED_REQUEST, it).apply() }
+        if (plan.openForParent) open(app, AppUpdateLog.Trigger.PARENT)
+    }
+
+    /**
+     * From the install lease when a catalog or app update window closed: the parents see the end
+     * of an app update window right away, not at the next periodic sync. Once per window.
+     */
+    fun onLeaseClosed(context: Context) {
+        val app = context.applicationContext
+        val id = log(app).current()?.takeIf { it.openedAtMs != null }?.id ?: return
+        if (isOpen(app)) return
+        val p = prefs(app)
+        synchronized(this) {
+            if (p.getString(CLOSE_REPORTED, null) == id) return
+            p.edit().putString(CLOSE_REPORTED, id).apply()
+        }
+        SyncScheduler.appUpdates(app, "app update window closed")
     }
 
     /** The nightly check (AppUpdateWorker). Returns whether a window opened. */
@@ -186,7 +239,7 @@ object AppUpdateWindow {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     private const val HELD_BACK = "held_back"
-    private const val HELD_BACK_WINDOW = "held_back_window"
+    private const val CLOSE_REPORTED = "close_reported"
     private const val HANDLED_REQUEST = "handled_request"
     private const val LAST_NIGHT = "last_night"
 

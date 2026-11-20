@@ -81,16 +81,18 @@ class AppUpdateLogTest {
     @Test fun `the toggle and the parent's request come from the rules, old servers mean on`() {
         assertThat(org.plainphone.app.sync.AppUpdateRules.parse(null).automatic).isTrue()
         val rules = org.plainphone.app.sync.AppUpdateRules.parse(
-            org.json.JSONObject("""{"automatic":false,"requestedAt":"2026-06-10T12:00:00Z","reportedWindow":"w1"}"""),
+            org.json.JSONObject("""{"automatic":false,"requestedAt":"2026-06-10T12:00:00Z","reportedWindow":"w1","recordedApps":["com.game"]}"""),
         )
         assertThat(rules.automatic).isFalse()
         assertThat(rules.requestedAt).isEqualTo(java.time.Instant.parse("2026-06-10T12:00:00Z"))
         assertThat(rules.reportedWindow).isEqualTo("w1")
+        assertThat(rules.recordedApps).containsExactly("com.game")
         val none = org.plainphone.app.sync.AppUpdateRules.parse(
             org.json.JSONObject("""{"automatic":true,"requestedAt":null,"reportedWindow":null}"""),
         )
         assertThat(none.requestedAt).isNull()
         assertThat(none.reportedWindow).isNull()
+        assertThat(none.recordedApps).isEmpty()
     }
 
     @Test fun `a window that could not open says why and judges nothing`() {

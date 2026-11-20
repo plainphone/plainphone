@@ -241,8 +241,11 @@ therefore opens an **app update window**
   deadline, a crash, process death or a reboot. A window cannot be extended by opening it again.
 - **The guard:** an update of an installed app (`ACTION_PACKAGE_ADDED` with `EXTRA_REPLACING`) is
   allowed and counted. A package that was not on the phone when the window opened is hidden at once
-  if it has an icon, and held back until the server has made it an app request for the parents
-  (in open mode it is also put on the block list until a parent approves). Packages without an
+  if it has an icon, and held back until the server lists it in the rules as recorded
+  (`recordedApps`): then it is an app request for the parents (in open mode it is also put on the
+  block list until a parent approves). The phone syncs right after it catches an app and right
+  after a window closes, so the parents see both at once. An app the parents already approved
+  (a catalog install that finishes during or just after the window) is left alone. Packages without an
   icon, such as libraries Play installs with an update, are left alone so the updated app keeps
   working. Packages installed while Plainphone's process was not running are still hidden by the
   next policy run, as any unapproved app, but are not turned into a request.
@@ -250,7 +253,8 @@ therefore opens an **app update window**
   Off stops the nightly window and closes one that is open; "Update apps now" still works.
 - **What the parents see:** the last window (opened, closed, number of apps updated, new apps kept
   hidden, or why it could not open) under **App updates** on the phone page.
-- **What the child sees:** "What can my parents see?" explains the window. When an app tries to open
+- **What the child sees:** "What can my parents see?" explains the window in strong mode, also
+  with the toggle off (then only "Update apps now" opens one). When an app tries to open
   Play (a `market://` link, for example an app's own "Update" button) while Play is hidden, the
   phone says in plain words that apps update by themselves at night and to ask a parent for a new
   app ([PlayExplanation.kt](../android/app/src/main/java/org/plainphone/app/update/PlayExplanation.kt)).

@@ -442,6 +442,7 @@ class InstallLease(
                     if (catalogChanged && !lock.isInMaintenanceWindow(app)) {
                         lock.applyIfNeededAsync(app, "catalog install window ended") {}
                     }
+                    if (catalogChanged) runCatching { AppUpdateWindow.onLeaseClosed(app) }
                 },
             ) { reason, catalogChanged -> lock.applyForInstall(app, reason, catalogChanged) }
         }

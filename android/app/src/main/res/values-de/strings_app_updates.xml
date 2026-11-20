@@ -6,4 +6,5 @@
     <string name="play_explain_manual">Deine Eltern aktualisieren die Apps auf dem Telefon. Frag sie, wenn eine App sagt, dass sie ein Update braucht.</string>
     <string name="play_explain_new_app">Möchtest du eine neue App? Frag deine Eltern. Sie können sie zu deinem Telefon hinzufügen.</string>
     <string name="sharing_app_updates">Nachts, während das Telefon im WLAN lädt, oder wenn deine Eltern darum bitten, können deine Apps aktualisiert werden. Eine neue App, die dabei installiert wird, bleibt versteckt, bis deine Eltern Ja sagen. Deine Eltern sehen, wann das passiert ist und wie viele Apps aktualisiert wurden.</string>
+    <string name="sharing_app_updates_manual">Wenn deine Eltern darum bitten, können deine Apps aktualisiert werden. Eine neue App, die dabei installiert wird, bleibt versteckt, bis deine Eltern Ja sagen. Deine Eltern sehen, wann das passiert ist und wie viele Apps aktualisiert wurden.</string>
 </resources>

@@ -6,4 +6,5 @@
     <string name="play_explain_manual">Foreldrene dine oppdaterer appene på telefonen. Spør dem hvis en app sier at den må oppdateres.</string>
     <string name="play_explain_new_app">Vil du ha en ny app? Spør en forelder. De kan legge den til på telefonen din.</string>
     <string name="sharing_app_updates">Om natten mens telefonen lader på wifi, eller når en forelder ber om det, kan appene dine oppdateres. En ny app som blir installert da, er skjult til foreldrene dine sier ja. Foreldrene dine ser når det skjedde og hvor mange apper som ble oppdatert.</string>
+    <string name="sharing_app_updates_manual">Når en forelder ber om det, kan appene dine oppdateres. En ny app som blir installert da, er skjult til foreldrene dine sier ja. Foreldrene dine ser når det skjedde og hvor mange apper som ble oppdatert.</string>
 </resources>
