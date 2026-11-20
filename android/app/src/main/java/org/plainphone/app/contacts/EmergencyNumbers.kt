@@ -48,12 +48,13 @@ object EmergencyNumbers {
     )
 
     /**
-     * The local numbers for the countries the phone may be in. When none of them is a known country the
-     * phone cannot tell where it is, and every local number counts: a wrong yes costs nothing, a wrong no could.
+     * The local numbers for the countries the phone may be in. When the phone cannot tell where it is
+     * ([countries] is empty), every local number counts: a wrong yes costs nothing, a wrong no could. A
+     * country the phone knows but that is not listed (Finland, say) adds nothing: Android's own list decides.
      */
     fun localFor(countries: Collection<String?>): Set<String> {
-        val known = countries.mapNotNull { LOCAL[it?.lowercase()] }
-        return (if (known.isEmpty()) LOCAL.values else known).flatten().toSet()
+        if (countries.isEmpty()) return LOCAL.values.flatten().toSet()
+        return countries.mapNotNull { LOCAL[it?.lowercase()] }.flatten().toSet()
     }
 
     /** Static part of the check, so it is unit-testable. [network] is the phone's own list. */
@@ -69,15 +70,22 @@ object EmergencyNumbers {
      * local numbers of the SIM, network, QR code and system language countries when Android's list is short.
      */
     fun forContext(context: Context): EmergencyCheck {
-        val tm = context.getSystemService(TelephonyManager::class.java)
+        val tm = runCatching { context.getSystemService(TelephonyManager::class.java) }.getOrNull()
         return EmergencyCheck { number ->
+            // The always-on numbers first, with no lookups that could throw on the most critical path.
+            if (digits(number) in ALWAYS) return@EmergencyCheck true
             // Where the phone is, not which language it speaks: an English phone can have a Norwegian SIM.
-            val configured = PhoneNumbers.countryForCallingCode(ConfigStore(context).load().countryCallingCode)
-            val countries = listOf(
-                tm?.simCountryIso, tm?.networkCountryIso,
-                PhoneNumbers.COUNTRIES.entries.firstOrNull { it.value == configured }?.key,
-            ).filterNot { it.isNullOrBlank() }
-            check(number, localFor(countries)) { tm?.isEmergencyNumber(it) == true }
+            // If a lookup fails, every local number counts.
+            val local = runCatching {
+                val configured = PhoneNumbers.countryForCallingCode(ConfigStore(context).load().countryCallingCode)
+                localFor(
+                    listOf(
+                        tm?.simCountryIso, tm?.networkCountryIso,
+                        PhoneNumbers.COUNTRIES.entries.firstOrNull { it.value == configured }?.key,
+                    ).filterNot { it.isNullOrBlank() },
+                )
+            }.getOrElse { localFor(emptyList()) }
+            check(number, local) { tm?.isEmergencyNumber(it) == true }
         }
     }
 }

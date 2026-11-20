@@ -82,11 +82,38 @@ class AlwaysReachableTest {
     /** What this state blocks, as readable lines. Empty means the invariant holds. */
     private fun violations(label: String, rules: ContactRules, parents: List<ApprovedContact>): List<String> {
         val policy = context.contactPolicy()
-        return mustReach(rules, parents).mapNotNull { c ->
+        return emergencyCallBack(rules, label) + helpLineReplies(rules, label) + mustReach(rules, parents).mapNotNull { c ->
             val d = policy.decide(rules, c.channel, c.direction, c.number)
             when {
                 !d.allowed -> "$label: ${c.name} ${c.channel}/${c.direction} blocked: $d"
                 c.rings && !policy.ringsAtBedtime(rules, c.number) -> "$label: ${c.name} does not ring"
+                else -> null
+            }
+        }
+    }
+
+    /** Five minutes after a call to 112 the service can call back from any number, and the phone must ring. */
+    private fun emergencyCallBack(rules: ContactRules, label: String): List<String> {
+        val policy = ContactPolicy(EmergencyNumbers.forContext(context)) { 5 * 60_000L }
+        val number = "+4500000000"
+        val d = policy.decide(rules, Channel.CALL, Direction.INCOMING, number)
+        return when {
+            !d.allowed -> listOf("$label: the emergency call-back is blocked: $d")
+            !policy.ringsAtBedtime(rules, number) -> listOf("$label: the emergency call-back does not ring")
+            else -> emptyList()
+        }
+    }
+
+    /** A help line that answers a call (replyOnly in the catalog) rings shortly after the child called it. */
+    private fun helpLineReplies(rules: ContactRules, label: String): List<String> {
+        val policy = context.contactPolicy()
+        val justCalled = rules.copy(replyAgeMs = { _, _ -> 1_000L })
+        return rules.help.lines.mapNotNull { line ->
+            val number = line.phone?.takeIf { justCalled.replyHelpContact(it, Channel.CALL) != null } ?: return@mapNotNull null
+            val d = policy.decide(justCalled, Channel.CALL, Direction.INCOMING, number)
+            when {
+                !d.allowed -> "$label: the reply from help line ${line.name} is blocked: $d"
+                !policy.ringsAtBedtime(justCalled, number) -> "$label: the reply from help line ${line.name} does not ring"
                 else -> null
             }
         }
@@ -185,6 +212,8 @@ class AlwaysReachableTest {
             SyncStore(context).saveRules("etag-$count", json.toString(), 0L)
             val rules = ContactPolicySources.get(context).rules()
             val mode = (if (strong) "strong" else "light") + "/" + profile
+            // Keeps the bedtime ring check from passing vacuously: in the baseline the phone is silent.
+            if (label == "everything on") assertWithMessage("$mode: silent bedtime is reached").that(rules.silentBedtime).isTrue()
             found += violations("$mode, $label", rules, parentsOf(json))
             // The family inbox stays on for a child phone that is not released, whatever else is on.
             val inbox = json.optJSONObject("inbox")
@@ -266,6 +295,26 @@ class AlwaysReachableTest {
         // No SIM, no network, no QR country: Android's own list may be empty. Fail open for emergencies.
         val check = EmergencyNumbers.forContext(context)
         for ((_, numbers) in localEmergencyNumbers) for (n in numbers) assertThat(check.isEmergency(n)).isTrue()
+    }
+
+    @Test
+    fun `a known country that is not listed adds no local numbers, only an unknown country adds them all`() {
+        assertThat(EmergencyNumbers.localFor(listOf("fi"))).isEmpty()
+        assertThat(EmergencyNumbers.localFor(listOf("fi", "no"))).containsExactly("110", "112", "113")
+        assertThat(EmergencyNumbers.localFor(emptyList())).containsAtLeast("113", "999", "911")
+    }
+
+    @Test
+    fun `112 is an emergency number even when the config or the telephony lookups throw`() {
+        val broken = object : android.content.ContextWrapper(context) {
+            override fun getSystemService(name: String): Any = throw IllegalStateException("vendor bug")
+            override fun getSharedPreferences(name: String?, mode: Int): android.content.SharedPreferences =
+                throw ClassCastException("corrupt pref")
+        }
+        val check = EmergencyNumbers.forContext(broken)
+        for (n in EmergencyNumbers.ALWAYS) assertThat(check.isEmergency(n)).isTrue()
+        // A local number still counts when the lookup fails.
+        assertThat(check.isEmergency("999")).isTrue()
     }
 
     @Test

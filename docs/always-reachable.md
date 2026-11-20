@@ -16,7 +16,7 @@ Local emergency numbers (`EmergencyNumbers.LOCAL`): Denmark 112 and 114, Sweden 
 and 113, Germany 110 and 112, UK 999 and 112, US 911. 112, 911 and 114 always work. The local numbers
 come on top of Android's own list for the SIM, which can be empty without a SIM or with a foreign one.
 They follow where the phone is (SIM, network, QR code country), not which language it speaks. When the
-phone cannot tell where it is, every local number counts.
+phone cannot tell where it is, every local number counts. A country it knows but that is not listed (Finland, say) adds none: Android's own list decides.
 
 ## The states
 
@@ -24,7 +24,9 @@ Strong and light mode, Child and Myself phones, open mode, school time, bedtime 
 daily cap and app limits used up, "Ask for more time" pending, approval with the parent PIN on, an app
 update window open, an app being installed, the phone released, and offline (the last rules keep
 applying). The states that are only requests (more time pending, PIN approval pending) change no rule
-the phone uses for calls, so they are covered by the tripwire below rather than by a case of their own.
+the phone uses for calls, so they have no case of their own. The tripwire below only lists the fields of
+`ContactRules`, `PolicyConfig` and `ServerOverlay`: a request state kept elsewhere (`SyncStore`, a request
+queue) that one day blocks calls would not trip it, so such a state must be added as a real case.
 
 ## The tests
 
@@ -38,7 +40,7 @@ They do not list the states by hand:
   and "all off" are added. For each state the real `SyncedContactPolicySource` and `ContactPolicy`
   decide, in strong and light mode, for a Child and a Myself phone, and in every country in
   `EmergencyNumbers.LOCAL`: all emergency numbers, every parent (both directions, calls and texts, and
-  that an incoming parent call rings at silent bedtime), and every number in the help line catalog
+  that an incoming parent call rings at silent bedtime, the call-back from any number after an emergency call, and a help line replying to a call), and every number in the help line catalog
   (`server/catalog/helplines`). The family inbox must still be offered on a Child phone that is not released.
 - **Android, apps.** The worst app rules (school time that allows nothing, every app used up, open mode
   blocking everything, an update window holding every app back, an install window, all at once) are

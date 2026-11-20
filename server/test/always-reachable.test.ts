@@ -7,7 +7,7 @@
 import { eq, getTableColumns } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { expect, it } from "vitest";
-import { contacts, phones, schedules, timeLimits } from "../src/db/schema.js";
+import { contacts, phones, schedules, sosEvents, timeLimits } from "../src/db/schema.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -92,6 +92,9 @@ it("a phone the parents released still gets its contacts, and an SOS it already 
   expect(rules.json.release).toBe(true);
   expect(summary(rules.json).contacts).toHaveLength(2);
   // The phone is the authority for what it has already done (docs/sos.md): the SMS went out, so it is recorded.
-  const sos = await device.post("/api/device/sos", { id: crypto.randomUUID(), kind: "urgent", smsSubmitted: true });
+  const id = crypto.randomUUID();
+  const sos = await device.post("/api/device/sos", { id, kind: "urgent", smsSubmitted: true });
   expect(sos.status).toBe(200);
+  const [recorded] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
+  expect(recorded?.deliveredVia).toBe("sms");
 });
