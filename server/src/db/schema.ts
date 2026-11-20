@@ -171,6 +171,22 @@ export interface DeviceStatus {
   protections?: Partial<Record<Protection, boolean>>;
   /** Minutes used today per limited package; "*" is the total. */
   timeUsed?: Record<string, number>;
+  /** The last app update window in strong mode (docs/policies.md, "App updates"). */
+  appUpdates?: AppUpdateWindowReport;
+}
+
+/** What the phone reports about its last app update window. Times are the phone's own. */
+export interface AppUpdateWindowReport {
+  id: string;
+  trigger: "night" | "parent";
+  openedAt: string | null;
+  closedAt: string | null;
+  /** How many installed apps were updated. */
+  updated: number;
+  /** New apps installed during the window: hidden on the phone and sent to the parents as requests. */
+  caught: string[];
+  /** Why the window could not open. */
+  error?: "batteryExemption" | "failed";
 }
 
 /** What the server read from the phone's key attestation (#23). No serial number or IMEI. */
@@ -304,6 +320,12 @@ export const phones = pgTable(
     silentBedtime: boolean("silent_bedtime").notNull().default(true),
     /** A parent next to the child may approve a request on the phone with the parent PIN. */
     pinApprovalEnabled: boolean("pin_approval_enabled").notNull().default(true),
+    /** Strong mode: a nightly window in which Play may update approved apps (docs/policies.md, "App updates"). */
+    appUpdatesEnabled: boolean("app_updates_enabled").notNull().default(true),
+    /** Set when a parent pressed "Update apps now". */
+    appUpdatesRequestedAt: timestamp("app_updates_requested_at", { withTimezone: true }),
+    /** The last app update window the server recorded; the phone stops holding back new apps once it sees it. */
+    appUpdatesReportedWindow: text("app_updates_reported_window"),
     rulesRevision: integer("rules_revision").notNull().default(0),
     rulesAwaitDns: boolean("rules_await_dns").notNull().default(false),
     createdAt: createdAt(),
