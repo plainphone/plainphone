@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "lint": "pnpm run typecheck",
     "test": "node --test vectors.test.ts"
   },
   "dependencies": {

@@ -22,7 +22,7 @@ Found a way around the lock, or a privacy flaw? Do not open a public issue. Foll
 
 ## Setup per part
 
-The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root.
+The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root. `pnpm lint` there runs each package's `lint`, which is its TypeScript typecheck (there is no separate linter).
 
 | Part | Requirements | Check before a PR |
 |---|---|---|

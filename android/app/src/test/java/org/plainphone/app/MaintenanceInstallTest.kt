@@ -422,6 +422,109 @@ class MaintenanceInstallTest {
         assertThat(accountsBlocked()).isTrue()
     }
 
+    @Test
+    @Config(shadows = [AccountRelockShadow::class])
+    fun `a fallback start folds an account added while it is open instead of reporting it`() {
+        val expired = expireFallback()
+        val manager = AccountManager.get(context)
+        // An account appears after start() took its account snapshot, while the restriction is lifted. Android
+        // delivers the account notification asynchronously, so it has not been seen when start() goes on.
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        Shadow.extract<AccountRelockShadow>(dpm).afterAccountClear = {
+            listeners.clear()
+            try {
+                assertThat(manager.addAccountExplicitly(Account("parent", "com.google"), null, null)).isTrue()
+            } finally {
+                listeners.putAll(registered)
+            }
+        }
+
+        // The lease is armed off the main thread, as MaintenanceActivity does.
+        var second: CatalogAccounts.Request? = null
+        var failure: Throwable? = null
+        Thread {
+            try {
+                val fallbackId = InstallLease.android(context)
+                    .armCatalogAccounts(expired.leaseId, SystemClock.elapsedRealtime() + CatalogAccounts.FALLBACK_MS)
+                second = CatalogAccounts.start(context, pkg, expired.leaseId, fallbackId)
+            } catch (e: Throwable) {
+                failure = e
+            }
+        }.also { it.start(); pumpUntil { !it.isAlive } }
+        failure?.let { throw it }
+
+        val prefs = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val relocked = checkNotNull(JSONArray(prefs.getString(expired.id, null)).optJSONArray(7))
+        assertThat(relocked.length()).isEqualTo(manager.accounts.size)
+        assertThat(manager.getAccountsByType("com.google")).hasLength(1)
+        assertThat(checkNotNull(second).fallback).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `a fallback start reports an account added after the relock snapshot but before start`() {
+        val expired = expireFallback()
+        val manager = AccountManager.get(context)
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        listeners.clear()
+        try {
+            assertThat(manager.addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        } finally {
+            listeners.putAll(registered)
+        }
+
+        var failure: Throwable? = null
+        Thread {
+            try {
+                val fallbackId = InstallLease.android(context)
+                    .armCatalogAccounts(expired.leaseId, SystemClock.elapsedRealtime() + CatalogAccounts.FALLBACK_MS)
+                CatalogAccounts.start(context, pkg, expired.leaseId, fallbackId)
+            } catch (e: Throwable) {
+                failure = e
+            }
+        }.also { it.start(); pumpUntil { !it.isAlive } }
+        failure?.let { throw it }
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `a marker from before the relock snapshot treats any new account as late`() {
+        val expired = expireFallback()
+        stripRelockSnapshot(expired.id, outcome = false)
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `a marker from before the relock snapshot still accepts the one expected Google account`() {
+        val expired = expireFallback()
+        stripRelockSnapshot(expired.id, outcome = true)
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("parent", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    /** Rewrites a settled fallback marker the way an older app version stored it: outcome, no relock set (index 7). */
+    private fun stripRelockSnapshot(id: String, outcome: Boolean) {
+        val prefs = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val marker = JSONArray(prefs.getString(id, null))
+        val older = JSONArray()
+        (0..5).forEach { older.put(marker.get(it)) }
+        older.put(outcome)
+        assertThat(prefs.edit().putString(id, older.toString()).commit()).isTrue()
+    }
+
     private fun relockAfterUnlock() {
         val done = CountDownLatch(1)
         Lock.applyAsync(context, "unlock ended") { done.countDown() }
@@ -448,6 +551,17 @@ class MaintenanceInstallTest {
     @Implements(DevicePolicyManager::class)
     class AccountRelockShadow : ShadowDevicePolicyManager() {
         var beforeAccountRelock: (() -> Unit)? = null
+        var afterAccountClear: (() -> Unit)? = null
+
+        @Implementation
+        override fun clearUserRestriction(admin: ComponentName, key: String) {
+            super.clearUserRestriction(admin, key)
+            if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
+                val action = afterAccountClear
+                afterAccountClear = null
+                action?.invoke()
+            }
+        }
 
         @Implementation
         override fun addUserRestriction(admin: ComponentName, restriction: String) {
