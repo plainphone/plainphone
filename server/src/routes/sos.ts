@@ -149,7 +149,8 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
     const phone = await requirePhone(c);
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
     const { enabled } = await body(c, z.strictObject({ enabled: z.boolean() }));
-    const [row] = await ctx.db.update(contacts).set({ sosParent: enabled })
+    // A parent is always Family (docs/modes.md).
+    const [row] = await ctx.db.update(contacts).set({ sosParent: enabled, ...(enabled ? { contactGroup: "family" as const } : {}) })
       .where(and(eq(contacts.phoneId, phone.id), eq(contacts.id, param(c, "cid")))).returning();
     if (!row) throw new HTTPException(404, { message: "contact not found" });
     await wakePhone(ctx, phone.id, "rules");

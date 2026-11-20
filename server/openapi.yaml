@@ -881,6 +881,9 @@ components:
             properties:
               name: { type: string }
               number: { $ref: "#/components/schemas/E164" }
+              group:
+                $ref: "#/components/schemas/ContactGroup"
+                description: Only while modes are on. A parent is always family.
         schedules:
           type: array
           description: During a window only phone, SMS (approved contacts) and those allowedPackages that are also in apps.allowed work; a hidden app stays hidden. `end` before `start` means the window crosses midnight into the next day.
@@ -898,6 +901,47 @@ components:
               allowedPackages:
                 type: array
                 items: { $ref: "#/components/schemas/PackageName" }
+        modes:
+          type: object
+          description: >-
+            Only while modes are on (docs/modes.md). `schedules` is then built from the slots, so a phone that does not
+            know modes still follows each slot's apps and quiet. A phone that knows modes takes the mode's name and
+            contact groups from here; outside every slot the default mode applies. Parents, 112 and help lines are
+            never narrowed by a mode.
+          required: [enabled, defaultModeId, list, slots]
+          properties:
+            enabled: { type: boolean }
+            defaultModeId: { type: [string, "null"], format: uuid }
+            list:
+              type: array
+              items:
+                type: object
+                required: [id, preset, name, allApps, allowedPackages, contactGroups, quiet]
+                properties:
+                  id: { type: string, format: uuid }
+                  preset: { $ref: "#/components/schemas/ModePreset" }
+                  name: { type: [string, "null"], description: "Null: show the preset's translated name." }
+                  allApps: { type: boolean }
+                  allowedPackages:
+                    type: array
+                    items: { $ref: "#/components/schemas/PackageName" }
+                  contactGroups:
+                    type: array
+                    items: { $ref: "#/components/schemas/ContactGroup" }
+                  quiet: { type: boolean, description: "The mode is a bedtime: silent while silentBedtime is on." }
+            slots:
+              type: array
+              items:
+                type: object
+                required: [id, modeId, days, start, end]
+                properties:
+                  id: { type: string, format: uuid }
+                  modeId: { type: string, format: uuid }
+                  days:
+                    type: array
+                    items: { type: integer, minimum: 1, maximum: 7 }
+                  start: { type: string, pattern: "^\\d{2}:\\d{2}$" }
+                  end: { type: string, pattern: "^\\d{2}:\\d{2}$" }
         dns:
           type: object
           properties:
@@ -1212,6 +1256,7 @@ components:
         weeklySummaryEnabled: { type: boolean }
         silentBedtime: { type: boolean }
         pinApprovalEnabled: { type: boolean }
+        modesEnabled: { type: boolean, description: "Modes on one weekly schedule (docs/modes.md). Always false on a Self phone." }
         appUpdatesEnabled:
           type: boolean
           description: "Strong mode: the nightly window in which Play may update approved apps."
@@ -1367,6 +1412,56 @@ components:
               type: boolean
               description: The phone detected an unexpected account change during catalog fallback or a late Google sign-in.
 
+    ContactGroup:
+      type: string
+      enum: [family, friends, others]
+    ModePreset:
+      type: string
+      enum: [school, homework, free, night, custom]
+    Mode:
+      type: object
+      required: [id, preset, name, allApps, allowedPackages, contactGroups, quiet, isDefault]
+      properties:
+        id: { type: string, format: uuid }
+        preset: { $ref: "#/components/schemas/ModePreset" }
+        name: { type: [string, "null"], description: "Null: the preset's translated name." }
+        allApps: { type: boolean, description: "Every app the parent allows anyway. Otherwise only allowedPackages and the core apps." }
+        allowedPackages:
+          type: array
+          items: { $ref: "#/components/schemas/PackageName" }
+        contactGroups:
+          type: array
+          description: The groups that can call and text during the mode. Parents are always reachable.
+          items: { $ref: "#/components/schemas/ContactGroup" }
+        quiet: { type: boolean, description: "A bedtime: silent while silentBedtime is on." }
+        isDefault: { type: boolean, description: "Applies outside the schedule. Only its name can change." }
+    ModeInput:
+      type: object
+      additionalProperties: false
+      required: [preset, allApps, contactGroups]
+      properties:
+        preset: { $ref: "#/components/schemas/ModePreset" }
+        name: { type: [string, "null"], maxLength: 30 }
+        allApps: { type: boolean }
+        allowedPackages:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/PackageName" }
+        contactGroups:
+          type: array
+          items: { $ref: "#/components/schemas/ContactGroup" }
+        quiet: { type: boolean }
+    ModeSlot:
+      type: object
+      required: [id, modeId, days, startMinute, endMinute]
+      properties:
+        id: { type: string, format: uuid }
+        modeId: { type: string, format: uuid }
+        days:
+          type: array
+          items: { type: integer, minimum: 1, maximum: 7 }
+        startMinute: { type: integer, minimum: 0, maximum: 1439 }
+        endMinute: { type: integer, minimum: 0, maximum: 1439, description: "Before startMinute: the slot crosses midnight." }
     ScheduleInput:
       type: object
       required: [kind, days, startMinute, endMinute]
@@ -3259,6 +3354,7 @@ paths:
                 silentBedtime: { type: boolean }
                 pinApprovalEnabled: { type: boolean }
                 appUpdatesEnabled: { type: boolean, description: "Strong mode: update approved apps in a nightly window (default on)." }
+                modesEnabled: { type: boolean, description: "Child phones only (409 on a Self phone). Turning it on the first time makes the modes from school time and bedtime." }
                 pushWakeups: { type: boolean }
                 preferUnifiedPush: { type: boolean }
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
@@ -4069,6 +4165,7 @@ paths:
                         name: { type: string }
                         number: { $ref: "#/components/schemas/E164" }
                         sosParent: { type: boolean }
+                        group: { $ref: "#/components/schemas/ContactGroup" }
                   selfScheduleContacts: { type: [boolean, "null"] }
                   suggestDeviceContacts: { type: boolean }
                   lightContactRestriction: { type: boolean }
@@ -4123,6 +4220,41 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
   /phones/{pid}/contacts/{cid}:
+    patch:
+      operationId: setContactGroup
+      summary: Move a contact to Family, Friends or Others
+      tags: [rules]
+      description: Child phones only. A contact marked as a parent is always Family.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: cid, in: path, required: true, description: Contact id, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [group]
+              properties:
+                group: { $ref: "#/components/schemas/ContactGroup" }
+      responses:
+        "200":
+          description: The contact
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, name, number, group]
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  number: { $ref: "#/components/schemas/E164" }
+                  group: { $ref: "#/components/schemas/ContactGroup" }
+                  sosParent: { type: boolean }
+        "400": { description: "A parent outside Family, or an invalid group" }
+        "404": { description: "Contact or child phone not found" }
     delete:
       operationId: deletePhonesContacts
       summary: Delete phones contacts
@@ -4255,6 +4387,136 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/modes:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhoneModes
+      summary: The phone's modes and weekly schedule
+      tags: [rules]
+      description: Child phones only (404 on a Self phone). See docs/modes.md.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Modes, slots and the mode on now
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, parentsMarked, timezone, modes, slots, current]
+                properties:
+                  enabled: { type: boolean }
+                  parentsMarked: { type: boolean, description: "False: no contact is marked as a parent, so contact groups do not narrow the list." }
+                  timezone: { type: string }
+                  modes:
+                    type: array
+                    items: { $ref: "#/components/schemas/Mode" }
+                  slots:
+                    type: array
+                    items: { $ref: "#/components/schemas/ModeSlot" }
+                  current:
+                    type: [object, "null"]
+                    description: Null while modes are off.
+                    required: [modeId, until]
+                    properties:
+                      modeId: { type: string, format: uuid }
+                      until: { type: [string, "null"], description: "HH:MM local time the slot ends; null for the default mode." }
+        "404": { description: Not a child phone }
+    post:
+      operationId: createPhoneMode
+      summary: Add a mode
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModeInput" }
+      responses:
+        "201":
+          description: The new mode
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Mode" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: Not a child phone }
+  /phones/{pid}/modes/{mid}:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { name: mid, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: updatePhoneMode
+      summary: Change a mode
+      tags: [rules]
+      description: The default mode only takes `{ name }`.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModeInput" }
+      responses:
+        "200":
+          description: The mode
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Mode" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: Mode not found }
+    delete:
+      operationId: deletePhoneMode
+      summary: Delete a mode and its slots
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Mode not found }
+        "409": { description: The default mode cannot be deleted }
+  /phones/{pid}/mode-schedule:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    put:
+      operationId: setPhoneModeSchedule
+      summary: Replace the weekly schedule of modes
+      tags: [rules]
+      description: Slots may not overlap (400 `overlap`) and may not use the default mode, which applies outside them.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [slots]
+              properties:
+                slots:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [modeId, days, startMinute, endMinute]
+                    properties:
+                      modeId: { type: string, format: uuid }
+                      days:
+                        type: array
+                        items: { type: integer, minimum: 1, maximum: 7 }
+                      startMinute: { type: integer, minimum: 0, maximum: 1439 }
+                      endMinute: { type: integer, minimum: 0, maximum: 1439 }
+      responses:
+        "200":
+          description: The saved slots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [slots]
+                properties:
+                  slots:
+                    type: array
+                    items: { $ref: "#/components/schemas/ModeSlot" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: Not a child phone }
 
   /phones/{pid}/notifications:
     put:

@@ -36,6 +36,7 @@ import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 import { sosRulesExtras } from "./quick-messages.js";
 import { inboxRules } from "./family-inbox.js";
+import { effectiveGroup, loadModes, modesForRules } from "./modes.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -140,7 +141,7 @@ function hhmm(minute: number): string {
 }
 
 async function loadRulesInputs(ctx: Ctx, phone: Phone) {
-  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds, sosExtras, inbox] = await Promise.all([
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds, sosExtras, inbox, modeRows] = await Promise.all([
     ctx.db
       .select({
         packageName: phoneApps.packageName,
@@ -160,7 +161,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       )
       .orderBy(phoneApps.packageName),
     ctx.db
-      .select({ name: contacts.name, number: contacts.number, sosParent: contacts.sosParent })
+      .select({ name: contacts.name, number: contacts.number, sosParent: contacts.sosParent, contactGroup: contacts.contactGroup })
       .from(contacts)
       .where(eq(contacts.phoneId, phone.id))
       .orderBy(contacts.name, contacts.number),
@@ -200,6 +201,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     householdAccountIds(ctx, phone.householdId),
     sosRulesExtras(ctx, phone),
     inboxRules(ctx, phone),
+    phone.modesEnabled && phone.profile === "child" ? loadModes(ctx.db, phone.id) : null,
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {
@@ -259,6 +261,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     accountIds,
     sosExtras,
     inbox,
+    modeRows,
   };
 }
 
@@ -274,7 +277,7 @@ export function nextRulesRevision(dns = false) {
 }
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
   const apps = allApps.filter((a) => a.installed);
   // Open mode: everything is allowed except the block list (apps blocked one by one plus the
   // known apps of the blocked categories, also when they are not installed yet).
@@ -285,6 +288,11 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   );
   const isAllowed = (a: (typeof apps)[number]) => a.core || (phone.openMode ? !blocked.has(a.packageName) : a.allowed);
   const sorted = (xs: string[]) => [...xs].sort();
+  // Modes (docs/modes.md) replace the school time and bedtime table with windows built from the slots.
+  const modes = modeRows && modesForRules(modeRows.modes, modeRows.slots, [
+    ...apps.filter(isAllowed).map((a) => a.packageName),
+    ...allApps.filter((a) => a.requested && a.allowed && !a.installed).map((a) => a.packageName),
+  ]);
   const doc = {
     phoneId: phone.id,
     allowServerMove: phone.allowServerMove,
@@ -320,11 +328,11 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
         .map((a) => ({ packageName: a.packageName, label: a.label })),
     },
     timeLimits: { total: limits.total, apps: limits.apps.map((a) => ({ packageName: a.packageName, ...a.limit })), bonuses: limits.bonuses },
-    contacts: contactRows.map((c) => ({ name: c.name, number: c.number })),
+    contacts: contactRows.map((c) => ({ name: c.name, number: c.number, ...(modes ? { group: effectiveGroup(c) } : {}) })),
     ...(phone.profile === "child" ? { sos: { name: phone.name, parents: contactRows.filter((c) => c.sosParent).map(({ name, number }) => ({ name, number })), ...sosExtras } } : {}),
     // The family inbox (docs/family-inbox.md); left out while it is off.
     ...(inbox ? { inbox } : {}),
-    schedules: scheduleRows.map((s) => ({
+    schedules: modes ? modes.schedules : scheduleRows.map((s) => ({
       id: s.id,
       kind: s.kind,
       days: s.days,
@@ -332,6 +340,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       end: hhmm(s.endMinute),
       allowedPackages: sorted(s.allowedPackages),
     })),
+    ...(modes ? { modes: modes.block } : {}),
     dns: {
       host: phone.dnsHost,
       // The phone switches to `host` only when this is true: the DNS service refuses ClientIDs
@@ -568,6 +577,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     weeklySummaryEnabled: phone.weeklySummaryEnabled,
     silentBedtime: phone.silentBedtime,
     pinApprovalEnabled: phone.pinApprovalEnabled,
+    modesEnabled: phone.profile === "child" && phone.modesEnabled,
     appUpdatesEnabled: phone.appUpdatesEnabled,
     appUpdatesRequestedAt: phone.appUpdatesRequestedAt?.toISOString() ?? null,
     status: summaryStatus(phone, ctx.now()),

@@ -64,6 +64,8 @@ import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
+import { modeRoutes } from "./modes.js";
+import { ModeError, setModesEnabled } from "../services/modes.js";
 import { summaryRoutes } from "./summary.js";
 import { parentMoreTimeRoutes } from "./more-time.js";
 import { locationRoutes, setLocationMode } from "./location.js";
@@ -705,8 +707,19 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         silentBedtime: z.boolean().optional(),
         pinApprovalEnabled: z.boolean().optional(),
         appUpdatesEnabled: z.boolean().optional(),
+        modesEnabled: z.boolean().optional(),
       }),
     );
+    if (input.modesEnabled !== undefined) {
+      // Child phones only; turning modes on the first time makes them (docs/modes.md).
+      try {
+        await setModesEnabled(ctx, phone, input.modesEnabled);
+      } catch (e) {
+        if (e instanceof ModeError) return c.json({ error: e.message }, e.status);
+        throw e;
+      }
+      if (input.modesEnabled !== phone.modesEnabled) await wakePhone(ctx, phone.id, "rules");
+    }
     const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled, silentBedtime, pinApprovalEnabled, appUpdatesEnabled } = input;
     const rulesField = changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined
       || weeklySummaryEnabled !== undefined || silentBedtime !== undefined || pinApprovalEnabled !== undefined
@@ -927,6 +940,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
+  modeRoutes(app, ctx, { requirePhone });
   summaryRoutes(app, ctx, { requireMember });
   parentMoreTimeRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
@@ -957,7 +971,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const phone = await requirePhone(c);
     const rows = await ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name);
     return c.json({
-      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number, ...(r.sosParent ? { sosParent: true } : {}) })),
+      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number, group: r.sosParent ? "family" : r.contactGroup, ...(r.sosParent ? { sosParent: true } : {}) })),
       selfScheduleContacts: phone.selfScheduleContacts,
       suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
       lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
