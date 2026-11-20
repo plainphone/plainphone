@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modes and contact groups (docs/modes.md). -->
+<resources>
+    <string name="mode_preset_school">School</string>
+    <string name="mode_preset_homework">Homework</string>
+    <string name="mode_preset_free">Free time</string>
+    <string name="mode_preset_night">Night</string>
+    <string name="mode_preset_custom">Own mode</string>
+    <!-- Home screen, under the date: "Homework until 17:00". -->
+    <string name="home_mode_until">%1$s until %2$s</string>
+    <string name="group_family">Family</string>
+    <string name="group_friends">Friends</string>
+    <string name="group_others">Others</string>
+    <!-- "What can my parents see?" -->
+    <string name="sharing_mode_now">Mode now: %1$s. Your parents choose the modes and when they are on.</string>
+    <string name="sharing_mode_groups">Who can call and text now: %1$s. Your parents, 112 and help lines always can.</string>
+    <string name="sharing_mode_only_parents">Only your parents, 112 and help lines can call and text now.</string>
+    <string name="sharing_mode_everyone">Everyone on your list can call and text now.</string>
+</resources>

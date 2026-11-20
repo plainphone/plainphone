@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mode_preset_school">Skole</string>
+    <string name="mode_preset_homework">Lektier</string>
+    <string name="mode_preset_free">Fritid</string>
+    <string name="mode_preset_night">Nat</string>
+    <string name="mode_preset_custom">Egen tilstand</string>
+    <string name="home_mode_until">%1$s til %2$s</string>
+    <string name="group_family">Familie</string>
+    <string name="group_friends">Venner</string>
+    <string name="group_others">Andre</string>
+    <string name="sharing_mode_now">Tilstand nu: %1$s. Dine forældre vælger tilstandene, og hvornår de gælder.</string>
+    <string name="sharing_mode_groups">Hvem kan ringe og skrive nu: %1$s. Dine forældre, 112 og hjælpelinjer kan altid.</string>
+    <string name="sharing_mode_only_parents">Kun dine forældre, 112 og hjælpelinjer kan ringe og skrive nu.</string>
+    <string name="sharing_mode_everyone">Alle på din liste kan ringe og skrive nu.</string>
+</resources>

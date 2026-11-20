@@ -111,6 +111,8 @@ data class ServerRules(
      */
     val weeklySummaryEnabled: Boolean = false,
     val appUpdates: AppUpdateRules = AppUpdateRules(),
+    /** Modes on one weekly schedule (docs/modes.md); null while they are off or from older servers. */
+    val modes: ModesRules? = null,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -140,6 +142,7 @@ data class ServerRules(
                 pinApproval = j.optBoolean("pinApprovalEnabled", false),
                 weeklySummaryEnabled = j.optBoolean("weeklySummaryEnabled", false),
                 appUpdates = AppUpdateRules.parse(j.optJSONObject("appUpdates")),
+                modes = ModesRules.parse(j),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {
                     ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))

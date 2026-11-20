@@ -2,7 +2,8 @@
 import { type FormEvent, useState } from "react";
 import { Field, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { api, ApiError, type ChangeResult, type Contact } from "../lib/api";
+import type { MessageKey } from "../i18n/translate";
+import { api, ApiError, type ChangeResult, CONTACT_GROUPS, type Contact, type ContactGroup, setContactGroup } from "../lib/api";
 import { ContactSuggestions } from "./ContactSuggestions";
 import { usePhone } from "./Phone";
 
@@ -32,6 +33,8 @@ export function ContactsPage() {
   const [marking, setMarking] = useState(false);
   const [sosError, setSosError] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [groupSaving, setGroupSaving] = useState<string | null>(null);
+  const [groupFailed, setGroupFailed] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsFailed, setSettingsFailed] = useState(false);
@@ -120,6 +123,19 @@ export function ContactsPage() {
     }
   }
 
+  async function changeGroup(c: Contact, group: ContactGroup) {
+    setGroupSaving(c.id);
+    setGroupFailed(false);
+    try {
+      await setContactGroup(phone.id, c.id, group);
+      res.setData((data) => data && { ...data, contacts: data.contacts.map((x) => (x.id === c.id ? { ...x, group } : x)) });
+    } catch {
+      setGroupFailed(true);
+    } finally {
+      setGroupSaving(null);
+    }
+  }
+
   async function remove(c: Contact) {
     setRemoving(c.id);
     const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}/contacts/${c.id}`), t("contacts.removed"));
@@ -131,6 +147,7 @@ export function ContactsPage() {
     <>
       <PageTitle sub={self || lightChild ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
       {sosError && <p role="alert">{t("sos.error")}</p>}
+      {groupFailed && <p role="alert">{t("modes.saveFailed")}</p>}
       {!self && <p className="help">{t("contacts.otherApps")}</p>}
 
       <LoadGate res={res}>
@@ -185,6 +202,8 @@ export function ContactsPage() {
             {list.length === 0 && waitingAdds.length === 0 ? (
                 <p className="empty-inline">{t(self ? "contacts.noFavourites" : lightChild && !lightContactRestriction ? "contacts.emptyUnrestricted" : "contacts.empty")}</p>
               ) : (
+                <>
+                {!self && <p className="help">{t("group.help")}</p>}
                 <ul className="list contacts-list">
                   {list.map((c) => (
                     <li key={c.id} className="item">
@@ -195,6 +214,18 @@ export function ContactsPage() {
                           <input type="checkbox" checked={Boolean(c.sosParent)} disabled={marking} onChange={() => void markParent(c)} />
                           {t("sos.mark")}
                         </label>}
+                        {!self && (c.sosParent ? (
+                          <p className="help">{t("group.family")}. {t("group.parentFixed")}</p>
+                        ) : (
+                          <label>
+                            {t("group.label")}{" "}
+                            <select value={c.group ?? "others"} disabled={groupSaving === c.id}
+                              aria-label={`${t("group.label")}: ${c.name}`}
+                              onChange={(event) => void changeGroup(c, event.currentTarget.value as ContactGroup)}>
+                              {CONTACT_GROUPS.map((g) => <option key={g} value={g}>{t(`group.${g}` as MessageKey)}</option>)}
+                            </select>
+                          </label>
+                        ))}
                       </div>
                       <button
                         type="button"
@@ -217,6 +248,7 @@ export function ContactsPage() {
                     </li>
                   ))}
                 </ul>
+                </>
             )}
           </>
         )}
