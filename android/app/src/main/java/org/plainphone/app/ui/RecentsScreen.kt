@@ -150,7 +150,7 @@ internal fun unseenMissedCall(context: Context, nowMs: Long = System.currentTime
 }
 
 /** Opening the Calls tab is looking at them. Needs WRITE_CALL_LOG (the dialer role has it). */
-private fun markMissedSeen(context: Context) {
+internal fun markMissedSeen(context: Context) {
     if (context.checkSelfPermission(Manifest.permission.WRITE_CALL_LOG) != PackageManager.PERMISSION_GRANTED) return
     runCatching {
         context.contentResolver.update(

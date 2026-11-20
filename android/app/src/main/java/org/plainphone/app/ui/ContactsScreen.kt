@@ -118,7 +118,11 @@ internal fun ContactsScreen(
                     stringResource(R.string.missed_notice, name, clockTime(context, m.atMs)),
                     Modifier.padding(top = 8.dp),
                     action = if (canCall) stringResource(R.string.missed_call_back) else null,
-                    onAction = { onCall(m.number) },
+                    onAction = {
+                        // Calling back is seeing it: the notice is gone when the child comes back.
+                        Thread { markMissedSeen(context) }.start()
+                        onCall(m.number)
+                    },
                 )
             }
         }
