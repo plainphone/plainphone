@@ -3,6 +3,7 @@
 // "Ring the phone" and "Are you okay?" (docs/location.md). Only the latest request of each kind
 // per phone exists; the phone learns about it through the rules document.
 
+import { errorSummary } from "../lib/log.js";
 import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { localDate } from "./limits.js";
 import { type LocationMode, locations, phones, safetyRequests } from "../db/schema.js";
@@ -213,7 +214,7 @@ export async function notifySafety(ctx: Ctx, phone: Pick<Phone, "id" | "name">, 
   try {
     await notifyHousehold(ctx, phone.id, { type: "safety", phoneId: phone.id, phoneName: phone.name, what });
   } catch (err) {
-    console.error(`safety notification failed: ${(err as Error).message}`);
+    console.error(`safety notification failed: ${errorSummary(err)}`);
   }
 }
 

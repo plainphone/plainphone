@@ -6,6 +6,7 @@
 // for that app (or the daily cap) on the day of the request, so the phone applies it offline-safe
 // through `/rules`. Unanswered requests expire at the phone's local midnight.
 
+import { errorSummary } from "../lib/log.js";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { moreTimeRequests, phoneApps, phones, timeLimits } from "../db/schema.js";
 import { applyOp } from "./changes.js";
@@ -274,7 +275,7 @@ export async function sendMoreTimeReceipts(ctx: Ctx, phoneId: string): Promise<v
       });
     }
   } catch (err) {
-    console.error(`more-time receipt failed: ${(err as Error).message}`);
+    console.error(`more-time receipt failed: ${errorSummary(err)}`);
   }
 }
 

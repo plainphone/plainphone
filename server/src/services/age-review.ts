@@ -4,6 +4,7 @@
 // docs/family-agreement.md). A preset is applied through the same changes as any other rule edit
 // (submitChange), so the rules, the phone's wake-up and the weekly summary behave as usual.
 
+import { errorSummary } from "../lib/log.js";
 import { and, asc, eq, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { dnsSettings, DNS_CATEGORIES, householdMembers, households, phones, schedules, timeLimits, users } from "../db/schema.js";
 import {
@@ -189,7 +190,7 @@ export async function sweepReviewReminders(ctx: Ctx): Promise<number> {
     try {
       await sendReminder(ctx, phone);
     } catch (err) {
-      console.error(`review reminder failed: ${(err as Error).message}`);
+      console.error(`review reminder failed: ${errorSummary(err)}`);
     }
   }
   return claimed.length;
@@ -209,7 +210,7 @@ async function sendReminder(ctx: Ctx, phone: Phone) {
       try {
         await ctx.mail.send(reviewReminderMail(m.email, toLocale(m.locale), ctx.cfg.PUBLIC_URL, phone, suggestions));
       } catch (err) {
-        console.error(`review mail failed: ${(err as Error).message}`);
+        console.error(`review mail failed: ${errorSummary(err)}`);
       }
     }
   }

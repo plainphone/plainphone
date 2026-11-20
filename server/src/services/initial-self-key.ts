@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { errorSummary } from "../lib/log.js";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { householdMembers, pendingChanges, phones, selfKeys, users } from "../db/schema.js";
@@ -51,6 +52,6 @@ export async function sendInitialKeyInvite(ctx: Ctx, choice: InitialSelfKey | un
     await ctx.mail.send(inviteMail(choice.trustedEmail, toLocale(owner?.locale), ctx.cfg.PUBLIC_URL,
       `${ctx.cfg.PUBLIC_URL}/login`, "trusted", 30));
   } catch (err) {
-    console.error("could not send setup key invitation", (err as Error).message);
+    console.error("could not send setup key invitation", errorSummary(err));
   }
 }

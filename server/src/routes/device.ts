@@ -166,7 +166,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   };
 
   app.on(["GET", "POST"], "/pairings/:id", async (c) => {
-    const id = c.req.param("id");
+    // Checked before the limiter, so made-up ids cannot each take a slot in its memory.
+    const id = param(c, "id");
     if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
     const decision = c.req.method === "POST" ? await body(c, z.object({ action: z.enum(["confirm", "cancel"]), key: initialSelfKey.optional(), filterMethod: z.enum(FILTER_METHODS).optional() })) : undefined;
     const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", decision?.action, decision?.key, decision?.filterMethod);

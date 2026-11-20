@@ -111,6 +111,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // --- Auth -------------------------------------------------------------------
 
   app.post("/auth/request", async (c) => {
+    const ipAllowed = loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY));
     const input = await body(
       c,
       z.object({
@@ -120,7 +121,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         client: z.enum(["web", "native"]).default("web"),
       }),
     );
-    if (!loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY)) || !loginEmailLimit.take(input.email)) {
+    if (!ipAllowed || !loginEmailLimit.take(input.email)) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
     await requestMagicLink(ctx, input.email, toLocale(input.locale), input.client);

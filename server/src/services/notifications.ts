@@ -5,6 +5,7 @@
 // sent once, when it happens, never on every poll. A failed push never fails the request
 // that caused it.
 
+import { errorSummary } from "../lib/log.js";
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, toLocale } from "../lib/locale.js";
@@ -168,7 +169,7 @@ export async function notifyUsers(
           const message = pushMessage(e, language);
           outcome = await ctx.parentPush.send(sub, message, { urgent });
         } catch (err) {
-          console.error(`push send failed: ${(err as Error).message}`);
+          console.error(`push send failed: ${errorSummary(err)}`);
           outcome = "failed";
         }
         if (outcome === "sent") {
@@ -195,7 +196,7 @@ export async function notifyUsers(
     return results.reduce<number>((a, b) => a + b, 0);
   } catch (err) {
     opts.onFailure?.();
-    console.error(`notification failed: ${(err as Error).message}`);
+    console.error(`notification failed: ${errorSummary(err)}`);
     return 0;
   }
 }
@@ -239,8 +240,9 @@ export async function notifyAlertRecipients(
 ): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
-  if ((e.type === "protection" || e.type === "offline" || e.type === "neverConnected") && ctx.mail.canSend) {
-    for (const m of members) {
+  // The mails go out alongside the push, not before it: a slow mail server must not hold up the alert.
+  const mails = (e.type === "protection" || e.type === "offline" || e.type === "neverConnected") && ctx.mail.canSend
+    ? members.map(async (m) => {
       const locale = toLocale(m.locale);
       try {
         await ctx.mail.send(
@@ -256,16 +258,12 @@ export async function notifyAlertRecipients(
           ),
         );
       } catch (err) {
-        console.error(`alert mail failed: ${(err as Error).message}`);
+        console.error(`alert mail failed: ${errorSummary(err)}`);
       }
-    }
-  }
-  return notifyUsers(
-    ctx,
-    members.map((m) => m.id),
-    e,
-    opts,
-  );
+    })
+    : [];
+  const [sent] = await Promise.all([notifyUsers(ctx, members.map((m) => m.id), e, opts), ...mails]);
+  return sent;
 }
 
 interface StatusLike {
