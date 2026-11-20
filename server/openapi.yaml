@@ -43,6 +43,8 @@ tags:
     description: Daily time limits (docs/time-limits.md).
   - name: catalog
     description: App catalog per country (docs/app-catalog.md).
+  - name: billing
+    description: Hosted plan and paid early unlock (docs/billing.md). Every route answers 404 while BILLING_ENABLED is off.
 
 components:
   securitySchemes:
@@ -87,6 +89,12 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ChangePending" }
+
+    PlanLimit:
+      description: Only with billing on, on the free plan, when adding beyond the plan's limit (docs/billing.md).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PlanLimit" }
 
   parameters:
     phoneId: { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
@@ -759,6 +767,87 @@ components:
                 amount: { type: integer, description: "Minor units, e.g. 50000 = 500 kr." }
                 currency: { type: string }
                 recipient: { type: string }
+        earlyUnlock:
+          description: Paid early unlock (docs/billing.md). Present only while billing is on, on a Myself phone with its own delay key and the switch on.
+          $ref: "#/components/schemas/EarlyUnlockOffer"
+
+    EarlyUnlockOffer:
+      type: object
+      required: [available, reason, price, currency, unlockMinutes, nextAvailableAt, purchase]
+      properties:
+        available: { type: boolean }
+        reason:
+          type: [string, "null"]
+          enum: [savesNoTime, weeklyCap, inProgress, null]
+        price: { type: integer, description: Minor units including VAT, e.g. 1000 = 10 kr. }
+        currency: { type: string }
+        unlockMinutes: { type: integer, description: The change applies about this long after payment. }
+        nextAvailableAt: { type: [string, "null"], format: date-time, description: With the weekly cap reached. }
+        purchase:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/EarlyUnlockPurchase"
+
+    EarlyUnlockPurchase:
+      type: object
+      required: [id, status, channel, amount, currency, consentAt, paidAt, unlockAt, deliveredAt, withdrawnAt, refundedAt, canWithdraw]
+      properties:
+        id: { type: string, format: uuid, description: The contract number on the receipt. }
+        status: { enum: [created, scheduled, delivered, refund_due, refunded, expired] }
+        channel: { enum: [stripe, play] }
+        amount: { type: integer }
+        currency: { type: string }
+        consentAt: { type: string, format: date-time }
+        paidAt: { type: [string, "null"], format: date-time }
+        unlockAt: { type: [string, "null"], format: date-time }
+        deliveredAt: { type: [string, "null"], format: date-time }
+        withdrawnAt: { type: [string, "null"], format: date-time }
+        refundedAt: { type: [string, "null"], format: date-time }
+        canWithdraw: { type: boolean, description: Show the withdrawal control (Fortryd aftale) while true. }
+
+    Plan:
+      type: object
+      required: [billing, plan, source, until, limits, usage, prioritySupport, prices, channels, canManage]
+      properties:
+        billing: { type: boolean, description: False while BILLING_ENABLED is off; then plan is "unlimited". }
+        plan: { enum: [unlimited, grandfathered, free, plus] }
+        source: { type: [string, "null"], enum: [play, stripe, manual, null] }
+        until: { type: [string, "null"], format: date-time }
+        limits:
+          type: object
+          required: [phones, trusted]
+          properties:
+            phones: { type: [integer, "null"], description: Null means no limit. }
+            trusted: { type: [integer, "null"] }
+        usage:
+          type: object
+          required: [phones, trusted]
+          properties:
+            phones: { type: integer }
+            trusted: { type: integer }
+        prioritySupport: { type: boolean }
+        prices:
+          type: object
+          required: [currency, plus, earlyUnlock]
+          properties:
+            currency: { type: string }
+            plus: { type: integer, description: Per household per month, minor units. }
+            earlyUnlock: { type: integer }
+        channels:
+          type: object
+          required: [stripe, play]
+          properties:
+            stripe: { type: boolean, description: Card checkout from the web dashboard. }
+            play: { type: boolean, description: Google Play Billing in Play builds. }
+        canManage: { type: boolean, description: A card subscription exists that the Stripe portal can manage. }
+
+    PlanLimit:
+      type: object
+      required: [error, limit, max]
+      properties:
+        error: { const: plan_limit }
+        limit: { enum: [phones, trusted] }
+        max: { type: integer }
 
     ChangePending:
       type: object
@@ -2734,6 +2823,7 @@ paths:
       tags: [device]
       summary: Create a 15-minute helper invite for a Self phone waiting for a QR invite
       responses:
+        "402": { $ref: "#/components/responses/PlanLimit" }
         "201": { description: Invite URL and expiry }
         "409": { $ref: "#/components/responses/Error" }
   /device/self-template:
@@ -3533,6 +3623,7 @@ paths:
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
+        "402": { $ref: "#/components/responses/PlanLimit" }
         "201":
           description: Claimed. For new clients, the phone must confirm before it receives rules.
           content:
@@ -3569,6 +3660,7 @@ paths:
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
+        "402": { $ref: "#/components/responses/PlanLimit" }
         "201":
           description: Phone entry, token and what the QR code needs
           content:
@@ -5068,6 +5160,7 @@ paths:
       security: [{ session: [] }, { cookie: [] }]
       summary: Create a QR invite for a Self phone waiting for a helper
       responses:
+        "402": { $ref: "#/components/responses/PlanLimit" }
         "201": { description: Invite URL and expiry }
         "409": { $ref: "#/components/responses/Error" }
   /phones/{pid}/self-template:
@@ -5113,6 +5206,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/Key" }
       responses:
+        "402": { $ref: "#/components/responses/PlanLimit" }
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
   /phones/{pid}/emergency-openings:
@@ -5308,3 +5402,251 @@ paths:
       responses:
         "409": { $ref: "#/components/responses/Error" }
         "501": { $ref: "#/components/responses/Error" }
+  /households/{hid}/plan:
+    get:
+      operationId: getHouseholdPlan
+      tags: [billing]
+      summary: The household's plan, limits, usage and prices
+      description: Also answers while billing is off, with plan "unlimited" and no channels.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "404": { $ref: "#/components/responses/Error" }
+  /households/{hid}/plan/checkout:
+    post:
+      operationId: postHouseholdPlanCheckout
+      tags: [billing]
+      summary: Open a Stripe Checkout for the paid plan (web dashboard only)
+      description: Never used by store builds. The plan changes only when Stripe's signed webhook arrives.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Where to send the browser
+          content:
+            application/json:
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /households/{hid}/plan/portal:
+    post:
+      operationId: postHouseholdPlanPortal
+      tags: [billing]
+      summary: Open Stripe's customer portal to change or cancel a card subscription
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Where to send the browser
+          content:
+            application/json:
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /changes/{cid}/early-unlock:
+    get:
+      operationId: getChangeEarlyUnlock
+      tags: [billing]
+      summary: The early unlock offer for a pending change
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      responses:
+        "200":
+          description: The offer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EarlyUnlockOffer" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postChangeEarlyUnlock
+      tags: [billing]
+      summary: Buy an early unlock by card (web dashboard only)
+      description: |
+        Needs the express consent to start before the withdrawal period ends (`consent: true`,
+        never pre-ticked). A retry returns the same purchase and checkout. The change applies about
+        ten minutes after Stripe confirms payment.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [consent]
+              properties:
+                consent: { const: true }
+                locale: { type: string }
+      responses:
+        "201":
+          description: Started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [purchase, checkoutUrl]
+                properties:
+                  purchase: { $ref: "#/components/schemas/EarlyUnlockPurchase" }
+                  checkoutUrl: { type: [string, "null"], format: uri }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /early-unlocks/{id}:
+    get:
+      operationId: getEarlyUnlock
+      tags: [billing]
+      summary: One early unlock purchase (the receipt)
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200":
+          description: The purchase
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EarlyUnlockPurchase" }
+        "404": { $ref: "#/components/responses/Error" }
+  /early-unlocks/{id}/withdraw:
+    post:
+      operationId: postEarlyUnlockWithdraw
+      tags: [billing]
+      summary: Withdraw from the contract (Fortryd aftale)
+      description: Before delivery only. Restores the original wait, refunds in full and mails a receipt. Works also after billing is switched off again.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm: { const: true }
+                name: { type: string, maxLength: 120, description: Only written into the receipt mail, never stored. }
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EarlyUnlockPurchase" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /billing/stripe/webhook:
+    post:
+      operationId: postStripeWebhook
+      tags: [billing]
+      summary: Stripe webhook (signed with STRIPE_WEBHOOK_SECRET)
+      description: Idempotent per event id. Handles checkout.session.*, customer.subscription.* and charge.refunded.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Received }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /billing/play/rtdn:
+    post:
+      operationId: postPlayRtdn
+      tags: [billing]
+      summary: Google Play real-time developer notifications (Pub/Sub push, ?token=PLAY_RTDN_TOKEN)
+      description: Idempotent per Pub/Sub message id. The state is always looked up at Google before it is stored.
+      security: []
+      parameters: [{ name: token, in: query, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Received }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /device/billing:
+    get:
+      operationId: getDeviceBilling
+      tags: [device, billing]
+      summary: The household plan and Play product ids, for Play builds (phone)
+      security: [{ device: [] }]
+      responses:
+        "200": { description: The plan }
+        "404": { $ref: "#/components/responses/Error" }
+  /device/billing/play:
+    post:
+      operationId: postDeviceBillingPlay
+      tags: [device, billing]
+      summary: Report a finished Google Play purchase (phone)
+      description: The server looks the token up at Google, checks it belongs to this household, then acknowledges or consumes it.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, productId, purchaseToken]
+              properties:
+                kind: { enum: [plan, earlyUnlock] }
+                productId: { type: string }
+                purchaseToken: { type: string }
+      responses:
+        "200": { description: Recorded }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /device/early-unlocks:
+    get:
+      operationId: getDeviceEarlyUnlocks
+      tags: [device, billing]
+      summary: Early unlock offers for this Myself phone's pending changes (phone)
+      security: [{ device: [] }]
+      responses:
+        "200": { description: The offers }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postDeviceEarlyUnlock
+      tags: [device, billing]
+      summary: Start an early unlock through Google Play (phone, Play builds only)
+      description: There is no card path from a phone. Returns the product id and the ids to put in the Play purchase.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [changeId, consent]
+              properties:
+                changeId: { type: string, format: uuid }
+                consent: { const: true }
+      responses:
+        "201": { description: Started }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /device/early-unlocks/{id}/withdraw:
+    post:
+      operationId: postDeviceEarlyUnlockWithdraw
+      tags: [device, billing]
+      summary: Withdraw from an early unlock bought on this phone (phone)
+      security: [{ device: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm: { const: true }
+                name: { type: string }
+      responses:
+        "200": { description: Withdrawn }
+        "409": { $ref: "#/components/responses/Error" }
