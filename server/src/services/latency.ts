@@ -99,10 +99,10 @@ export async function recordReceipt(ctx: Ctx, receipt: string, event: "delivered
  * A wake-up was asked for: time it until the phone's next rules fetch. Only the first open wake-up
  * per phone counts, so a burst of changes measures from its first change, which is what the parent waits for.
  */
-export function startWake(ctx: Ctx, phoneId: string, provider: "fcm" | "unifiedpush" | "poll", reason: WakeReason) {
+export async function startWake(ctx: Ctx, phoneId: string, provider: "fcm" | "unifiedpush" | "poll", reason: WakeReason) {
   if (!latencyOn(ctx)) return;
   const now = ctx.now();
-  void ctx.db.execute(sql`insert into ${latencySamples} (path, provider, kind, hour, anchor_at, phone_id)
+  await ctx.db.execute(sql`insert into ${latencySamples} (path, provider, kind, hour, anchor_at, phone_id)
     select 'server-child', ${provider}, ${reason}, ${hourOf(now).toISOString()}::timestamptz, ${now.toISOString()}::timestamptz, ${phoneId}
     where not exists (select 1 from ${latencySamples} where phone_id = ${phoneId} and ms is null)`)
     .catch(quietly("wake"));

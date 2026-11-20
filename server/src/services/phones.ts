@@ -122,10 +122,10 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
   const registration = p.enabled ? p.endpoint ?? p.token : null;
   const usable = Boolean(registration) && (Boolean(p.endpoint) || p.validationKey === fcmValidationKey(ctx.push));
   // Timed until the phone's next rules fetch, whether push or polling brings it (docs/latency.md).
-  if (p.platform === "android") startWake(ctx, phoneId, !usable ? "poll" : p.endpoint ? "unifiedpush" : "fcm", reason);
-  if (!registration || !usable) return;
+  // Written while the push goes out, so the wake-up never waits for it.
+  const timing = p.platform === "android" ? startWake(ctx, phoneId, !usable ? "poll" : p.endpoint ? "unifiedpush" : "fcm", reason) : undefined;
   try {
-    if (await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
+    if (registration && usable && await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
       const sameValidation = p.validationKey === null ? isNull(phones.fcmValidationKey)
         : eq(phones.fcmValidationKey, p.validationKey);
       await ctx.db.update(phones).set(p.endpoint ? { unifiedPushEndpoint: null } : { fcmToken: null, fcmValidationKey: null })
@@ -134,6 +134,7 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
   } catch {
     console.error("phone wakeup failed");
   }
+  await timing;
 }
 
 async function readPhoneSettings(db: Ctx["db"], phoneId: string) {
