@@ -65,6 +65,8 @@ internal object QuickMessageDelivery {
         SilentSos.childSos(sync.rules()) ?: return null
         val prefs = prefs(context)
         val now = System.currentTimeMillis()
+        // The family inbox shows these states for 30 days; keep them there before the prune drops them.
+        org.plainphone.app.inbox.FamilyInbox.settle(context)
         val prune = prefs.edit()
         prefs.all.forEach { (key, value) -> if (value is Long && now - value > 86_400_000L) prune.remove(key) }
         prune.apply()

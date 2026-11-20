@@ -111,8 +111,30 @@ object FamilyInbox {
     /** The thread as the child sees it: the server's copy and what is still only on this phone, oldest first. */
     fun entries(context: Context): List<InboxEntry> = merge(
         thread(context),
-        outbox(context).map { Triple(it.getString("key"), it, QuickMessageDelivery.state(context, it.getString("key"))) },
+        outbox(context).map { Triple(it.getString("key"), it, stateOf(context, it)) },
     )
+
+    /** A settled state kept in the outbox entry wins: the delivery prefs it came from are pruned after a day. */
+    private fun stateOf(context: Context, entry: JSONObject): SendState =
+        entry.optString("state").takeIf { it.isNotEmpty() }?.let { runCatching { SendState.valueOf(it) }.getOrNull() }
+            ?: QuickMessageDelivery.state(context, entry.getString("key"))
+
+    /**
+     * Copies every settled send state into the outbox, so it lives as long as the outbox does (30 days).
+     * [QuickMessageDelivery.send] calls this right before it prunes its day-old delivery prefs.
+     */
+    fun settle(context: Context) {
+        val entries = outbox(context)
+        var changed = false
+        entries.filter { !it.has("state") }.forEach { entry ->
+            val state = QuickMessageDelivery.state(context, entry.getString("key"))
+            if (state != SendState.SENDING) {
+                entry.put("state", state.name)
+                changed = true
+            }
+        }
+        if (changed) prefs(context).edit().putString("outbox", JSONArray(entries).toString()).apply()
+    }
 
     internal fun merge(thread: InboxThread, local: List<Triple<String, JSONObject, SendState>>): List<InboxEntry> {
         val localByServerId = local.associateBy { it.first.substringAfter(':') }

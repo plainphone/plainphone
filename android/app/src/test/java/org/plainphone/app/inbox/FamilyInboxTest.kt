@@ -171,6 +171,25 @@ class FamilyInboxTest {
     }
 
     @Test
+    fun `a sent message keeps its state after the next send prunes the day-old delivery prefs`() {
+        rules()
+        val dayAgo = System.currentTimeMillis() - 2 * 86_400_000L
+        val outbox = JSONArray()
+            .put(JSONObject().put("key", "quick:old").put("text", "Pick me up").put("kind", "quick").put("at", dayAgo))
+            .put(JSONObject().put("key", "quick:lost").put("text", "Call me").put("kind", "quick").put("at", dayAgo))
+        context.getSharedPreferences("plainphone_family_inbox", 0).edit().putString("outbox", outbox.toString()).commit()
+        QuickMessageDelivery.prefs(context).edit().putLong("online:old", dayAgo).putLong("failed:lost", dayAgo).commit()
+
+        assertThat(FamilyInbox.send(context, org.plainphone.app.sync.QuickMessage("q", "Late today", meansSos = false))).isTrue()
+
+        assertThat(QuickMessageDelivery.prefs(context).contains("online:old")).isFalse()
+        val states = FamilyInbox.entries(context).associate { it.text to it.state }
+        assertThat(states["Pick me up"]).isEqualTo(SendState.DELIVERED)
+        assertThat(states["Call me"]).isEqualTo(SendState.FAILED)
+        assertThat(states["Late today"]).isEqualTo(SendState.SENDING)
+    }
+
+    @Test
     fun `nothing is fetched while the inbox is off`() {
         val r = rules(inbox = null)
         serve({ 200 to "{}" }) { FamilyInbox.refresh(context, SosDelivery.api(context), "token", r) }

@@ -128,6 +128,20 @@ describe("child to parent", () => {
     expect((await device.post("/api/device/quick-messages/send", withPosition)).status).toBe(400);
   });
 
+  it("keeps ordinary messages quiet in the child's bedtime while a code word through SOS is urgent", async () => {
+    const { parent, phoneId, device, userId } = await setup();
+    await parent.put(switches(phoneId), { familyInbox: true, quickMessagesEnabled: true, checkIns: true });
+    // Bedtime all day, every day, so the fixed clock is always inside it.
+    const allDay = { kind: "bedtime", days: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1439, allowedPackages: [] };
+    expect((await parent.post(`/api/phones/${phoneId}/schedules`, allDay)).status).toBeLessThan(300);
+    await subscribe(userId);
+    await device.post("/api/device/quick-messages/send", send({}));
+    await device.post("/api/device/quick-messages/send", send({ kind: "checkin", text: "I'm home" }));
+    await device.post("/api/device/sos", { id: randomUUID(), kind: "urgent", trigger: "code", message: "Is the blue bike home?" });
+    await vi.waitFor(() => expect(h.parentPush.sent).toHaveLength(3));
+    expect(h.parentPush.sent.map((p) => p.urgent)).toEqual([false, false, true]);
+  });
+
   it("keeps code words in the SOS flow: urgent, and never in the thread", async () => {
     const { parent, phoneId, device, userId } = await setup();
     await parent.put(switches(phoneId), { familyInbox: true, quickMessagesEnabled: true });

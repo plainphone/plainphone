@@ -76,7 +76,9 @@ conversation. It is never stored in the thread on the server; its history is the
 The server can read the family inbox, like the quick messages: it is not end-to-end encrypted.
 The dashboard, the parent app and the child's phone say so. The thread keeps the newest 50 messages
 per phone and nothing older than 30 days, and it is deleted with the phone. Free text from the child
-is not possible: the child sends only approved quick messages and check-ins. A parent's reply is at
+is not offered: the phone only lets the child send approved quick messages and check-ins. The server
+does not check the text against the approved list (at most 60 characters), because it records what
+the phone has already sent, even if a parent removed that quick message in the meantime. A parent's reply is at
 most 60 characters. End-to-end encryption and free text are a separate piece of work
 ([research](research/family-comms-issues.md)).
 
