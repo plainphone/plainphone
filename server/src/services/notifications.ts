@@ -328,6 +328,8 @@ async function alertNeverConnectedPhones(ctx: Ctx, hours: ReturnType<typeof sql>
         isNull(phones.pairedAt),
         isNotNull(phones.deviceTokenHash),
         eq(phones.mode, "light"),
+        // A phone moving to another server has a redeemed token but no sync yet: not a lost confirmation.
+        eq(phones.awaitingServerMove, false),
         isNull(phones.offlineAlertedAt),
         // The parents' "offline alerts off" choice for the phone covers this reminder too.
         sql`${hours} > 0`,

@@ -476,7 +476,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           )}
         </>
       )}
-      {!showHealth && !(phone.rulesDnsReady ?? phone.dnsReady) && (
+      {!showHealth && (phone.dnsConfigured === false || !(phone.rulesDnsReady ?? phone.dnsReady)) && (
         <p className="notice notice-info status-dns">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "phone.dnsWaiting")}</p>
       )}
       {phone.attestation?.lastFailedAt && (

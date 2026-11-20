@@ -21,12 +21,8 @@ export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phon
       .where(eq(householdMembers.householdId, phone.householdId));
     for (const { id } of members) deliveries.push({ ...notice, userId: id });
   }
-  if (recipients.length === 0) {
-    if (deliveries.length > 0) await tx.insert(setupUndoNotices).values(deliveries);
-    return;
-  }
   const platforms = (["web", "apns", "fcm"] as const).filter((platform) => parentPushEnabled(ctx.parentPush, platform));
-  if (platforms.length) {
+  if (platforms.length && recipients.length) {
     const subscriptions = await tx.select({ id: pushSubscriptions.id, userId: pushSubscriptions.userId })
       .from(pushSubscriptions).where(and(deliverablePushSubscription(), inArray(pushSubscriptions.platform, platforms),
         inArray(pushSubscriptions.userId, recipients.map(({ id }) => id))));

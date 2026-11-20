@@ -10,7 +10,7 @@ import { FilterPage } from "./Filter";
 
 const { host, state, methodChanged, reload } = vi.hoisted(() => ({
   host: "phone.dns.example.test",
-  state: { method: "privateDns" as "vpn" | "privateDns", host: "phone.dns.example.test" as string | null, rulesReady: undefined as boolean | undefined },
+  state: { configured: true, method: "privateDns" as "vpn" | "privateDns", host: "phone.dns.example.test" as string | null, rulesReady: undefined as boolean | undefined },
   methodChanged: vi.fn<(checked: boolean) => void>(),
   reload: vi.fn(),
 }));
@@ -18,7 +18,7 @@ const { host, state, methodChanged, reload } = vi.hoisted(() => ({
 vi.mock("./Phone", async (importOriginal) => ({
   ...await importOriginal<typeof import("./Phone")>(),
   usePhone: () => ({
-    phone: { id: "phone", mode: "light", dnsReady: false, dnsConfigured: true },
+    phone: { id: "phone", mode: "light", dnsReady: false, dnsConfigured: state.configured },
     pending: [],
     run: (action: () => Promise<unknown>) => action(),
   }),
@@ -43,6 +43,7 @@ beforeEach(() => {
   state.method = "privateDns";
   state.host = host;
   state.rulesReady = undefined;
+  state.configured = true;
   methodChanged.mockReset();
   reload.mockClear();
   vi.stubGlobal("localStorage", { getItem: () => "en" });
@@ -148,4 +149,11 @@ it("shows the Private DNS repair notice when the health card is off", () => {
   );
   expect(html).toContain(makeT("en")("filter.privateUnverified"));
   expect(html).not.toContain("<dt>Web filter</dt>");
+});
+
+it("says the server has no web filter service even when the phone counts as ready", () => {
+  state.configured = false;
+  state.rulesReady = true;
+  const html = renderFilter();
+  expect(html).toContain(makeT("en")("filter.noDnsService"));
 });
