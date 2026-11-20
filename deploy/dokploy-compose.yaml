@@ -7,7 +7,7 @@
 # GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET.
 # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (Web Push; generate with
 # `pnpm --filter @plainphone/server exec tsx src/lib/webpush.ts`), and optionally
-# VAPID_SUBJECT, OFFLINE_ALERT_HOURS, PUSH_EXTRA_HOSTS.
+# VAPID_SUBJECT, OFFLINE_ALERT_HOURS, PUSH_EXTRA_HOSTS, IOS_PAIRING_ENABLED.
 services:
   db:
     image: postgres:18
@@ -61,6 +61,7 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:privacy@plainphone.org}
       OFFLINE_ALERT_HOURS: ${OFFLINE_ALERT_HOURS:-12}
       PUSH_EXTRA_HOSTS: ${PUSH_EXTRA_HOSTS:-}
+      IOS_PAIRING_ENABLED: ${IOS_PAIRING_ENABLED:-false}
       # Traefik sits in front, so X-Forwarded-For is trustworthy here.
       TRUST_PROXY: "true"
     expose:
