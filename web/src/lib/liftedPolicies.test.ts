@@ -16,6 +16,13 @@ it("waits out the two-minute grace after the deadline", () => {
   expect(liftedNotice(status([at(-121_000)]), NOW)).toEqual({ until: at(-121_000).until, overdue: true });
 });
 
+it("does not call a phone silent that reported after the deadline", () => {
+  const late = { ...status([at(-600_000)]), reportedAt: new Date(NOW - 570_000).toISOString() };
+  expect(liftedNotice(late, NOW)).toBeNull();
+  const before = { ...status([at(-600_000)]), reportedAt: new Date(NOW - 700_000).toISOString() };
+  expect(liftedNotice(before, NOW)).toEqual({ until: at(-600_000).until, overdue: true });
+});
+
 it("leaves a step the server already lists as failed to the lock warning", () => {
   expect(liftedNotice(status([at(-600_000)], [NAME]), NOW)).toBeNull();
 });

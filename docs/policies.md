@@ -89,6 +89,8 @@ While any install lease is open, or still needs recovery, Plainphone sets `DISAL
 
 Residual risk: a maker's own "close all apps" or battery tool that force-stops apps without going through Settings is not blocked. The server raises an alert when a phone that reported a lifted account restriction stays silent after its deadline (see "Status while lifted").
 
+**No separate switch (#75).** The Force stop guard, the approved accounts, the "allowed until" line and its overdue alert have no toggle of their own. They are part of the account and install lock in strong mode: they only act while that lock lifts a restriction for a window the parents opened, and they close gaps in it rather than add a feature. Turning them off would only leave the lock open after a Force stop or let an unapproved account through silently. A toggle would also need a new per-phone column, so it belongs in its own change if parents ask for it.
+
 ## Other policies
 
 | Policy | What it does | Reference |

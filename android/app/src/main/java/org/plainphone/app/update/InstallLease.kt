@@ -441,7 +441,7 @@ class InstallLease(
                         val wasLifted = !app.getSystemService(android.os.UserManager::class.java).hasUserRestriction(accounts)
                         device.addRestriction(accounts)
                         // The dashboard showed "lifted until": tell it the restriction is back before the deadline alert.
-                        if (wasLifted) org.plainphone.app.sync.SyncScheduler.now(app, "account restriction back")
+                        if (wasLifted) org.plainphone.app.sync.SyncScheduler.lockStateChanged(app, "account restriction back")
                     } else if (sync.releaseAsked && !sync.released) {
                         // A withdrawn release must not leave accounts unlocked until something else applies.
                         lock.accountRelockSkippedForRelease(app)

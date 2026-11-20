@@ -48,7 +48,7 @@ internal object ApprovedAccounts {
         val late = current - approved - reported
         if (late.isNotEmpty()) {
             StatusNotices(context).record(StatusNotices.LATE_GOOGLE_ACCOUNT)
-            SyncScheduler.now(context, "Google account outside the approved set")
+            SyncScheduler.lockStateChanged(context, "Google account outside the approved set")
         }
         save(context, approved intersect current, (reported + late) intersect current)
     }

@@ -85,7 +85,7 @@ internal object CatalogAccounts {
                 })
                 check(!context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
                 // The dashboard shows the restriction as lifted until the fallback's deadline.
-                SyncScheduler.now(context, "Accounts allowed briefly")
+                SyncScheduler.lockStateChanged(context, "Accounts allowed briefly")
             }
             // A new approved request must not end the tracking of an expired fallback: its login can still
             // finish. Check for additions already present in case the account listener has not run yet,

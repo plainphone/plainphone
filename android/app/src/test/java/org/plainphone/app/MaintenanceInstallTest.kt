@@ -709,7 +709,7 @@ class MaintenanceInstallTest {
         assertThat(lifted.name).isEqualTo(LiftedPolicy.ACCOUNTS)
         assertThat(lifted.untilMs).isIn(com.google.common.collect.Range.closed(before, System.currentTimeMillis() + CatalogAccounts.FALLBACK_MS))
         val step = Lock.applyNow(context, "lifted status").single { it.name == LiftedPolicy.ACCOUNTS }
-        assertThat(step.liftedUntilMs).isEqualTo(lifted.untilMs)
+        assertThat(step.detail).isEqualTo("lifted for an approved sign-in")
         assertThat(accountsBlocked()).isFalse()
 
         ShadowSystemClock.advanceBy(Duration.ofMinutes(3))

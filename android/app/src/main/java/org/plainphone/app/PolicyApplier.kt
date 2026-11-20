@@ -10,11 +10,8 @@ import org.plainphone.app.settings.SettingsApplier
 data class StepResult(val name: String, val ok: Boolean, val detail: String = "", val profilesRemoved: Boolean = false,
     /** Not a failure, but not in force yet either: no acknowledgment until a later run succeeds. */
     val waiting: Boolean = false,
-    /** Deliberately lifted for an approved window until this wall-clock time: not a failure, not in force either. */
-    val liftedUntilMs: Long? = null,
 ) {
-    override fun toString() = (if (liftedUntilMs != null) "LIFT " else if (ok) "OK   " else "FAIL ") + name +
-        if (detail.isEmpty()) "" else ": $detail"
+    override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
 }
 
 /** Remembers which apps we hid, so they can be shown again. */
@@ -83,14 +80,13 @@ class PolicyApplier(
             }
         }
         for (key in LockPolicy.restrictions(sdkInt, config.lockSystemLanguage)) {
-            var liftedUntil: Long? = null
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
             else step("restriction $key") {
                 if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
-                    liftedUntil = enforceAccountRestriction { device.addRestriction(key) }
-                    if (liftedUntil != null) "lifted for an approved sign-in" else null
+                    // The status report reads the lifted state from LiftedPolicy; the log only needs the detail.
+                    if (enforceAccountRestriction { device.addRestriction(key) } != null) "lifted for an approved sign-in" else null
                 } else device.addRestriction(key)
-            }.copy(liftedUntilMs = liftedUntil)
+            }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
