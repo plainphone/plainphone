@@ -176,6 +176,7 @@ that yet.
 
 - Self phones keep school time and bedtime.
 - Custom contact groups. The three groups are fixed.
-- Moving a phone to another server does not carry modes or contact groups: on the new server modes are
-  off and every contact is in Others, which is the safe side.
+- Moving a phone to another server does not carry modes or contact groups yet. The phone only moves to
+  a server that sends the same protection rules, so with modes on it stays on the old server. Turn modes
+  off first, move, and set them up again.
 - A mode cannot change the web filter or the time limits.

@@ -20,7 +20,7 @@ phone cannot tell where it is, every local number counts. A country it knows but
 
 ## The states
 
-Strong and light mode, Child and Myself phones, open mode, school time, bedtime (silent or not), the
+Strong and light mode, Child and Myself phones, open mode, school time, bedtime (silent or not), [modes](modes.md) (a mode that opens no contact group and no app, quiet or not), the
 daily cap and app limits used up, "Ask for more time" pending, approval with the parent PIN on, an app
 update window open, an app being installed, the phone released, and offline (the last rules keep
 applying). The states that are only requests (more time pending, PIN approval pending) change no rule
@@ -42,6 +42,9 @@ They do not list the states by hand:
   `EmergencyNumbers.LOCAL`: all emergency numbers, every parent (both directions, calls and texts, and
   that an incoming parent call rings at silent bedtime, the call-back from any number after an emergency call, and a help line replying to a call), and every number in the help line catalog
   (`server/catalog/helplines`). The family inbox must still be offered on a Child phone that is not released.
+  Modes add states of their own: a mode on all day that opens no contact group (quiet or not), a parent
+  whose stored group is Others, a parent missing from the list, no parents marked, and a broken modes block.
+  A control checks that the mode really keeps an Others contact out, so these states are not vacuous.
 - **Android, apps.** The worst app rules (school time that allows nothing, every app used up, open mode
   blocking everything, an update window holding every app back, an install window, all at once) are
   applied with `PolicyApplier` and `LightPlan`. The own app, the system dialer, the SMS app and the other
@@ -50,7 +53,8 @@ They do not list the states by hand:
   every nullable timestamp is set, every schedule kind runs all day and the caps are used up. After each,
   `GET /device/rules` must still carry every contact, the SOS parents and the family inbox. A new column is
   picked up by the next run. A phone that was released still gets its contacts, and an SOS it already sent
-  by SMS is still recorded.
+  by SMS is still recorded. With modes on and a mode that opens no group and no app all day, the rules
+  still carry every contact and the parents, and a parent goes out as Family.
 - **No date dependence.** An all-day window is `start == end`, which is on at every moment, so the tests give
   the same answer on any day.
 - **It can fail.** A control test feeds a phone with the parents missing and expects violations, and the
