@@ -4,7 +4,7 @@ import { SosOptions } from "../../../components/SosOptions";
 import { SosPanel } from "../../../components/SosPanel";
 import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/models";
@@ -388,8 +388,8 @@ const systemStatus = {
 /** What the release metadata said: still asking, could not be read, or the latest version. */
 type LatestCheck = { state: "checking" } | { state: "failed" } | { state: "done"; latest: LatestVersion };
 
-/** `refreshKey` changes on pull-to-refresh: the metadata is asked again, as it is whenever the screen gets focus. */
-function PhoneAppVersion({ phoneId, status, refreshKey }: { phoneId: string; status: NonNullable<Phone["status"]>; refreshKey: number }) {
+/** The metadata is asked again whenever the screen gets focus, and on pull-to-refresh (the parent remounts this). */
+function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNullable<Phone["status"]> }) {
   const { t } = useI18n();
   const { notify } = usePhone();
   const [busy, setBusy] = useState(false);
@@ -410,7 +410,7 @@ function PhoneAppVersion({ phoneId, status, refreshKey }: { phoneId: string; sta
       .catch(() => undefined)
       .then((latest) => { if (active) setCheck(latest ? { state: "done", latest } : { state: "failed" }); });
     return () => { active = false; };
-  }, [checkSigningKey, refreshKey]));
+  }, [checkSigningKey]));
 
   async function requestUpdate() {
     setBusy(true);
@@ -574,7 +574,7 @@ function Overview() {
         </VStack>
       ) : null}
       <ReleaseNotice />
-      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} refreshKey={updateCheck} /> : null}
+      {phone.status?.appVersion ? <PhoneAppVersion key={`${phone.id}-${updateCheck}`} phoneId={phone.id} status={phone.status} /> : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
       {overrun !== undefined || technicalSteps.length > 0 ? (
         <Disclosure title={t("phone.lockDetails")}>
