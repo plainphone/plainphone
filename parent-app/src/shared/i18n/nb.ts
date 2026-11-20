@@ -34,6 +34,7 @@ export const nb: Messages = {
   "nav.logout": "Logg ut",
   "nav.language": "Språk",
   "nav.privacy": "Personvern",
+  "nav.status": "Status",
 
   "error.generic": "Noe gikk galt. Prøv igjen.",
   "error.network": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen.",

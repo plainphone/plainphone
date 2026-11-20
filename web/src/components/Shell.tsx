@@ -10,6 +10,9 @@ import { Mark } from "./Mark";
 /** The privacy policy lives on the website, in the language of the app. */
 const privacyUrl = (locale: string) => `https://plainphone.org${locale === "en" ? "" : `/${locale}`}/privacy/`;
 
+/** The public status page, served by Uptime Kuma. */
+const STATUS_URL = "https://status.plainphone.org";
+
 export function Shell() {
   const { t, locale } = useI18n();
   const { state, logout, saveLocale } = useSession();
@@ -101,6 +104,9 @@ export function Shell() {
       <footer className="wrap site-footer">
         <a href={privacyUrl(locale)} target="_blank" rel="noopener noreferrer">
           {t("nav.privacy")}
+        </a>
+        <a href={STATUS_URL} target="_blank" rel="noopener noreferrer">
+          {t("nav.status")}
         </a>
       </footer>
     </>

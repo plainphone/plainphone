@@ -167,3 +167,32 @@ weekly catch-up and credential handling. It also checks that failed dumps leave
 the status and heartbeat untouched. The AWS CLI uses a local HTTP fixture for
 object transfers. The operational drill above verifies the actual bucket,
 credentials and stored backups.
+
+## Monitoring and the public status page
+
+The hosted service is watched by [Uptime Kuma](https://github.com/louislam/uptime-kuma)
+on the monitor host. The same instance serves the public status page at
+<https://status.plainphone.org>, which the web dashboard, the parent app and
+the website link to as "Status".
+
+Monitors:
+
+| Monitor | Type | What it checks |
+| --- | --- | --- |
+| App health | HTTP | The server's health endpoint answers. |
+| DNS port 853 | TCP | The filter's DNS-over-TLS port accepts connections. |
+| DoT self-test | Push | Real filtering works end to end (see below). |
+| plainphone.org | HTTP | The website is up. |
+| Backups | Push | One monitor per backup job, see [Schedule and monitor](#schedule-and-monitor). |
+
+The DoT self-test is `python -m ppdns selftest`, run by ppdns every 5 minutes
+(`PPDNS_SELFTEST_MINUTES`) with the DoT client in `dns/ppdns/dot.py`. It
+connects over DoT with a hidden `monitor-…` ClientID and checks that
+`example.com` resolves, that `googlesyndication.com` is blocked, that the
+certificate AdGuard serves has at least 10 days left and that the last backup
+is recent. ppdns reports the result to the Kuma push monitor in
+`PPDNS_KUMA_PUSH_URL`. If no result arrives, the monitor goes down, so a
+stopped self-test also alerts. Treat the push URL as a secret.
+
+Alerts from Kuma go through the notify relay to the operator. Self-hosters can
+use any Kuma notification channel.
