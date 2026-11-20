@@ -55,6 +55,9 @@ export const FEATURES = [
   "maintenance",
   "selfKeys",
   "phoneSettings",
+  // Where an iPhone's apps are picked (docs/ios/architecture.md, "App selections").
+  "pickAppsOnParent",
+  "pickAppsOnPhone",
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 export type Capabilities = Record<Feature, Support>;
@@ -62,8 +65,8 @@ export type Capabilities = Record<Feature, Support>;
 const all = (support: Support): Capabilities =>
   Object.fromEntries(FEATURES.map((f) => [f, support])) as Capabilities;
 
-/** Device Owner: everything Plainphone has. */
-const STRONG: Capabilities = all("yes");
+/** Device Owner: everything Plainphone has. Apple's app picker is iPhone-only. */
+const STRONG: Capabilities = { ...all("yes"), pickAppsOnParent: "no", pickAppsOnPhone: "no" };
 
 /** An ordinary app (docs/light-mode.md, "What can be got around"). */
 const LIGHT: Capabilities = {
@@ -104,6 +107,10 @@ const FAMILY_CONTROLS: Capabilities = {
   calmHome: "no",
   selfKeys: "partial", // the owner can revoke authorization in Settings
   phoneSettings: "no",
+  // Spike (a) decides whether tokens picked on the parent's iPhone work on the child's: until it
+  // has run on a real iPhone this stays partial, and it becomes "no" if they do not.
+  pickAppsOnParent: "partial",
+  pickAppsOnPhone: "yes", // FamilyActivityPicker on the child's iPhone, after the parent PIN
 };
 
 /** Tier 2: Tier 1 plus a supervised profile from Apple Configurator. */

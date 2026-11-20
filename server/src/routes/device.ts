@@ -8,7 +8,8 @@ import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { fcmValidationKey, WAKE_PROVIDERS } from "../providers/push.js";
-import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { IOS_PAIRING_NOT_YET, iosLockIntact, iosStatusInput } from "../lib/ios.js";
+import { contacts, PLATFORMS, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
@@ -43,6 +44,7 @@ import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
 import { deviceBillingRoutes } from "./billing.js";
 import { isAllowed, planLimitBody } from "../services/billing.js";
+import { deviceIosSelectionRoutes } from "./ios-selection.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -86,8 +88,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!pairStartLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many pairings" });
     const input = await body(
       c,
-      z.object({ mode: z.enum(["strong", "light"]).default("strong"), deviceInfo: deviceInfo.optional(), profile: z.enum(["child", "self"]).optional(), confirmOnPhone: z.boolean().optional() }),
+      z.object({ mode: z.enum(["strong", "light"]).default("strong"), deviceInfo: deviceInfo.optional(), profile: z.enum(["child", "self"]).optional(), confirmOnPhone: z.boolean().optional(), platform: z.enum(PLATFORMS).default("android") }),
     );
+    // iPhones pair only once the iOS app ships (docs/ios/architecture.md). The app shows this code's text.
+    if (input.platform === "ios" && !ctx.cfg.IOS_PAIRING_ENABLED) return c.json(IOS_PAIRING_NOT_YET, 403);
     const code = pairingCode();
     const pollSecret = randomToken();
     const expiresAt = new Date(ctx.now().getTime() + PAIRING_MINUTES * 60_000);
@@ -96,7 +100,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .values({
         codeHash: sha256(code),
         pollSecretHash: sha256(pollSecret),
-        mode: input.mode,
+        // An iPhone has no Device Owner: like an ordinary app, it is a light phone (docs/ios/architecture.md).
+        mode: input.platform === "ios" ? "light" : input.mode,
+        platform: input.platform,
         deviceInfo: input.deviceInfo ?? null,
         expiresAt,
         profileHint: input.profile,
@@ -106,6 +112,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json(
       {
         pairingId: p!.id,
+        platform: p!.platform,
         confirmOnPhone: p!.requiresConfirmation,
         code,
         pollSecret,
@@ -291,6 +298,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   deviceBillingRoutes(app, ctx);
   deviceSosRoutes(app, ctx);
   deviceMoreTimeRoutes(app, ctx);
+  deviceIosSelectionRoutes(app, ctx);
 
   app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = c.get("phone");
@@ -760,6 +768,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           .record(limitTarget, z.number().int().min(0).max(1440))
           .refine((r) => Object.keys(r).length <= 200, "at most 200 entries")
           .optional(),
+        // iPhones only (docs/ios/architecture.md, "Receipts and status").
+        ios: iosStatusInput.optional(),
         appUpdates: z.object({
           id: z.string().min(1).max(64),
           trigger: z.enum(["night", "parent"]),
@@ -776,8 +786,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     // light protections are on, no policy failed and no maintenance unlock runs, whatever
     // it says about lockIntact. The server only ever makes this stricter.
     const p = input.protections;
-    const light = phone.mode === "light" || input.mode === "light";
-    const lockIntact =
+    const iphone = phone.platform === "ios";
+    // An iPhone has its own lock (Family Controls), not light mode's six protections.
+    const light = !iphone && (phone.mode === "light" || input.mode === "light");
+    const lockIntact = iphone ? iosLockIntact(input) :
       input.lockIntact &&
       (!light ||
         (p !== undefined &&

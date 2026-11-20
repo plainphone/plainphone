@@ -19,6 +19,7 @@ import {
   provisioningPayload,
   provisioningQr,
 } from "../lib/provisioning";
+import { useIosPairing } from "../lib/session";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
 import type { PhoneLanguage } from "../lib/phone-language";
 import "./add-phone.css";
@@ -372,6 +373,8 @@ export function buildQr(
 
 function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
   const { t } = useI18n();
+  // Only while the server pairs iPhones (IOS_PAIRING_ENABLED, docs/ios/architecture.md).
+  const iphone = useIosPairing();
   return (
     <>
       <PageTitle>{t("add.modeTitle")}</PageTitle>
@@ -384,6 +387,12 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
           <span className="choice-title">{t("add.modeLight")}</span>
           <span className="choice-desc">{t("add.modeLightHelp")}</span>
         </button>
+        {iphone && (
+          <Link className="choice" to="/add/iphone">
+            <span className="choice-title">{t("platform.iphone.add")}</span>
+            <span className="choice-desc">{t("platform.iphone.addHelp")}</span>
+          </Link>
+        )}
       </div>
       <p><Link className="btn btn-secondary" to="/pair">{t("add.useCode")}</Link></p>
     </>

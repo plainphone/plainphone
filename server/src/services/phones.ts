@@ -23,6 +23,7 @@ import {
   selfKeys,
 } from "../db/schema.js";
 import { capabilities, phoneTier } from "../lib/capabilities.js";
+import { iosRulesDocument, loadIosSelection, type IosSelectionMeta } from "./ios-rules.js";
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import { fcmValidationKey, type WakeReason } from "../providers/push.js";
@@ -62,6 +63,8 @@ export async function createPhone(
     name: string;
     profile: "child" | "self";
     mode: "strong" | "light";
+    /** An iPhone starts on Family Controls (docs/ios/architecture.md); default Android. */
+    platform?: Phone["platform"];
     /** Null for a phone made for a provisioning QR code: it pairs itself later (enrollment). */
     deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
@@ -78,7 +81,9 @@ export async function createPhone(
       name: input.name,
       profile: input.profile,
       mode: input.mode,
-      filterMethod: input.mode === "light" ? input.filterMethod : "vpn",
+      platform: input.platform ?? "android",
+      iosTier: input.platform === "ios" ? "family_controls" : null,
+      filterMethod: input.mode === "light" && input.platform !== "ios" ? input.filterMethod : "vpn",
       deviceTokenHash: input.deviceTokenHash,
       deviceInfo: input.deviceInfo,
       dnsClientId: dnsClientId(),
@@ -211,6 +216,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
   return {
     phone: {
       id: phone.id,
+      platform: phone.platform,
+      iosTier: phone.iosTier,
       allowServerMove: allowsServerMove(phone),
       profile: phone.profile,
       pushProvider: !phone.pushWakeups ? "none" : !phone.preferUnifiedPush && ctx.push.fcmAvailable ? "fcm"
@@ -283,7 +290,7 @@ export function nextRulesRevision(dns = false) {
 }
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows, emergency }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined, earlyUnlock: EarlyUnlockRules | null = null) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows, emergency }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined, iosSelection: IosSelectionMeta | null = null, earlyUnlock: EarlyUnlockRules | null = null) {
   const apps = allApps.filter((a) => a.installed);
   // Open mode: everything is allowed except the block list (apps blocked one by one plus the
   // known apps of the blocked categories, also when they are not installed yet).
@@ -408,14 +415,22 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     limitWarningEnabled: phone.limitWarningEnabled,
     pollSeconds: safety.fast ? FAST_POLL_SECONDS : POLL_SECONDS,
   };
-  const body = JSON.stringify(doc);
+  // An iPhone gets the part it can act on (docs/ios/architecture.md, "iOS rules document").
+  const tier = phoneTier(phone);
+  const body = JSON.stringify(phone.platform === "ios"
+    ? iosRulesDocument(doc, tier, capabilities(tier), phone.openMode, iosSelection)
+    : doc);
   const etag = `"${createHash("sha256").update(body).digest("base64url").slice(0, 27)}"`;
   return { body, etag };
 }
 
 export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
-  const [inputs, move, earlyUnlock] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone), earlyUnlockRules(ctx, phone)]);
-  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST, earlyUnlock);
+  const [inputs, move, iosSelection, earlyUnlock] = await Promise.all([
+    loadRulesInputs(ctx, phone), moveInstruction(ctx, phone),
+    phone.platform === "ios" ? loadIosSelection(ctx.db, phone.id) : null,
+    earlyUnlockRules(ctx, phone),
+  ]);
+  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST, iosSelection, earlyUnlock);
   return { etag, body: candidates.includes(etag) ? null : body, hasMove: move !== null };
 }
 

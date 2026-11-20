@@ -8,8 +8,18 @@ import { api, type App, type ChangeResult } from "../lib/api";
 import { usePhone } from "./Phone";
 import { Chevron } from "./Phones";
 import { OpenModePanel } from "./OpenMode";
+import { IphoneApps } from "../components/IphoneApps";
+import { isIphone } from "../lib/platform";
 
 export function AppsPage() {
+  const { phone } = usePhone();
+  // An iPhone's apps are Apple's coded selection, not package names. Open mode's categories are
+  // package lists, so the iPhone page leaves them out instead of showing switches that do nothing.
+  if (isIphone(phone)) return <IphoneApps phone={phone} />;
+  return <AndroidApps />;
+}
+
+function AndroidApps() {
   const { t, locale } = useI18n();
   const { phone, run, setApps, pending } = usePhone();
   const res = useLoad(() => api.get<{ apps: App[] }>(`/phones/${phone.id}/apps`).then((r) => r.apps), [phone.id]);

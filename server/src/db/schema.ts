@@ -18,6 +18,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { ProvisioningInfo } from "../lib/provisioning.js";
+import type { IosStatus } from "../lib/ios.js";
 import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
@@ -131,6 +132,8 @@ export const PRIVATE_DNS_ISSUES = ["off", "automatic", "wrongHost", "waiting", "
 export type FilterMethod = (typeof FILTER_METHODS)[number];
 
 export interface DeviceStatus {
+  /** iPhones only (docs/ios/architecture.md). */
+  ios?: IosStatus;
   pushProvider?: "none" | "fcm" | "unifiedpush";
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
@@ -390,6 +393,8 @@ export const pairings = pgTable("pairings", {
   deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
   phoneId: uuid("phone_id").references(() => phones.id, { onDelete: "cascade" }),
   profileHint: text("profile_hint", { enum: ["child", "self"] }),
+  /** What the phone said it is; `ios` only while IOS_PAIRING_ENABLED is on. */
+  platform: text("platform", { enum: PLATFORMS }).notNull().default("android"),
   requiresConfirmation: boolean("requires_confirmation").notNull().default(false),
   claimedBy: uuid("claimed_by").references(() => users.id, { onDelete: "set null" }),
   /** Device token available for delivery or recovery until the first sync. */
@@ -1128,3 +1133,20 @@ export const earlyUnlocks = pgTable(
     uniqueIndex("early_unlocks_provider_ref_idx").on(t.channel, t.providerRef),
   ],
 );
+
+/** Who picked an iPhone's apps (docs/ios/architecture.md, "App selections"). */
+export const IOS_SELECTION_SOURCES = ["parent", "phone"] as const;
+
+/**
+ * An iPhone's app selection: Apple's encoded FamilyActivitySelection, opaque to the server.
+ * One per phone. Only the iPhone can read the tokens in it.
+ */
+export const iosSelections = pgTable("ios_selections", {
+  phoneId: uuid("phone_id").primaryKey().references(() => phones.id, { onDelete: "cascade" }),
+  /** Base64 of the encoded selection, as the app sent it. */
+  selection: text("selection").notNull(),
+  source: text("source", { enum: IOS_SELECTION_SOURCES }).notNull(),
+  /** The parent who sent it; null when it was picked on the phone. */
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});

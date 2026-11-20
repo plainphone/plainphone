@@ -80,6 +80,15 @@ const schema = z.object({
    */
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  /**
+   * iPhone pairing (docs/ios/architecture.md, phase 1). Off until the iOS app ships: the server
+   * then answers `platform: "ios"` pairings with `ios_pairing_not_yet`, and the dashboard and
+   * the parent app hide "Add an iPhone".
+   */
+  IOS_PAIRING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   /** Pay to unlock (D13). Off until a payment provider is integrated. */
   PAYMENTS_ENABLED: z
     .enum(["true", "false"])
