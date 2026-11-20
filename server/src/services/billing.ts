@@ -4,6 +4,7 @@
 // "is this allowed". With BILLING_ENABLED off (the default) every answer is "yes" and every
 // household reports the unlimited plan.
 
+import { errorSummary } from "../lib/log.js";
 import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { billingSubscriptions, householdMembers, households, phones, selfKeys } from "../db/schema.js";
 import type { Ctx } from "./context.js";
@@ -222,7 +223,7 @@ export async function cancelSubscriptions(ctx: Ctx, subs: (typeof billingSubscri
       if (s.provider === "play" && ctx.billing?.play && s.productRef) await ctx.billing.play.cancelSubscription(s.productRef, s.subscriptionRef);
     } catch (err) {
       // Logged without ids: Mahope cancels by hand in the provider's dashboard (docs/billing.md).
-      console.error(`billing: could not cancel a ${s.provider} subscription of a deleted household: ${(err as Error).message}`);
+      console.error(`billing: could not cancel a ${s.provider} subscription of a deleted household: ${errorSummary(err)}`);
     }
   }
 }

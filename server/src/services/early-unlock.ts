@@ -6,6 +6,7 @@
 // charity share. Withdrawal before delivery restores the wait and refunds in full; a failed,
 // duplicated or undeliverable unlock is refunded too.
 
+import { errorSummary } from "../lib/log.js";
 import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { earlyUnlocks, households, pendingChanges, phones, selfKeys, users } from "../db/schema.js";
 import { earlyUnlockReceiptMail, withdrawalReceiptMail } from "../lib/billing-mail.js";
@@ -278,7 +279,7 @@ export async function refundNow(ctx: Ctx, row: Row): Promise<boolean> {
       await ctx.billing.play.refundOrder(row.providerRef);
     }
   } catch (err) {
-    console.error(`early unlock refund failed, will retry: ${(err as Error).message}`);
+    console.error(`early unlock refund failed, will retry: ${errorSummary(err)}`);
     return false;
   }
   await ctx.db.update(earlyUnlocks).set({ status: "refunded", refundedAt: ctx.now() })
@@ -330,6 +331,6 @@ async function sendReceipt(ctx: Ctx, row: Row, kind: "purchase" | "withdrawal", 
       : withdrawalReceiptMail(user.email, locale, ctx.cfg.PUBLIC_URL, row, h?.tz ?? "Europe/Copenhagen", extra.name);
     await ctx.mail.send(mail);
   } catch (err) {
-    console.error(`could not send the early unlock receipt: ${(err as Error).message}`);
+    console.error(`could not send the early unlock receipt: ${errorSummary(err)}`);
   }
 }
