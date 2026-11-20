@@ -35,6 +35,7 @@ import { APP_CATEGORIES, categoryPackages } from "../lib/open-mode.js";
 import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 import { sosRulesExtras } from "./quick-messages.js";
+import { agreementRules } from "./age-review.js";
 import { inboxRules } from "./family-inbox.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -222,6 +223,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       changeReceiptsEnabled: phone.changeReceiptsEnabled,
       healthBoardEnabled: phone.healthBoardEnabled,
       weeklySummaryEnabled: phone.weeklySummaryEnabled,
+      agreement: agreementRules(phone),
       silentBedtime: phone.silentBedtime,
       pinApprovalEnabled: phone.pinApprovalEnabled,
       appUpdatesEnabled: phone.appUpdatesEnabled,
@@ -324,6 +326,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     ...(phone.profile === "child" ? { sos: { name: phone.name, parents: contactRows.filter((c) => c.sosParent).map(({ name, number }) => ({ name, number })), ...sosExtras } } : {}),
     // The family inbox (docs/family-inbox.md); left out while it is off.
     ...(inbox ? { inbox } : {}),
+    // The family agreement (docs/family-agreement.md); left out while it is off or empty.
+    ...(phone.agreement ? { ageAgreement: phone.agreement } : {}),
     schedules: scheduleRows.map((s) => ({
       id: s.id,
       kind: s.kind,
@@ -566,6 +570,14 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     changeReceiptsEnabled: phone.changeReceiptsEnabled,
     healthBoardEnabled: phone.healthBoardEnabled,
     weeklySummaryEnabled: phone.weeklySummaryEnabled,
+    agePreset: phone.agePreset,
+    reviewEnabled: phone.reviewEnabled,
+    reviewIntervalMonths: phone.reviewIntervalMonths,
+    reviewDueAt: phone.reviewEnabled ? phone.reviewDueAt?.toISOString() ?? null : null,
+    reviewDue: phone.reviewEnabled && phone.reviewDueAt !== null && phone.reviewDueAt.getTime() <= ctx.now().getTime(),
+    agreementEnabled: phone.agreementEnabled,
+    agreementOnHome: phone.agreementOnHome,
+    agreementHasText: phone.agreementLines.length + phone.agreementAdultLines.length > 0,
     silentBedtime: phone.silentBedtime,
     pinApprovalEnabled: phone.pinApprovalEnabled,
     appUpdatesEnabled: phone.appUpdatesEnabled,
