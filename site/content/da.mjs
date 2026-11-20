@@ -200,7 +200,7 @@ export default {
     description:
       "Hvad Plainphone gemmer om dig og de telefoner, du styrer, hvor længe, hvem der ellers er involveret, og hvordan du beder os rette eller slette det.",
     h1: "Privatlivspolitik",
-    updated: "Sidst opdateret 17. november 2026",
+    updated: "Sidst opdateret 20. november 2026",
     lead:
       "Plainphone gemmer så lidt som muligt, så kort tid som muligt. Her står det, hvad det betyder i praksis. Siden er skrevet for at blive læst, ikke for at skjule noget.",
     status:
@@ -316,6 +316,24 @@ export default {
         ],
       },
       {
+        id: "betaling",
+        title: "Betaling",
+        body: [
+          "Plainphone opkræver ikke noget endnu, og den hostede tjeneste har ingen betalte funktioner i dag. Dette afsnit beskriver, hvad der gemmes, når betaling bliver slået til. Når det sker, ændres denne side først.",
+          "For hver husstand gemmer vi:",
+          {
+            list: [
+              "dens abonnement (gratis eller betalt) og hvilken udbyder der håndterer betalingen: Google Play eller Stripe",
+              "udbyderens id’er: hos Stripe et kunde-id og et abonnements-id, hos Google Play købstokenet",
+              "hvis du betaler for at afslutte en ventetid tidligere på en telefon med profilen Til mig selv: beløb og valuta, tidspunktet for dit samtykke, betalingen, oplåsningen, en fortrydelse og en refusion samt aftalenummeret",
+            ],
+          },
+          "Kvitteringer sendes på mail til adressen på din konto.",
+          "Vi ser eller gemmer aldrig kortnumre eller andre kortoplysninger. Betalinger håndteres af Stripe (i webdashboardet) eller af Google Play (i Plainphone-appen fra Google Play). Det, de indsamler, er omfattet af deres egne privatlivspolitikker.",
+          "Når en telefon eller en husstand slettes, gemmes købsregistreringerne til bogføring, som bogføringsloven kræver. Når din konto er slettet, gemmes de uden forbindelse til kontoen.",
+        ],
+      },
+      {
         id: "cookies",
         title: "Denne side, cookies og lagring i din browser",
         body: [
@@ -337,6 +355,7 @@ export default {
               "Cloudflare hoster denne hjemmeside (plainphone.org) og logoet i vores mails.",
               "Quad9 og Mullvad, med Cloudflare som reserve, besvarer tilladte opslag i webfilteret, som beskrevet ovenfor.",
               "Slår du notifikationer til, leverer din browsers push-tjeneste (Google, Apple, Mozilla eller Microsoft) dem. Indholdet er krypteret hele vejen.",
+              "Hvis betaling er slået til: Stripe eller Google Play håndterer betalingen, som beskrevet under Betaling.",
             ],
           },
           "Konto- og telefonoplysninger ligger på servere i EU.",

@@ -200,7 +200,7 @@ export default {
     description:
       "What Plainphone stores about you and the phones you manage, for how long, who else is involved, and how to ask us to correct or delete it.",
     h1: "Privacy policy",
-    updated: "Last updated 17 November 2026",
+    updated: "Last updated 20 November 2026",
     lead:
       "Plainphone keeps as little as it can, for as short a time as it can. This page says what that means in practice. It is written to be read, not to hide things.",
     status:
@@ -316,6 +316,24 @@ export default {
         ],
       },
       {
+        id: "billing",
+        title: "Billing and payments",
+        body: [
+          "Plainphone does not charge anything yet, and the hosted service has no paid features today. This section describes what is stored once billing is switched on. When that happens, this page changes first.",
+          "For each household we store:",
+          {
+            list: [
+              "its plan (free or paid) and which provider handles the payment: Google Play or Stripe",
+              "the provider’s ids: at Stripe a customer id and a subscription id, at Google Play the purchase token",
+              "if you pay to end a wait early on a Myself phone: the amount and currency, the time of your consent, the payment, the unlock, a withdrawal and a refund, and the contract number",
+            ],
+          },
+          "Receipts are emailed to the address of your account.",
+          "We never see or store card numbers or other card data. Payments are handled by Stripe (in the web dashboard) or by Google Play (in the Plainphone app from Google Play). What they collect is covered by their own privacy policies.",
+          "When a phone or a household is deleted, the purchase records are kept for bookkeeping, as bookkeeping law requires. Once your account is deleted, they are kept without any link to the account.",
+        ],
+      },
+      {
         id: "cookies",
         title: "This website, cookies and browser storage",
         body: [
@@ -337,6 +355,7 @@ export default {
               "Cloudflare hosts this website (plainphone.org) and the logo in our emails.",
               "Quad9 and Mullvad, with Cloudflare as a fallback, answer allowed web filter lookups, as described above.",
               "If you turn on notifications: the push service of your browser (Google, Apple, Mozilla or Microsoft) delivers them. The content is encrypted end to end.",
+              "If billing is switched on: Stripe or Google Play handles the payment, as described under Billing and payments.",
             ],
           },
           "Account and phone data is kept on servers in the EU.",

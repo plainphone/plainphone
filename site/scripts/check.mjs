@@ -29,13 +29,17 @@ const pagePaths = routes.map((page) =>
   ])),
 );
 
+// Published on purpose but unlinked and noindex until the organisations have agreed (content/giving.mjs).
+// They are checked here separately: no canonical or hreflang, never in the sitemap, never linked from another page.
+const givingPaths = locales.map((lang) => `/${lang === "en" ? "" : `${lang}/`}giving/`);
+
 const files = (dir) =>
   readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 const html = files(dist).filter((f) => f.endsWith(".html"));
-if (html.length !== locales.length * pagePaths.length + 1) errors.push("Expected every localized page and one 404 page");
+if (html.length !== locales.length * (pagePaths.length + 1) + 1) errors.push("Expected every localized page and one 404 page");
 const headers = readFileSync(join(dist, "_headers"), "utf8");
 const csp = headers.match(/^  Content-Security-Policy: (.+)$/m)?.[1] ?? "";
 const directives = new Map();
@@ -94,6 +98,13 @@ for (const file of html) {
   if (!/<title>[^<]{10,}<\/title>/.test(src)) errors.push(`${name}: missing <title>`);
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
+  const isGiving = givingPaths.some((path) => target(path) === file);
+  if (isGiving) {
+    if (!src.includes('<meta name="robots" content="noindex">')) errors.push(`${name}: giving page must be noindex`);
+    if (/<link rel="(?:canonical|alternate)"/.test(src)) errors.push(`${name}: giving page must have no canonical or alternate links`);
+  } else if (name !== "404.html" && givingPaths.some((path) => src.includes(`"${path}"`) || src.includes(`"https://plainphone.org${path}"`))) {
+    errors.push(`${name}: links to an unpublished giving page`);
+  }
   const scripts = [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
   const isLookup = lookupPaths.some((path) => target(path) === file);
   const searchAttrs = ` type="module" src="${searchPath}" integrity="sha256-${searchHash}"`;
@@ -178,7 +189,7 @@ for (const file of html) {
       if (!tIds.has(u.hash.slice(1))) errors.push(`${name}: missing anchor ${url}`);
     }
   }
-  if (name !== "404.html") {
+  if (name !== "404.html" && !isGiving) {
     const ownLang = src.match(/<html lang="([a-z]{2})">/)?.[1];
     const counterparts = pagePaths.find((paths) => target(paths[ownLang] ?? "/") === file);
     if (!locales.includes(ownLang) || !counterparts) {
@@ -223,6 +234,8 @@ for (const file of html) {
   }
 }
 
+if (/giving/.test(readFileSync(join(dist, "sitemap.xml"), "utf8"))) errors.push("sitemap.xml: giving pages must not be listed");
+if (/giving/.test(readFileSync(join(dist, "robots.txt"), "utf8"))) errors.push("robots.txt: giving pages must not be listed");
 for (const hash of cspHashes) {
   if (!seenHashes.has(hash)) errors.push(`_headers: unused style hash ${hash}`);
 }
