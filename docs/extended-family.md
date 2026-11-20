@@ -18,7 +18,7 @@ like a parent. Free text and media (photos, voice notes) wait for the encryption
 A child may want a private way to reach siblings or grandparents. Families that discuss privacy
 together make better choices ([Wen et al. 2025](https://faculty.washington.edu/zkwen/articles/wen25supporting.pdf)),
 but how an invitation should work for a child has not been tested. So the flow follows the
-[research](research/family-comms.md#age-and-autonomy): approved, mutually accepted relationships
+[research](research/family-comms.md#privacy-and-safety): approved, mutually accepted relationships
 only, a roster the child can see, decline and block, and no caregiver rights for the new person.
 A one-time snapshot can help with pickup. There is no direct evidence for snapshots in a product like
 Plainphone, so they are an opt-in hypothesis built on the [location rules](location.md): one position,
