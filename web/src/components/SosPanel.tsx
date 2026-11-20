@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { acknowledgeSos, api } from "../lib/api";
 import { type SosTrigger, triggerLabel } from "../lib/sos-options";
 import { useLoad } from "./ui";
@@ -28,12 +29,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   const [name, setName] = useState("");
   const [number, setNumber] = useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void reload();
-    }, 10_000);
-    return () => window.clearInterval(timer);
-  }, [reload]);
+  useLiveRefresh(["sos.created", "sos.updated"], pid, reload, 10_000);
 
   async function ack(id: string) {
     setBusy(true);

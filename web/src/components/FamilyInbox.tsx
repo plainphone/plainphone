@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import type { MessageKey } from "../i18n/translate";
 import { ApiError, api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
@@ -49,12 +50,7 @@ function Thread({ pid }: { pid: string }) {
   const [error, setError] = useState<MessageKey | null>(null);
   const sending = useRef(false);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void reload();
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [reload]);
+  useLiveRefresh(["inbox.message"], pid, reload, 30_000);
 
   async function send(e: FormEvent) {
     e.preventDefault();

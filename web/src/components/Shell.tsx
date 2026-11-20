@@ -4,7 +4,10 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { api, type Approval } from "../lib/api";
 import { clearNextIf, useSession } from "../lib/session";
+import { LiveProvider } from "../lib/live";
 import { isLanguage, languageNames, languages } from "../lib/phone-language";
+import { LiveIndicator } from "./LiveIndicator";
+import { LiveSosAlert } from "./LiveSosAlert";
 import { Mark } from "./Mark";
 
 /** The privacy policy lives on the website, in the language of the app. */
@@ -42,7 +45,7 @@ export function Shell() {
   const phonesActive = loc.pathname === "/" || loc.pathname.startsWith("/phones") || loc.pathname === "/pair";
 
   return (
-    <>
+    <LiveProvider signedIn={signedIn}>
       <a className="skip" href="#main" onClick={(event) => {
         event.preventDefault();
         main.current?.focus();
@@ -56,6 +59,7 @@ export function Shell() {
             <span>{t("app.name")}</span>
           </Link>
           <div className="header-tools">
+            {signedIn && <LiveIndicator />}
             <select className="lang-switch" aria-label={t("nav.language")} value={locale} onChange={(event) => {
               const language = event.target.value;
               if (isLanguage(language)) saveLocale(language);
@@ -98,6 +102,7 @@ export function Shell() {
           </nav>
         )}
       </header>
+      {signedIn && <LiveSosAlert />}
       <main id="main" className="wrap" ref={main} tabIndex={-1}>
         <Outlet />
       </main>
@@ -109,7 +114,7 @@ export function Shell() {
           {t("nav.status")}
         </a>
       </footer>
-    </>
+    </LiveProvider>
   );
 }
 

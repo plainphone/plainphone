@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Linking } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { triggerLabel } from "../shared/lib/sos-options";
 import { Button, Card, Field, Notice, Text, useLoad } from "./ui";
 
@@ -15,17 +15,15 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   const { locale, t } = useI18n();
   const params = { path: { pid } };
   const res = useLoad(() => unwrap<History>(client.GET("/phones/{pid}/sos", { params: { ...params, query: phoneName === undefined ? undefined : { unseen: "1" } } })), [pid, phoneName]);
-  const { reload, setData } = res;
+  const { reload, reloadQuiet, setData } = res;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [name, setName] = useState("");
   const [history, setHistory] = useState(false);
   const [number, setNumber] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    const timer = setInterval(() => void reload(), 10_000);
-    return () => clearInterval(timer);
-  }, [reload]));
+  // Live: at once. Not live: the 10 s poll it always had.
+  useLiveRefresh(["sos.created", "sos.updated"], pid, reloadQuiet, 10_000);
 
   async function save(action: () => Promise<void>) {
     setBusy(true);

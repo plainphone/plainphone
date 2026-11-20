@@ -56,6 +56,12 @@ export const appEn = {
   "native.alwaysUntil": "On until {time}",
   "native.alwaysUntilDate": "On until {date} at {time}",
   "native.alwaysUntilMidnight": "On until midnight",
+  "native.liveHelp": "SOS, answers and positions show up at once while the app is open. Turn it off and the app refreshes every so often instead.",
+  "native.liveSosTitle": "SOS alert",
+  "native.liveSosHelp": "Vibrate when an SOS arrives while the app is open. The notification comes either way.",
+  "native.liveFallback": "Refreshes regularly",
+  "native.liveSosFrom": "SOS from {name}",
+  "native.liveSosUnknown": "SOS from a phone",
 } as const;
 
 export type AppMessageKey = keyof typeof appEn;

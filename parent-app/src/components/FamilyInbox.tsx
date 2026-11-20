@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { getItem, removeItem, setItem } from "../lib/storage";
 import { space, useColors } from "../lib/theme";
 import { formatDateTime } from "../shared/lib/format";
@@ -60,6 +61,7 @@ function Thread({ pid }: { pid: string }) {
     void getItem(NAME_KEY).then((saved) => { if (saved) setName(saved); });
   }, []);
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
+  useLiveRefresh(["inbox.message"], pid, res.reloadQuiet, 0);
 
   async function send() {
     if (!text.trim() || sending.current) return;

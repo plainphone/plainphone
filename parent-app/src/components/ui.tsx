@@ -49,6 +49,8 @@ export interface Loaded<D> {
   error: unknown;
   loading: boolean;
   reload: () => Promise<void>;
+  /** Like reload, but without the loading flag, so a live refresh does not flash the pull-to-refresh spinner. */
+  reloadQuiet: () => Promise<void>;
   setData: (fn: (d: D | undefined) => D | undefined) => void;
 }
 
@@ -62,8 +64,8 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
     fnRef.current = fn;
   });
   const alive = useRef(true);
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (quiet: boolean) => {
+    if (!quiet) setLoading(true);
     try {
       const d = await fnRef.current();
       if (alive.current) {
@@ -73,9 +75,11 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
     } catch (err) {
       if (alive.current) setError(err);
     } finally {
-      if (alive.current) setLoading(false);
+      if (alive.current && !quiet) setLoading(false);
     }
   }, []);
+  const reload = useCallback(() => load(false), [load]);
+  const reloadQuiet = useCallback(() => load(true), [load]);
   useEffect(() => {
     alive.current = true;
     // Loading data is what this effect is for; the spinner state is part of it.
@@ -87,7 +91,7 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   const setData = useCallback((f: (d: D | undefined) => D | undefined) => setDataState(f), []);
-  return { data, error, loading, reload, setData };
+  return { data, error, loading, reload, reloadQuiet, setData };
 }
 
 /** Re-renders every `ms` so countdowns stay current. */
