@@ -9262,6 +9262,19 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["Error"];
+            /** @description The invitation was sent to another e-mail address. It stays valid for the invited account (`code` is `invite_email_mismatch`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        /** @enum {string} */
+                        code: "invite_email_mismatch";
+                    };
+                };
+            };
         };
     };
     getPhones: {

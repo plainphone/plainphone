@@ -96,6 +96,8 @@ export const en = {
   "invite.trustedAccepted": "You can now approve requests for the person you help.",
   "invite.accepted": "You are now part of the household and can manage its phones.",
   "invite.failed": "This invitation is expired or already used. Ask for a new one.",
+  "invite.otherAddress": "This invitation was sent to another e-mail address. Sign in with that address, or ask for a new invitation.",
+  "invite.signOutContinue": "Sign out and continue",
   "invite.missing": "Open the invitation link you were sent.",
   "invite.back": "Back to the home page",
   "invite.toPhones": "See the phones",

@@ -87,6 +87,9 @@ export type ParentEnv = { Variables: { user: User; sessionId: string; viaCookie:
 export const SESSION_COOKIE = "pp_session";
 const INVITE_DAYS = 7;
 
+/** Addresses are stored trimmed and lower-case (`email` in lib/validation.ts); compare them the same way. */
+const sameAddress = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 function changeJson(r: ChangeResult) {
   return r.status === "applied"
     ? { status: "applied" as const }
@@ -448,11 +451,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }
       return c.json({ trusted: true });
     }
-    const hid = await ctx.db
+    const accepted = await ctx.db
       .transaction(async (tx) => {
-        // Deleted on acceptance (#8): the invited address is not needed once they are a member.
-        const [invite] = await tx
-          .delete(householdInvites)
+        const [found] = await tx
+          .select()
+          .from(householdInvites)
           .where(
             and(
               eq(householdInvites.tokenHash, sha256(input.token)),
@@ -461,19 +464,28 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
               gt(householdInvites.expiresAt, ctx.now()),
             ),
           )
-          .returning();
-        if (!invite) return null;
+          .for("update");
+        if (!found) return null;
+        // Only the invited address may accept. The invitation stays valid for the right account,
+        // and the answer does not repeat the invited address to whoever holds the link.
+        if (!sameAddress(found.email, user.email)) return "mismatch" as const;
+        // Deleted on acceptance (#8): the invited address is not needed once they are a member.
+        await tx.delete(householdInvites).where(eq(householdInvites.id, found.id));
         await tx
           .insert(householdMembers)
-          .values({ householdId: invite.householdId, userId: user.id, role: "parent" })
+          .values({ householdId: found.householdId, userId: user.id, role: "parent" })
           .onConflictDoNothing();
-        return invite.householdId;
+        return found.householdId;
       })
       // The household was deleted (its last member deleted their account) while we waited.
       .catch((err: { code?: string; cause?: { code?: string } }) => {
         if (err.code === "23503" || err.cause?.code === "23503") return null;
         throw err;
       });
+    if (accepted === "mismatch") {
+      return c.json({ error: "this invitation was sent to another e-mail address", code: "invite_email_mismatch" }, 403);
+    }
+    const hid = accepted;
     if (!hid) return c.json({ error: "this invitation is expired or already used" }, 400);
     return c.json({ householdId: hid });
   });

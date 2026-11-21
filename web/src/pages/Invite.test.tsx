@@ -5,13 +5,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { INVITE_KEY } from "../lib/session";
 import { InvitePage } from "./Invite";
 
+const logout = vi.hoisted(() => vi.fn(async () => undefined));
+
 vi.mock("../lib/session", async (original) => ({
   ...(await original<typeof import("../lib/session")>()),
-  useSession: () => ({ state: { status: "in", me: { user: { id: "u1", email: "parent@example.org" }, households: [] } }, refresh: async () => null }),
+  useSession: () => ({ state: { status: "in", me: { user: { id: "u1", email: "parent@example.org" }, households: [] } }, refresh: async () => null, logout }),
 }));
 
 let root: Root;
@@ -70,4 +72,38 @@ it("still asks a trusted person before they start helping", async () => {
   expect(accept).not.toHaveBeenCalled();
   await act(async () => button("Accept and help")!.click());
   expect(accept).toHaveBeenCalledWith("/invites/accept", { token });
+});
+
+const mismatch = () => new ApiError(403, "this invitation was sent to another e-mail address", [], { code: "invite_email_mismatch" });
+
+it("explains an invitation for another address and keeps the link", async () => {
+  const token = `pp_i_household${++n}`;
+  accept.mockRejectedValueOnce(mismatch());
+  await open(token);
+  await act(async () => button("Join the household")!.click());
+  expect(container.textContent).toContain("This invitation was sent to another e-mail address. Sign in with that address, or ask for a new invitation.");
+  expect(sessionStorage.getItem(INVITE_KEY)).toBe(token);
+  expect(button("Sign out and continue")).toBeDefined();
+});
+
+it("signs out and keeps the invitation for the next sign-in", async () => {
+  const token = `pp_i_household${++n}`;
+  accept.mockRejectedValueOnce(mismatch());
+  logout.mockImplementationOnce(async () => sessionStorage.removeItem(INVITE_KEY));
+  await open(token);
+  await act(async () => button("Join the household")!.click());
+  await act(async () => button("Sign out and continue")!.click());
+  expect(logout).toHaveBeenCalledTimes(1);
+  expect(sessionStorage.getItem(INVITE_KEY)).toBe(token);
+});
+
+it("keeps the link and says so when signing out fails", async () => {
+  const token = `pp_i_household${++n}`;
+  accept.mockRejectedValueOnce(mismatch());
+  logout.mockRejectedValueOnce(new Error("offline"));
+  await open(token);
+  await act(async () => button("Join the household")!.click());
+  await act(async () => button("Sign out and continue")!.click());
+  expect(container.textContent).toContain("Something went wrong. Please try again.");
+  expect(sessionStorage.getItem(INVITE_KEY)).toBe(token);
 });

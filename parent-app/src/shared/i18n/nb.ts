@@ -92,6 +92,8 @@ export const nb: Messages = {
   "invite.trustedAccepted": "Du kan nå godkjenne forespørsler for personen du hjelper.",
   "invite.accepted": "Du er nå en del av husstanden og kan administrere telefonene.",
   "invite.failed": "Denne invitasjonen er utløpt eller allerede brukt. Be om en ny.",
+  "invite.otherAddress": "Denne invitasjonen ble sendt til en annen e-postadresse. Logg inn med den adressen, eller be om en ny invitasjon.",
+  "invite.signOutContinue": "Logg ut og fortsett",
   "invite.missing": "Åpne invitasjonslenken du ble sendt.",
   "invite.back": "Tilbake til startsiden",
   "invite.toPhones": "Se telefonene",

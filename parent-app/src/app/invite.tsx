@@ -20,11 +20,14 @@ const inflight = acceptedInvites;
 export default function InviteScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { state, refresh, setNext, serverUrl } = useSession();
+  const { state, refresh, setNext, serverUrl, logout } = useSession();
   const { token: linkToken, ready } = useLaunchToken(serverUrl);
   // The token kept from before the login. undefined: not looked up yet; null: none.
   const [kept, setKept] = useState<string | null | undefined>(undefined);
   const [outcome, setOutcome] = useState<{ token: string; result: "ok" | string } | null>(null);
+  // The invitation was sent to another address than the signed-in one; the link is kept.
+  const [otherAddress, setOtherAddress] = useState<string | null>(null);
+  const [signOutFailed, setSignOutFailed] = useState(false);
 
   // The token is in the link, or was kept from before the login.
   const token = linkToken ?? kept ?? null;
@@ -54,26 +57,50 @@ export default function InviteScreen() {
 
   useEffect(() => {
     // Every invitation waits for a tap: a link from a stranger must not add this parent to their household.
-    if (!token || state.status !== "in" || !confirmed) return;
+    if (!token || state.status !== "in" || !confirmed || otherAddress === token) return;
     let p = inflight.get(token);
     if (!p) {
       p = unwrap(client.POST("/invites/accept", { body: { token } }));
       inflight.set(token, p);
       p.catch(() => inflight.delete(token));
     }
+    const done = () => {
+      void clearPendingInvite();
+      if (Platform.OS === "web") window.history.replaceState(null, "", window.location.pathname);
+    };
     p.then(
       () => {
         setOutcome({ token, result: "ok" });
         void refresh();
+        done();
       },
-      (err) => setOutcome({ token, result: err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t) }),
-    ).finally(() => {
-      void clearPendingInvite();
-      if (Platform.OS === "web") window.history.replaceState(null, "", window.location.pathname);
-    });
+      (err) => {
+        if (err instanceof ApiError && err.status === 403 && err.data.code === "invite_email_mismatch") {
+          // Keep the link: it works for the invited address, after a sign-out.
+          setOtherAddress(token);
+          return;
+        }
+        setOutcome({ token, result: err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t) });
+        done();
+      },
+    );
     // Accept each token once; a changed language or a refreshed session must not run it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, state.status, trusted, confirmed]);
+  }, [token, state.status, trusted, confirmed, otherAddress]);
+
+  const signOutAndContinue = async () => {
+    if (!token) return;
+    setSignOutFailed(false);
+    try {
+      await logout();
+    } catch {
+      setSignOutFailed(true);
+      return;
+    }
+    // Signing out forgets the invitation so the next person does not inherit it; this one is kept on purpose.
+    await savePendingInvite(token);
+    setNext("/invite");
+  };
 
   if (state.status === "loading" || looking) {
     return (
@@ -94,6 +121,20 @@ export default function InviteScreen() {
         <>
           <Text>{t(trusted ? "invite.trustedHelp" : "invite.householdHelp")}</Text>
           <Button testID="invite-accept" title={t(trusted ? "invite.trustedAccept" : "invite.householdAccept")} onPress={() => setConfirmed(true)} />
+          <Button
+            kind="secondary"
+            title={t("app.cancel")}
+            onPress={() => {
+              void clearPendingInvite();
+              router.replace("/");
+            }}
+          />
+        </>
+      ) : otherAddress === token ? (
+        <>
+          <Notice tone="error" text={t("invite.otherAddress")} />
+          {signOutFailed && <Notice tone="error" text={t("error.generic")} />}
+          <Button testID="invite-signout" title={t("invite.signOutContinue")} onPress={() => void signOutAndContinue()} />
           <Button
             kind="secondary"
             title={t("app.cancel")}

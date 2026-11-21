@@ -4379,6 +4379,16 @@ paths:
       responses:
         "200": { description: "Joined" }
         "400": { $ref: "#/components/responses/Error" }
+        "403":
+          description: The invitation was sent to another e-mail address. It stays valid for the invited account (`code` is `invite_email_mismatch`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, code]
+                properties:
+                  error: { type: string }
+                  code: { type: string, enum: [invite_email_mismatch] }
 
   # ---------------------------------------------------------------- phones
   /phones:

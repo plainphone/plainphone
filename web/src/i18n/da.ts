@@ -94,6 +94,8 @@ export const da: Messages = {
   "invite.trustedAccepted": "Du kan nu godkende ændringer for den person, du hjælper.",
   "invite.accepted": "Du er nu med i husstanden og kan styre dens telefoner.",
   "invite.failed": "Invitationen er udløbet eller allerede brugt. Bed om en ny.",
+  "invite.otherAddress": "Denne invitation er sendt til en anden mailadresse. Log ind med den adresse, eller bed om en ny invitation.",
+  "invite.signOutContinue": "Log ud og fortsæt",
   "invite.missing": "Åbn invitationslinket, du har fået tilsendt.",
   "invite.back": "Tilbage til forsiden",
   "invite.toPhones": "Se telefonerne",

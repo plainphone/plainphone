@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { Linking as RNLinking, StyleSheet } from "react-native";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
 import { getSessionToken } from "../src/api/client";
+import { clearPendingInvite } from "../src/lib/pendingInvite";
 import { dark } from "../src/lib/theme";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
@@ -213,6 +214,26 @@ describe("coming back after the app was closed during login", () => {
     await waitFor(() => expect(api.calls.some((c) => c.path === "/invites/accept")).toBe(true));
     expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_invitetoken123" });
     await waitFor(() => expect(screen).toHavePathname("/invite"));
+  });
+
+  it("explains an invitation for another address, signs out and keeps the link", async () => {
+    await SecureStore.setItemAsync("pp.invite", "pp_i_othertoken789");
+    login("pp_m_linktoken456");
+    const api = signedInApi({
+      "POST /invites/accept": { status: 403, body: { error: "this invitation was sent to another e-mail address", code: "invite_email_mismatch" } },
+      "POST /auth/logout": { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    await fireEvent.press(await screen.findByTestId("invite-accept"));
+    expect(await screen.findByText("This invitation was sent to another e-mail address. Sign in with that address, or ask for a new invitation.")).toBeTruthy();
+    expect(await SecureStore.getItemAsync("pp.invite")).toBe("pp_i_othertoken789");
+
+    await fireEvent.press(screen.getByTestId("invite-signout"));
+    await waitFor(() => expect(api.calls.some((c) => c.path === "/auth/logout")).toBe(true));
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+    expect(await SecureStore.getItemAsync("pp.invite")).toBe("pp_i_othertoken789");
+    // The next test must not find this invitation waiting.
+    await clearPendingInvite();
   });
 
   it("goes back to the pairing link that was opened", async () => {

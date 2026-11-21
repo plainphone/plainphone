@@ -99,6 +99,8 @@ when you switch filter methods after pairing.
 
 ### Myself keys and QR codes
 
+A parent invited to a household can only accept with the e-mail address the invitation was sent to; the QR link for a helper is not tied to an address.
+
 Choose a wait time or invite a trusted person by email or QR. Each person manages
 their own account and can hold the other's key. A helper can approve a request in
 the dashboard or scan a two-minute QR. Both show the current and requested
