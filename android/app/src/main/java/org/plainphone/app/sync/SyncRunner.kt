@@ -106,6 +106,8 @@ data class LockState(
     val receipt: AppliedRulesReceipt? = null,
     val webFilterActive: Boolean? = null,
     val filter: FilterHealth? = null,
+    /** Steps deliberately lifted for an approved window: the lock stays intact until their deadline. */
+    val liftedPolicies: List<LiftedPolicy> = emptyList(),
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
@@ -636,6 +638,7 @@ class SyncRunner(
                 if (rules?.healthBoardEnabled == true) it else it - "usageAccessGranted"
             },
             filter = lock.filter,
+            liftedPolicies = lock.liftedPolicies,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
             pushProvider = runCatching { device.registerWakeup(api, token, reason) }.getOrNull(),

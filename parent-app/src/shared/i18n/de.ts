@@ -4,6 +4,7 @@ import type { Messages } from "./en";
 import { ageDe } from "./age";
 import { appUpdatesDe } from "./app-updates";
 import { platformDe } from "./platform";
+import { callbackDe } from "./callback";
 import { modesDe } from "./modes";
 import { extendedDe } from "./extended";
 import { statusEn } from "./status";
@@ -15,6 +16,7 @@ export const de: Messages = {
   ...platformDe,
   ...modesDe,
   ...extendedDe,
+  ...callbackDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",
   "status.stale.title": "Zuletzt online {when}",
@@ -618,6 +620,8 @@ export const de: Messages = {
   "phone.callRoleActionNeeded": "Öffnen Sie Plainphone auf dem Telefon und tippen Sie auf Zulassen",
   "phone.parallelAppsRemoved": "Parallele Apps wurden entfernt.",
   "phone.lateGoogleAccount": "Während oder nach der App-Installation wurde eine unerwartete Kontoänderung festgestellt",
+  "phone.liftedOpen": "Kontoänderungen sind für eine genehmigte Anmeldung bis {time} Uhr erlaubt.",
+  "phone.liftedOverdue": "Kontoänderungen waren für eine Anmeldung bis {time} Uhr erlaubt. Das Handy hat sich seitdem nicht gemeldet.",
   "phone.accountTypes": "Konten am Telefon: {types}",
   "phone.attVerified": "System unverändert (überprüft durch den Sicherheitschip des Telefons)",
   "phone.attUnlocked": "Auf diesem Telefon kann ein anderes Betriebssystem installiert werden. Plainphone kann die Sperre oder den Schutz des Telefons nach einem Zurücksetzen nicht garantieren.",

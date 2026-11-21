@@ -8,13 +8,14 @@ import { wakePhone } from "./phones.js";
 import { alertUnansweredCheckins, deleteOldSafetyRequests, expireAlwaysLocation } from "./safety.js";
 import { PAIRING_RECOVERY_MS } from "./pairing-account.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
-import { alertOfflinePhones } from "./notifications.js";
+import { alertLiftedOverdue, alertOfflinePhones } from "./notifications.js";
 import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
 import { errorFrames, errorSummary } from "../lib/log.js";
 import { sweepMoreTime } from "./more-time.js";
 import { sweepSos } from "./sos.js";
 import { sweepQuickMessages } from "./quick-messages.js";
 import { sweepExtended } from "./extended-family.js";
+import { sweepCallbackRequests } from "./callback-requests.js";
 import { sweepSummaries } from "./weekly-summary.js";
 import { sweepReviewReminders } from "./age-review.js";
 
@@ -65,7 +66,8 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
     for (const { id } of synced) await wakePhone(ctx, id, "rules");
   }
   const dnsDeleted = await retryDnsDeletions(ctx);
-  const offlineAlerts = (await alertOfflinePhones(ctx)) + (await alertUnansweredCheckins(ctx));
+  // Phones that are silent when they should have reported: out of contact, or a lifted lock step never put back.
+  const offlineAlerts = (await alertOfflinePhones(ctx)) + (await alertUnansweredCheckins(ctx)) + (await alertLiftedOverdue(ctx));
   const ended = await expireAlwaysLocation(ctx);
   for (const id of ended) await wakePhone(ctx, id, "rules");
   const dayAgo = new Date(now.getTime() - DAY);
@@ -135,6 +137,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   await sweepSos(ctx);
   await sweepQuickMessages(ctx);
   await sweepExtended(ctx);
+  await sweepCallbackRequests(ctx);
   await sweepSummaries(ctx);
   await sweepReviewReminders(ctx);
   await sweepMoreTime(ctx);

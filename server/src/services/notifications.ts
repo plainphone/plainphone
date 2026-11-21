@@ -18,10 +18,11 @@ import type { PushMessage } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
+import { LIFTED_SILENT_MS } from "../lib/lifted-policies.js";
 import { recordSummaryEvent } from "./summary-record.js";
 
 export type NotifyEvent =
-  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
+  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo" | "lifted"; reportedLate?: boolean; trusted?: boolean }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   /** A light phone confirmed its set-up but never connected: the parent is asked to open the app on it or remove it. */
   | { type: "neverConnected"; phoneId: string; phoneName: string }
@@ -37,6 +38,8 @@ export type NotifyEvent =
   /** An ordinary quick message from the child's phone, or the child's suggestion for a new one (docs/sos.md). */
   | { type: "quickMessage"; id: string; phoneId: string; phoneName: string; text: string }
   | { type: "quickSuggestion"; phoneId: string; phoneName: string; text: string }
+  /** The child asks a parent to call (docs/sos.md#asking-a-parent-to-call). */
+  | { type: "callbackRequest"; id: string; phoneId: string; phoneName: string }
   /** "I'm home" from the family inbox (docs/family-inbox.md). */
   | { type: "checkIn"; id: string; phoneId: string; phoneName: string }
   /** The child shared a one-time location snapshot with the parents (docs/extended-family.md). */
@@ -70,6 +73,7 @@ function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"
     case "sos": return pushWords.sos(e, locale);
     case "quickMessage": return pushWords.quickMessage(e, locale);
     case "quickSuggestion": return pushWords.quickSuggestion(e, locale);
+    case "callbackRequest": return pushWords.callbackRequest(e, locale);
     case "checkIn": return pushWords.checkIn(e, locale);
     case "locationSnapshot": return pushWords.locationSnapshot(e, locale);
     case "emergencyOpening": return pushWords.emergencyOpening(e, locale);
@@ -125,6 +129,8 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
         data: { type: e.kind === "urgent" ? "sos-urgent" : "sos-help", phoneId: e.phoneId } };
     case "quickMessage":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-${e.id.replaceAll("-", "")}`, data: { type: "quick-message", phoneId: e.phoneId } };
+    case "callbackRequest":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `callback-${e.id.replaceAll("-", "")}`, data: { type: "callback-request", phoneId: e.phoneId } };
     case "checkIn":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `checkin-${e.id.replaceAll("-", "")}`, data: { type: "check-in", phoneId: e.phoneId } };
     case "locationSnapshot":
@@ -354,5 +360,35 @@ async function alertNeverConnectedPhones(ctx: Ctx, hours: ReturnType<typeof sql>
     )
     .returning({ id: phones.id, name: phones.name });
   for (const p of claimed) await notifyClaimed(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
+  return claimed.length;
+}
+
+/**
+ * A phone lifted a lock step for an approved window (docs/policies.md) and has been silent since the
+ * deadline, for example because Plainphone was force-stopped before it could put the step back. A phone
+ * that does report is judged by the status route instead. Tells the parents once; the next status report
+ * replaces the stored status and so clears the marker. Called by the sweeper.
+ */
+export async function alertLiftedOverdue(ctx: Ctx): Promise<number> {
+  const now = ctx.now();
+  const lifted = sql`case when jsonb_typeof(${phones.deviceStatus}->'liftedPolicies') = 'array'
+    then ${phones.deviceStatus}->'liftedPolicies' else '[]'::jsonb end`;
+  // Claim the alert first, so two sweeps (or two servers) cannot both send it.
+  const claimed = await ctx.db
+    .update(phones)
+    .set({ deviceStatus: sql`jsonb_set(${phones.deviceStatus}, '{liftedOverdueAlertedAt}', to_jsonb(${now.toISOString()}::text))` })
+    .where(
+      and(
+        isNotNull(phones.statusReportedAt),
+        sql`${phones.deviceStatus}->>'liftedOverdueAlertedAt' is null`,
+        sql`exists (
+          select 1 from jsonb_array_elements(${lifted}) as e
+          where (e->>'until')::timestamptz < ${now.toISOString()}::timestamptz - make_interval(secs => ${LIFTED_SILENT_MS / 1000})
+            and ${phones.statusReportedAt} <= (e->>'until')::timestamptz
+        )`,
+      ),
+    )
+    .returning({ id: phones.id, name: phones.name });
+  for (const p of claimed) await notifyHousehold(ctx, p.id, { type: "protection", phoneId: p.id, phoneName: p.name, reason: "lifted" });
   return claimed.length;
 }

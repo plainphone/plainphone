@@ -137,6 +137,18 @@ class SyncWorkBudgetTest {
         assertThat(jobs.map { it.state }).containsExactly(WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED)
     }
 
+    @Test
+    fun `a relock while the lifted report is syncing still queues a sync`() {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        val manager = WorkManager.getInstance(context)
+        SyncStore(context, FakeSecretBox()).savePaired("phone", "test-token")
+        SyncScheduler.lockStateChanged(context, "Accounts allowed briefly")
+        SyncScheduler.lockStateChanged(context, "account restriction back")
+        val jobs = manager.getWorkInfosForUniqueWork("plainphone-sync-lock-state").get(5, TimeUnit.SECONDS)
+        assertThat(jobs.map { it.state }).containsExactly(WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED)
+    }
+
     private fun recordCleanInventory(store: SyncStore, now: Long) {
         store.appScanGeneration(now, emptySet())?.let { store.finishAppScan(it, "test-inventory", now, emptySet()) }
         assertThat(store.appScanGeneration(now, emptySet())).isNull()

@@ -6,6 +6,7 @@
 import { ageEn } from "./age";
 import { appUpdatesEn } from "./app-updates";
 import { platformEn } from "./platform";
+import { callbackEn } from "./callback";
 import { modesEn } from "./modes";
 import { extendedEn } from "./extended";
 import { statusEn } from "./status";
@@ -22,6 +23,7 @@ export const en = {
   ...platformEn,
   ...modesEn,
   ...extendedEn,
+  ...callbackEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",
@@ -653,6 +655,8 @@ export const en = {
   "phone.callRoleActionNeeded": "Open Plainphone on the phone and tap Allow",
   "phone.parallelAppsRemoved": "Parallel apps have been removed.",
   "phone.lateGoogleAccount": "An unexpected account change was detected during or after app installation",
+  "phone.liftedOpen": "Account changes are allowed for an approved sign-in until {time}.",
+  "phone.liftedOverdue": "Account changes were allowed for a sign-in until {time}. The phone has not reported since.",
   "phone.accountTypes": "Accounts on the phone: {types}",
   "phone.attVerified": "System unchanged (checked by the phone's security chip)",
   "phone.attUnlocked": "Another operating system can be installed on this phone. Plainphone cannot guarantee the lock or protect the phone after a reset.",

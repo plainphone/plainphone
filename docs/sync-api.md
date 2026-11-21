@@ -128,6 +128,7 @@ phone                                      server                         parent
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
+   | `liftedPolicies` | Lock steps the phone lifted on purpose for a parent-approved window, each `{ "name", "until" }` (name 1 to 200 characters, `until` ISO 8601 with a time zone; at most 10). Today only `restriction no_modify_accounts` during **Allow accounts briefly** ([policies](policies.md#account-changes-during-an-approved-sign-in)). Within its deadline a lifted step is not a failure: `lockIntact` stays true and the dashboard shows "allowed until HH:MM". More than 2 minutes past `until`, the server stores the name in `failedPolicies` and `lockIntact: false`, which raises the usual protection alert. If the phone has not reported for 10 minutes after `until`, the sweeper tells the parents once (protection alert, reason `lifted`) |
 
    In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,
    `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. For a
@@ -160,8 +161,10 @@ phone                                      server                         parent
    outage. The filter screen still shows the resolver's sync status.
    In Light mode a VPN start request is provisional until the tunnel is running
    with the requested resolver.
-6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
+6. **Removed.** `401` with `{"error":"unknown device; pair again"}` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
+   Any other `401` (a proxy or login wall in front of a self-hosted server) is an ordinary
+   error that is retried, so it cannot unpair every phone.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again
    as a Child phone and leave the key behind.
 
@@ -237,7 +240,7 @@ releases signed with the same key.
 | `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `askMoreTimeEnabled`, `limitWarningEnabled` | Per-phone switches for the stop screen's "Ask for more time" button and the 5-minute warning. Missing means `true`. See [more-time.md](more-time.md) |
-| `sos.hidden`, `sos.quickMessages` | Child phones only. Hidden SOS switches (`power`, `presses`, `clock`, `feedback`) and the quick messages (`enabled`, `suggest`, `items` with `meansSos` for a code word). Missing means off and no messages. See [sos.md](sos.md) |
+| `sos.hidden`, `sos.quickMessages`, `sos.callback` | Child phones only. Hidden SOS switches (`power`, `presses`, `clock`, `feedback`), the quick messages (`enabled`, `suggest`, `items` with `meansSos` for a code word) and `callback.enabled`, whether the SOS screen offers "Ask a parent to call me" (only the switch: the number never reaches the phone). Missing means off and no messages. See [sos.md](sos.md) |
 | `selfEmergency` | Self phones only: `enabled`, `allowance` (1 to 10 per month), `minutes` (15) and `used` (`month` as `YYYY-MM` in the phone's time zone and the server's `count` for it). The phone counts for itself and takes the larger number. Missing or `enabled: false` means off. See [emergency-openings.md](emergency-openings.md) |
 | `inbox` | Child phones only, and only while the [family inbox](family-inbox.md) is on: `enabled`, `quickMessages`, `checkIns` and `latest` (the newest parent reply; when it changes the phone fetches `GET /device/inbox` and sends its receipt). Missing means off |
 | `extended` | Child phones only, while the family inbox and [extended family contacts](extended-family.md) are on: `enabled`, `quickMessages` and `contacts` (`id`, `name`, `status`, `group`, `rev`; when `rev` changes the phone fetches `GET /device/extended/{cid}`). Missing means off |

@@ -212,8 +212,20 @@ and the roster while paused with people on it):
 `rev` changes whenever the phone should fetch that conversation again (a reply, a receipt, a new
 link). Older phone apps ignore both blocks.
 
-Migration `0053_extended_family` is additive: three new tables (`extended_contacts`,
+Migration `0054_extended_family` is additive: three new tables (`extended_contacts`,
 `extended_messages`, `location_snapshots`) and two phone columns, both default false.
+
+## Decided: the parents see the list, not the conversations
+
+Decided by the project owner on 2026-11-20: parents see the roster and can remove contacts, but they
+do not read the conversations between the child and an extended contact. The child sees what the
+parents see on **What can my parents see?**, so nothing here is hidden from the child.
+
+## SOS and callback requests are for caregivers only
+
+An extended contact never receives an SOS or a "call me back" request. Both go to the parents and
+the phone's caregiver contacts. The contact's session is refused on every SOS and callback route
+(`server/test/extended-sos-callback.test.ts`).
 
 ## Not covered
 

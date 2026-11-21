@@ -4,6 +4,7 @@ import type { Messages } from "./en";
 import { ageNb } from "./age";
 import { appUpdatesNb } from "./app-updates";
 import { platformNb } from "./platform";
+import { callbackNb } from "./callback";
 import { modesNb } from "./modes";
 import { extendedNb } from "./extended";
 import { statusEn } from "./status";
@@ -15,6 +16,7 @@ export const nb: Messages = {
   ...platformNb,
   ...modesNb,
   ...extendedNb,
+  ...callbackNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",
   "status.stale.title": "Sist online {when}",
@@ -618,6 +620,8 @@ export const nb: Messages = {
   "phone.callRoleActionNeeded": "Åpne Plainphone på telefonen og trykk på Tillat",
   "phone.parallelAppsRemoved": "Parallelle apper er fjernet.",
   "phone.lateGoogleAccount": "En uventet kontoendring ble oppdaget under eller etter appinstallasjon",
+  "phone.liftedOpen": "Kontoendringer er tillatt for en godkjent innlogging til kl. {time}.",
+  "phone.liftedOverdue": "Kontoendringer var tillatt for en innlogging til kl. {time}. Telefonen har ikke meldt seg siden.",
   "phone.accountTypes": "Kontoer på telefonen: {types}",
   "phone.attVerified": "System uendret (kontrollert av telefonens sikkerhetsbrikke)",
   "phone.attUnlocked": "Et annet operativsystem kan installeres på denne telefonen. Plainphone kan ikke garantere låsen eller beskytte telefonen etter en tilbakestilling.",

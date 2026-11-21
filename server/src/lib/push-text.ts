@@ -16,7 +16,7 @@ export interface Words {
 export type SafetyNews = "here" | "ok" | "call" | "noReplyLocating" | "noReplyNoLocation" | "located";
 
 export interface PushFacts {
-  protection: { phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean };
+  protection: { phoneName: string; reason: "lock" | "owner" | "setup-undo" | "lifted"; reportedLate?: boolean };
   offline: { phoneName: string; hours: number; lastSeenAt: Date; timezone: string };
   neverConnected: { phoneName: string };
   approval: { phoneName: string };
@@ -66,45 +66,55 @@ export function silence(hours: number, locale: Locale): string {
 
 const protection = {
   en: (e) => ({
-    title: `Protection removed on ${e.phoneName}`,
+    title: e.reason === "lifted" ? `${e.phoneName}: account changes may still be allowed` : `Protection removed on ${e.phoneName}`,
     body:
-      e.reason === "setup-undo"
+      e.reason === "lifted"
+        ? "An approved sign-in window ended at its deadline, but the phone has not reported since. Open Plainphone on the phone to restore the lock."
+        : e.reason === "setup-undo"
         ? (e.reportedLate ? "Set-up was undone on the phone. The report arrived late." : "Set-up was undone on the phone.")
         : e.reason === "owner"
           ? "Plainphone no longer controls this phone. Open the app to see what happened."
           : "The lock on this phone is not intact. Open the app to see what happened.",
   }),
   da: (e) => ({
-    title: `Beskyttelsen er fjernet på ${e.phoneName}`,
+    title: e.reason === "lifted" ? `${e.phoneName}: kontoændringer kan stadig være tilladt` : `Beskyttelsen er fjernet på ${e.phoneName}`,
     body:
-      e.reason === "setup-undo"
+      e.reason === "lifted"
+        ? "Et godkendt tidsvindue til login sluttede ved fristen, men telefonen har ikke meldt sig siden. Åbn Plainphone på telefonen for at genskabe låsen."
+        : e.reason === "setup-undo"
         ? (e.reportedLate ? "Opsætningen blev fortrudt på telefonen. Beskeden kom forsinket." : "Opsætningen blev fortrudt på telefonen.")
         : e.reason === "owner"
           ? "Plainphone styrer ikke længere telefonen. Åbn appen for at se, hvad der er sket."
           : "Låsen på telefonen er ikke intakt. Åbn appen for at se, hvad der er sket.",
   }),
   sv: (e) => ({
-    title: `Skyddet har tagits bort på ${e.phoneName}`,
+    title: e.reason === "lifted" ? `${e.phoneName}: kontoändringar kan fortfarande vara tillåtna` : `Skyddet har tagits bort på ${e.phoneName}`,
     body:
-      e.reason === "setup-undo"
+      e.reason === "lifted"
+        ? "Ett godkänt inloggningsfönster tog slut vid tidsgränsen, men telefonen har inte hört av sig sedan dess. Öppna Plainphone på telefonen för att återställa låset."
+        : e.reason === "setup-undo"
         ? (e.reportedLate ? "Inställningen ångrades på telefonen. Meddelandet kom försenat." : "Inställningen ångrades på telefonen.")
         : e.reason === "owner"
           ? "Plainphone styr inte längre telefonen. Öppna appen för att se vad som hänt."
           : "Låset på telefonen är inte intakt. Öppna appen för att se vad som hänt.",
   }),
   nb: (e) => ({
-    title: `Beskyttelsen er fjernet på ${e.phoneName}`,
+    title: e.reason === "lifted" ? `${e.phoneName}: kontoendringer kan fortsatt være tillatt` : `Beskyttelsen er fjernet på ${e.phoneName}`,
     body:
-      e.reason === "setup-undo"
+      e.reason === "lifted"
+        ? "Et godkjent tidsvindu for innlogging gikk ut ved fristen, men telefonen har ikke meldt seg siden. Åpne Plainphone på telefonen for å gjenopprette låsen."
+        : e.reason === "setup-undo"
         ? (e.reportedLate ? "Oppsettet ble angret på telefonen. Meldingen kom forsinket." : "Oppsettet ble angret på telefonen.")
         : e.reason === "owner"
           ? "Plainphone styrer ikke lenger telefonen. Åpne appen for å se hva som har skjedd."
           : "Låsen på telefonen er ikke intakt. Åpne appen for å se hva som har skjedd.",
   }),
   de: (e) => ({
-    title: `Schutz auf ${e.phoneName} entfernt`,
+    title: e.reason === "lifted" ? `${e.phoneName}: Kontoänderungen sind möglicherweise noch erlaubt` : `Schutz auf ${e.phoneName} entfernt`,
     body:
-      e.reason === "setup-undo"
+      e.reason === "lifted"
+        ? "Ein genehmigtes Anmeldefenster ist zur Frist abgelaufen, aber das Handy hat sich seitdem nicht gemeldet. Öffnen Sie Plainphone auf dem Handy, um die Sperre wiederherzustellen."
+        : e.reason === "setup-undo"
         ? (e.reportedLate ? "Die Einrichtung wurde auf dem Handy rückgängig gemacht. Die Meldung kam verspätet." : "Die Einrichtung wurde auf dem Handy rückgängig gemacht.")
         : e.reason === "owner"
           ? "Plainphone steuert dieses Handy nicht mehr. Öffnen Sie die App, um zu sehen, was passiert ist."
@@ -334,6 +344,15 @@ const quickSuggestion = {
   de: (e) => ({ title: `${e.phoneName} schlägt eine Schnellnachricht vor`, body: `„${e.text}“. Öffnen Sie die App, um zuzustimmen oder abzulehnen.` }),
 } satisfies Record<Locale, (e: PushFacts["quickMessage"]) => Words>;
 
+/** The child asks a parent to call (docs/sos.md#asking-a-parent-to-call). No number in the push. */
+const callbackRequest = {
+  en: (e) => ({ title: `${e.phoneName} asks you to call`, body: "Open the app to call back." }),
+  da: (e) => ({ title: `${e.phoneName} beder dig ringe`, body: "Åbn appen for at ringe tilbage." }),
+  sv: (e) => ({ title: `${e.phoneName} ber dig ringa`, body: "Öppna appen för att ringa tillbaka." }),
+  nb: (e) => ({ title: `${e.phoneName} ber deg ringe`, body: "Åpne appen for å ringe tilbake." }),
+  de: (e) => ({ title: `${e.phoneName} bittet um einen Rückruf`, body: "Öffnen Sie die App, um zurückzurufen." }),
+} satisfies Record<Locale, (e: { phoneName: string }) => Words>;
+
 /** "I'm home" from the family inbox, without a position (docs/family-inbox.md). */
 const checkIn = {
   en: (e) => ({ title: `${e.phoneName}: I'm home`, body: "Check-in from the family inbox." }),
@@ -370,7 +389,7 @@ const test = {
 } satisfies Record<Locale, Words>;
 
 /** Every push message, one table each. The completeness test walks this. */
-export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, checkIn, locationSnapshot, emergencyOpening, test };
+export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, callbackRequest, checkIn, locationSnapshot, emergencyOpening, test };
 
 export const pushWords = {
   protection: (e: PushFacts["protection"], l: Locale): Words => protection[l](e),
@@ -383,6 +402,7 @@ export const pushWords = {
   sos: (e: PushFacts["sos"], l: Locale): Words => sos[l](e),
   quickMessage: (e: PushFacts["quickMessage"], l: Locale): Words => quickMessage[l](e),
   quickSuggestion: (e: PushFacts["quickMessage"], l: Locale): Words => quickSuggestion[l](e),
+  callbackRequest: (e: { phoneName: string }, l: Locale): Words => callbackRequest[l](e),
   checkIn: (e: { phoneName: string }, l: Locale): Words => checkIn[l](e),
   locationSnapshot: (e: { phoneName: string }, l: Locale): Words => locationSnapshot[l](e),
   emergencyOpening: (e: PushFacts["emergencyOpening"], l: Locale): Words => emergencyOpening[l](e),

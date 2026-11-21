@@ -5,6 +5,7 @@ package org.plainphone.app.light
 import android.content.Context
 import android.net.VpnService
 import android.os.Build
+import android.provider.Settings
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.LockPolicy
 import org.plainphone.app.PolicyConfig
@@ -20,6 +21,13 @@ import org.plainphone.app.sync.SyncStore
 object LightLock {
     internal const val DNS_STEP = "DNS filter (VPN)"
     private const val PREFS = "plainphone_light"
+
+    /**
+     * Light mode cannot force automatic time (strong mode does). With the clock set by hand, school
+     * time and bedtime follow whatever the phone says, so the parent is told.
+     */
+    internal fun clockStep(autoTime: Boolean) =
+        StepResult("automatic date and time", autoTime, if (autoTime) "" else "set by hand: school time and bedtime follow the phone's clock")
 
     fun apply(context: Context, config: PolicyConfig): List<StepResult> {
         if (LightRelease.isReleased(context)) {
@@ -41,6 +49,10 @@ object LightLock {
         results += StepResult("accessibility service (closes blocked apps)", now.accessibility)
         results += StepResult("default phone app", now.phoneRole)
         results += StepResult("default SMS app", now.smsRole)
+        // Only where the clock matters: school time, bedtime and daily limits.
+        if (hasLimits || SyncStore(context).rules()?.schedules?.isNotEmpty() == true) {
+            results += clockStep(Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME, 1) == 1)
+        }
         if (config.filterMethod == FilterMethod.VPN) results += StepResult("private DNS not pointing elsewhere", now.privateDnsOk)
         if (hasLimits) results += StepResult("usage access (time limits)", now.usageAccess)
         // Recommended, not required: reported as OK with a note so the lock stays intact without them.
