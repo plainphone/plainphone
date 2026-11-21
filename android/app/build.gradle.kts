@@ -134,7 +134,8 @@ val robolectricArtifacts = Properties().apply {
 val robolectricVersion = requireNotNull(robolectricArtifacts.remove("robolectric"))
 val robolectricSdkVersions = robolectricArtifacts.stringPropertyNames().sorted()
     .map(robolectricArtifacts::getProperty)
-val robolectricDependencyDir = layout.buildDirectory.dir("robolectric")
+// Keep the restored cache available when clean and the tests run together.
+val robolectricDependencyDir = rootProject.layout.projectDirectory.dir(".gradle/robolectric")
 val prepareRobolectricSdks = tasks.register<Sync>("prepareRobolectricSdks") {
     // Separate configurations let Gradle resolve several versions of the same module.
     from(robolectricSdkVersions.map { version ->
@@ -146,7 +147,7 @@ val prepareRobolectricSdks = tasks.register<Sync>("prepareRobolectricSdks") {
 }
 val restoredRobolectricSdks = providers.environmentVariable("ROBOLECTRIC_SDK_CACHE_HIT").orNull == "true" &&
     robolectricSdkVersions.all { version ->
-        robolectricDependencyDir.get().file("android-all-instrumented-$version.jar").asFile.isFile
+        robolectricDependencyDir.file("android-all-instrumented-$version.jar").asFile.isFile
     }
 
 tasks.withType<Test>().configureEach {
@@ -155,7 +156,7 @@ tasks.withType<Test>().configureEach {
     if (!restoredRobolectricSdks) dependsOn(prepareRobolectricSdks)
     inputs.dir(robolectricDependencyDir).withPropertyName("robolectricSdks")
     systemProperty("robolectric.offline", "true")
-    systemProperty("robolectric.dependency.dir", robolectricDependencyDir.get().asFile.absolutePath)
+    systemProperty("robolectric.dependency.dir", robolectricDependencyDir.asFile.absolutePath)
 }
 
 dependencies {

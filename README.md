@@ -186,7 +186,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Robolectric unit tests run offline. Gradle resolves the instrumented SDK jars before
-the test JVM starts and stages them in `android/app/build/robolectric`, which CI caches.
+the test JVM starts and stages them in `android/.gradle/robolectric`. CI caches this
+directory, and it survives `./gradlew clean`.
 Update `android/gradle/robolectric.properties` when bumping Robolectric or adding a
 test SDK. Gradle needs Maven access on the first run if its dependency cache is empty.
 
