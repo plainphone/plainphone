@@ -92,6 +92,8 @@ export const de: Messages = {
   "invite.trustedAccepted": "Sie können jetzt Anfragen für die Person genehmigen, der Sie helfen.",
   "invite.accepted": "Sie sind nun Teil des Haushalts und können dessen Telefone verwalten.",
   "invite.failed": "Diese Einladung ist abgelaufen oder wurde schon verwendet. Bitten Sie um eine neue.",
+  "invite.otherAddress": "Diese Einladung wurde an eine andere E-Mail-Adresse geschickt. Melden Sie sich mit dieser Adresse an, oder bitten Sie um eine neue Einladung.",
+  "invite.signOutContinue": "Abmelden und fortfahren",
   "invite.missing": "Öffnen Sie den Einladungslink, den Sie erhalten haben.",
   "invite.back": "Zurück zur Startseite",
   "invite.toPhones": "Telefone ansehen",

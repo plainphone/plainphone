@@ -69,7 +69,8 @@ them, as it can read the family inbox, and the child's phone and the contact's p
    Do you want to swap messages with Grandma?" with **Yes** and **No thanks**.
 3. The person opens the link, sees whose invitation it is, and taps **Accept** or **No thanks**.
    Accepting uses up the link: the browser gets its own session token, and opening the link again
-   finds nothing.
+   finds nothing. Unlike a parent invitation, which only the invited e-mail address can accept, this
+   link is bound to no address: the person has no account, and the child's yes is the check.
 
 Steps 2 and 3 can happen in either order. The person becomes a member only when both have said yes.
 Until then the contact's page says it is waiting for the child, and replies are refused.

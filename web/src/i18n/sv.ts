@@ -92,6 +92,8 @@ export const sv: Messages = {
   "invite.trustedAccepted": "Du kan nu godkänna förfrågningar för den person du hjälper.",
   "invite.accepted": "Du är nu en del av hushållet och kan hantera dess telefoner.",
   "invite.failed": "Den här inbjudan har löpt ut eller har redan använts. Be om en ny.",
+  "invite.otherAddress": "Den här inbjudan skickades till en annan e-postadress. Logga in med den adressen, eller be om en ny inbjudan.",
+  "invite.signOutContinue": "Logga ut och fortsätt",
   "invite.missing": "Öppna inbjudningslänken som du har skickats.",
   "invite.back": "Tillbaka till startsidan",
   "invite.toPhones": "Se telefonerna",

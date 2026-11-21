@@ -44,7 +44,7 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Per phone (shared by its parents): hours of silence before an alert, and when the last offline alert went out | until the phone is removed | `phones.offline_alert_hours`, `phones.offline_alerted_at` |
 | Weekly summary input: minutes of use per app and day, and counts of protection, offline, check-in and rule-change events (no free text). Only for phones whose "Weekly summary" switch is on | 21 days, or until the phone is removed | `phone_usage_days`, `summary_events`, sweeper |
 | Weekly summaries (per household and week: phone names, app labels and the counts above) | 8 weeks, or until the household is deleted. A removed phone's name and numbers stay in the summaries already built, until they expire | `household_summaries`, sweeper |
-| Household invitations | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
+| Household invitations: the invited address, used to check that only an account with that address accepts it (another account is refused, and the invitation stays) | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
 | Login links | 1 day after they expire | sweeper |
 | Sessions | until they expire (60 days) or the user logs out | sweeper |
 | Pairings (holds a not yet collected device token in clear text) | 1 day | sweeper |
