@@ -9,7 +9,7 @@ import { api, ApiError } from "../lib/api";
 import { INVITE_KEY } from "../lib/session";
 import { InvitePage } from "./Invite";
 
-const logout = vi.hoisted(() => vi.fn(async () => undefined));
+const logout = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
 
 vi.mock("../lib/session", async (original) => ({
   ...(await original<typeof import("../lib/session")>()),
