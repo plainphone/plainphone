@@ -39,14 +39,15 @@ class TelephonyLog(context: Context) {
 
     fun blocked(): List<BlockedEvent> = blocked(ContactPolicySources.get(app).rules())
 
-    private fun blocked(rules: ContactRules): List<BlockedEvent> =
+    private fun blocked(rules: ContactRules?): List<BlockedEvent> =
         prefs.getString(KEY_BLOCKED, null).orEmpty().lines().mapNotNull(BlockedEvent::decode)
-            .filterNot { rules.isHelpNumber(it.number) }
+            .filterNot { rules?.isHelpNumber(it.number) == true }
 
     @Synchronized
     fun recordBlocked(channel: Channel, direction: Direction, number: String?) {
-        val rules = ContactPolicySources.get(app).rules()
-        if (rules.isHelpNumber(number)) return
+        // Also used when the rules cannot be read (UnreadableRules): then nothing is filtered out.
+        val rules = runCatching { ContactPolicySources.get(app).rules() }.getOrNull()
+        if (rules?.isHelpNumber(number) == true) return
         val event = BlockedEvent(System.currentTimeMillis(), channel, direction, number?.takeIf { it.isNotBlank() } ?: HIDDEN)
         val list = BlockedEvent.append(blocked(rules), event, MAX_EVENTS)
         prefs.edit().putString(KEY_BLOCKED, list.joinToString("\n") { it.encode() }).apply()

@@ -137,6 +137,12 @@
     <string name="blocked_title">Blockiert (%1$d)</string>
     <string name="blocked_empty">Noch ist nichts blockiert.</string>
     <string name="blocked_clear">Liste blockierter Anrufe und SMS leeren</string>
+    <string name="call_paused_title">Anruf nicht gestartet</string>
+    <string name="call_paused_text">Plainphone kann diese Nummer gerade nicht prüfen. Du kannst weiterhin deine Eltern und 112 anrufen.</string>
+    <string name="held_title">Zur Prüfung zurückgehalten (%1$d)</string>
+    <string name="held_intro">Plainphone konnte nicht prüfen, wer diese Nachrichten gesendet hat, und hat sie hier aufbewahrt. Das Kind sieht sie nicht.</string>
+    <string name="held_delete">Nachricht von %1$s löschen</string>
+    <string name="held_clear">Alle zurückgehaltenen Nachrichten löschen</string>
     <string name="blocked_call_in">Eingehender Anruf</string>
     <string name="blocked_call_out">Ausgehender Anruf</string>
     <string name="blocked_sms_in">Eingehende Nachricht</string>
