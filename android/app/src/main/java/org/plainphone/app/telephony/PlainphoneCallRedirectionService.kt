@@ -25,7 +25,7 @@ class PlainphoneCallRedirectionService : CallRedirectionService() {
         val number = handle.schemeSpecificPart?.takeIf { it.isNotBlank() }
         var unreadable = false
         val allowed = runCatching {
-            contactPolicy().decide(ContactPolicySources.get(this).rules(), Channel.CALL, Direction.OUTGOING, number).allowed
+            contactPolicy().decide(ContactPolicySources.strictRules(this), Channel.CALL, Direction.OUTGOING, number).allowed
         }.getOrElse {
             // The rules cannot be read: only the parents and emergency numbers, or everything when the
             // phone has no copy of the parents' numbers (same rule as the in-call service).

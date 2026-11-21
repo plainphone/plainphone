@@ -281,7 +281,7 @@ class SmsDeliverReceiver : BroadcastReceiver() {
     }
 
     private fun handle(context: Context, sender: String, numeric: Boolean, msgs: List<PlatformSms>, subId: Int, onStored: () -> Unit) {
-        val rules = ContactPolicySources.get(context).rules()
+        val rules = ContactPolicySources.strictRules(context)
         val decision = context.contactPolicy().decide(rules, Channel.SMS, Direction.INCOMING, sender.ifBlank { null }, numeric)
         if (!decision.allowed) {
             Log.i(TAG, "dropped incoming SMS: $decision")

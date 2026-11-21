@@ -48,12 +48,17 @@ class HeldSms(
 
     private fun read(): List<HeldMessage> {
         val cutoff = now() - MAX_AGE_MS
-        return prefs.getString(KEY, null).orEmpty().lines().filter(String::isNotEmpty).mapNotNull { line ->
+        val lines = prefs.getString(KEY, null).orEmpty().lines().filter(String::isNotEmpty)
+        val all = lines.mapNotNull { line ->
             runCatching {
                 val o = JSONObject(box.open(line) ?: return@runCatching null)
                 HeldMessage(o.getString("id"), o.getLong("at"), o.getString("from"), o.getString("body"))
             }.getOrNull()
-        }.filter { it.atMs >= cutoff }
+        }
+        val fresh = all.filter { it.atMs >= cutoff }
+        // Retention is real on disk: expired messages are removed when anything reads the store.
+        if (fresh.size < all.size) runCatching { write(fresh) }
+        return fresh
     }
 
     private fun write(list: List<HeldMessage>) {
@@ -89,7 +94,8 @@ internal object SmsFailsafe {
     ) {
         Log.e("Plainphone", "handling an incoming SMS failed, falling back", error)
         val parent = runCatching {
-            ParentNumbers(context).snapshot()?.takeIf { it.enforced }?.contains(sender) == true
+            // Same as calls: a parent, or a phone whose list was not limiting anything.
+            ParentNumbers(context).snapshot()?.let { !it.enforced || it.contains(sender) } == true
         }.getOrDefault(false)
         if (parent && runCatching { deliver(context, sender, body, atMs, subId) }.isSuccess) return
         HeldSms(context).hold(sender, body, atMs)

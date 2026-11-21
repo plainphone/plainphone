@@ -114,14 +114,25 @@ class FailsafeTest {
         emergency.forEach { assertThat(call(it).allowed).isTrue() }
     }
 
-    @Test fun `corrupt stored rules do not touch the list`() {
+    @Test fun `corrupt stored rules are unreadable, and the list keeps the parents`() {
         sync()
-        // The rules file is replaced by garbage; the separate list is unaffected and still readable.
-        context.getSharedPreferences("plainphone_sync", Context.MODE_PRIVATE).edit().clear().commit()
-        breakRules()
+        // The stored rules are damaged for real; nothing is forced to throw.
+        context.getSharedPreferences("plainphone_sync", Context.MODE_PRIVATE).edit().putString("rules", "{garbage").commit()
+        assertThat(runCatching { ContactPolicySources.strictRules(context) }.isFailure).isTrue()
+        // Reading the rules the ordinary way must not shrink the copy to the local list.
+        ContactPolicySources.get(context).rules()
+        assertThat(ParentNumbers(context).snapshot()!!.numbers).containsExactly(mum)
         assertThat(call(mum).allowed).isTrue()
         assertThat(call(stranger).allowed).isFalse()
         emergency.forEach { assertThat(call(it).allowed).isTrue() }
+    }
+
+    @Test fun `missing stored rules do not overwrite the list with the local list`() {
+        sync()
+        context.getSharedPreferences("plainphone_sync", Context.MODE_PRIVATE).edit().clear().commit()
+        ContactPolicySources.get(context).rules()
+        assertThat(ParentNumbers(context).snapshot()!!.numbers).containsExactly(mum)
+        assertThat(call(stranger).allowed).isFalse()
     }
 
     @Test fun `a phone whose list was not limiting calls stays open`() {
@@ -225,6 +236,15 @@ class FailsafeTest {
         assertThat(store.messages().first().body).isEqualTo("m0") // newest first
         now += HeldSms.MAX_AGE_MS + 1
         assertThat(store.messages()).isEmpty()
+    }
+
+    @Test fun `expired messages are removed from the disk when the store is read`() {
+        var now = 1_000_000_000_000L
+        val store = HeldSms(context, FakeSecretBox()) { now }
+        store.hold(stranger, "old", now)
+        now += HeldSms.MAX_AGE_MS + 1
+        assertThat(store.messages()).isEmpty()
+        assertThat(context.getSharedPreferences("plainphone_held_sms", Context.MODE_PRIVATE).getString("messages", null)).isEmpty()
     }
 
     @Test fun `an entry that cannot be opened is skipped, never shown half-read`() {

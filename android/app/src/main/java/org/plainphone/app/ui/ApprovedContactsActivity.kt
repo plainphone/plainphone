@@ -82,8 +82,8 @@ private fun ApprovedContactsScreen(onBack: () -> Unit) {
     val source = remember { ContactPolicySources.get(context) }
     val log = remember { TelephonyLog(context) }
     var version by remember { mutableIntStateOf(0) }
-    val contacts = remember(version) { source.rules().contacts }
-    val blocked = remember(version) { log.blocked() }
+    val contacts = remember(version) { runCatching { source.rules().contacts }.getOrDefault(emptyList()) }
+    val blocked = remember(version) { runCatching { log.blocked() }.getOrDefault(emptyList()) }
     val heldStore = remember { HeldSms(context) }
     val held = remember(version) { heldStore.messages() }
     var name by remember { mutableStateOf("") }

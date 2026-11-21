@@ -24,7 +24,7 @@ phone cannot tell where it is, every local number counts. A country it knows but
 ## When the rules cannot be read
 
 The parents' numbers also have a second copy that does not depend on the rules: a small file in
-device-protected storage, rewritten whenever the rules are put together (`ParentNumbers.kt`). If reading the
+device-protected storage (a plain file; nothing reads it before the first unlock, since the call and SMS components start after it), rewritten whenever the rules are put together (`ParentNumbers.kt`). If reading the
 rules ever fails, outgoing calls go only to 112, the emergency numbers and that file, and a parent's SMS is
 still delivered. Without the file (first boot, never synced) outgoing calls stay open. This is a failsafe, not
 a feature, so it has no switch. Details and the tests: [contacts.md](contacts.md#when-the-rules-cannot-be-read),

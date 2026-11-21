@@ -192,7 +192,10 @@ class SyncedContactPolicySource(
         val base = local.rules()
         val server = store.rules()
         val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts)
-            ?: return base.also { ParentNumbers(app).remember(it.contacts, it) }
+            ?: return base.also {
+                // Never replace a copy from synced rules with the local list: the local list may be empty or stale.
+                ParentNumbers(app).let { copy -> if (copy.snapshot() == null) copy.remember(it.contacts, it) }
+            }
         val restrictInLight = server?.lightContactRestriction == true ||
             (server?.profile == "self" && server.selfScheduleContacts == true)
         val controlled = base.enforced || (restrictInLight && Mode.isLight(app) && LightSetup.isComplete(app) &&
@@ -236,4 +239,17 @@ object ContactPolicySources {
     @Volatile internal var override: ((Context) -> EditableContactPolicySource)? = null
 
     fun get(context: Context): EditableContactPolicySource = override?.invoke(context) ?: SyncedContactPolicySource(context)
+
+    /**
+     * Like [get] followed by rules(), but stored rules that no longer parse count as unreadable and throw,
+     * instead of quietly falling back to the local list. For the call and SMS paths, which then use the
+     * always-readable parent list ([ParentNumbers]).
+     */
+    fun strictRules(context: Context): ContactRules {
+        override?.let { return it(context).rules() }
+        val app = context.applicationContext
+        val store = SyncStore(app)
+        if (store.rawRules() != null && store.rules() == null) throw IllegalStateException("stored rules do not parse")
+        return SyncedContactPolicySource(app).rules()
+    }
 }
