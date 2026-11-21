@@ -128,9 +128,36 @@ android {
     }
 }
 
-// Robolectric and Compose screenshot tests outgrow the 512 MB default test heap.
+val robolectricArtifacts = Properties().apply {
+    val manifest = rootProject.layout.projectDirectory.file("gradle/robolectric.properties")
+    load(providers.fileContents(manifest).asText.get().reader())
+}
+val robolectricVersion = requireNotNull(robolectricArtifacts.remove("robolectric"))
+val robolectricSdkVersions = robolectricArtifacts.stringPropertyNames().sorted()
+    .map(robolectricArtifacts::getProperty)
+// Keep the restored cache available when clean and the tests run together.
+val robolectricDependencyDir = rootProject.layout.projectDirectory.dir(".gradle/robolectric")
+val prepareRobolectricSdks = tasks.register<Sync>("prepareRobolectricSdks") {
+    // Separate configurations let Gradle resolve several versions of the same module.
+    from(robolectricSdkVersions.map { version ->
+        configurations.detachedConfiguration(
+            project.dependencies.create("org.robolectric:android-all-instrumented:$version")
+        ).apply { isTransitive = false }
+    })
+    into(robolectricDependencyDir)
+}
+val restoredRobolectricSdks = providers.environmentVariable("ROBOLECTRIC_SDK_CACHE_HIT").orNull == "true" &&
+    robolectricSdkVersions.all { version ->
+        robolectricDependencyDir.file("android-all-instrumented-$version.jar").asFile.isFile
+    }
+
 tasks.withType<Test>().configureEach {
+    // Robolectric and Compose screenshot tests outgrow the 512 MB default test heap.
     maxHeapSize = "1536m"
+    if (!restoredRobolectricSdks) dependsOn(prepareRobolectricSdks)
+    inputs.dir(robolectricDependencyDir).withPropertyName("robolectricSdks")
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", robolectricDependencyDir.asFile.absolutePath)
 }
 
 dependencies {
@@ -156,7 +183,7 @@ dependencies {
 
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.86")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.18")
+    testImplementation("org.robolectric:robolectric:$robolectricVersion")
     testImplementation("androidx.test:core:1.7.0")
     testImplementation("com.google.truth:truth:1.4.5")
     testImplementation("androidx.work:work-testing:2.12.0")
