@@ -43,7 +43,7 @@ it("keeps every never-gated path open with billing on and the free plan exceeded
         ok(rules, "rules");
         ok(await d.put("/api/device/status", status(rules.headers.get("etag"))), "status");
       }
-      // The force-stop guard's report (#198): an overdue lifted step is recorded and alerted, never refused.
+      // The force-stop guard's report (#198): an overdue lifted step is never refused (what is recorded and alerted is covered by the lifted-policies tests).
       const overdue = { name: "restriction no_modify_accounts", until: new Date(h.clock.now.getTime() - 10 * 60_000).toISOString() };
       const etag = (await child.device.get("/api/device/rules")).headers.get("etag");
       ok(await child.device.put("/api/device/status", status(etag, { liftedPolicies: [overdue] })), "lifted-policies report");

@@ -4,7 +4,8 @@ Choose **Myself** on Android and select a key before confirming setup. A wait-ti
 key takes 1, 6, 12, 24, 48 or 72 hours to loosen rules or release the phone.
 Most people pick one of [three strictness levels](#strictness-levels) instead of a number.
 Stricter rules take effect at the next connection. A trusted person can approve
-loosening requests. Until the person joins, new requests use a 24-hour wait. When a QR helper
+loosening requests. Until the person joins, new requests wait for the key's own delay (1 hour
+for Mild, 24 hours for Firm, and so on; 24 hours when the key has no other delay). When a QR helper
 joins, requests made while waiting for that helper switch to trusted approval
 if their wait has yet to expire.
 Existing phones and older Android versions keep their established key or the
@@ -21,7 +22,7 @@ of three levels:
 |---|---|---|
 | **Mild** | a 1-hour wait | waits 1 hour |
 | **Firm** | a 24-hour wait | waits 24 hours |
-| **Strict** | a person you trust | needs that person to say yes (24 hours if they have not joined yet) |
+| **Strict** | a person you trust | needs that person to say yes (the key's own delay if they have not joined yet) |
 
 Custom wait times (6, 12, 48 and 72 hours, and the plain 1 and 24) live under **Advanced**. A level is a
 name for the key, not a stored setting: the server derives it (`level` in `GET /phones/{pid}/key`:
@@ -76,7 +77,7 @@ access only. They can find the phones they help and any requests under
 **People I help**. On the owner's **Key** page, the owner can see who holds the
 key. Two people can invite each other separately.
 While a QR invitation is waiting, the web **Key** page and the parent app say so and name the
-fallback (changes wait for the key's delay, 24 hours by default); once it is accepted they say that instead. The parent app
+fallback (changes wait for the key's own delay); once it is accepted they say that instead. The parent app
 can create the invitation link too. An invite is never an approval: on the phone the two codes
 are labelled differently, and an expired invitation or approval code is reported as expired
 with a button for a new one, rather than as an empty list.

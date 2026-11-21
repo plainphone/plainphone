@@ -1092,7 +1092,7 @@ export const de: Messages = {
   "phone.pushUnified": "Verwendet UnifiedPush",
   "phone.pushWaiting": "Wartet auf die Meldung des Telefons",
   "phone.pushAlerts": "Hinweise zu diesem Telefon",
-  "phone.pushAlertsHelp": "Erhalten Sie Hinweise zu diesem Telefon auf Ihren registrierten Geräten.",
+  "phone.pushAlertsHelp": "Erhalten Sie Hinweise zu diesem Telefon auf Ihren registrierten Geräten. Ausgeschaltet sind auch Erinnerungen zur Überprüfung und Schnellnachrichten des Kindes still (sie landen weiterhin im Posteingang). SOS kommt immer durch.",
   "sos.yourName": "Dein Name für das Kind (optional)",
   "sos.seenBy": "Gesehen von {name}",
   "sos.title": "SOS-Verlauf",

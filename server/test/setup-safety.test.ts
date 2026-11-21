@@ -192,7 +192,7 @@ describe("onboarding safety", () => {
     expect(h.parentPush.sent).toHaveLength(1);
 
     send.mockRestore();
-    h.clock.advance(60_000);
+    h.clock.advance(3_600_000);
     await Promise.all([sweep(h.ctx), sweep(h.ctx)]);
     await sweep(h.ctx);
     expect(h.mail.outbox.slice(before).map((notice) => notice.text))
@@ -238,14 +238,56 @@ describe("onboarding safety", () => {
     try {
       for (let i = 0; i < 19; i++) {
         await deliverSetupUndoNotices(h.ctx);
-        h.clock.advance(60_000);
+        h.clock.advance(3_600_000);
       }
       expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(1);
       await deliverSetupUndoNotices(h.ctx);
-      h.clock.advance(60_000);
+      h.clock.advance(3_600_000);
       await deliverSetupUndoNotices(h.ctx);
       expect(send).toHaveBeenCalledTimes(20);
       expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+    } finally {
+      send.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it("backs off a failing notice exponentially and gives up after a day with one log line", async () => {
+    const { device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    const send = vi.spyOn(h.mail, "send").mockRejectedValue(new Error("550 no such user parent@example.org"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const waits: number[] = [];
+    try {
+      const created = h.clock.now.getTime();
+      for (let i = 0; i < 4; i++) {
+        await deliverSetupUndoNotices(h.ctx);
+        const [notice] = await h.ctx.db.select().from(setupUndoNotices);
+        expect(notice!.attempts).toBe(i + 1);
+        waits.push(notice!.nextAttemptAt.getTime() - h.clock.now.getTime());
+        h.clock.advance(waits.at(-1)!);
+      }
+      expect(waits).toEqual([60_000, 120_000, 240_000, 480_000]);
+      // Not due yet: a sweep before the wait is over does not try again.
+      const calls = send.mock.calls.length;
+      await deliverSetupUndoNotices(h.ctx);
+      h.clock.advance(60_000);
+      await deliverSetupUndoNotices(h.ctx);
+      expect(send.mock.calls.length).toBe(calls + 1);
+      // The wait stops growing at an hour, and the notice is dropped once it is a day old.
+      let guard = 0;
+      while ((await h.ctx.db.select().from(setupUndoNotices)).length > 0 && guard++ < 100) {
+        h.clock.advance(3_600_000);
+        await deliverSetupUndoNotices(h.ctx);
+      }
+      expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+      expect(h.clock.now.getTime() - created).toBeGreaterThanOrEqual(24 * 3_600_000);
+      const dropped = log.mock.calls.filter(([line]) => String(line).includes("dropped"));
+      expect(dropped).toHaveLength(1);
+      expect(log.mock.calls.flat().join(" ")).not.toContain("example.org");
     } finally {
       send.mockRestore();
       log.mockRestore();

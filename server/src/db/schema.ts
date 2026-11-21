@@ -751,6 +751,9 @@ export const setupUndoNotices = pgTable("setup_undo_notices", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   subscriptionId: uuid("subscription_id").references(() => pushSubscriptions.id, { onDelete: "cascade" }),
   nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),
+  /** Failed deliveries so far: they back off exponentially, and the notice is dropped after a day. */
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("setup_undo_notices_due_idx").on(t.nextAttemptAt)]);
 
 /** Phones a parent does not want notifications about. Absent means on. */
@@ -1032,7 +1035,11 @@ export const summaryEvents = pgTable("summary_events", {
   /** For a change: its category ("time", "apps", "contacts", "web", "schedules", "other"). */
   detail: text("detail"),
   at: timestamp("at", { withTimezone: true }).notNull(),
-}, (t) => [index("summary_events_phone_at_idx").on(t.phoneId, t.at)]);
+}, (t) => [
+  index("summary_events_phone_at_idx").on(t.phoneId, t.at),
+  // The per-minute cleanup deletes by `at` alone.
+  index("summary_events_at_idx").on(t.at),
+]);
 
 /** One built summary per household and week. `data` holds numbers and app names only. */
 export const householdSummaries = pgTable("household_summaries", {
