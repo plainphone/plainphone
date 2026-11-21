@@ -201,6 +201,47 @@ describe("pairing", () => {
     expect((await a.post(`/api/households/${hid}/invites`, { email: "x@example.org" })).status).toBe(429);
   });
 
+  describe("an invitation is for the invited address only", () => {
+    const invite = async (to: string) => {
+      const mum = await signIn(h, "mum@example.org");
+      const hid = (await mum.get("/api/me")).json.households[0].id;
+      await mum.post(`/api/households/${hid}/invites`, { email: to });
+      const token = decodeURIComponent(/invite#token=(\S+)/.exec(h.mail.outbox.at(-1)!.text)![1]!);
+      return { mum, hid, token };
+    };
+
+    it("lets the invited account in, whatever the case of the invited address", async () => {
+      const { token, hid, mum } = await invite("  Dad@Example.ORG ");
+      const dad = await signIn(h, "dad@example.org");
+      expect((await dad.post("/api/invites/accept", { token })).status).toBe(200);
+      const members = await mum.get(`/api/households/${hid}/members`);
+      expect(members.json.members.map((m: any) => m.email).sort()).toEqual(["dad@example.org", "mum@example.org"]);
+    });
+
+    it("answers 403 to another account and keeps the invitation for the right one", async () => {
+      const { token, hid, mum } = await invite("dad@example.org");
+      const other = await signIn(h, "other@example.org");
+      const refused = await other.post("/api/invites/accept", { token });
+      expect(refused.status).toBe(403);
+      expect(refused.json.code).toBe("invite_email_mismatch");
+      expect(JSON.stringify(refused.json)).not.toContain("dad@example.org");
+      expect((await mum.get(`/api/households/${hid}/members`)).json.members).toHaveLength(1);
+      expect((await mum.get(`/api/households/${hid}/members`)).json.invites).toHaveLength(1);
+
+      const dad = await signIn(h, "dad@example.org");
+      expect((await dad.post("/api/invites/accept", { token })).status).toBe(200);
+    });
+
+    it("says expired, not mismatch, for an expired invitation", async () => {
+      const { token } = await invite("dad@example.org");
+      h.clock.advance(8 * 86_400_000);
+      const other = await signIn(h, "other@example.org");
+      expect((await other.post("/api/invites/accept", { token })).status).toBe(400);
+      const dad = await signIn(h, "dad@example.org");
+      expect((await dad.post("/api/invites/accept", { token })).status).toBe(400);
+    });
+  });
+
   it("keeps an owner when the owner leaves", async () => {
     const mum = await signIn(h, "mum@example.org");
     const hid = (await mum.get("/api/me")).json.households[0].id;

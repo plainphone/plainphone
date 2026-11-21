@@ -33,15 +33,17 @@ function forget() {
 
 export function InvitePage() {
   const { t } = useI18n();
-  const { state, refresh } = useSession();
+  const { state, refresh, logout } = useSession();
   const [token] = useState(readToken);
   const trusted = token?.startsWith("pp_t_") ?? false;
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<"ok" | string | null>(null);
+  const [otherAddress, setOtherAddress] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
 
   useEffect(() => {
     // Every invitation waits for a tap: a link from a stranger must not add this parent to their household.
-    if (!token || state.status !== "in" || !confirmed) return;
+    if (!token || state.status !== "in" || !confirmed || otherAddress) return;
     let p = inflight.get(token);
     if (!p) {
       p = api.post("/invites/accept", { token });
@@ -51,10 +53,36 @@ export function InvitePage() {
       () => {
         setResult("ok");
         void refresh();
+        forget();
       },
-      (err) => setResult(err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t)),
-    ).finally(forget);
-  }, [token, state.status, refresh, t, trusted, confirmed]);
+      (err) => {
+        inflight.delete(token);
+        if (err instanceof ApiError && err.status === 403 && err.data.code === "invite_email_mismatch") {
+          // The link stays: it works for the invited address, after a sign-out.
+          setOtherAddress(true);
+          return;
+        }
+        setResult(err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t));
+        forget();
+      },
+    );
+  }, [token, state.status, refresh, t, trusted, confirmed, otherAddress]);
+
+  const signOutAndContinue = async () => {
+    setSignOutFailed(false);
+    try {
+      await logout();
+    } catch {
+      setSignOutFailed(true);
+      return;
+    }
+    // Signing out forgets the invitation so the next person does not inherit it; this one is kept on purpose.
+    try {
+      if (token) sessionStorage.setItem(INVITE_KEY, token);
+    } catch {
+      // ignore
+    }
+  };
 
   if (state.status === "loading") return <Loading />;
   if (token && state.status === "anon") return <Navigate to="/login" replace />;
@@ -73,6 +101,17 @@ export function InvitePage() {
           <div className="actions">
             <button className="btn btn-primary" type="button" onClick={() => setConfirmed(true)}>
               {t(trusted ? "invite.trustedAccept" : "invite.householdAccept")}
+            </button>
+            <Link className="btn btn-secondary" to="/" onClick={forget}>{t("app.cancel")}</Link>
+          </div>
+        </div>
+      ) : otherAddress ? (
+        <div className="stack">
+          <p className="notice notice-error" role="alert">{t("invite.otherAddress")}</p>
+          {signOutFailed && <p className="notice notice-error" role="alert">{t("error.generic")}</p>}
+          <div className="actions">
+            <button className="btn btn-primary" type="button" onClick={() => void signOutAndContinue()}>
+              {t("invite.signOutContinue")}
             </button>
             <Link className="btn btn-secondary" to="/" onClick={forget}>{t("app.cancel")}</Link>
           </div>

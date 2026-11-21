@@ -98,7 +98,7 @@ export async function unwrap<D = unknown>(p: Promise<Result>): Promise<D> {
     throw new ApiError(0, "network");
   }
   if (!r.response.ok) {
-    const e = (r.error ?? {}) as { error?: string; issues?: Issue[]; outcome?: string };
+    const e = (r.error ?? {}) as { error?: string; issues?: Issue[]; outcome?: string; code?: string };
     throw new ApiError(r.response.status, e.error ?? r.response.statusText ?? "error", e.issues ?? [], e);
   }
   return r.data as D;
