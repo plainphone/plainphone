@@ -40,7 +40,7 @@ function Household() {
   const lastConfirming = useRef<string | null>(null);
   useEffect(() => {
     const node = confirmingId ? question.current : lastConfirming.current ? removeButtons.current.get(lastConfirming.current) : null;
-    const handle = node ? findNodeHandle(node) : null;
+    const handle = node && Platform.OS !== "web" ? findNodeHandle(node) : null;
     if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
     lastConfirming.current = confirmingId;
   }, [confirmingId]);

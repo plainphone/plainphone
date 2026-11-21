@@ -111,16 +111,17 @@ describe("pending changes", () => {
 
   it("clears awaitingQrHelper when the key changes to a tightening one", async () => {
     const { me, phoneId } = await selfPhone();
-    await h.ctx.db.update(selfKeys).set({ keyType: "trusted", trustedUserId: null, trustedEmail: null }).where(eq(selfKeys.phoneId, phoneId));
+    await h.ctx.db.update(selfKeys).set({ keyType: "trusted", trustedUserId: null, trustedEmail: null, delayHours: 24, payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" }).where(eq(selfKeys.phoneId, phoneId));
     const queued = await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true });
     expect(queued.status).toBe(202);
     const flag = async () => (await h.ctx.db.select({ w: pendingChanges.awaitingQrHelper }).from(pendingChanges).where(eq(pendingChanges.phoneId, phoneId)))[0]!.w;
     expect(await flag()).toBe(true);
     const next = await me.put(`/api/phones/${phoneId}/key`, {
-      keyType: "trusted", delayHours: 24, trustedEmail: "friend@example.org", payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+      keyType: "trusted", qrInvite: true, delayHours: 48, payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
     });
-    expect(next.status).toBeLessThan(300);
-    if (next.json.status === "applied") expect(await flag()).toBe(false);
+    expect(next.status).toBe(200);
+    expect(next.json.status).toBe("applied");
+    expect(await flag()).toBe(false);
   });
 });
 

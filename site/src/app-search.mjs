@@ -6,8 +6,9 @@ export function matches(terms, query) {
   if (!needle) return true;
   // A dotted query that is not a URL may be a domain still being typed
   // ("youtube.c"), so it may match the start of a domain.
-  const partial = !/^(?:https?:\/\/|[^\s/]+\.\w+\/)/.test(needle);
-  if (/^(?:https?:\/\/|[^\s/]+\.\w+\/)/.test(needle)) {
+  const isUrl = /^(?:https?:\/\/|[^\s/]+\.\w+\/)/.test(needle);
+  const partial = !isUrl;
+  if (isUrl) {
     try {
       const url = new URL(needle.includes("://") ? needle : `https://${needle}`);
       needle = url.hostname === "play.google.com" && url.pathname === "/store/apps/details"

@@ -5,6 +5,7 @@
 // that loosens the rules waits for the key: a delay, or a trusted person (D12).
 
 import { errorSummary } from "../lib/log.js";
+import { RateLimiter } from "../lib/http.js";
 import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   contacts,
@@ -78,6 +79,7 @@ export type Op =
 /** Open requests per phone, and how often the helper is told about new ones. */
 export const MAX_PENDING_CHANGES = 50;
 const HELPER_NOTICE_GAP_MS = 3_600_000;
+const helperNotices = new RateLimiter(1, HELPER_NOTICE_GAP_MS);
 
 export class ChangeError extends Error {
   constructor(
@@ -638,15 +640,13 @@ export async function submitChange(
       const keyType = helperIsSeparate ? "trusted" : "delay";
       const delayHours = key?.delayHours ?? 24;
       // A script (or another household member) must not queue hundreds of requests for the helper.
-      const [open] = await tx.select({
-        n: sql<number>`count(*)::int`,
-        // created_at comes from the database clock, so the comparison is made there too.
-        recent: sql<boolean>`coalesce(bool_or(${pendingChanges.createdAt} > now() - make_interval(secs => ${HELPER_NOTICE_GAP_MS / 1000})), false)`,
-      })
+      const [open] = await tx.select({ n: sql<number>`count(*)::int` })
         .from(pendingChanges).where(and(eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending")));
       if ((open?.n ?? 0) >= MAX_PENDING_CHANGES) throw new ChangeError(429, "too many changes are waiting; wait for them or cancel some");
       // One mail and push per hour is enough: the helper sees every open request when they look.
-      const askedRecently = keyType === "trusted" && open?.recent === true;
+      // The gap runs from the last notice, not from the last request, so a steady trickle of
+      // requests still reaches the helper once an hour. Kept in memory: no migration needed.
+      const mayNotify = keyType === "trusted" && helperNotices.take(phone.id, ctx.now().getTime());
       const [change] = await tx
         .insert(pendingChanges)
         .values({
@@ -658,7 +658,7 @@ export async function submitChange(
           effectiveAt: keyType === "delay" ? new Date(ctx.now().getTime() + delayHours * 3_600_000) : null,
         })
         .returning();
-      const notify = keyType === "trusted" && !askedRecently ? helperId : null;
+      const notify = mayNotify ? helperId : null;
       return { status: "pending" as const, op, change: change!, notify };
     }
     const applied = await applyOp(ctx, tx, fresh, op);
