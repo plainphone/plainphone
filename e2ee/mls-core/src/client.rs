@@ -245,7 +245,9 @@ impl Client {
             return Err(Error::new("bad_request", "at most 20 key packages at a time"));
         }
         let build = |resort: bool| -> Result<String, Error> {
-            let builder = KeyPackage::builder();
+            // A last-resort package carries the LastResort extension, which its leaf must list.
+            let caps = Capabilities::new(None, Some(&[CIPHERSUITE]), Some(&[ExtensionType::LastResort]), None, None);
+            let builder = KeyPackage::builder().leaf_node_capabilities(caps);
             let builder = if resort { builder.mark_as_last_resort() } else { builder };
             let bundle = builder.build(CIPHERSUITE, &self.provider, &self.signer, self.credential()).map_err(mls)?;
             Ok(b64::encode(&bundle.key_package().tls_serialize_detached().map_err(mls)?))

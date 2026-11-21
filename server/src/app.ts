@@ -16,6 +16,7 @@ import { attestationRoutes } from "./routes/attestation.js";
 import { billingWebhookRoutes } from "./routes/billing.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
+import { e2eeRoutes } from "./routes/e2ee.js";
 import { downloadRoutes } from "./routes/download.js";
 import { familyContactRoutes } from "./routes/extended-family.js";
 import { liveEventRoutes } from "./routes/events.js";
@@ -160,6 +161,8 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
   app.route("/api/catalog", publicCatalogRoutes());
   app.route("/api", latencyRoutes(ctx));
   app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
+  // E2EE phase 0 prototype: 404 unless E2EE_PROTOTYPE_ENABLED (docs/e2ee-prototype.md).
+  app.route("/api/e2ee", e2eeRoutes(ctx));
   // Signed provider webhooks (docs/billing.md); 404 while billing is off.
   app.route("/api/billing", billingWebhookRoutes(ctx));
   const resetProtection = resetProtectionRoutes(ctx);

@@ -45,6 +45,8 @@ tags:
     description: App catalog per country (docs/app-catalog.md).
   - name: family-contact
     description: An extended family contact's own page (docs/extended-family.md). No account and no parent rights.
+  - name: e2ee-prototype
+    description: E2EE phase 0 prototype, the MLS delivery service (docs/e2ee-prototype.md). Test data only. Every route answers 404 unless E2EE_PROTOTYPE_ENABLED is true, which production refuses.
   - name: billing
     description: Hosted plan and paid early unlock (docs/billing.md). Every route answers 404 while BILLING_ENABLED is off.
 
@@ -6528,3 +6530,283 @@ paths:
       responses:
         "200": { description: Withdrawn }
         "409": { $ref: "#/components/responses/Error" }
+  # --- E2EE phase 0 prototype (docs/e2ee-prototype.md). Test data only. -------------------------
+  /e2ee/devices:
+    post:
+      operationId: registerE2eeDevice
+      summary: Register an MLS client for the caller (prototype)
+      description: |
+        A parent's app (session) becomes an `admin` device in `householdId`; a child phone
+        (device token) becomes the `child` device of its own household. Every `/e2ee` route
+        answers 404 unless `E2EE_PROTOTYPE_ENABLED` is true, which production refuses.
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mlsSignPub]
+              properties:
+                householdId: { type: string, format: uuid, description: Required for parents }
+                mlsSignPub: { type: string, description: 32-byte Ed25519 MLS leaf key, base64url }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deviceId, role]
+                properties:
+                  deviceId: { type: string, format: uuid }
+                  role: { enum: [admin, child] }
+        "404": { description: Prototype off, or not the caller's household }
+        "409": { description: Too many devices for the caller }
+    get:
+      operationId: listE2eeDevices
+      summary: The household's active MLS devices (prototype; clients trust the household log, not this list)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      parameters: [{ name: householdId, in: query, schema: { type: string, format: uuid } }]
+      responses:
+        "200":
+          description: Devices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [devices]
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                      required: [deviceId, role, mlsSignPub]
+                      properties:
+                        deviceId: { type: string, format: uuid }
+                        role: { enum: [admin, child] }
+                        mlsSignPub: { type: string }
+        "404": { description: Prototype off, or not the caller's household }
+  /e2ee/devices/{did}:
+    delete:
+      operationId: revokeE2eeDevice
+      summary: Revoke an MLS device; delivery to it stops at once (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      parameters: [{ name: did, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "204": { description: Revoked; its key packages and waiting deliveries are deleted }
+        "404": { description: Prototype off, or not a device the caller may revoke }
+  /e2ee/key-packages:
+    post:
+      operationId: publishE2eeKeyPackages
+      summary: Publish MLS key packages, and optionally replace the last-resort one (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId]
+              properties:
+                deviceId: { type: string, format: uuid }
+                keyPackages: { type: array, maxItems: 20, items: { type: string, description: "KeyPackage, base64url, at most 4096 bytes" } }
+                lastResort: { type: string }
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema: { type: object, required: [stored], properties: { stored: { type: integer } } }
+        "400": { description: Not a key package for cipher suite 1 }
+        "409": { description: More than 50 key packages waiting }
+  /e2ee/key-packages/claim:
+    post:
+      operationId: claimE2eeKeyPackages
+      summary: An admin device claims one key package per device to add (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, deviceIds]
+              properties:
+                deviceId: { type: string, format: uuid }
+                deviceIds: { type: array, minItems: 1, maxItems: 10, items: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: One key package per device. A normal one is used up; the last-resort one is reused.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keyPackages]
+                properties:
+                  keyPackages:
+                    type: array
+                    items:
+                      type: object
+                      required: [deviceId, keyPackage]
+                      properties:
+                        deviceId: { type: string, format: uuid }
+                        keyPackage: { type: string }
+        "403": { description: Only a parent device adds members }
+        "409": { description: A device has no key package }
+  /e2ee/groups:
+    post:
+      operationId: createE2eeGroup
+      summary: Start a conversation for an MLS group created on the caller's device (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, mlsGroupId]
+              properties:
+                deviceId: { type: string, format: uuid }
+                mlsGroupId: { type: string, description: "The random MLS group ID, 16 to 64 bytes, base64url" }
+      responses:
+        "201":
+          description: Created at epoch 0 with the caller as the only member
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [groupId, epoch]
+                properties:
+                  groupId: { type: string, format: uuid }
+                  epoch: { type: integer }
+        "403": { description: Only a parent device starts a conversation }
+        "409": { description: The conversation exists }
+  /e2ee/groups/{gid}:
+    get:
+      operationId: getE2eeGroup
+      summary: The server's epoch and declared members; a client behind it syncs before sending (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      parameters:
+        - { name: gid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: deviceId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Current state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [groupId, epoch, members]
+                properties:
+                  groupId: { type: string, format: uuid }
+                  epoch: { type: integer }
+                  members: { type: array, items: { type: string, format: uuid } }
+        "404": { description: Not a member }
+  /e2ee/groups/{gid}/commits:
+    post:
+      operationId: postE2eeCommit
+      summary: Submit a commit (and its Welcome) for the current epoch (prototype)
+      description: |
+        The server reads the commit's clear header and accepts exactly one commit per epoch.
+        Old members (also removed ones) get the commit, added members the Welcome. Adding or
+        removing members needs an admin device.
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      parameters: [{ name: gid, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, commit, members]
+              properties:
+                deviceId: { type: string, format: uuid }
+                commit: { type: string, description: "MLS PrivateMessage with a commit, at most 64 KiB" }
+                welcome: { type: string, description: "MLS Welcome, at most 64 KiB; only with added members" }
+                members: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: uuid }, description: Device IDs after the commit }
+      responses:
+        "201":
+          description: Accepted
+          content:
+            application/json:
+              schema: { type: object, required: [epoch], properties: { epoch: { type: integer } } }
+        "400": { description: Not a commit for this conversation, or invalid members }
+        "403": { description: Only a parent device adds or removes members }
+        "409": { $ref: "#/components/responses/Error" }
+  /e2ee/groups/{gid}/messages:
+    post:
+      operationId: postE2eeMessage
+      summary: Send an application message to every other member (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      parameters: [{ name: gid, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, message]
+              properties:
+                deviceId: { type: string, format: uuid }
+                message: { type: string, description: "MLS PrivateMessage with application content, at most 8 KiB" }
+      responses:
+        "201": { description: Queued for every other member }
+        "400": { description: Not an application message for this conversation }
+        "409": { $ref: "#/components/responses/Error" }
+  /e2ee/inbox:
+    get:
+      operationId: getE2eeInbox
+      summary: Waiting MLS messages for one device, in its delivery order (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      parameters:
+        - { name: deviceId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: after, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: Up to 200 items after the cursor
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [cursor, groupId, kind, epoch, payload]
+                      properties:
+                        cursor: { type: integer }
+                        groupId: { type: string, format: uuid }
+                        kind: { enum: [welcome, commit, application] }
+                        epoch: { type: integer }
+                        payload: { type: string }
+  /e2ee/inbox/ack:
+    post:
+      operationId: ackE2eeInbox
+      summary: Delete delivered items up to a cursor (prototype)
+      tags: [e2ee-prototype]
+      security: [{ session: [] }, { device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, upTo]
+              properties:
+                deviceId: { type: string, format: uuid }
+                upTo: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Deleted; messages nobody still needs are deleted too }

@@ -285,3 +285,23 @@ fn malformed_requests_are_errors_not_panics() {
     assert_eq!(a.try_process("AAAA")["ok"], false);
     assert_eq!(call(json!({"op": "selftest"}))["ok"], true);
 }
+
+#[test]
+fn an_offline_child_joins_two_conversations_from_one_last_resort_key_package() {
+    let a = Dev::new("parent-a-phone", Role::Admin, 1);
+    let c = Dev::new("child-phone", Role::Child, 3);
+    a.roster(1, &[&a, &c]);
+    c.roster(1, &[&a, &c]);
+    let resort = ok(json!({"op": "key_packages", "handle": c.h, "count": 0, "lastResort": true}))["lastResort"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for n in 0..2 {
+        let gid = ok(json!({"op": "create_group", "handle": a.h}))["groupId"].as_str().unwrap().to_string();
+        let p = ok(json!({"op": "add_members", "handle": a.h, "groupId": gid, "keyPackages": [resort]}));
+        a.merge(&gid);
+        assert_eq!(c.process(p["welcome"].as_str().unwrap())["kind"], "joined");
+        let m = a.send(&gid, &format!("lr-{n}"), "SYNTH via last resort");
+        assert_eq!(c.process(&m)["text"], "SYNTH via last resort");
+    }
+}
