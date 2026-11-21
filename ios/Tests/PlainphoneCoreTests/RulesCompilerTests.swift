@@ -4,8 +4,38 @@ import PlainphoneCore
 import XCTest
 
 final class RulesCompilerTests: XCTestCase {
-  private func plan(_ data: Data? = nil, now: Date = Fixture.monday) throws -> CompiledPlan {
-    RulesCompiler.compile(try IosRulesDocument.parse(data ?? Fixture.data(), expectedPhoneId: nil), now: now)
+  private func plan(_ data: Data? = nil, now: Date = Fixture.monday, enforcesSchedules: Bool = true) throws -> CompiledPlan {
+    RulesCompiler.compile(try IosRulesDocument.parse(data ?? Fixture.data(), expectedPhoneId: nil), now: now,
+                          enforcesSchedules: enforcesSchedules)
+  }
+
+  func testPhaseOneDoesNotEnforceSchedules() {
+    // Maintainer decision 2026-11-21: school time, bedtime and the daily limit are not enforced on
+    // iPhone in phase 1 and not reported either. Phase 2 flips this together with the monitoring.
+    XCTAssertFalse(IosEnforcement.enforcesSchedules)
+  }
+
+  func testWithoutScheduleEnforcementTheyAreCompiledButNotMonitoredOrReported() throws {
+    let data = try Fixture.edited {
+      var schedules = $0["schedules"] as? [[String: Any]] ?? []
+      schedules.append(["id": "x", "kind": "homework", "days": [1], "start": "16:00", "end": "17:00"])
+      $0["schedules"] = schedules
+    }
+    let p = RulesCompiler.compile(try IosRulesDocument.parse(data, expectedPhoneId: nil), now: Fixture.monday)
+    XCTAssertFalse(p.enforcesSchedules)
+    // Still in the plan, behind the seam phase 2 switches on.
+    XCTAssertEqual(p.activities.count, 2)
+    XCTAssertEqual(p.dailyLimitMinutes, 105)
+    XCTAssertEqual(p.monitoredActivities, [])
+    XCTAssertNil(p.monitoredDailyLimitMinutes)
+    XCTAssertEqual(p.skipped, [], "nothing that is not enforced can fail")
+    XCTAssertEqual(p.stores, [.base])
+  }
+
+  func testWithScheduleEnforcementTheyAreMonitored() throws {
+    let p = try plan(enforcesSchedules: true)
+    XCTAssertEqual(p.monitoredActivities, p.activities)
+    XCTAssertEqual(p.monitoredDailyLimitMinutes, 105)
   }
 
   func testTheBaseStoreIsTheWholeLock() throws {

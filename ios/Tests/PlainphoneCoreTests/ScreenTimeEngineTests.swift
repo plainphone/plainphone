@@ -38,6 +38,19 @@ final class ScreenTimeEngineTests: XCTestCase {
     }
   }
 
+  func testSchedulesAndALimitThatAreNotEnforcedYetLeaveTheLockIntact() async throws {
+    try await onMain {
+      // The fixture has school time, bedtime and a daily limit (IosEnforcement.enforcesSchedules).
+      let rig = Rig()
+      rig.engine.apply(document: try Fixture.data(), etag: "\"e1\"", expectedPhoneId: nil, selection: selection)
+      XCTAssertEqual(rig.store.plan?.activities.count, 2)
+      XCTAssertEqual(rig.store.plan?.monitoredActivities, [])
+      let status = rig.engine.status(iosVersion: "26.1")
+      XCTAssertEqual(status.receipt.failedPolicies, [])
+      XCTAssertTrue(status.lockIntact)
+    }
+  }
+
   func testKeepsTheFirstApplicationTimeOfTheSameRules() async throws {
     try await onMain {
       let rig = Rig()

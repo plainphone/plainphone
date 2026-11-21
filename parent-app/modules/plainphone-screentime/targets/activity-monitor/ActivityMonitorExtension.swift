@@ -17,7 +17,8 @@ final class ActivityMonitorExtension: DeviceActivityMonitor {
 
   override func intervalDidStart(for activity: DeviceActivityName) {
     super.intervalDidStart(for: activity)
-    // TODO(phase 2): put the window's store (school, bedtime) in effect from `plans.loadPlan()`.
+    // TODO(phase 2): put the window's store (school, bedtime) in effect from the saved plan's
+    // `monitoredActivities`, which stay empty while `IosEnforcement.enforcesSchedules` is off.
     // TODO(spike d, docs/ios/spikes.md): decide whether a plan that is old and was never
     // confirmed needs a time-based fallback here.
     try? plans.appendEvent(AppGroupEvent(kind: .intervalStarted, at: Date(), detail: activity.rawValue))

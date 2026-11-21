@@ -2,7 +2,8 @@
 //
 // The plan applied with Family Controls, ManagedSettings and DeviceActivity (iOS 26). Phase 1
 // applies the base store: the app shield, no installs or removals, locked accounts, passcode and
-// date (docs/ios/architecture.md, "Phases"). Schedules and limits come in phase 2.
+// date (docs/ios/architecture.md, "Phases"). Schedules and limits come in phase 2
+// (`IosEnforcement.enforcesSchedules`).
 
 #if canImport(FamilyControls) && canImport(ManagedSettings)
 @preconcurrency import DeviceActivity
@@ -71,10 +72,12 @@ public final class FamilyControlsApplier: ScreenTimeApplying {
       break
     }
 
-    // TODO(phase 2, spike d): start DeviceActivity monitoring for `plan.activities` and the daily
-    // limit. iOS monitors at most 20 activities, so windows are merged per store first.
-    if !plan.activities.isEmpty { failed.append("school time and bedtime come in a later version") }
-    if plan.dailyLimitMinutes != nil { failed.append("the daily limit comes in a later version") }
+    // TODO(phase 2, spike d): start DeviceActivity monitoring for `plan.monitoredActivities` and
+    // `plan.monitoredDailyLimitMinutes`. iOS monitors at most 20 activities, so windows are merged
+    // per store first. Both are empty while `IosEnforcement.enforcesSchedules` is off (phase 1),
+    // so nothing is reported; turning the switch on before this is built reports them as failed.
+    if !plan.monitoredActivities.isEmpty { failed.append("school time and bedtime could not be started") }
+    if plan.monitoredDailyLimitMinutes != nil { failed.append("the daily limit could not be started") }
     return ApplyOutcome(effectiveStores: [.base], failed: failed)
   }
 

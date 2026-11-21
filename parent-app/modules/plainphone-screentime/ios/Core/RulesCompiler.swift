@@ -50,17 +50,26 @@ public struct CompiledPlan: Codable, Sendable, Equatable {
   public var limitWarning: Bool
   /// Parts of the document this build cannot apply, reported as failed policies. Never silent.
   public var skipped: [String]
+  /// Whether this build enforces the windows and the limit (`IosEnforcement.enforcesSchedules`).
+  public var enforcesSchedules: Bool
 
   /// The stores this plan puts in effect.
   public var stores: [StoreName] { released ? [] : [.base] }
+  /// The windows to monitor: none while the build does not enforce schedules.
+  public var monitoredActivities: [Activity] { enforcesSchedules ? activities : [] }
+  /// The limit to monitor: none while the build does not enforce schedules.
+  public var monitoredDailyLimitMinutes: Int? { enforcesSchedules ? dailyLimitMinutes : nil }
 }
 
 public enum RulesCompiler {
   /// Compiles a checked document. `now` picks today's limit in the document's time zone.
-  public static func compile(_ doc: IosRulesDocument, now: Date) -> CompiledPlan {
+  /// Windows and the limit are always compiled; problems with them are reported only when
+  /// `enforcesSchedules` is on, because a build that does not enforce them has nothing to fail.
+  public static func compile(_ doc: IosRulesDocument, now: Date,
+                             enforcesSchedules: Bool = IosEnforcement.enforcesSchedules) -> CompiledPlan {
     var skipped: [String] = []
     let zone = TimeZone(identifier: doc.timezone)
-    if zone == nil { skipped.append("time zone \(doc.timezone) unknown; using the phone's own") }
+    if zone == nil && enforcesSchedules { skipped.append("time zone \(doc.timezone) unknown; using the phone's own") }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = zone ?? .current
 
@@ -69,7 +78,7 @@ public enum RulesCompiler {
       guard let store = StoreName(rawValue: s.kind), store == .school || store == .bedtime,
             let start = ClockTime(s.start), let end = ClockTime(s.end)
       else {
-        skipped.append("schedule \(s.id): kind \(s.kind) unknown")
+        if enforcesSchedules { skipped.append("schedule \(s.id): kind \(s.kind) unknown") }
         continue
       }
       // An empty window (start == end) shields nothing; keep it out rather than guess a full day.
@@ -95,7 +104,8 @@ public enum RulesCompiler {
       dailyLimitMinutes: dailyLimit(doc.timeLimits, now: now, calendar: calendar),
       askMoreTime: doc.askMoreTimeEnabled,
       limitWarning: doc.limitWarningEnabled,
-      skipped: skipped
+      skipped: skipped,
+      enforcesSchedules: enforcesSchedules
     )
   }
 

@@ -61,3 +61,7 @@ Every part that depends on a spike in [docs/ios/spikes.md](../docs/ios/spikes.md
 | (b) shield action | `ShieldActionExtension`, `ShieldConfigurationExtension` | The shield has one button that closes the app; "Ask for more time" only records an App Group event |
 | (d) push latency | `ActivityMonitorExtension`, `parent-app/src/app/child/index.tsx` | Rules sync while the app is open and when it comes to the front |
 | (e) Declared Age Range | the Apple-settings step of the wizard | The wizard guides; it says it cannot check the settings |
+
+School time, bedtime and the daily limit wait for phase 2 behind one switch,
+`IosEnforcement.enforcesSchedules` (`false`): they are compiled into the plan but not monitored and
+not reported as failed ([architecture](../docs/ios/architecture.md#phase-1-what-the-iphone-does-not-enforce-yet)).
