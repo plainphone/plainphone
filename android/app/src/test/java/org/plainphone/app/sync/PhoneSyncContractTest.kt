@@ -163,6 +163,9 @@ class PhoneSyncContractTest {
             .put("startMinute", 21 * 60).put("endMinute", 7 * 60).put("allowedPackages", org.json.JSONArray(listOf("com.spotify.music")))
         assertThat(parent("POST", "/phones/$phoneId/schedules", bedtime).first).isAnyOf(200, 201)
         assertThat(runner.run("changed")).isEqualTo(SyncRunner.Outcome.Synced(changed = true, pollSeconds = 60))
+        // The server's clock comes with the rules and reaches the trusted time (docs/light-mode.md#the-phones-clock).
+        assertThat(device.serverTimes.last().serverMs).isWithin(60_000L).of(System.currentTimeMillis())
+        assertThat(checkNotNull(api.lastServerTime()).serverMs).isAtLeast(device.serverTimes.last().serverMs)
         rules = store.rules()!!
         assertThat(rules.allowedApps).contains("com.example.game")
         assertThat(SyncedContactPolicySource(context) { store.rules()?.contacts }.rules().contacts)

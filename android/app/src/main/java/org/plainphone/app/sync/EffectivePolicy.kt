@@ -7,6 +7,7 @@ import java.time.Instant
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.ServerOverlay
 import org.plainphone.app.quiet.BedtimeQuiet
+import org.plainphone.app.time.TrustedTime
 
 /**
  * Merges the parent's rules from the server into the lock config from the QR code.
@@ -28,9 +29,11 @@ object EffectivePolicy {
         removed: Boolean = false,
         timeBlocked: Set<String> = emptySet(),
         installing: String? = null,
+        // The phone's trusted time (time/TrustedClock.kt); defaults to [now] as an exact moment.
+        time: TrustedTime = TrustedTime.at(now),
     ): PolicyConfig {
         if (rules == null) return qr
-        val windows = Schedules.active(rules.schedules, now, rules.timezone)
+        val windows = Schedules.active(rules.schedules, time, rules.timezone)
         val windowAllowed = Schedules.allowedDuringWindows(windows)
         // Catalog apps the parent approved before they were installed count as allowed, so they
         // are not hidden in the minute between installing and the next rules.

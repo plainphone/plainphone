@@ -15,7 +15,9 @@ import { clockTime, followUpWords, moreTimeWords } from "../lib/more-time-words.
 import { lastSeen, moreTimeActions, pushWords, type SafetyNews } from "../lib/push-text.js";
 import { reviewWords } from "../lib/review-words.js";
 import { summaryWords } from "../lib/summary-text.js";
-import type { PushMessage } from "../providers/parent-push.js";
+import { pushClass } from "../lib/push-priority.js";
+import { parentPushEnabled, type PushMessage } from "../providers/parent-push.js";
+import { parentSample } from "./latency.js";
 import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
@@ -151,9 +153,14 @@ export async function notifyUsers(
   ctx: Ctx,
   userIds: string[],
   e: NotifyEvent,
-  opts: { subscriptionId?: string; urgent?: boolean; respectMuteFor?: string; onFailure?: () => void; keepOnTransientFailure?: boolean } = {},
+  opts: {
+    subscriptionId?: string; urgent?: boolean; respectMuteFor?: string; onFailure?: () => void; keepOnTransientFailure?: boolean;
+    /** When the news reached the server (an SOS's receipt), for the delivery timing; default now. */
+    originAt?: Date;
+  } = {},
 ): Promise<number> {
   if (userIds.length === 0) return 0;
+  const origin = opts.originAt ?? ctx.now();
   try {
     const subs = await ctx.db
       .select({ sub: pushSubscriptions, locale: users.locale })
@@ -169,18 +176,22 @@ export async function notifyUsers(
         ),
       );
     const urgent = opts.urgent ?? (e.type === "protection" || (e.type === "sos" && e.kind === "urgent"));
+    const priority = pushClass(e.type, urgent);
     const results = await Promise.all(
       subs.map(async ({ sub, locale }) => {
         const sameRegistration = samePushRegistration(sub);
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
+        const sample = parentPushEnabled(ctx.parentPush, sub.platform) ? parentSample(ctx, sub.platform, priority) : undefined;
         try {
           const language = toLocale(locale);
           const message = pushMessage(e, language);
-          outcome = await ctx.parentPush.send(sub, message, { urgent });
+          outcome = await ctx.parentPush.send(sub, { ...message, receipt: sample?.receipt }, { urgent, priority });
         } catch (err) {
           console.error(`push send failed: ${errorSummary(err)}`);
           outcome = "failed";
         }
+        // Not awaited: the timing must never hold up the alert's own bookkeeping.
+        void sample?.settle(outcome === "sent", origin);
         if (outcome === "sent") {
           await ctx.db
             .update(pushSubscriptions)

@@ -11,6 +11,7 @@ import android.util.Log
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.time.TrustedClock
 import org.plainphone.app.update.BatteryExemptionMissingException
 import org.plainphone.app.update.InstallLease
 
@@ -30,7 +31,7 @@ object InstallWindow {
     private const val PREFS = "plainphone_install"
 
     /** The package whose install window is open right now, or null. */
-    fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? {
+    fun current(context: Context, nowMs: Long = TrustedClock.of(context).now().ms): String? {
         val p = prefs(context)
         val pkg = p.getString("pkg", null) ?: return null
         if (!InstallLease.android(context).isOpen(InstallLease.CATALOG)) return null
@@ -78,7 +79,9 @@ object InstallWindow {
                 isInstalled(app, packageName)
             ) return OpenResult.UNAVAILABLE
             if (current(app) != packageName) {
-                val day = java.time.LocalDate.now().toString()
+                // The trusted day, so setting the date forward gives no new windows (time/TrustedClock.kt).
+                val time = TrustedClock.of(app).now()
+                val day = time.instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
                 val p = prefs(app)
                 val previousDay = p.getString("day", null)
                 val previousCount = p.getInt("windows", 0)
@@ -96,7 +99,7 @@ object InstallWindow {
                     lease.begin(InstallLease.CATALOG, WINDOW_MS)
                     started = true
                     check(p.edit().putString("pkg", packageName)
-                        .putLong("until", System.currentTimeMillis() + WINDOW_MS)
+                        .putLong("until", time.ms + WINDOW_MS)
                         .commit()) { "Could not save the catalog target" }
                     applyPolicy { usedWindow = true }
                     check(current(app) == packageName) { "Catalog target is no longer eligible" }

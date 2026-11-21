@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import java.time.Instant
 import java.util.concurrent.Executors
 import org.plainphone.app.Compat
 import org.plainphone.app.R
@@ -40,10 +39,10 @@ object LimitWarningNotifier {
     }
 
     /** Warns once if [pkg] (or the app in front per [snap]) is about to run out. Call off the main thread. */
-    fun check(context: Context, snap: TimeGuard.Snapshot, pkg: String?, now: Instant = Instant.now()) {
+    fun check(context: Context, snap: TimeGuard.Snapshot, pkg: String?, now: TrustedTime = TrustedClock.of(context).now()) {
         val rules = SyncStore(context).rules() ?: return
         val front = pkg ?: snap.foreground ?: return
-        val date = now.atZone(rules.timezone).toLocalDate()
+        val date = now.instant.atZone(rules.timezone).toLocalDate()
         val due = LimitWarning.due(snap.limits, snap.evaluation, front, date, snap.exempt, rules.limitWarningEnabled, quiet(rules, now))
             ?: return
         if (!LimitWarningMarks(context).claim(date, due)) return
@@ -51,16 +50,16 @@ object LimitWarningNotifier {
     }
 
     /** The home screen's line, or null. */
-    fun banner(context: Context, snap: TimeGuard.Snapshot, now: Instant = Instant.now()): String? {
+    fun banner(context: Context, snap: TimeGuard.Snapshot, now: TrustedTime = TrustedClock.of(context).now()): String? {
         val rules = SyncStore(context).rules() ?: return null
-        val date = now.atZone(rules.timezone).toLocalDate()
+        val date = now.instant.atZone(rules.timezone).toLocalDate()
         val last = LimitWarningMarks(context).lastWarnedApp(date)
         return LimitWarning.banner(snap.limits, snap.evaluation, last, date, snap.exempt, rules.limitWarningEnabled, quiet(rules, now))
             ?.let { text(context, it) }
     }
 
     /** School time or bedtime: the windows already decide what is open, so no warning. */
-    private fun quiet(rules: ServerRules, now: Instant) = Schedules.active(rules.schedules, now, rules.timezone).isNotEmpty()
+    private fun quiet(rules: ServerRules, now: TrustedTime) = Schedules.active(rules.schedules, now, rules.timezone).isNotEmpty()
 
     fun text(context: Context, due: LimitWarning.Due): String {
         val n = LimitWarning.WINDOW_MINUTES

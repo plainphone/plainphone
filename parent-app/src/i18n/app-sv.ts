@@ -11,6 +11,7 @@ export const appSv: AppMessages = {
   "native.notifications": "Aviseringar",
   "native.notificationsHelp": "Få en avisering när en ändring väntar på ditt godkännande eller telefonens plats har hämtats.",
   "native.notificationsOn": "Aviseringar är på.",
+  "native.sosChannel": "Ljud och Stör ej för Akut SOS",
   "native.notificationsOff": "Aviseringar är avstängda. Du kan slå på dem i telefonens inställningar.",
   "native.notificationsAsk": "Slå på aviseringar",
   "native.scan": "Skanna koden",

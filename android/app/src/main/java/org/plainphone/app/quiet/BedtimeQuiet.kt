@@ -3,6 +3,7 @@
 package org.plainphone.app.quiet
 
 import java.time.Instant
+import org.plainphone.app.time.TrustedTime
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.sync.Schedule
 import org.plainphone.app.sync.Schedules
@@ -21,7 +22,10 @@ object BedtimeQuiet {
         rules.silentBedtime && windows.any { it.kind == "bedtime" }
 
     /** Whether the phone is silent at [now]. */
-    fun silentNow(rules: ServerRules?, now: Instant): Boolean =
+    fun silentNow(rules: ServerRules?, now: Instant): Boolean = silentNow(rules, TrustedTime.at(now))
+
+    /** The same with the phone's trusted time (time/TrustedClock.kt): bedtime that may be on counts. */
+    fun silentNow(rules: ServerRules?, now: TrustedTime): Boolean =
         rules != null && silent(rules, Schedules.active(rules.schedules, now, rules.timezone))
 
     /**

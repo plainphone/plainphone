@@ -57,6 +57,11 @@ const schema = z.object({
    */
   OFFLINE_ALERT_HOURS: z.coerce.number().int().min(0).max(168).default(12),
   /**
+   * Delivery timings (durations and provider names only) for `/api/latency` and the dashboard's
+   * "alerts usually arrive in" line (docs/latency.md). "off" records and shows nothing.
+   */
+  LATENCY_STATS: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
+  /**
    * Strong-mode setup (provisioning QR made in the dashboard). The phone downloads the app from
    * `${PUBLIC_URL}/download/android`, which redirects to APK_DOWNLOAD_URL when set, otherwise to
    * the newest APK released on GitHub in APK_RELEASES_REPO. Self-hosters with their own build set
@@ -154,6 +159,7 @@ const LENIENT: { key: string; values: string[]; area: "push" | "other"; label: s
   { key: "APNS_SANDBOX", values: ["true", "false"], area: "push", label: "apns" },
   { key: "MAIL_PROVIDER", values: ["none", "log", "smtp"], area: "other", label: "mail" },
   { key: "BILLING_ENABLED", values: ["true", "false"], area: "other", label: "billing" },
+  { key: "LATENCY_STATS", values: ["on", "off"], area: "other", label: "latency" },
 ];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {

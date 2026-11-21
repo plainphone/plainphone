@@ -42,6 +42,7 @@ import { extendedRules, snapshotRules } from "./extended-family.js";
 import { effectiveGroup, loadModes, modesForRules } from "./modes.js";
 import { emergencyRules } from "./emergency-openings.js";
 import { billingOn } from "./billing.js";
+import { startWake } from "./latency.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -100,6 +101,9 @@ export async function createPhone(
       language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
+      // "Faster rule updates" starts on for a new Android phone when this server can wake one
+      // (docs/latency.md). Phones paired earlier keep what they had; parents can switch it off.
+      pushWakeups: input.platform !== "ios" && Boolean(ctx.push.fcmAvailable || ctx.push.unifiedPushAvailable),
       createdAt: ctx.now(),
     })
     .returning();
@@ -113,14 +117,17 @@ export async function createPhone(
 export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
   const [p] = await ctx.db.select({
     enabled: phones.pushWakeups, token: phones.fcmToken, endpoint: phones.unifiedPushEndpoint,
-    validationKey: phones.fcmValidationKey,
+    validationKey: phones.fcmValidationKey, platform: phones.platform,
   }).from(phones).where(eq(phones.id, phoneId));
-  if (!p?.enabled) return;
+  if (!p) return;
   const column = p.endpoint ? phones.unifiedPushEndpoint : phones.fcmToken;
-  const registration = p.endpoint ?? p.token;
-  if (!registration || (!p.endpoint && p.validationKey !== fcmValidationKey(ctx.push))) return;
+  const registration = p.enabled ? p.endpoint ?? p.token : null;
+  const usable = Boolean(registration) && (Boolean(p.endpoint) || p.validationKey === fcmValidationKey(ctx.push));
+  // Timed until the phone's next rules fetch, whether push or polling brings it (docs/latency.md).
+  // Written while the push goes out, so the wake-up never waits for it.
+  const timing = p.platform === "android" ? startWake(ctx, phoneId, !usable ? "poll" : p.endpoint ? "unifiedpush" : "fcm", reason) : undefined;
   try {
-    if (await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
+    if (registration && usable && await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
       const sameValidation = p.validationKey === null ? isNull(phones.fcmValidationKey)
         : eq(phones.fcmValidationKey, p.validationKey);
       await ctx.db.update(phones).set(p.endpoint ? { unifiedPushEndpoint: null } : { fcmToken: null, fcmValidationKey: null })
@@ -129,6 +136,7 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
   } catch {
     console.error("phone wakeup failed");
   }
+  await timing;
 }
 
 async function readPhoneSettings(db: Ctx["db"], phoneId: string) {
@@ -537,7 +545,7 @@ function visibleNotice(notice: StatusNotice | undefined, now: Date): true | unde
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
   const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
-    lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
+    lateGoogleAccountNotice, clockMovedNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
     lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline,
     liftedOverdueAlertedAt: _liftedAlerted, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
@@ -549,6 +557,7 @@ function summaryStatus(phone: Phone, now: Date) {
     ...withAttestation({ ...status, failedPolicies }, phone.attestation),
     parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
     lateGoogleAccount: visibleNotice(lateGoogleAccountNotice, now),
+    clockMoved: visibleNotice(clockMovedNotice, now),
     reportedAt: phone.statusReportedAt.toISOString(),
   };
 }

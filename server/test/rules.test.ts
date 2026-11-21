@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { locations } from "../src/db/schema.js";
 import { sweep } from "../src/services/sweeper.js";
+import { NoPushProvider } from "../src/providers/push.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -66,10 +67,19 @@ describe("rules delivery", () => {
     expect(after.headers.get("etag")).not.toBe(etag);
   });
 
-  it("uses polling by default and clears a registration when wakeups are switched off", async () => {
+  it("keeps polling as the default when the server cannot wake a phone", async () => {
+    h.ctx.push = new NoPushProvider();
+    const { parent, phoneId, device } = await setup();
+    expect((await device.get("/api/device/rules")).json.pushProvider).toBe("none");
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.pushWakeups).toBe(false);
+  });
+
+  it("starts new phones on push wakeups and clears a registration when they are switched off", async () => {
     const { parent, phoneId, device } = await setup();
     const path = `/api/phones/${phoneId}`;
     const registration = { fcmToken: "phone-token" };
+    expect((await device.get("/api/device/rules")).json.pushProvider).toBe("fcm");
+    await parent.patch(path, { pushWakeups: false });
     expect((await device.get("/api/device/rules")).json.pushProvider).toBe("none");
     expect((await device.put("/api/device/push-token", registration)).status).toBe(409);
     await parent.patch(path, { pushWakeups: true });

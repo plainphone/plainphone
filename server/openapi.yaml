@@ -1685,6 +1685,11 @@ components:
           format: uuid
           writeOnly: true
           description: Stable identifier for an unexpected catalog account change. Account identities are never sent.
+        clockMovedId:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: Stable identifier for "the phone's clock is set more than 10 minutes from the server's time". Sent once per move.
         mode:
           enum: [strong, light]
           description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
@@ -1811,6 +1816,11 @@ components:
             lateGoogleAccount:
               type: boolean
               description: The phone detected an unexpected account change during catalog fallback or a late Google sign-in.
+            clockMoved:
+              type: boolean
+              description: >-
+                The phone's clock was set far from the real time recently. Schedules and limits keep following
+                the server's time, so nothing opened up.
 
     ContactGroup:
       type: string
@@ -1944,6 +1954,12 @@ paths:
       summary: Report a child SOS once per client ID
       tags: [device]
       security: [{ device: [] }]
+      parameters:
+        - name: X-Plainphone-Elapsed-Ms
+          in: header
+          required: false
+          description: Milliseconds since the press on the phone's monotonic clock, for the delivery timing (docs/latency.md). A header, so older servers ignore it. Also accepted on `POST /device/quick-messages/send`.
+          schema: { type: string, pattern: "^[0-9]{1,10}$" }
       requestBody:
         required: true
         content:
@@ -2907,6 +2923,54 @@ paths:
       responses:
         "200": { description: "OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}`" }
         "503": { description: "Database down" }
+  /latency:
+    get:
+      operationId: getLatency
+      security: []
+      summary: How fast alerts and wake-ups travel (last 7 days)
+      description: 'Median and 95th percentile per path (docs/latency.md). `phone-server`: from the press on the child phone to the server, per `kind` (`sos`, `quick`, `callback`). `server-parent`: from the server to the push service accepting the alert, per `provider` (`web`, `fcm`, `apns`). `parent-device`: from the server to the parent''s device confirming it arrived. `server-child`: from a wake-up to the child phone''s next rules fetch, per `provider` (`fcm`, `unifiedpush`, `poll`). Paths with fewer than `minSamples` samples are left out, and the sample counts are never shown, so the numbers cannot reveal when a single alert happened. No personal data; cached for a minute.'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, windowDays, minSamples, paths]
+                properties:
+                  enabled: { type: boolean, description: "False when the server has LATENCY_STATS=off." }
+                  windowDays: { type: integer }
+                  minSamples: { type: integer }
+                  paths:
+                    type: array
+                    items:
+                      type: object
+                      required: [path, provider, kind, p50Ms, p95Ms]
+                      properties:
+                        path: { enum: [phone-server, server-parent, parent-device, server-child] }
+                        provider: { type: [string, "null"] }
+                        kind: { type: [string, "null"] }
+                        p50Ms: { type: integer }
+                        p95Ms: { type: integer }
+  /push-receipt:
+    post:
+      operationId: postPushReceipt
+      security: []
+      summary: A parent device confirms a notification arrived or was opened
+      description: '`receipt` is the random id in the push payload (`receipt`). Only the first `delivered` and the first `opened` per id count. Unknown ids answer 204 too. Rate limited to 120 a minute per IP.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receipt]
+              properties:
+                receipt: { type: string, pattern: "^[A-Za-z0-9_-]{22}$" }
+                event: { enum: [delivered, opened], default: delivered }
+      responses:
+        "204": { description: Recorded (or ignored) }
+        "429": { description: Too many receipts }
 
   # ---------------------------------------------------------------- device
   /device/pairings:
@@ -3229,6 +3293,11 @@ paths:
           description: Rules changed (or first fetch). Cache the document and ETag, and confirm the ETag in status after a successful application.
           headers:
             ETag: { schema: { type: string } }
+            X-Server-Time:
+              description: >-
+                The server's clock in milliseconds since the epoch. Every `/device/*` answer carries it.
+                Phones keep their schedules on it instead of their own clock (docs/light-mode.md, "The phone's clock").
+              schema: { type: string, pattern: "^[0-9]+$" }
           content:
             application/json:
               schema:
@@ -3236,7 +3305,10 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Rules"
                   - $ref: "#/components/schemas/IosRules"
-        "304": { description: "Unchanged" }
+        "304":
+          description: Unchanged
+          headers:
+            X-Server-Time: { description: "The server's clock in milliseconds since the epoch.", schema: { type: string, pattern: "^[0-9]+$" } }
         "401": { description: "Token unknown (phone removed by a parent). Keep the last rules and show \"pair again\"." }
 
   /device/ios-selection:

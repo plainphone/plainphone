@@ -24,6 +24,7 @@ import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
+import { latencyRoutes } from "./routes/latency.js";
 import { LocalEventBus } from "./services/live-events.js";
 import { LiveHub, type LiveHubOptions } from "./services/live-hub.js";
 
@@ -157,6 +158,7 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
   const updateWake = new UpdateWake();
   // Public, so it is mounted before the parent API and its session check.
   app.route("/api/catalog", publicCatalogRoutes());
+  app.route("/api", latencyRoutes(ctx));
   app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
   // Signed provider webhooks (docs/billing.md); 404 while billing is off.
   app.route("/api/billing", billingWebhookRoutes(ctx));

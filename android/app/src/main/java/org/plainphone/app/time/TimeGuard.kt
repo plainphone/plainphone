@@ -10,7 +10,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Process
 import java.time.Instant
-import java.time.ZoneId
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.Compat
 import org.plainphone.app.sync.SyncStore
@@ -46,15 +45,19 @@ object TimeGuard {
     }
 
     /** Null when there are no limits (or no rules yet). */
-    fun snapshot(context: Context, now: Instant = Instant.now()): Snapshot? {
+    fun snapshot(context: Context, time: TrustedTime = TrustedClock.of(context).now()): Snapshot? {
         val rules = SyncStore(context).rules() ?: return null
         val limits = rules.timeLimits
         if (limits.isEmpty) return null
         val exempt = exempt(context)
         val zone = rules.timezone
-        val events = if (hasUsageAccess(context)) eventsToday(context, now, zone) else emptyList()
-        val used = UsageCounter.foregroundMs(events, UsageCounter.dayStartMs(now, zone), now.toEpochMilli())
-        val evaluation = limits.evaluate(used, now.atZone(zone).toLocalDate(), exempt)
+        // Which day it is comes from the trusted time, so setting the date forward starts no new day.
+        // Android stamps usage events with the phone's own clock, so the day's start is moved onto it.
+        val dayStart = time.onWallClock(Instant.ofEpochMilli(UsageCounter.dayStartMs(time.instant, zone))).toEpochMilli()
+        val wallNow = time.wall.toEpochMilli()
+        val events = if (hasUsageAccess(context)) eventsSince(context, dayStart, wallNow) else emptyList()
+        val used = UsageCounter.foregroundMs(events, dayStart, wallNow)
+        val evaluation = limits.evaluate(used, time.instant.atZone(zone).toLocalDate(), exempt)
         val blocked = if (evaluation.totalUsedUp) {
             AndroidDeviceControls(context).launchablePackages() + evaluation.usedUpApps - exempt
         } else {
@@ -64,7 +67,8 @@ object TimeGuard {
     }
 
     /** Apps blocked by time right now; empty without limits. */
-    fun blockedNow(context: Context, now: Instant = Instant.now()): Set<String> = snapshot(context, now)?.blocked.orEmpty()
+    fun blockedNow(context: Context, time: TrustedTime = TrustedClock.of(context).now()): Set<String> =
+        snapshot(context, time)?.blocked.orEmpty()
 
     /** Core apps, maps and Plainphone itself. Cached for a few minutes: resolving intents is not free. */
     fun exempt(context: Context): Set<String> {
@@ -80,11 +84,11 @@ object TimeGuard {
         return set
     }
 
-    private fun eventsToday(context: Context, now: Instant, zone: ZoneId): List<UsageCounter.Event> {
+    /** Usage events from [dayStart] to [now], both on the phone's own clock. */
+    private fun eventsSince(context: Context, dayStart: Long, now: Long): List<UsageCounter.Event> {
         val usm = context.getSystemService(UsageStatsManager::class.java) ?: return emptyList()
-        val dayStart = UsageCounter.dayStartMs(now, zone)
         // Start a little before midnight so an app that was open then is counted from midnight.
-        val events = usm.queryEvents(dayStart - 3 * 3_600_000L, now.toEpochMilli()) ?: return emptyList()
+        val events = usm.queryEvents(dayStart - 3 * 3_600_000L, now) ?: return emptyList()
         val out = ArrayList<UsageCounter.Event>()
         val e = UsageEvents.Event()
         while (events.hasNextEvent()) {

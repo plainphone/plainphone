@@ -703,15 +703,18 @@ it("keeps acknowledged notices for seven days without extending expiry on retry"
     parallelAppsRemoved: true,
     parallelAppsRemovedId: "4e2dfc0a-44b6-43f4-a9b2-20e2372840ae",
     lateGoogleAccountId: "133d1c12-3432-47ed-9ebb-967029aae50f",
+    clockMovedId: "6f1c8a52-2b0e-4c6a-9d43-5a1f0e7b9c21",
   };
   expect((await device.put("/api/device/status", report(notices))).status).toBe(204);
   h.clock.now = new Date(firstReport + 6 * 24 * 60 * 60_000);
   expect((await device.put("/api/device/status", report(notices))).status).toBe(204);
   expect((await device.put("/api/device/status", report())).status).toBe(204);
   const { status } = (await parent.get(path)).json;
-  expect(status).toMatchObject({ parallelAppsRemoved: true, lateGoogleAccount: true, lockIntact: true });
+  expect(status).toMatchObject({ parallelAppsRemoved: true, lateGoogleAccount: true, clockMoved: true, lockIntact: true });
+  expect(status).not.toHaveProperty("clockMovedId");
   expect(status).not.toHaveProperty("lateGoogleAccountId");
   h.clock.now = new Date(firstReport + 7 * 24 * 60 * 60_000);
   expect((await parent.get(path)).json.status).not.toHaveProperty("parallelAppsRemoved");
   expect((await parent.get(path)).json.status).not.toHaveProperty("lateGoogleAccount");
+  expect((await parent.get(path)).json.status).not.toHaveProperty("clockMoved");
 });

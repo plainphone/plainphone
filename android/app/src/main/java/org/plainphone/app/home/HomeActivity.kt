@@ -228,7 +228,12 @@ class HomeActivity : ComponentActivity() {
         private const val MESSAGES = "org.plainphone.app.ui.MessagesLauncher"
 
         /** Reads the phone's apps and the last rules. Off the main thread: loading labels takes a moment. */
-        fun load(context: Context, now: Instant = Instant.now()): HomeUi {
+        fun load(
+            context: Context,
+            now: Instant = Instant.now(),
+            // Windows and modes follow the trusted time; the clock on the screen follows the phone.
+            time: org.plainphone.app.time.TrustedTime = org.plainphone.app.time.TrustedClock.of(context).now(),
+        ): HomeUi {
             val pm = context.packageManager
             val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val apps = Compat.queryActivities(pm, launcher, 0).map {
@@ -240,7 +245,8 @@ class HomeActivity : ComponentActivity() {
             val state = HomeModel.build(
                 apps = apps,
                 rules = rules,
-                now = now,
+                now = time.instant,
+                time = time,
                 fixed = setOf("$own/$PHONE", "$own/$MESSAGES"),
                 // The same core apps light mode lets through, plus Plainphone itself (its status screen).
                 core = corePackages(context) + own,

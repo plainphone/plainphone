@@ -13,6 +13,7 @@ import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
 import org.plainphone.app.sync.SyncApi
+import org.plainphone.app.time.TrustedClock
 
 /**
  * Limited emergency openings on the phone's own (Self) profile, light mode only.
@@ -252,7 +253,8 @@ class EmergencyOpenings(private val storage: EmergencyStorage, private val env: 
                 override fun save(state: EmergencyState) { prefs.edit().putString(KEY_STATE, EmergencyJson.write(state)).commit() }
             }
             val env = object : EmergencyEnv {
-                override fun wallMs() = System.currentTimeMillis()
+                // The trusted time, so setting the date forward starts no new month (time/TrustedClock.kt).
+                override fun wallMs() = TrustedClock.of(app).now().ms
                 override fun elapsedMs() = SystemClock.elapsedRealtime()
                 override fun bootCount() = Settings.Global.getInt(app.contentResolver, Settings.Global.BOOT_COUNT, -1)
             }

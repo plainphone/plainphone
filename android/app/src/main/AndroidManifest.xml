@@ -415,6 +415,12 @@
             </intent-filter>
         </service>
 
+        <!-- Sends an SOS at once, with a short visible "Sending" notice (docs/latency.md). -->
+        <service
+            android:name=".sos.SosSendService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+
         <!-- "Ring the phone" and "Are you okay?" (docs/location.md). -->
         <service
             android:name=".safety.RingService"
