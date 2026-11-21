@@ -150,7 +150,7 @@ class DotResolver(
     private val maxIdle: Int = 4,
     private val idleTimeoutMs: Long = 30_000,
     private val queryTimeoutMs: Int = 5_000,
-    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val nowMs: () -> Long = android.os.SystemClock::elapsedRealtime, // boot clock: a clock change must not age queries or keep idle sockets
 ) : UpstreamResolver, Closeable {
     constructor(host: String) : this(TlsConnector(host))
 
@@ -216,9 +216,31 @@ class DotResolver(
                 surplus.add(connection)
             } else {
                 idle.addLast(Idle(connection, nowMs()))
+                scheduleSweep()
             }
         }
         surplus.forEach { it.closeQuietly() }
+    }
+
+    /** After a burst the sockets would otherwise stay open until the next lookup: close them on a timer. */
+    private fun scheduleSweep() {
+        runCatching { SWEEPER.schedule({ sweepIdle() }, idleTimeoutMs + 100, java.util.concurrent.TimeUnit.MILLISECONDS) }
+    }
+
+    /** Closes the idle connections that have waited long enough; looks again later while some are left. */
+    internal fun sweepIdle() {
+        val expired = ArrayList<DotConnection>()
+        val more = synchronized(lock) {
+            dropExpired(expired)
+            idle.isNotEmpty() && !closed
+        }
+        expired.forEach { it.closeQuietly() }
+        if (more) scheduleSweep()
+    }
+
+    private companion object {
+        val SWEEPER = java.util.concurrent.ScheduledThreadPoolExecutor(1) { r -> Thread(r, "dot-idle-sweep").apply { isDaemon = true } }
+            .apply { removeOnCancelPolicy = true }
     }
 
     private fun dropExpired(into: MutableList<DotConnection>) {

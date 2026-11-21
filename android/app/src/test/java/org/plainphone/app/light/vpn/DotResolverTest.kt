@@ -100,6 +100,19 @@ class DotResolverTest {
     }
 
     @Test
+    fun `the idle sweep closes an unused connection after the idle time without a new lookup`() {
+        var clock = 0L
+        val r = resolver(server(), now = { clock })
+        r.resolve(query)
+        clock = 29_999
+        r.sweepIdle()
+        assertThat(r.idleCount()).isEqualTo(1)
+        clock = 30_000
+        r.sweepIdle()
+        assertThat(r.idleCount()).isEqualTo(0)
+    }
+
+    @Test
     fun `retries once on a fresh connection when the server closed the pooled one`() {
         val s = server { closeAfterMessages = 1 } // answers one query per connection, then hangs up
         val r = resolver(s)

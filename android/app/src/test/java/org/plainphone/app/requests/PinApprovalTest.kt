@@ -156,14 +156,21 @@ class PinApprovalTest {
     }
 
     @Test
-    fun `a malformed list is an error, never an empty list`() {
-        val bad = """{"requests":[{"id":"x","kind":"video","status":"pending"}]}"""
+    fun `a request kind or status from a newer server is skipped, the rest of the list stays`() {
+        val list = """{"requests":[{"id":"x","kind":"video","status":"pending"},
+            {"id":"y","kind":"app","packageName":"com.example.a","status":"waiting-for-moon"},
+            {"id":"z","kind":"app","packageName":"com.example.b","status":"pending"}]}"""
+        assertThat(PhoneRequest.parseList(list).map { it.id }).containsExactly("z")
+        assertThat(PhoneRequest.parseList("""{"requests":[]}""")).isEmpty()
+    }
+
+    @Test
+    fun `a body that is not a request list is still an error, never an empty list`() {
         try {
-            PhoneRequest.parseList(bad)
+            PhoneRequest.parseList("""{"error":"x"}""")
             error("should have failed")
-        } catch (_: IllegalArgumentException) {
+        } catch (_: org.json.JSONException) {
             // expected
         }
-        assertThat(PhoneRequest.parseList("""{"requests":[]}""")).isEmpty()
     }
 }

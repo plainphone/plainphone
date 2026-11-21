@@ -7,6 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.telecom.TelecomManager
 import android.util.Log
 import java.util.concurrent.Executors
@@ -24,18 +27,33 @@ import org.plainphone.app.sync.SyncScheduler
 object RoleWatcher {
     private val executor = Executors.newSingleThreadExecutor()
 
+    /** The broadcast is exported, so any app can send it: one apply and sync per 30 s, the last call kept. */
+    const val DEBOUNCE_MS = 30_000L
+
+    private fun applyAndSync(app: Context) {
+        try {
+            // maxAgeMs = 0: always re-apply now; skipped during a maintenance unlock.
+            Lock.applyIfNeeded(app, "default phone app changed", maxAgeMs = 0L)
+            SyncScheduler.now(app, "default phone app changed")
+        } catch (e: Exception) {
+            Log.e("Plainphone", "re-check after phone app change failed", e)
+        }
+    }
+
     fun register(context: Context) {
+        val app = context.applicationContext
+        val handler = Handler(Looper.getMainLooper())
+        val debounce = Debounce(
+            DEBOUNCE_MS, SystemClock::elapsedRealtime,
+            schedule = { delay, task -> handler.postDelayed({ executor.execute(task) }, delay) },
+            action = { applyAndSync(app) },
+        )
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                val app = context.applicationContext
                 val pending = goAsync()
                 executor.execute {
                     try {
-                        // maxAgeMs = 0: always re-apply now; skipped during a maintenance unlock.
-                        Lock.applyIfNeeded(app, "default phone app changed", maxAgeMs = 0L)
-                        SyncScheduler.now(app, "default phone app changed")
-                    } catch (e: Exception) {
-                        Log.e("Plainphone", "re-check after phone app change failed", e)
+                        debounce.trigger()
                     } finally {
                         pending.finish()
                     }

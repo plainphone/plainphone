@@ -15,6 +15,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.inputmethod.InputMethodManager
 import org.plainphone.app.Lock
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncScheduler
@@ -36,6 +37,8 @@ class GuardService : AccessibilityService() {
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
     private var lastTimeCheckPkg: String? = null
+    private var lastPipTimeCheck = 0L
+    private var pipPackages: List<String> = emptyList()
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
@@ -57,12 +60,17 @@ class GuardService : AccessibilityService() {
             // The allow-list decides again too, not only the time limits: an emergency opening that just
             // ended, or a blocked app still in front after a missed block.
             foreground?.let { if (canGuardApps()) guard(it, force = true) }
+            if (canGuardApps()) guardPip()
             main.postDelayed(this, TICK_MS)
         }
     }
 
     /** A block dropped by the rate limit: look at the app in front again once the gap is over. */
-    private val reguard = Runnable { foreground?.let { if (canGuardApps()) guard(it, force = true) } }
+    private val reguard = Runnable {
+        if (!canGuardApps()) return@Runnable
+        foreground?.let { guard(it, force = true) }
+        guardPip()
+    }
 
     /** Limited emergency openings (Self phone, light mode only): one app, 15 minutes. */
     private val emergency by lazy { EmergencyOpenings.of(this) }
@@ -122,6 +130,8 @@ class GuardService : AccessibilityService() {
             if (changes == 0 || (changes and WINDOW_INVENTORY_CHANGES) != 0) {
                 updateWindowSubscription(focusChanges = if (maintenance) 0 else changes)
             }
+            // An app that enters picture-in-picture only shows up here, never as "in front".
+            if (!maintenance && canGuardApps()) guardPip()
             return
         }
 
@@ -242,6 +252,36 @@ class GuardService : AccessibilityService() {
     }
 
     /**
+     * Closes a blocked app that plays on in picture-in-picture (see [PipGuard]): tries to dismiss the
+     * window, then shows the stop screen, which also sends Home.
+     */
+    @Suppress("DEPRECATION")
+    private fun guardPip() {
+        val wins = ArrayList<PipGuard.Win>()
+        val roots = HashMap<String, AccessibilityNodeInfo>()
+        for (window in windows) {
+            try {
+                val inPip = window.isInPictureInPictureMode
+                val root = if (!inPip) null else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) window.getRoot(0) else window.root
+                val pkg = root?.packageName?.toString()
+                wins += PipGuard.Win(pkg, inPip)
+                if (root != null && pkg != null && !roots.containsKey(pkg)) roots[pkg] = root else root?.let(::recycle)
+            } finally {
+                if (Build.VERSION.SDK_INT < 33) window.recycle()
+            }
+        }
+        pipPackages = PipGuard.packages(wins, packageName)
+        val targets = PipGuard.targets(wins, packageName, LightLock.plan(this), ::openedForNow)
+        for (t in targets) {
+            roots[t.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS)
+            block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)
+        }
+        roots.values.forEach(::recycle)
+        // Time may be up before the stored plan knows it: the live check covers picture-in-picture apps too.
+        if (pipPackages.any { p -> targets.none { it.pkg == p } && !isOverlay(p) }) pipTimeCheck(pipPackages)
+    }
+
+    /**
      * An emergency opening covers exactly this app right now. Only loosens an app block (never a
      * protection screen, never calls or texts). Makes sure the block comes back when the window ends.
      */
@@ -331,6 +371,26 @@ class GuardService : AccessibilityService() {
 
     }
 
+    /** The live time check for apps in picture-in-picture (they are not "in front"). Own 5 s rate limit. */
+    private fun pipTimeCheck(pkgs: List<String>) {
+        if (LightRelease.isReleased(this)) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPipTimeCheck < 5_000L) return
+        lastPipTimeCheck = now
+        if (worker.isShutdown || Lock.isInMaintenanceWindow(this)) return
+        runCatching { worker.execute {
+            val snap = runCatching { TimeGuard.snapshot(this) }.getOrNull() ?: return@execute
+            val used = pkgs.filter { it in snap.blocked }
+            if (used.isEmpty()) return@execute
+            main.post {
+                val still = used.filter { it in pipPackages && !openedForNow(it) }
+                if (still.isEmpty()) return@post
+                still.forEach { block(it, BlockedActivity.Reason.TIME_USED_UP) }
+                Lock.applyAsync(this, "time used up")
+            }
+        } }
+    }
+
     private fun block(pkg: String, reason: BlockedActivity.Reason) {
         if (LightRelease.isReleased(this)) return
         val now = SystemClock.elapsedRealtime()
@@ -366,7 +426,12 @@ class GuardService : AccessibilityService() {
     }
 
     /** The shade, the keyboard and the launcher are not "an app in front". */
-    private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg.contains("inputmethod")
+    private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg in keyboardPackages()
+
+    /** Packages of the enabled keyboards, not any package with "inputmethod" in its name. */
+    private fun keyboardPackages(): Set<String> =
+        runCatching { getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.map { it.packageName }?.toSet() }
+            .getOrNull().orEmpty() + "com.android.inputmethod.latin"
 
     private val privateDnsOptions by lazy {
         listOf("private_dns_mode_provider", "private_dns_mode_provider_hostname").mapNotNull(::settingsString)

@@ -16,6 +16,7 @@ in this table against the production source, including both branches of platform
 | `PlainphoneApplication.kt` `getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(` | When the default network becomes available | Either | Request sync, throttled to once a minute. |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)` | On default-role changes | Either | Recheck phone and SMS roles (Android 13+). |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter)` | On default-role changes | Either | Recheck phone and SMS roles (older Android). |
+| `RoleWatcher.kt` `schedule = { delay, task -> handler.postDelayed({ executor.execute(task) }, delay) },` | Once, at the end of a 30 s gap | Either | Apply the last role-change broadcast inside the gap (the broadcast is exported, so it is debounced). |
 | `Lock.kt` `am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, windowIntent(context))` | Next rule-window boundary + 1 s, on the trusted time and the boot clock | Either | Apply school time and bedtime transitions; moving the phone's clock does not move it. |
 | `Lock.kt` `context.getSystemService(AlarmManager::class.java).setAndAllowWhileIdle(` | At maintenance expiry | Either | Restore the lock after a parent unlocks it. |
 | `MaintenanceActivity.kt` `handler.postDelayed(this, remaining)` | At the install-window deadline | On | Update the maintenance UI when an install window closes. |
@@ -72,8 +73,8 @@ in this table against the production source, including both branches of platform
 | `update/InstallWatchdogService.kt` `.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:install-watchdog")` | When the watchdog starts | Either | Create the partial wake lock used for install recovery. |
 | `update/InstallWatchdogService.kt` `wakeLock.acquire(InstallLease.LONGEST_MS + 5_000L)` | When a lease is armed | Either | Keep the CPU available until recovery, bounded by the longest lease (45 min app update window). |
 | `update/InstallWatchdogService.kt` `check(timer.postDelayed({ onDeadline(ticket.deadline) }, remaining))` | At install-lease expiry | Either | Restore the install restriction before releasing the watchdog’s bounded wake lock. |
-| `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force) }, remaining)` | At the remaining lease deadline | Either | Re-arm a watchdog callback that arrived early. |
-| `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force) }, 1_000L)` | 1 s after a recovery error | Either | Retry restoring the install restriction. |
+| `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force, retryMs) }, remaining)` | At the remaining lease deadline | Either | Re-arm a watchdog callback that arrived early. |
+| `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force, (retryMs * 2).coerceAtMost(60_000L)) }, retryMs)` | After a recovery error: 1 s, doubling to 1 min | Either | Retry restoring the install restriction, with backoff. |
 | `update/UpdateRequestListener.kt` `app.registerReceiver(object : BroadcastReceiver() {` | On screen-on, screen-off or user-present | Either | Start or stop the interactive update long poll. |
 | `update/UpdateWorker.kt` `val request = PeriodicWorkRequestBuilder<UpdateWorker>(6, TimeUnit.HOURS)` | 6 h, with 10 min initial delay | Either | Build the periodic update request used by both constraint paths. |
 | `update/UpdateWorker.kt` `WorkManager.getInstance(context).enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.UPDATE, request)` | 6 h per variant | Either | Enqueue the unmetered and connected-plus-charging checks; they share a daily gate. |

@@ -73,7 +73,8 @@ data class PhoneRequest(
 
         fun parseList(text: String): List<PhoneRequest> {
             val list = JSONObject(text).getJSONArray("requests")
-            return List(list.length()) { parse(list.getJSONObject(it)) }
+            // A newer server may add a kind or status: skip what this phone cannot read, keep the rest.
+            return (0 until list.length()).mapNotNull { runCatching { parse(list.getJSONObject(it)) }.getOrNull() }
         }
     }
 }
