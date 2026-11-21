@@ -4,6 +4,7 @@ import { householdMembers, phones, sosDeliveries, sosEvents, users } from "../db
 import { toLocale } from "../lib/locale.js";
 import { sosMail } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
+import { publishLive } from "./live-events.js";
 import { notifyUsers, pushMessage } from "./notifications.js";
 
 const DAY = 86_400_000;
@@ -111,6 +112,10 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
     deliveryFailedAt: gaveUp ? ctx.now() : undefined,
     deliveredVia: pushedNow > 0 ? sql`coalesce(${sosEvents.deliveredVia}, 'push')` : undefined,
   }).where(claim);
+  // The dashboard shows how the SOS went out, and when it could not be delivered.
+  if (gaveUp || (pushedNow > 0 && row.deliveredVia === null)) {
+    publishLive(ctx, { type: "sos.updated", householdId: phone.householdId, phoneId, id });
+  }
 }
 
 export async function sweepSos(ctx: Ctx) {

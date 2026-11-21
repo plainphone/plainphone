@@ -3430,6 +3430,34 @@ paths:
                   error: { type: string }
                   selfPhoneIds: { type: array, items: { type: string, format: uuid } }
 
+  # ---------------------------------------------------------------- live updates
+  /events:
+    get:
+      operationId: getEvents
+      tags: [notifications]
+      summary: Live updates (server-sent events)
+      description: |
+        A `text/event-stream` that stays open while the dashboard or the parent app is open
+        (docs/live-updates.md). Only events of your own households. Each event carries ids only
+        (`{"type","phoneId","id"?,"kind"?}`); refetch through the normal API. Event names:
+        `sos.created`, `sos.updated`, `request.created`, `request.answered`, `location.updated`,
+        `safety.updated`, `inbox.message`, `phone.status`. Control events: `ready` (connected;
+        `{"resumed":bool}`), `refetch` (the gap since `Last-Event-ID` is unknown: reload everything),
+        `ping` (every 25 s) and `bye` (signed out; the stream ends).
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: Last-Event-ID, in: header, required: false, schema: { type: string, maxLength: 40 }, description: "The last event id seen; missed events are replayed when still known" }
+        - { name: lastEventId, in: query, required: false, schema: { type: string, maxLength: 40 }, description: "Same as the header, for clients that cannot set it" }
+      responses:
+        "200":
+          description: The event stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { description: "Sign in first" }
+        "429": { description: "Too many live connections for this account; fall back to polling and retry later" }
+        "503": { description: "The server has too many live connections; fall back to polling and retry later" }
+
   # ---------------------------------------------------------------- notifications
   /notifications:
     get:

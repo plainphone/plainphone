@@ -54,4 +54,10 @@ export const appSv: AppMessages = {
   "native.serverSignsOut": "Du måste logga in igen när du har bytt server.",
   "native.serverError": "Kontrollera adressen och att servern kör en kompatibel version av Plainphone.",
   "native.pushRegistrationError": "Det gick inte att registrera aviseringar på den här servern.",
+  "native.liveHelp": "SOS, svar och positioner visas direkt medan appen är öppen. Stänger du av det uppdateras appen i stället med jämna mellanrum.",
+  "native.liveSosTitle": "SOS-larm",
+  "native.liveSosHelp": "Vibrera när en SOS kommer medan appen är öppen. Aviseringen kommer ändå.",
+  "native.liveFallback": "Uppdateras regelbundet",
+  "native.liveSosFrom": "SOS från {name}",
+  "native.liveSosUnknown": "SOS från en telefon",
 };

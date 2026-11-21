@@ -53,4 +53,10 @@ export const appDa: AppMessages = {
   "native.alwaysUntil": "Slået til indtil kl. {time}",
   "native.alwaysUntilDate": "Slået til indtil {date} kl. {time}",
   "native.alwaysUntilMidnight": "Slået til indtil midnat",
+  "native.liveHelp": "SOS, svar og positioner vises med det samme, mens appen er åben. Slår du det fra, opdaterer appen i stedet med jævne mellemrum.",
+  "native.liveSosTitle": "SOS-alarm",
+  "native.liveSosHelp": "Vibrér, når der kommer en SOS, mens appen er åben. Notifikationen kommer stadig.",
+  "native.liveFallback": "Opdaterer jævnligt",
+  "native.liveSosFrom": "SOS fra {name}",
+  "native.liveSosUnknown": "SOS fra en telefon",
 };

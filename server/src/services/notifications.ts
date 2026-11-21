@@ -6,6 +6,7 @@
 // that caused it.
 
 import { errorSummary } from "../lib/log.js";
+import { publishForPhone } from "./live-events.js";
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, toLocale } from "../lib/locale.js";
@@ -330,6 +331,8 @@ async function notifyClaimed(ctx: Ctx, phoneId: string, e: NotifyEvent) {
   } catch (err) {
     console.error(`${e.type} alert failed: ${errorSummary(err)}`);
   }
+  // Open dashboards show the phone as quiet now, also for parents who muted it. Not urgent, so after the alert.
+  await publishForPhone(ctx, phoneId, "phone.status");
 }
 
 /** A confirmed light phone that never connected has no last contact to go quiet from: remind once after two days. */

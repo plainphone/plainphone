@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import type { MessageKey } from "../i18n/translate";
 import { ApiError, api } from "../lib/api";
 import {
@@ -77,12 +78,7 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
     }
   }, [waiting]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void reload();
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [reload]);
+  useLiveRefresh(["inbox.message"], pid, reload, 30_000);
 
   async function run(action: () => Promise<unknown>): Promise<boolean> {
     if (sending.current) return false;

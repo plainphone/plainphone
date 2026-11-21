@@ -15,6 +15,7 @@ import {
   type SosSettings,
   starterMessages,
 } from "../shared/lib/sos-options";
+import { useLiveRefresh } from "../lib/live";
 import { Button, Card, Field, Row, Stack as VStack, Switch, Text, useLoad } from "./ui";
 
 function MessageForm({ initial, submitLabel, busy, onSubmit, onCancel, testID }: {
@@ -82,6 +83,8 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
     if (firstFocus.current) firstFocus.current = false;
     else void reload();
   }, [reload]));
+
+  useLiveRefresh(["inbox.message"], pid, res.reloadQuiet, 0);
 
   async function run(action: () => Promise<unknown>): Promise<boolean> {
     if (sending.current) return false;
