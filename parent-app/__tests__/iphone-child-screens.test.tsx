@@ -132,11 +132,24 @@ it("lets a parent's iPhone leave the child setup before anything happens", async
   expect(await screen.findByTestId("login-email")).toBeTruthy();
 });
 
+it("leaves a way out when the build has no Screen Time module", async () => {
+  store.set("pp.role", "child");
+  store.set("pp.iphone.setupStarted", "1");
+  mockScreenTime.authorizationStatus = async () => {
+    throw new Error("no native module");
+  };
+  fakeApi({ "GET /me": { status: 401, body: { error: "sign in" } } });
+  await renderRouter(routes, { initialUrl: "/child/setup" });
+  expect(await screen.findByText(appEn["iphone.permission.unavailable"])).toBeTruthy();
+  await fireEvent.press(screen.getByTestId("setup-not-child"));
+  await waitFor(() => expect(store.get("pp.role")).toBe("parent"));
+});
+
 it("tells the child when the phone was removed, and can set it up again", async () => {
   store.set("pp.role", "child");
   store.set("pp.device", JSON.stringify({ phoneId: fixture.phoneId, deviceToken: "pp_d_old", server: "https://app.plainphone.org" }));
   mockScreenTime = fakeScreenTime("approved");
-  fakeApi({ "GET /me": { status: 401, body: { error: "sign in" } }, "GET /device/rules": { status: 401, body: { error: "unknown device" } } });
+  fakeApi({ "GET /me": { status: 401, body: { error: "sign in" } }, "GET /device/rules": { status: 401, body: { error: "unknown device; pair again" } } });
   await renderRouter(routes, { initialUrl: "/child" });
   expect(await screen.findByText(appEn["iphone.child.removed"])).toBeTruthy();
   await fireEvent.press(screen.getByTestId("child-setup-again"));

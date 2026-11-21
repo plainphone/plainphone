@@ -6,15 +6,17 @@
 // `PUT /device/status`. The Swift side keeps the old rules when a document is invalid, so an
 // error here never makes the phone looser; this file only moves bytes and reports.
 import type { ScreenTime, ScreenTimeStatus } from "../../../modules/plainphone-screentime";
-import type { DeviceFetch, DeviceIdentity } from "./device-api";
+import type { DeviceFetch, DeviceIdentity, DeviceResponse } from "./device-api";
 
 /** What the sync remembers between runs while the app is open. */
 export interface SyncMemory {
   selectionRevision: string | null;
   selection: string | null;
+  /** The server's `pollSeconds` from the last applied document, kept for `304` answers. */
+  pollSeconds: number | null;
 }
 
-export const emptyMemory = (): SyncMemory => ({ selectionRevision: null, selection: null });
+export const emptyMemory = (): SyncMemory => ({ selectionRevision: null, selection: null, pollSeconds: null });
 
 export type SyncResult =
   | { outcome: "applied" | "unchanged"; status: ScreenTimeStatus; pollSeconds: number | null }
@@ -44,6 +46,20 @@ export function statusBody(status: ScreenTimeStatus, appVersion: string) {
   };
 }
 
+/**
+ * Only this `401` means the server no longer knows the phone (docs/sync-api.md, Rules, step 6).
+ * Any other `401`, such as a proxy or login wall in front of a self-hosted server, is an ordinary
+ * error that is retried, so it cannot unpair the phone.
+ */
+function isUnknownDevice(r: DeviceResponse): boolean {
+  if (r.status !== 401) return false;
+  try {
+    return r.json<{ error?: unknown }>().error === "unknown device; pair again";
+  } catch {
+    return false;
+  }
+}
+
 /** What the sync itself needs from the document; the Swift side checks the rest. */
 function peek(document: string): { revision: string | null; release: boolean } {
   try {
@@ -63,15 +79,20 @@ export async function syncOnce(deps: {
 }): Promise<SyncResult> {
   const { api, identity, screenTime, memory, appVersion } = deps;
   const token = identity.deviceToken;
-  let status = await screenTime.status();
+  let status: ScreenTimeStatus;
+  try {
+    status = await screenTime.status();
+  } catch {
+    // No Swift module or an unreadable receipt: nothing to report, try again at the next sync.
+    return { outcome: "offline", status: null };
+  }
   if (status.released) return acknowledgeRelease(api, token, status);
 
   let outcome: "applied" | "unchanged" = "unchanged";
-  let pollSeconds: number | null = null;
   try {
     const headers: Record<string, string> = status.rulesEtag ? { "if-none-match": status.rulesEtag } : {};
     const rules = await api("GET", "/rules", { token, headers });
-    if (rules.status === 401) return { outcome: "unpaired" };
+    if (isUnknownDevice(rules)) return { outcome: "unpaired" };
     if (rules.status === 200 && rules.etag) {
       const { revision, release } = peek(rules.text);
       // A release needs no apps.
@@ -83,24 +104,29 @@ export async function syncOnce(deps: {
       }
       status = await screenTime.applyRules(rules.text, rules.etag, identity.phoneId, memory.selection);
       outcome = "applied";
-      pollSeconds = rules.json<{ pollSeconds?: number }>().pollSeconds ?? null;
+      memory.pollSeconds = rules.json<{ pollSeconds?: number }>().pollSeconds ?? null;
     } else if (rules.status !== 304) {
       return { outcome: "offline", status };
     }
     if (status.released) return acknowledgeRelease(api, token, status);
     const put = await api("PUT", "/status", { token, body: statusBody(status, appVersion) });
-    if (put.status === 401) return { outcome: "unpaired" };
+    if (isUnknownDevice(put)) return { outcome: "unpaired" };
   } catch {
     return { outcome: "offline", status };
   }
-  return { outcome, status, pollSeconds };
+  return { outcome, status, pollSeconds: memory.pollSeconds };
 }
 
-/** `POST /device/released`. 204 and 401 both mean done; on anything else, try at the next sync. */
+/**
+ * `POST /device/released`. 204 and the "unknown device" 401 both mean done; on anything else,
+ * try at the next sync.
+ * TODO: a 409 (no release on record) should make the phone forget the release and sync normally
+ * (docs/sync-api.md, release, step 3); that needs a way to clear `released` in the Swift receipt.
+ */
 async function acknowledgeRelease(api: DeviceFetch, token: string, status: ScreenTimeStatus): Promise<SyncResult> {
   try {
     const r = await api("POST", "/released", { token });
-    if (r.status === 204 || r.status === 401) return { outcome: "released", status };
+    if (r.status === 204 || isUnknownDevice(r)) return { outcome: "released", status };
   } catch {
     // The phone has released itself already; only the acknowledgement waits.
   }

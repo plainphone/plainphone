@@ -38,7 +38,7 @@ describe("pairing state machine", () => {
     expect(waited).not.toBe(s); // a new object, so the screen polls again
     s = pairingReducer(waited, { type: "paired", phoneId: PHONE_ID, deviceToken: "pp_d_token" });
     expect(s).toEqual({ step: "paired", phoneId: PHONE_ID, deviceToken: "pp_d_token" });
-    for (const event of [{ type: "cancel" }, { type: "expired" }, { type: "start" }] as const) {
+    for (const event of [{ type: "expired" }, { type: "start" }] as const) {
       expect(pairingReducer(s, event)).toBe(s);
     }
   });
@@ -181,7 +181,7 @@ describe("rules sync on an iPhone", () => {
     screenTime.current = { ...screenTime.current, released: true };
     fakeApi({ "POST /device/released": { status: 503, body: {} } });
     expect((await syncOnce({ api, identity, screenTime, memory: emptyMemory(), appVersion: "0.2.0" })).outcome).toBe("offline");
-    const { calls } = fakeApi({ "POST /device/released": { status: 401, body: {} } });
+    const { calls } = fakeApi({ "POST /device/released": { status: 401, body: { error: "unknown device; pair again" } } });
     expect((await syncOnce({ api, identity, screenTime, memory: emptyMemory(), appVersion: "0.2.0" })).outcome).toBe("released");
     expect(calls.map((c) => c.path)).toEqual(["/device/released"]);
   });
@@ -189,6 +189,37 @@ describe("rules sync on an iPhone", () => {
   it("notices when the phone was removed from the dashboard", async () => {
     fakeApi({ "GET /device/rules": { status: 401, body: { error: "unknown device; pair again" } } });
     expect((await syncOnce({ api, identity, screenTime: fakeScreenTime("approved"), memory: emptyMemory(), appVersion: "0.2.0" })).outcome).toBe("unpaired");
+  });
+
+  it("retries a 401 from something else in front of the server instead of unpairing", async () => {
+    // A proxy or login wall in front of a self-hosted server (docs/sync-api.md, Rules, step 6).
+    fakeApi({ "GET /device/rules": { status: 401, body: "<html>Sign in</html>" } });
+    expect((await syncOnce({ api, identity, screenTime: fakeScreenTime("approved"), memory: emptyMemory(), appVersion: "0.2.0" })).outcome).toBe("offline");
+    fakeApi({ "GET /device/rules": { status: 304 }, "PUT /device/status": { status: 401, body: { error: "unauthorized" } } });
+    expect((await syncOnce({ api, identity, screenTime: fakeScreenTime("approved"), memory: emptyMemory(), appVersion: "0.2.0" })).outcome).toBe("unchanged");
+    const screenTime = fakeScreenTime("approved");
+    screenTime.current = { ...screenTime.current, released: true };
+    fakeApi({ "POST /device/released": { status: 401, body: {} } });
+    expect((await syncOnce({ api, identity, screenTime, memory: emptyMemory(), appVersion: "0.2.0" })).outcome).toBe("offline");
+  });
+
+  it("keeps the server's poll interval when the rules are unchanged", async () => {
+    const screenTime = fakeScreenTime("approved");
+    const memory = emptyMemory();
+    fakeApi({ "GET /device/rules": rules({ ...fixture, pollSeconds: 300 }), "PUT /device/status": { status: 204 } });
+    expect(await syncOnce({ api, identity, screenTime, memory, appVersion: "0.2.0" })).toMatchObject({ outcome: "applied", pollSeconds: 300 });
+    fakeApi({ "GET /device/rules": { status: 304 }, "PUT /device/status": { status: 204 } });
+    expect(await syncOnce({ api, identity, screenTime, memory, appVersion: "0.2.0" })).toMatchObject({ outcome: "unchanged", pollSeconds: 300 });
+  });
+
+  it("does not throw when the Swift module cannot answer", async () => {
+    const screenTime = fakeScreenTime("approved");
+    screenTime.status = async () => {
+      throw new Error("no native module");
+    };
+    const { calls } = fakeApi({});
+    expect(await syncOnce({ api, identity, screenTime, memory: emptyMemory(), appVersion: "0.2.0" })).toEqual({ outcome: "offline", status: null });
+    expect(calls).toEqual([]);
   });
 
   it("keeps the rules in effect while offline", async () => {

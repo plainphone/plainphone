@@ -78,8 +78,3 @@ export function nativeScreenTime(): ScreenTime {
   cached = native ? wrap(native) : unavailable;
   return cached;
 }
-
-/** Whether this build has the Swift module (an iPhone build made after phase 1). */
-export function hasScreenTime(): boolean {
-  return nativeScreenTime() !== unavailable;
-}

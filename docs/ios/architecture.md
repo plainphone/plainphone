@@ -273,7 +273,10 @@ Built without a real iPhone, so everything that depends on a spike sits behind a
   tests on macOS. `ios/scripts/linux-check.sh` runs the same tests in the Swift container on Linux.
 
 Still to do for phase 1: run the spikes, wire the extension targets into the Expo prebuild (config
-plugin or `@bacons/apple-targets`), the picker (spike a), maintenance and release with the parent
+plugin or `@bacons/apple-targets`), the app's own entitlements in a `PLAINPHONE_IOS_CHILD=1` build
+(`com.apple.developer.family-controls` and the App Group `group.org.plainphone.app` in
+`ios.entitlements` in `parent-app/app.config.ts`; without them `requestAuthorization` fails and the
+rules are stored where the extensions cannot read them), the picker (spike a), maintenance and release with the parent
 PIN on the phone, APNs registration for wake-ups and background refresh (spike d), and a first
 Expo build on a Mac. Then turn `IOS_PAIRING_ENABLED` on for TestFlight.
 

@@ -46,6 +46,15 @@ final class RulesDocumentTests: XCTestCase {
     XCTAssertNoThrow(try IosRulesDocument.parse(data, expectedPhoneId: nil))
   }
 
+  func testTakesRulesWithoutTheInformationalFields() throws {
+    let data = try Fixture.edited { doc in
+      for key in ["tier", "profile", "capabilities", "pendingChanges"] { doc.removeValue(forKey: key) }
+    }
+    let doc = try IosRulesDocument.parse(data, expectedPhoneId: nil)
+    XCTAssertNil(doc.tier)
+    XCTAssertNil(doc.profile)
+  }
+
   func testRefusesAnAndroidDocument() throws {
     let data = try Fixture.edited { $0["platform"] = "android" }
     XCTAssertThrowsError(try IosRulesDocument.parse(data, expectedPhoneId: nil)) { error in

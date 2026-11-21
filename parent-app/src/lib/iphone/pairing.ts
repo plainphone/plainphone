@@ -31,8 +31,7 @@ export type PairingEvent =
   | { type: "waiting" }
   | { type: "paired"; phoneId: string; deviceToken: string }
   | { type: "expired" }
-  | { type: "failed" }
-  | { type: "cancel" };
+  | { type: "failed" };
 
 export const POLL_MS = 2_000;
 
@@ -56,8 +55,6 @@ export function pairingReducer(state: PairingState, event: PairingEvent): Pairin
     case "failed":
       // A failed poll keeps the code on screen; only a failed start is an error.
       return state.step === "starting" ? { step: "failed" } : state;
-    case "cancel":
-      return { step: "idle" };
   }
 }
 

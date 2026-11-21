@@ -57,7 +57,7 @@ Every part that depends on a spike in [docs/ios/spikes.md](../docs/ios/spikes.md
 
 | Spike | Where | Until then |
 |---|---|---|
-| (a) token round trip | `FamilyControlsApplier.apply`, `pickActivities` in the Expo module | Apps are picked on the child's phone; an unreadable selection shields every app (allow list) or keeps the shield in place (open mode) |
+| (a) token round trip | `FamilyControlsApplier.apply`, `pickActivities` in the Expo module | There is no app picker yet (`pickActivities` throws), so the selection is always empty: in closed mode (allow list) every app except Apple's built-in ones is shielded and none can be opened; open mode shields nothing. An unreadable selection shields every app (allow list) or keeps the shield in place (open mode) |
 | (b) shield action | `ShieldActionExtension`, `ShieldConfigurationExtension` | The shield has one button that closes the app; "Ask for more time" only records an App Group event |
 | (d) push latency | `ActivityMonitorExtension`, `parent-app/src/app/child/index.tsx` | Rules sync while the app is open and when it comes to the front |
 | (e) Declared Age Range | the Apple-settings step of the wizard | The wizard guides; it says it cannot check the settings |

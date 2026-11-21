@@ -112,8 +112,9 @@ public struct IosRulesDocument: Decodable, Sendable, Equatable {
 
   public let phoneId: String
   public let platform: String
-  public let tier: String
-  public let profile: String
+  /// Informational only; missing is fine, so a server change here never blocks new rules.
+  public let tier: String?
+  public let profile: String?
   public let timezone: String
   public let language: String?
   public let rulesRevision: Int
@@ -142,8 +143,8 @@ public struct IosRulesDocument: Decodable, Sendable, Equatable {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     phoneId = try c.decode(String.self, forKey: .phoneId)
     platform = try c.decode(String.self, forKey: .platform)
-    tier = try c.decode(String.self, forKey: .tier)
-    profile = try c.decode(String.self, forKey: .profile)
+    tier = try c.decodeIfPresent(String.self, forKey: .tier)
+    profile = try c.decodeIfPresent(String.self, forKey: .profile)
     timezone = try c.decode(String.self, forKey: .timezone)
     language = try c.decodeIfPresent(String.self, forKey: .language)
     rulesRevision = try c.decode(Int.self, forKey: .rulesRevision)

@@ -66,26 +66,42 @@ function StepTitle({ step }: { step: WizardStep }) {
 
 function Welcome({ onStart }: { onStart: () => void }) {
   const { t } = useI18n();
-  const router = useRouter();
-  const { choose } = useRole();
   return (
     <Stack>
       <Text>{t("iphone.welcome.body")}</Text>
       <Button testID="setup-start" title={t("iphone.welcome.start")} onPress={onStart} />
-      <Button
-        testID="setup-not-child"
-        kind="plain"
-        title={t("iphone.welcome.notChild")}
-        onPress={() => void choose("parent").then(() => router.replace("/login"))}
-      />
+      <NotChild />
     </Stack>
+  );
+}
+
+/** The way out of the child setup, for a parent who picked the wrong role. */
+function NotChild() {
+  const { t } = useI18n();
+  const router = useRouter();
+  const { choose } = useRole();
+  return (
+    <Button
+      testID="setup-not-child"
+      kind="plain"
+      title={t("iphone.welcome.notChild")}
+      onPress={() => void choose("parent").then(() => router.replace("/login"))}
+    />
   );
 }
 
 function Permission({ authorization, onAnswer }: { authorization: string; onAnswer: () => void }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
-  if (authorization === "unavailable") return <Notice tone="warn" text={t("iphone.permission.unavailable")} />;
+  if (authorization === "unavailable") {
+    // A build without the Swift module (Expo Go, a test build): nothing to ask, but never a dead end.
+    return (
+      <Stack>
+        <Notice tone="warn" text={t("iphone.permission.unavailable")} />
+        <NotChild />
+      </Stack>
+    );
+  }
   return (
     <Stack>
       <Text>{t("iphone.permission.body")}</Text>
