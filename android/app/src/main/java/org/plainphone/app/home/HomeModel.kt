@@ -7,6 +7,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.util.Locale
 import org.plainphone.app.quiet.BedtimeQuiet
+import org.plainphone.app.time.TrustedTime
 import org.plainphone.app.sync.Schedules
 import org.plainphone.app.sync.ModeRule
 import org.plainphone.app.sync.Modes
@@ -55,9 +56,11 @@ object HomeModel {
         minutesLeft: Map<String, Int> = emptyMap(),
         /** Sorts the app names the way the user's language does (Danish: ... Z Æ Ø Å). */
         locale: Locale = Locale.getDefault(),
+        /** The phone's trusted time (time/TrustedClock.kt); defaults to [now] as an exact moment. */
+        time: TrustedTime = TrustedTime.at(now),
     ): HomeState {
         val prefs = rules?.home ?: HomePrefs.DEFAULT
-        val windows = rules?.let { Schedules.active(it.schedules, now, it.timezone) }.orEmpty()
+        val windows = rules?.let { Schedules.active(it.schedules, time, it.timezone) }.orEmpty()
         val windowAllowed = Schedules.allowedDuringWindows(windows)
         // Only what the rules allow: an app installed since the last sync is in neither list yet,
         // and stays off the home screen until the parent allows it. Catalog picks count as allowed.
@@ -84,7 +87,7 @@ object HomeModel {
         val favourites = prefs.apps.mapNotNull { byPackage[it]?.first() }
         val silent = rules != null && BedtimeQuiet.silent(rules, windows)
         // Modes: the mode on now names the notice; the default mode shows nothing, like no window.
-        val mode = Modes.current(rules, now)
+        val mode = Modes.current(rules, time)
         val notice = if (mode == null) {
             notice(windows, silent)
         } else {

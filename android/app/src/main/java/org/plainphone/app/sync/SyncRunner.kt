@@ -17,6 +17,10 @@ internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
 /** The phone-side effects a sync needs. The Android version is [AndroidSyncDevice]; tests use a fake. */
 interface SyncDevice {
     fun nowMs(): Long
+    /** The trusted time (time/TrustedClock.kt), for which day it is. */
+    fun trustedNowMs(): Long = nowMs()
+    /** The server's clock from its latest answer: keeps the trusted time (time/TrustedClock.kt). */
+    fun serverTime(time: ServerTime) {}
     fun canReadContactSuggestions(): Boolean = true
     fun contactSuggestions(): List<DeviceContact>? = null
     fun registerWakeup(api: SyncApi, token: String, reason: String): String? = null
@@ -162,8 +166,10 @@ class SyncRunner(
         guarded("report apps") { reportApps(token) }
 
         val result = try {
-            api.fetchRules(token, store.etag)
+            api.fetchRules(token, store.etag).also { noteServerTime() }
         } catch (e: IOException) {
+            // An error answer still carries the server's clock; no answer at all leaves the last one.
+            noteServerTime()
             // A release that did not finish last time is finished offline too.
             releaseIfAsked(token)?.let { return it }
             // Offline or server trouble: keep enforcing the last rules (schedules still advance).
@@ -205,7 +211,7 @@ class SyncRunner(
         guarded("report safety events") { reportSafetyEvents(token) }
         // Saved offline asks for more time go out; answers come in (the bonus itself is in the rules).
         if (rules != null) guarded("asks for more time") {
-            val today = java.time.Instant.ofEpochMilli(device.nowMs()).atZone(rules.timezone).toLocalDate()
+            val today = java.time.Instant.ofEpochMilli(device.trustedNowMs()).atZone(rules.timezone).toLocalDate()
             // Switched off on this phone: nothing new goes out, but answers to earlier asks still come in.
             if (rules.askMoreTimeEnabled && rules.profile == "child") {
                 org.plainphone.app.time.MoreTimeOutbox.send(store.moreTime, api, token, today)
@@ -246,6 +252,11 @@ class SyncRunner(
         }
         val pollSeconds = rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS
         return Outcome.Synced(changed, minOf(pollSeconds, checkInClockWaitSeconds(rules) ?: pollSeconds))
+    }
+
+    /** Hands the server's clock to the trusted time before the lock is applied with it. */
+    private fun noteServerTime() {
+        guarded("server time") { api.lastServerTime()?.let(device::serverTime) }
     }
 
     /**
@@ -607,6 +618,7 @@ class SyncRunner(
         val notices = store.statusNotices
         val parallelAppsRemoved = notices.pending(StatusNotices.PARALLEL_APPS_REMOVED)
         val lateGoogleAccount = notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT)
+        val clockMoved = notices.pending(StatusNotices.CLOCK_MOVED)
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
@@ -627,6 +639,7 @@ class SyncRunner(
             callRoleActionNeeded = lock.callRoleActionNeeded,
             parallelAppsRemovedId = parallelAppsRemoved,
             lateGoogleAccountId = lateGoogleAccount,
+            clockMovedId = clockMoved,
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
             appUpdates = device.appUpdatesReport(),
@@ -653,6 +666,7 @@ class SyncRunner(
         overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }
         parallelAppsRemoved?.let { notices.acknowledge(StatusNotices.PARALLEL_APPS_REMOVED, it) }
         lateGoogleAccount?.let { notices.acknowledge(StatusNotices.LATE_GOOGLE_ACCOUNT, it) }
+        clockMoved?.let { notices.acknowledge(StatusNotices.CLOCK_MOVED, it) }
         store.statusHash = hash
         store.statusAtMs = now
     }

@@ -10,7 +10,6 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import java.text.DateFormat
-import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
 import org.plainphone.app.provisioning.BootloaderWarning
@@ -33,6 +32,8 @@ import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.Mode
 import org.plainphone.app.light.Protections
 import org.plainphone.app.time.TimeGuard
+import org.plainphone.app.time.TrustedClock
+import org.plainphone.app.time.TrustedTime
 import org.plainphone.app.update.AppUpdateWindow
 import org.plainphone.app.update.InstallLease
 import org.plainphone.app.update.PlayExplanation
@@ -159,16 +160,17 @@ object Lock {
     }
 
     /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
-    fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig {
+    fun effectiveConfig(context: Context, time: TrustedTime = TrustedClock.of(context).now()): PolicyConfig {
         val sync = SyncStore(context)
-        val install = InstallWindow.current(context, now.toEpochMilli())
+        val install = InstallWindow.current(context, time.ms)
         return EffectivePolicy.merge(
             ConfigStore(context).load(),
             sync.rules(),
-            now,
+            time.instant,
             removed = sync.removed,
-            timeBlocked = TimeGuard.blockedNow(context, now),
+            timeBlocked = TimeGuard.blockedNow(context, time),
             installing = install,
+            time = time,
         ).copy(updatingApps = AppUpdateWindow.isOpen(context), heldBack = AppUpdateWindow.heldBack(context))
     }
 
@@ -360,22 +362,28 @@ object Lock {
     private fun scheduleNextWindowChange(context: Context) {
         val am = context.getSystemService(AlarmManager::class.java)
         val rules = SyncStore(context).rules()
-        val now = Instant.now()
-        val windowChange = rules?.let { Schedules.nextBoundary(it.schedules, now, it.timezone) }
+        // On the trusted time, not the phone's clock (docs/light-mode.md, "The phone's clock").
+        val time = TrustedClock.of(context).now()
+        val windowChange = rules?.let { r -> time.untilNext { Schedules.nextBoundary(r.schedules, it, r.timezone) } }
         // Time limits start again at local midnight: used-up apps come back then.
-        val midnight = rules?.takeIf { !it.timeLimits.isEmpty }?.let {
-            now.atZone(it.timezone).toLocalDate().plusDays(1).atStartOfDay(it.timezone).toInstant()
+        val midnight = rules?.takeIf { !it.timeLimits.isEmpty }?.let { r ->
+            time.untilNext { it.atZone(r.timezone).toLocalDate().plusDays(1).atStartOfDay(r.timezone).toInstant() }
         }
         // Modes switch contact groups at their slots also when no app window changes (docs/modes.md).
-        val modeChange = org.plainphone.app.sync.Modes.nextBoundary(rules, now)
+        val modeChange = time.untilNext { org.plainphone.app.sync.Modes.nextBoundary(rules, it) }
         val next = listOfNotNull(windowChange, midnight, modeChange).minOrNull()
         if (next == null) {
             am.cancel(windowIntent(context))
             return
         }
         // Inexact but allowed while idle: exact alarms need a permission the user must grant.
+        // The boot clock, so setting the phone's clock does not move the alarm.
         // The window is also re-checked whenever the screen turns on and on every sync.
-        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli() + 1_000L, windowIntent(context))
+        am.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + next.toMillis() + 1_000L,
+            windowIntent(context),
+        )
     }
 
     private fun windowIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
