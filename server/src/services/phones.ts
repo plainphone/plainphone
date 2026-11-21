@@ -43,6 +43,7 @@ import { effectiveGroup, loadModes, modesForRules } from "./modes.js";
 import { emergencyRules } from "./emergency-openings.js";
 import { billingOn } from "./billing.js";
 import { startWake } from "./latency.js";
+import { countPushFailure } from "./latency-metrics.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -127,13 +128,17 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
   // Written while the push goes out, so the wake-up never waits for it.
   const timing = p.platform === "android" ? startWake(ctx, phoneId, !usable ? "poll" : p.endpoint ? "unifiedpush" : "fcm", reason) : undefined;
   try {
-    if (registration && usable && await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
+    const transport = p.endpoint ? "unifiedpush" : "fcm";
+    const outcome = registration && usable ? await ctx.push.wake(registration, reason, transport) : undefined;
+    if (outcome === "failed") countPushFailure(ctx, transport);
+    if (registration && outcome === "gone") {
       const sameValidation = p.validationKey === null ? isNull(phones.fcmValidationKey)
         : eq(phones.fcmValidationKey, p.validationKey);
       await ctx.db.update(phones).set(p.endpoint ? { unifiedPushEndpoint: null } : { fcmToken: null, fcmValidationKey: null })
         .where(and(eq(phones.id, phoneId), eq(column, registration), p.endpoint ? undefined : sameValidation));
     }
   } catch {
+    if (registration && usable) countPushFailure(ctx, p.endpoint ? "unifiedpush" : "fcm");
     console.error("phone wakeup failed");
   }
   await timing;
