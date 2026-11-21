@@ -1,0 +1,39 @@
+[package]
+name = "plainphone-mls"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "E2EE phase 0 prototype: OpenMLS core for Plainphone family messages (#120). Test data only."
+
+[lib]
+name = "plainphone_mls"
+# cdylib: libplainphone_mls.so for Android (JNI) and the host JVM test; rlib: the CLI and tests.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# The one JNI entry point used by the phone app's debug-only binding (android/app/src/debug).
+jni = ["dep:jni-sys", "dep:zeroize"]
+
+[dependencies]
+# Same versions as the research harness that produced the recommendation (research/e2ee).
+openmls = "=0.9.2"
+openmls_rust_crypto = "=0.6.0"
+openmls_basic_credential = "=0.6.0"
+openmls_traits = "=0.6.0"
+# Already in the OpenMLS tree: no new crates apart from jni-sys.
+ed25519-dalek = "=2.2.0"
+sha2 = "=0.10.9"
+base64ct = { version = "=1.8.3", features = ["alloc"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+# Type declarations for the JNI C interface only (no build script, no dependencies).
+jni-sys = { version = "=0.3.0", optional = true }
+zeroize = { version = "=1.9.2", optional = true }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
