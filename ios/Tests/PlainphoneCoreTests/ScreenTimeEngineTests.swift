@@ -119,6 +119,18 @@ final class ScreenTimeEngineTests: XCTestCase {
     }
   }
 
+  func testANewPairingAfterAReleaseLocksAgain() async throws {
+    try await onMain {
+      let rig = Rig()
+      rig.engine.apply(document: try Fixture.edited { $0["release"] = true }, etag: "\"r\"", expectedPhoneId: nil, selection: nil)
+      rig.engine.beginNewPairing()
+      let r = rig.engine.apply(document: try Fixture.data(), etag: "\"n1\"", expectedPhoneId: Fixture.phoneId, selection: nil)
+      XCTAssertFalse(r.released)
+      XCTAssertEqual(r.effectiveStores, [.base])
+      XCTAssertEqual(rig.screenTime.applied.count, 1)
+    }
+  }
+
   func testMaintenanceLiftsTheLockAndPutsItBack() async throws {
     try await onMain {
       let rig = Rig()

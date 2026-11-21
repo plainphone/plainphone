@@ -97,6 +97,12 @@ public final class ScreenTimeEngine {
     return receipt
   }
 
+  /// A new pairing succeeded (after a release, or after the phone was removed from the dashboard).
+  /// Forgets the old receipt, so the new rules apply; stores in effect stay until they do.
+  public func beginNewPairing() {
+    try? store.saveReceipt(Receipt())
+  }
+
   public func status(iosVersion: String) -> StatusReport {
     StatusReport(receipt: receipt, authorization: applier.authorization, iosVersion: iosVersion)
   }

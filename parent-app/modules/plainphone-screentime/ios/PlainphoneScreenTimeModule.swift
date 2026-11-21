@@ -58,6 +58,13 @@ public class PlainphoneScreenTimeModule: Module {
       }
     }
 
+    AsyncFunction("beginNewPairing") { () async throws -> String in
+      try await MainActor.run {
+        Shared.engine.beginNewPairing()
+        return try Shared.statusJSON()
+      }
+    }
+
     AsyncFunction("status") { () async throws -> String in
       try await MainActor.run { try Shared.statusJSON() }
     }
