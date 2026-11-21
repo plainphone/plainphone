@@ -653,6 +653,7 @@ export const en = {
   "phone.callRoleActionNeeded": "Open Plainphone on the phone and tap Allow",
   "phone.parallelAppsRemoved": "Parallel apps have been removed.",
   "phone.lateGoogleAccount": "An unexpected account change was detected during or after app installation",
+  "phone.clockMoved": "The phone's clock shows the wrong time. School time, bedtime and limits still follow the real time.",
   "phone.liftedOpen": "Account changes are allowed for an approved sign-in until {time}.",
   "phone.liftedOverdue": "Account changes were allowed for a sign-in until {time}. The phone has not reported since.",
   "phone.accountTypes": "Accounts on the phone: {types}",

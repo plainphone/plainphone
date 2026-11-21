@@ -618,6 +618,7 @@ export const sv: Messages = {
   "phone.callRoleActionNeeded": "Öppna Plainphone på telefonen och tryck på Tillåt",
   "phone.parallelAppsRemoved": "Parallella appar har tagits bort.",
   "phone.lateGoogleAccount": "En oväntad kontoändring upptäcktes under eller efter appinstallationen",
+  "phone.clockMoved": "Telefonens klocka visar fel tid. Skoltid, läggdags och gränser följer fortfarande rätt tid.",
   "phone.liftedOpen": "Kontoändringar är tillåtna för en godkänd inloggning till kl. {time}.",
   "phone.liftedOverdue": "Kontoändringar var tillåtna för en inloggning till kl. {time}. Telefonen har inte hört av sig sedan dess.",
   "phone.accountTypes": "Konton på telefonen: {types}",

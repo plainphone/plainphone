@@ -4311,6 +4311,11 @@ export interface components {
              */
             lateGoogleAccountId?: string;
             /**
+             * Format: uuid
+             * @description Stable identifier for "the phone's clock is set more than 10 minutes from the server's time". Sent once per move.
+             */
+            clockMovedId?: string;
+            /**
              * @description Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
              * @enum {unknown}
              */
@@ -4425,6 +4430,8 @@ export interface components {
             reportedAt: string;
             /** @description The phone detected an unexpected account change during catalog fallback or a late Google sign-in. */
             lateGoogleAccount?: boolean;
+            /** @description The phone's clock was set far from the real time recently. Schedules and limits keep following the server's time, so nothing opened up. */
+            clockMoved?: boolean;
         };
         /** @enum {string} */
         ContactGroup: "family" | "friends" | "others";
@@ -6152,6 +6159,8 @@ export interface operations {
             200: {
                 headers: {
                     ETag?: string;
+                    /** @description The server's clock in milliseconds since the epoch. Every `/device/*` answer carries it. Phones keep their schedules on it instead of their own clock (docs/light-mode.md, "The phone's clock"). */
+                    "X-Server-Time"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6161,6 +6170,8 @@ export interface operations {
             /** @description Unchanged */
             304: {
                 headers: {
+                    /** @description The server's clock in milliseconds since the epoch. */
+                    "X-Server-Time"?: string;
                     [name: string]: unknown;
                 };
                 content?: never;
