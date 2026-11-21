@@ -11,6 +11,7 @@ import {
   CallbackError, getDeviceCallback, listCallbackRequests, markCallbackDone, requestCallback,
 } from "../services/callback-requests.js";
 import type { Ctx } from "../services/context.js";
+import { elapsedHeader } from "../services/latency.js";
 
 type Phone = typeof phones.$inferSelect;
 
@@ -23,7 +24,10 @@ export function deviceCallbackRoutes<E extends { Variables: { phone: Phone } }>(
   app.post("/callback-requests", async (c) => {
     const input = await body(c, z.strictObject({ id: z.uuid(), sentAt: z.iso.datetime().optional() }));
     try {
-      return c.json(await requestCallback(ctx, c.get("phone").id, { id: input.id, sentAt: input.sentAt ? new Date(input.sentAt) : undefined }));
+      return c.json(await requestCallback(ctx, c.get("phone").id, {
+        id: input.id, sentAt: input.sentAt ? new Date(input.sentAt) : undefined,
+        elapsedMs: elapsedHeader(c.req.header("x-plainphone-elapsed-ms")),
+      }));
     } catch (err) {
       rethrow(err);
     }

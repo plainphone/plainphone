@@ -451,6 +451,14 @@ describe("overview", () => {
     expect(screen.queryByText(failedPolicy)).toBeNull();
   });
 
+  it("says calmly when the phone's clock shows the wrong time", async () => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: [], clockMoved: true } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(
+      "The phone's clock shows the wrong time. School time, bedtime and limits still follow the real time.",
+    )).toBeTruthy();
+  });
+
   it.each([
     // Far from any real clock, so the test does not depend on the date.
     { name: "open window", until: "2099-01-01T12:00:00Z", text: /^Account changes are allowed for an approved sign-in until / },

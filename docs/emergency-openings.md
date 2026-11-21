@@ -57,7 +57,10 @@ The allowance is per **calendar month in the phone's time zone**. The phone coun
 current month and takes the larger of its own count and the server's `used.count` for the same month,
 so a cleared app or a reinstall cannot hand out a second allowance, and an offline opening is never
 counted twice. The month changes at local midnight; daylight-saving changes do not move it (the month
-is read from the zoned date, not from 30-day arithmetic).
+is read from the zoned date, not from 30-day arithmetic). Which month it is comes from the trusted time
+([light-mode.md](light-mode.md#the-phones-clock)), not the phone's clock, so setting the date to next
+month does not refill the openings. After a restart without a sync the phone counts with the earliest
+possible month.
 
 ## The report
 

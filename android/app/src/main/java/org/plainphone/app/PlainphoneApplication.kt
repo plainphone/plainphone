@@ -145,6 +145,9 @@ class PlainphoneApplication : Application() {
             getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
+                        // A waiting SOS goes now, not at its next backoff; never throttled.
+                        runCatching { org.plainphone.app.sos.SosSender.retryPending(this@PlainphoneApplication) }
+                            .onFailure { Log.e("Plainphone", "could not retry a pending SOS", it) }
                         val now = System.currentTimeMillis()
                         val lastSync = SyncStore(this@PlainphoneApplication).lastSyncAtMs ?: 0L
                         if (now - lastSync < 60_000L || now - lastNetworkKick < 60_000L) return

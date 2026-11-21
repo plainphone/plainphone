@@ -10,6 +10,7 @@ import type { Ctx } from "../services/context.js";
 import { publishLive } from "../services/live-events.js";
 import { callbackEnabled } from "../services/callback-requests.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
+import { elapsedHeader, recordUpload } from "../services/latency.js";
 import { clearContactSnapshots, clearSnapshot } from "../services/extended-family.js";
 import { wakePhone } from "../services/phones.js";
 import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
@@ -91,6 +92,8 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
     // The open dashboards first: they show it at once, the push follows.
     if (change) publishLive(ctx, { type: change, householdId: c.get("phone").householdId, phoneId, id: event.id });
     if (fresh) void deliverSos(ctx, event.id, phoneId).catch(() => console.error("SOS notification dispatch failed"));
+    // The first arrival only: from the press to the server (docs/latency.md). A report that already went by SMS is not timed.
+    if (fresh && !input.smsSubmitted) recordUpload(ctx, "sos", elapsedHeader(c.req.header("x-plainphone-elapsed-ms")), input.sentAt ? at : undefined);
     return c.json(sosJson(event));
   });
 

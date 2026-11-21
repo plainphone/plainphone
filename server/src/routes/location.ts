@@ -90,7 +90,7 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
     const input = await body(c, z.object({ stopOnAnswer: z.boolean().default(true) }));
     limit(phone);
     const row = await startRequest(ctx, phone.id, userId(c), { kind: "ring", stopOnAnswer: input.stopOnAnswer });
-    await wakePhone(ctx, phone.id, "rules");
+    await wakePhone(ctx, phone.id, "ring");
     return c.json({ ring: ringJson(row, ctx.now()) }, 202);
   });
 
@@ -99,7 +99,7 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
     const { ring } = await loadSafety(ctx, phone.id);
     if (ringActive(ring, ctx.now())) {
       await ctx.db.update(safetyRequests).set({ stoppedAt: ctx.now() }).where(eq(safetyRequests.id, ring.id));
-      await wakePhone(ctx, phone.id, "rules");
+      await wakePhone(ctx, phone.id, "ring");
     }
     return c.json({ ring: ringJson((await loadSafety(ctx, phone.id)).ring, ctx.now()) });
   });

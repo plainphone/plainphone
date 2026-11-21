@@ -114,9 +114,14 @@ self.addEventListener("push", (event) => {
     phoneName: typeof msg.data?.phoneName === "string" ? msg.data.phoneName : undefined,
     words: msg.data?.words && typeof msg.data.words === "object" ? msg.data.words : undefined,
   };
+  // A random id for the delivery timing (docs/latency.md); it says nothing about the message.
+  const receipt = typeof msg.receipt === "string" && /^[A-Za-z0-9_-]{22}$/.test(msg.receipt) ? msg.receipt : undefined;
+  if (receipt) data.receipt = receipt;
   // A silent message only updates a notification the parent already saw (the receipt): no sound, no new buzz.
   const silent = msg.silent === true;
-  event.waitUntil(
+  event.waitUntil(Promise.all([
+    // Never in the way of the notification: a failed receipt is a missing number, nothing else.
+    receipt ? sendReceipt(receipt, "delivered") : undefined,
     self.registration.showNotification(title, {
       body: msg.body || "",
       // Same tag: a newer message about the same thing replaces the older one.
@@ -130,8 +135,19 @@ self.addEventListener("push", (event) => {
       ...(actions.length > 0 ? { actions } : {}),
       data,
     }),
-  );
+  ]));
 });
+
+// Tells the server the notification arrived or was opened. No cookie: the id is all it needs.
+function sendReceipt(receipt, event) {
+  return fetch("/api/push-receipt", {
+    method: "POST",
+    credentials: "omit",
+    keepalive: true,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ receipt, event }),
+  }).catch(() => undefined);
+}
 
 const MORE_TIME_ANSWERS = ["15", "60", "day", "no"];
 
@@ -200,6 +216,7 @@ self.addEventListener("notificationclick", (event) => {
   const target = new URL(data.url || "/", self.location.origin);
   const url = (target.origin === self.location.origin ? target : new URL("/", self.location.origin)).href;
   const answer = event.action;
+  if (data.receipt) event.waitUntil(sendReceipt(data.receipt, "opened"));
   if (data.type === "more-time" && MORE_TIME_ANSWERS.includes(answer) && data.phoneId && data.requestId) {
     const words = data.words || {};
     const tell = ([text, failed]) => (text ? showFollowUp(event.notification, data, text, failed) : failed ? openUrl(url) : undefined);

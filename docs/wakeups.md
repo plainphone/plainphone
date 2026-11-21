@@ -16,7 +16,7 @@ in this table against the production source, including both branches of platform
 | `PlainphoneApplication.kt` `getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(` | When the default network becomes available | Either | Request sync, throttled to once a minute. |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)` | On default-role changes | Either | Recheck phone and SMS roles (Android 13+). |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter)` | On default-role changes | Either | Recheck phone and SMS roles (older Android). |
-| `Lock.kt` `am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli() + 1_000L, windowIntent(context))` | Next rule-window boundary + 1 s | Either | Apply school time and bedtime transitions. |
+| `Lock.kt` `am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, windowIntent(context))` | Next rule-window boundary + 1 s, on the trusted time and the boot clock | Either | Apply school time and bedtime transitions; moving the phone's clock does not move it. |
 | `Lock.kt` `context.getSystemService(AlarmManager::class.java).setAndAllowWhileIdle(` | At maintenance expiry | Either | Restore the lock after a parent unlocks it. |
 | `MaintenanceActivity.kt` `handler.postDelayed(this, remaining)` | At the install-window deadline | On | Update the maintenance UI when an install window closes. |
 | `light/GuardService.kt` `main.postDelayed(this, TICK_MS)` | 30 s | On | Recheck the foreground app’s allow-list and time limit. |
@@ -37,6 +37,9 @@ in this table against the production source, including both branches of platform
 | `sos/SosScreen.kt` `id = SosDelivery.enqueue(context, phoneId, kind)` | After a child confirms SOS | On | Start the report when the undo window expires. |
 | `sos/SosDelivery.kt` `val request = OneTimeWorkRequestBuilder<SosWorker>()` | Once per confirmed SOS | On | Build the durable report request. |
 | `sos/SosDelivery.kt` `WorkManager.getInstance(context).enqueueUniqueWork(id, ExistingWorkPolicy.KEEP, request)` | On SOS and WorkManager retries | Either | Keep the report under one identifier until online delivery succeeds or the event expires. |
+| `sos/SosSender.kt` `context.startForegroundService(Intent(context, SosSendService::class.java).putExtra(EXTRA_JOB, toJson(input).toString()))` | Once per confirmed SOS from the SOS screen | On | Send the first attempt at once with a short visible "Sending" notice, instead of waiting for WorkManager ([latency](latency.md)). |
+| `sos/SosSender.kt` `val lock = context.getSystemService(PowerManager::class.java)?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:sos-send")` | Once per SOS attempt outside WorkManager | Either | Keep the CPU awake for one immediate attempt. |
+| `sos/SosSender.kt` `lock?.acquire(WAKE_LOCK_MS)` | Once per SOS attempt outside WorkManager, at most 60 s | Either | Released when the attempt ends; a silent SOS and a retry on a new network use this path without a notice. |
 | `sos/SilentSos.kt` `return runCatching { SosDelivery.enqueue(context, phoneId, SosKind.URGENT, trigger, message) }` | On a hidden SOS (power button, clock) or a code word | Either | Start a silent urgent report. |
 | `sos/SilentSos.kt` `app.registerReceiver(` | On screen-on or screen-off | Either | Count power button presses for the hidden SOS; does nothing unless the parents switched it on. |
 | `sos/CallbackDelivery.kt` `val work = OneTimeWorkRequestBuilder<CallbackWorker>()` | Once per request for a callback (never while an earlier one is open) | On | Build the request that asks a parent to call back (docs/sos.md#asking-a-parent-to-call). |

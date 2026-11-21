@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.CancellationSignal
+import android.os.SystemClock
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.BindException
@@ -34,6 +35,8 @@ interface SyncApi {
     /** Pairs with the one-time token from a dashboard-made provisioning QR code (POST /device/enroll). */
     fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult
     fun fetchRules(token: String, etag: String?): RulesResult
+    /** The server's clock at its latest answer, with the boot clock then (time/TrustedClock.kt). Null before one. */
+    fun lastServerTime(): ServerTime? = null
     fun reportContactSuggestions(token: String, contacts: List<DeviceContact>) {}
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
@@ -117,6 +120,9 @@ sealed interface EnrollResult {
     data object Rejected : EnrollResult
 }
 
+/** The server said it was [serverMs] when this boot's clock showed [elapsedMs]. */
+data class ServerTime(val serverMs: Long, val elapsedMs: Long)
+
 sealed interface RulesResult {
     data object Unchanged : RulesResult
     /** 401: the phone was removed in the dashboard (or never paired). */
@@ -161,6 +167,8 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    /** The phone's clock was set far from the server's time (time/TrustedClock.kt); told once. */
+    val clockMovedId: String? = null,
     val rulesReceiptConfirmed: Boolean? = null,
     val webFilterActive: Boolean? = null,
     val androidVersion: String? = null,
@@ -200,6 +208,7 @@ data class DeviceStatus(
                 put("parallelAppsRemovedId", it)
             }
             lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
+            clockMovedId?.let { put("clockMovedId", it) }
             if (liftedPolicies.isNotEmpty()) put("liftedPolicies", JSONArray(liftedPolicies.take(10).map {
                 JSONObject().put("name", it.name.take(200)).put("until", iso(it.untilMs))
             }))
@@ -266,9 +275,26 @@ class PlainphoneApi private constructor(
     private companion object {
         // Disconnect can block on I/O. Keep it off the screen broadcast thread.
         val disconnects = Executors.newSingleThreadExecutor()
+        const val SERVER_TIME_HEADER = "X-Server-Time"
     }
 
     private val base = baseUrl.trimEnd('/') + "/api"
+
+    @Volatile private var serverTime: ServerTime? = null
+
+    override fun lastServerTime(): ServerTime? = serverTime
+
+    /**
+     * Any answer from the server carries its clock: `X-Server-Time` in milliseconds, or the standard
+     * `Date` header (whole seconds) from a server that predates it. Paired with the boot clock right away.
+     */
+    private fun noteServerTime(conn: HttpURLConnection) {
+        val elapsed = SystemClock.elapsedRealtime()
+        val ms = conn.getHeaderField(SERVER_TIME_HEADER)?.trim()?.toLongOrNull()
+            ?: conn.getHeaderFieldDate("Date", 0L).takeIf { it > 0 }
+            ?: return
+        serverTime = ServerTime(ms, elapsed)
+    }
 
     /** [replayed]: the first attempt failed with a network error and this is the answer to the second. */
     private class Response(val status: Int, val body: String, val etag: String?, val replayed: Boolean = false)
@@ -334,6 +360,7 @@ class PlainphoneApi private constructor(
             cancellation?.throwIfCanceled()
             val status = conn.responseCode
             if (status < 0) throw IOException("invalid HTTP response")
+            noteServerTime(conn)
             val stream = if (status >= 400) conn.errorStream else conn.inputStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             return Response(status, text, conn.getHeaderField("ETag"))
@@ -631,8 +658,10 @@ class PlainphoneApi private constructor(
         }
     }
 
-    fun reportSos(token: String, payload: JSONObject): JSONObject {
-        val response = call("POST", "/device/sos", token, payload, readTimeoutMs = 4_000, replayable = false)
+    /** [elapsedMs]: monotonic time since the press, for the server's delivery timing; a header, so older servers ignore it. */
+    fun reportSos(token: String, payload: JSONObject, elapsedMs: Long? = null): JSONObject {
+        val headers = elapsedMs?.let { mapOf("X-Plainphone-Elapsed-Ms" to it.toString()) } ?: emptyMap()
+        val response = call("POST", "/device/sos", token, payload, headers = headers, readTimeoutMs = 4_000, replayable = false)
         if (response.status != 200) throw HttpError(response.status, response.body)
         return try {
             JSONObject(response.body)

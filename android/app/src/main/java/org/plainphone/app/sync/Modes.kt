@@ -4,6 +4,7 @@ package org.plainphone.app.sync
 
 import java.time.Duration
 import java.time.Instant
+import org.plainphone.app.time.TrustedTime
 import java.time.LocalTime
 import org.json.JSONArray
 import org.json.JSONObject
@@ -92,9 +93,16 @@ object Modes {
     const val FAMILY = "family"
 
     /** The mode at [now]; null when modes are off. Works offline: only the stored rules and the clock. */
-    fun current(rules: ServerRules?, now: Instant): ActiveMode? {
+    fun current(rules: ServerRules?, now: Instant): ActiveMode? = current(rules, TrustedTime.at(now))
+
+    /**
+     * The same with the phone's trusted time (time/TrustedClock.kt). After a restart without a sync,
+     * every slot that may be on counts, so calls narrow to the groups all of them allow.
+     */
+    fun current(rules: ServerRules?, time: TrustedTime): ActiveMode? {
+        val now = time.instant
         val modes = rules?.modes ?: return null
-        val active = Schedules.active(modes.slots, now, rules.timezone)
+        val active = Schedules.active(modes.slots, time, rules.timezone)
             .mapNotNull { slot -> modes.modes.firstOrNull { it.id == slot.kind }?.let { slot to it } }
         if (active.isEmpty()) {
             return ActiveMode(modes.modes.firstOrNull { it.id == modes.defaultModeId }, until = null, contactGroups = null, quiet = false)
@@ -113,7 +121,10 @@ object Modes {
      * contact marked as a parent (the phone cannot tell who the parents are), that is every contact.
      * Otherwise the contacts in the mode's groups, and every parent in every mode (docs/always-reachable.md).
      */
-    fun allowedContacts(rules: ServerRules?, contacts: List<ApprovedContact>, now: Instant): List<ApprovedContact> {
+    fun allowedContacts(rules: ServerRules?, contacts: List<ApprovedContact>, now: Instant): List<ApprovedContact> =
+        allowedContacts(rules, contacts, TrustedTime.at(now))
+
+    fun allowedContacts(rules: ServerRules?, contacts: List<ApprovedContact>, now: TrustedTime): List<ApprovedContact> {
         val modes = rules?.modes ?: return contacts
         if (rules.profile != "child") return contacts
         val groups = current(rules, now)?.contactGroups ?: return contacts
@@ -132,6 +143,9 @@ object Modes {
      * narrow calls, that is with the list enforced and a parent marked (same rule as [allowedContacts]).
      */
     fun shown(rules: ServerRules?, contactsEnforced: Boolean, now: Instant): ActiveMode? =
+        shown(rules, contactsEnforced, TrustedTime.at(now))
+
+    fun shown(rules: ServerRules?, contactsEnforced: Boolean, now: TrustedTime): ActiveMode? =
         current(rules?.takeIf { it.profile == "child" }, now)?.let {
             if (!contactsEnforced || rules?.sos?.parents.isNullOrEmpty()) it.copy(contactGroups = null) else it
         }

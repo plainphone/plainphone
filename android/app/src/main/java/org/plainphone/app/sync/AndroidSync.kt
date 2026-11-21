@@ -74,6 +74,11 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun nowMs() = System.currentTimeMillis()
 
+    override fun trustedNowMs() = org.plainphone.app.time.TrustedClock.of(context).now().ms
+
+    override fun serverTime(time: ServerTime) =
+        org.plainphone.app.time.TrustedClock.of(context).onServerTime(time.serverMs, time.elapsedMs)
+
     override fun pendingSetupCompletion(phoneId: String?) = LightSetup.pendingCompletion(context, phoneId)
 
     override fun setupCompletionReported() = LightSetup.completionReported(context)

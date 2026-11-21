@@ -140,6 +140,20 @@ class ModesTest {
     }
 
     @Test
+    fun `after a restart without a sync the cautious range still keeps every parent`() {
+        // Monday 20:00 to Tuesday 08:30 may be night and school time: no group is left, only the parents.
+        val range = org.plainphone.app.time.TrustedTime(
+            at("2027-01-04T20:00"), at("2027-01-05T08:30"), at("2027-01-04T20:00"),
+            org.plainphone.app.time.TrustedTime.Source.SINCE_RESTART,
+        )
+        val r = rules()
+        assertThat(names(Modes.allowedContacts(r, r.contacts, range))).containsExactly("Mum")
+        val dad = """{"name":"Dad","number":"+4587654321"}"""
+        val twoParents = rules(parents = "[$mum,$dad]")
+        assertThat(names(Modes.allowedContacts(twoParents, twoParents.contacts, range))).containsExactly("Mum", "Dad")
+    }
+
+    @Test
     fun `a parent stays reachable even if the stored group says otherwise or the list lacks them`() {
         val dad = """{"name":"Dad","number":"+4587654321"}"""
         val r = rules(parents = "[$dad]")

@@ -175,9 +175,14 @@ Parents can include the name their child knows them by when acknowledging.
 
 ## Delivery and phone calls
 
-The phone sends an authenticated report with a unique UUID. If online reporting
-fails, the default SMS app attempts one SMS per selected number and queues the
-same UUID for an online retry. WorkManager persists the retry across restarts.
+The phone sends an authenticated report with a unique UUID the moment the undo
+window ends: an ordinary SOS in a short foreground service that shows "Sending
+your SOS to your parents…" on the **SOS** notification channel, a silent SOS
+without any notice. If online reporting fails, the default SMS app attempts one
+SMS per selected number and queues the same UUID for an online retry.
+WorkManager persists the retry across restarts (expedited, then every 10, 20,
+30 … seconds), and a new network retries a waiting SOS at once. Expected and
+measured delivery times are in [latency.md](latency.md).
 The server deduplicates the report even when the first response was lost. The
 SMS handoff is reserved in local storage before dispatch to prevent a retry
 from repeating it after a crash. A carrier handoff can fail, and neither an
@@ -230,9 +235,13 @@ the server stops, so recovery can deliver that notification again.
 Urgent SOS uses the app's native push path (see [push setup](push-setup.md)):
 on Android it is a high-priority FCM message on the **Urgent SOS** channel, and on
 iOS an APNs alert marked Time Sensitive (the app carries the Time Sensitive
-Notifications entitlement). A parent can allow the channel through Do Not Disturb
-on Android, or allow it in Focus settings on iOS. User and system notification
-controls still apply. Help SOS uses the normal channel.
+Notifications entitlement). Both keep an undelivered alert for 24 hours. The
+Android channel plays the default sound, vibrates long and shows on the lock
+screen; a parent can allow it through Do Not Disturb from the parent app's
+**Settings → Urgent SOS sound and Do Not Disturb**, or in Focus settings on iOS.
+User and system notification controls still apply. Help SOS uses the normal
+channel at high priority. Web Push sends both with `Urgency: high`. The server
+sends to every parent's devices and the mail at the same time.
 
 The server needs no extra configuration for SOS: it uses the FCM and APNs settings
 from push setup, and browser push uses the existing VAPID config. Both kinds also

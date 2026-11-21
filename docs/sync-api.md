@@ -72,6 +72,8 @@ phone                                      server                         parent
    is the complete truth; there are no deltas. A release request changes the ETag, so a
    phone polling with its previous ETag receives `200` with `release: true`. See the
    [server benchmark](../server/README.md#measure-the-server-footprint) for polling costs.
+   Every `/device/*` answer, also `304` and errors, carries `X-Server-Time` (milliseconds since
+   the epoch). The phone keeps its schedules on it ([light-mode.md](light-mode.md#the-phones-clock)).
 3. **Apps.** Send the full list of launchable apps after pairing and whenever packages change
    (`ACTION_PACKAGE_ADDED/REMOVED`). Mark dialer, messages, settings, launcher, keyboard, clock,
    camera and contacts as `core`; they are never hidden. Apps the server has not seen yet are
@@ -128,6 +130,7 @@ phone                                      server                         parent
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
+   | `clockMovedId` | A UUID, sent once when the phone's clock is more than 10 minutes from the server's time ([light-mode.md](light-mode.md#the-phones-clock)). The parent API shows `clockMoved: true` for seven days |
    | `liftedPolicies` | Lock steps the phone lifted on purpose for a parent-approved window, each `{ "name", "until" }` (name 1 to 200 characters, `until` ISO 8601 with a time zone; at most 10). Today only `restriction no_modify_accounts` during **Allow accounts briefly** ([policies](policies.md#account-changes-during-an-approved-sign-in)). Within its deadline a lifted step is not a failure: `lockIntact` stays true and the dashboard shows "allowed until HH:MM". More than 2 minutes past `until`, the server stores the name in `failedPolicies` and `lockIntact: false`, which raises the usual protection alert. If the phone has not reported for 10 minutes after `until`, the sweeper tells the parents once (protection alert, reason `lifted`) |
 
    In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,
@@ -374,11 +377,11 @@ Full description: [emergency-openings.md](emergency-openings.md).
 
 ### Push wakeups
 
-`GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting, which defaults to off. **Wakeups without Google** limits the phone to UnifiedPush or polling. Older servers imply polling.
+`GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting. It starts on for a new Android phone when the server can wake phones (FCM or UnifiedPush configured) and off otherwise; phones paired earlier keep their setting. **Wakeups without Google** limits the phone to UnifiedPush or polling. Older servers imply polling.
 
 The phone sends `PUT /device/push-token` with `{ "fcmToken": "…" }` for FCM, `{ "unifiedPushEndpoint": "https://…" }` for UnifiedPush or `{ "fcmToken": null }` to clear both. The server validates a new FCM token before replacing the active registration. Previously stored tokens are validated again after upgrade or a Firebase project change. The optional `fcmValidationKey` in the rules invalidates the Android registration cache when the project or validation version changes. On a definitive rejection (422) or temporary validation failure (503), Android tries a configured UnifiedPush endpoint when available. UnifiedPush endpoints must use HTTPS and a configured service host. The phone reports the registered transport as `pushProvider` in `PUT /device/status`. The dashboard shows that report, and a disabled setting immediately clears the stored registration.
 
-FCM uses high-priority data messages. UnifiedPush uses a POST with the same JSON fields. The only payload is `{"wake":"rules"}` (or `locate`, `update`, `sos-ack`). A wake schedules the ordinary authenticated sync. It cannot apply a rule, request a fresh fix, or acknowledge an SOS by itself. The SOS branch can pass `{ urgent: true }` to `notifyHousehold` for parent delivery and use the reserved `sos-ack` reason after it stores the acknowledgement. Existing periodic and interactive polling remain active.
+FCM uses high-priority data messages with one collapse key (`plainphone-sync`). UnifiedPush uses a POST with the same JSON fields and `Urgency: high`. The TTL follows the reason: `locate` 2 minutes, a ring (sent as `rules`) 2 minutes, `sos-ack` 10 minutes, `rules` 15 minutes, `update` 1 hour ([latency.md](latency.md)). The only payload is `{"wake":"rules"}` (or `locate`, `update`, `sos-ack`). A wake schedules the ordinary authenticated sync. It cannot apply a rule, request a fresh fix, or acknowledge an SOS by itself. The SOS branch can pass `{ urgent: true }` to `notifyHousehold` for parent delivery and use the reserved `sos-ack` reason after it stores the acknowledgement. Existing periodic and interactive polling remain active.
 
 ## The phone's implementation
 

@@ -13,6 +13,7 @@ import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
 import { errorFrames, errorSummary } from "../lib/log.js";
 import { sweepMoreTime } from "./more-time.js";
 import { sweepSos } from "./sos.js";
+import { sweepLatency } from "./latency.js";
 import { sweepQuickMessages } from "./quick-messages.js";
 import { sweepExtended } from "./extended-family.js";
 import { sweepCallbackRequests } from "./callback-requests.js";
@@ -42,6 +43,9 @@ export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const now = ctx.now();
+  // SOS retries go first and on their own: slow DNS or a failing cleanup must not hold up an alert.
+  await sweepSos(ctx).catch((err) => console.error(`SOS sweep failed: ${errorSummary(err)}`));
+  await sweepLatency(ctx).catch((err) => console.error(`latency sweep failed: ${errorSummary(err)}`));
   await ctx.db.delete(selfRuleTemplates).where(lt(selfRuleTemplates.expiresAt, now));
   // An imported phone whose move was never finished would stay "awaiting" for good: free it for normal setup.
   // That includes a phone that redeemed its token (it holds a device token) but never synced and so was never
@@ -134,7 +138,6 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
     safety: await deleteOldSafetyRequests(ctx),
   };
   await deliverSetupUndoNotices(ctx);
-  await sweepSos(ctx);
   await sweepQuickMessages(ctx);
   await sweepExtended(ctx);
   await sweepCallbackRequests(ctx);

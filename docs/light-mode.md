@@ -100,14 +100,60 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    bypass) needs Device Owner. In light mode only the DNS filter applies; other browsers are blocked
    like any app the parent has not allowed.
 9. **adb and a computer** get around everything, as in strong mode before the lock.
-10. **The date and time** can be set by hand (strong mode forces automatic time). School time
-    and bedtime follow the phone's clock, so a child who moves the clock can move them. When
-    the rules have school time, bedtime or time limits, the step "automatic date and time"
-    fails while the clock is set by hand, and the parent sees it. This is a protection check,
-    not a feature, so it has no switch of its own: it goes away with those rules, and a phone on
-    wifi alone still gets automatic time from the network. A maintenance unlock and the
-    PIN lockout also run on the time since boot, so changing the clock neither keeps an unlock
-    open nor shortens a lockout.
+10. **The date and time** can be set by hand (strong mode forces automatic time). It moves
+    nothing: school time, bedtime, modes and time limits run on the server's time, see
+    [The phone's clock](#the-phones-clock). When the rules have school time, bedtime or time
+    limits, the step "automatic date and time" still fails while the clock is set by hand, so
+    the parent sees it. This is a protection check, not a feature, so it has no switch of its
+    own: it goes away with those rules, and a phone on wifi alone still gets automatic time from
+    the network. A maintenance unlock and the PIN lockout also run on the time since boot, so
+    changing the clock neither keeps an unlock open nor shortens a lockout.
+
+## The phone's clock
+
+In light mode the child can set the date and time by hand. Everything that decides whether
+something is locked therefore runs on a **trusted time** instead (`time/TrustedClock.kt`):
+school time, bedtime, silent bedtime, modes and their contact groups, the day for time limits
+and more-time asks, the month for [emergency openings](emergency-openings.md), and the day and
+deadline of a catalog install window.
+
+- **At every sync** the phone stores the server's time (the `X-Server-Time` header on every
+  `/device/*` answer, or the `Date` header from an older server) together with the time since
+  boot and which boot it is. An error answer from the server counts too.
+- **In the same boot** the trusted time is that server time plus the time since, on the boot
+  clock. The boot clock keeps running while the phone sleeps and the user cannot change it. The
+  phone's own clock is ignored, so moving it forward or back changes nothing.
+- **After a restart without a sync** the phone only knows a lower bound: the last moment it knew
+  before the restart plus the time since the restart. That moment is updated (at most once a
+  minute) whenever the phone checks the time: screen on, an app coming to the front, a window or
+  midnight alarm, a sync. A phone left untouched and offline only remembers the last check, so
+  the lower bound can lag behind. The real
+  time lies between that and the phone's clock, but at least 12 hours above the lower bound,
+  because the phone may have been off and its clock may be set back. **Any window that may be on
+  somewhere in that range counts as on**, and with several windows only what all of them allow
+  stays open. Counting (which day, which month) uses the lower bound, so no count starts again
+  early. The first sync after the restart brings the exact time back. 112, the parents and the
+  help lines are never part of this: calls and texts to them work in every window
+  ([always-reachable.md](always-reachable.md)).
+- **Before the first server time ever** (just after an update, before its first sync) the phone
+  uses its own clock, as before.
+- **Strong mode** forces automatic time, so it keeps using the phone's clock.
+- The alarm for the next window change runs on the boot clock too, so moving the clock does not
+  move it.
+
+When the phone's clock is more than 10 minutes from the server's time, the parents see a calm
+note once on the phone's page ("The phone's clock shows the wrong time. School time, bedtime and
+limits still follow the real time."). It is told again only after the clock has been right for a
+while (within 2 minutes) and moves again. It never loosens anything. The note has no switch of
+its own: like the "automatic date and time" check it is a protection signal, not a feature. It
+changes nothing on the phone and comes once per move, so a family that sets the clock by hand
+on purpose sees it once, not on every check.
+
+There is no switch for the trusted time: it is how the parent's own windows and limits are kept,
+and each of those can be turned off. Android stamps usage events with the phone's clock, so for
+time limits the start of the trusted day is moved onto the phone's clock before counting; Android
+shifts its stored usage when the clock changes, so the count follows. Check that on a real phone
+(bypass checklist, L-T3).
 
 ## Installing it (no reset)
 

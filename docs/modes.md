@@ -88,7 +88,7 @@ and each contact carries `group`.
 
 A phone that knows modes keeps using `schedules` for apps and silence, exactly as before, so there is
 one code path for "which apps" and "is it quiet". From `modes` it takes the name to show and the contact
-groups. It works out the current mode from the slots with the device clock, in the phone's time zone
+groups. It works out the current mode from the slots with the trusted time ([light-mode.md](light-mode.md#the-phones-clock)), in the phone's time zone
 and in wall-clock time, so a slot from 21:00 to 07:00 starts and ends at those times also on the nights
 the clocks change, and it keeps switching when it is offline. The next start or end of a slot is added
 to the alarm the phone already sets for school time and bedtime.

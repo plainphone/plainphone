@@ -46,6 +46,7 @@ import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson, sendMoreTimeReceip
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
 import { deviceIosSelectionRoutes } from "./ios-selection.js";
+import { finishWake } from "../services/latency.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -84,6 +85,13 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const suggestionLimit = new RateLimiter(30, 60 * 60_000);
   const favouriteLimit = new RateLimiter(30, 60 * 60_000);
+
+  // Every answer carries the server's clock, so the phone can keep a time the user cannot set
+  // (docs/light-mode.md, "The phone's clock"). Set last, so it is as close to sending as possible.
+  app.use("/*", async (c, next) => {
+    await next();
+    c.res.headers.set("X-Server-Time", String(ctx.now().getTime()));
+  });
 
   // --- Pairing (no device token yet) -------------------------------------------
 
@@ -379,6 +387,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           ),
         ),
       );
+    // Closes the timing of a wake-up the phone answered with this fetch (docs/latency.md).
+    void finishWake(ctx, phone.id);
     // A first sync (pairing done) or one after an offline alert is news on the dashboard.
     if (!phone.lastSeenAt || phone.offlineAlertedAt) {
       publishLive(ctx, { type: "phone.status", householdId: phone.householdId, phoneId: phone.id });
@@ -773,6 +783,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         parallelAppsRemoved: z.boolean().optional(),
         parallelAppsRemovedId: z.uuid().optional(),
         lateGoogleAccountId: z.uuid().optional(),
+        clockMovedId: z.uuid().optional(),
         mode: z.enum(["strong", "light"]).optional(),
         protections: protections.optional(),
         filterMethod: z.enum(FILTER_METHODS).optional(),
@@ -814,7 +825,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           input.failedPolicies.length === 0 &&
           !input.maintenance));
     const { installOverrunSequence: sequence, parallelAppsRemoved, parallelAppsRemovedId,
-      lateGoogleAccountId, ...reportedStatus } = input;
+      lateGoogleAccountId, clockMovedId, ...reportedStatus } = input;
     const status = { ...reportedStatus, lockIntact, failedPolicies: overdue.failedPolicies, rulesAppliedAt: appliedAt?.toISOString() ?? null };
     const reportsFilter = light && input.filterMethod !== undefined && input.filterWorking !== undefined;
     // Filter setup and inconclusive canaries should not mask losses of other light protections.
@@ -850,6 +861,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const lateGoogleAccountNotice = lateGoogleAccountId && lateGoogleAccountId !== previousLateAccount?.id
         ? { id: lateGoogleAccountId, receivedAt: now.toISOString() }
         : previousLateAccount;
+      const previousClockMove = prev.status?.clockMovedNotice;
+      const clockMovedNotice = clockMovedId && clockMovedId !== previousClockMove?.id
+        ? { id: clockMovedId, receivedAt: now.toISOString() }
+        : previousClockMove;
       // The first receipt is needed to detect an ahead phone clock even on later heartbeats.
       const previous = prev.status;
       const sameReceipt = previous?.rulesReceiptConfirmed === true &&
@@ -867,7 +882,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         : input.filterWorking === true ? true : confirmedLoss ? false : previousFilter;
       await tx.update(phones).set({
         deviceStatus: {
-          ...status, rulesReceiptReceivedAt, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice,
+          ...status, rulesReceiptReceivedAt, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice, clockMovedNotice,
           lastConfirmedFilterWorking, lockIntactWithoutFilter,
         },
         statusReportedAt: now,

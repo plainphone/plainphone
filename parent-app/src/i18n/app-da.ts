@@ -16,6 +16,7 @@ export const appDa: AppMessages = {
   "native.notifications": "Notifikationer",
   "native.notificationsHelp": "Få besked, når en ændring venter på din godkendelse, eller når en placering er klar.",
   "native.notificationsOn": "Notifikationer er tilmeldt på denne server.",
+  "native.sosChannel": "Lyd og Forstyr ikke for Akut SOS",
   "native.notificationsOff": "Notifikationer er slået fra. Du kan slå dem til i telefonens indstillinger.",
   "native.pushRegistrationError": "Notifikationer kunne ikke tilmeldes på denne server.",
   "native.notificationsAsk": "Slå notifikationer til",

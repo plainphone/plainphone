@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { connect } from "node:http2";
 import { z } from "zod";
 import type { Config } from "../config.js";
-import type { ParentPushProvider, PushMessage, PushTarget, SendOutcome } from "./parent-push.js";
+import { DELIVERY, type Delivery } from "../lib/push-priority.js";
+import { type ParentPushProvider, type PushMessage, type PushTarget, type SendOptions, type SendOutcome, sendClass } from "./parent-push.js";
 
 function jwt(header: object, claims: object, key: KeyObject, algorithm: string) {
   const data = [header, claims].map((part) => Buffer.from(JSON.stringify(part)).toString("base64url")).join(".");
@@ -97,7 +98,7 @@ export class Apns {
     this.key = createPrivateKey(p8);
   }
 
-  async send(token: string, payload: object, urgent: boolean, collapseId?: string): Promise<SendOutcome> {
+  async send(token: string, payload: object, delivery: Pick<Delivery, "apnsPriority" | "ttlSeconds">, collapseId?: string): Promise<SendOutcome> {
     const iat = Math.floor(Date.now() / 1000);
     if (!this.auth || iat - this.auth.iat >= 3000) {
       this.auth = { jwt: jwt({ alg: "ES256", kid: this.kid }, { iss: this.team, iat }, this.key, "SHA256"), iat };
@@ -106,7 +107,10 @@ export class Apns {
       const response = await this.http(this.sandbox ? "https://api.sandbox.push.apple.com" : "https://api.push.apple.com", {
         ":path": `/3/device/${encodeURIComponent(token)}`,
         authorization: `bearer ${this.auth.jwt}`,
-        "apns-topic": this.topic, "apns-push-type": "alert", "apns-priority": urgent ? "10" : "5",
+        // Every parent notification is a visible alert; priority 10 sends it at once, 5 lets iOS batch it.
+        "apns-topic": this.topic, "apns-push-type": "alert", "apns-priority": delivery.apnsPriority,
+        // Without an expiration APNs tries once and drops the alert if the phone is unreachable.
+        "apns-expiration": String(iat + delivery.ttlSeconds),
         "content-type": "application/json",
         // The same id replaces the notification already shown (the tag); APNs allows at most 64 bytes.
         ...(collapseId && Buffer.byteLength(collapseId) <= 64 && { "apns-collapse-id": collapseId }),
@@ -196,11 +200,15 @@ export class NativeParentPush implements ParentPushProvider {
     return Boolean(platform === "web" ? this.webPublicKey : platform === "fcm" ? this.fcm : this.apns);
   }
 
-  async send(target: PushTarget, { title, body, url, tag, data: extra, actions, silent }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
-    if (target.platform === "web") return this.web.send(target, { title, body, url, tag, actions, data: extra, silent }, opts);
-    const urgent = Boolean(opts?.urgent);
+  async send(target: PushTarget, { title, body, url, tag, data: extra, actions, silent, receipt }: PushMessage, opts?: SendOptions): Promise<SendOutcome> {
+    if (target.platform === "web") return this.web.send(target, { title, body, url, tag, actions, data: extra, silent, receipt }, opts);
+    const cls = sendClass(opts);
+    const delivery = DELIVERY[cls];
+    const urgent = cls === "alarm";
+    const ttl = `${delivery.ttlSeconds}s`;
     const data = {
       url, urgent: String(urgent),
+      ...(receipt && { receipt }),
       type: extra?.type ?? (url.endsWith("/location") ? "location" : url === "/approvals" ? "approval" : "phone"),
       ...(extra?.phoneId && { phoneId: extra.phoneId }),
       ...(extra?.requestId && { requestId: extra.requestId }),
@@ -214,7 +222,7 @@ export class NativeParentPush implements ParentPushProvider {
       return this.apns?.send(target.endpoint, {
         aps: { alert: { title, body }, ...(!silent && { sound: "default" }), ...(category && { category }), ...(urgent && { "interruption-level": "time-sensitive" }) },
         ...data,
-      }, urgent, tag) ?? "unsupported";
+      }, delivery, tag) ?? "unsupported";
     }
     // FCM "notification" messages are drawn by Android itself, without buttons. Messages with buttons are
     // data-only, so expo-notifications in the parent app draws them with the category's actions.
@@ -222,12 +230,14 @@ export class NativeParentPush implements ParentPushProvider {
       return this.fcm?.send({
         token: target.endpoint,
         data: { ...data, title, message: body, body: JSON.stringify(data), categoryId: category, channelId: "normal", tag },
-        android: { priority: "HIGH" }, // an answer someone waits for; normal priority can sit in Doze
+        android: { priority: "HIGH", ttl }, // an answer someone waits for; normal priority can sit in Doze
       }) ?? "unsupported";
     }
+    // No collapse key: FCM keeps only four collapse keys per device, and an alert must never be the one dropped.
+    // The tag still replaces the shown notification on the device.
     return this.fcm?.send({
       token: target.endpoint, notification: { title, body }, data,
-      android: { priority: urgent ? "HIGH" : "NORMAL", notification: { channel_id: urgent ? "sos" : silent ? "quiet" : "normal", tag } },
+      android: { priority: delivery.fcmPriority, ttl, notification: { channel_id: urgent ? "sos" : silent ? "quiet" : "normal", tag } },
     }) ?? "unsupported";
   }
 }
