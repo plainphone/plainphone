@@ -73,8 +73,10 @@ before Android asks for permissions. Light-mode setup can be undone without a PI
 minutes by default after finishing permissions. The dashboard shows the reported deadline. Rebooting closes the window. Undo switches off protection
 even offline. The phone reports Undo when it reconnects, even before its first rules sync.
 The server removes the phone and notifies current household members whenever the report arrives.
-If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation. See
-[docs/light-mode.md](docs/light-mode.md).
+If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation.
+School time, bedtime, modes and limits run on the server's time, so setting the phone's clock by hand
+moves nothing; after a restart without a sync, a window that may be on counts as on. See
+[docs/light-mode.md](docs/light-mode.md) and [the phone's clock](docs/light-mode.md#the-phones-clock).
 
 ### Open mode: every app except what you block
 
