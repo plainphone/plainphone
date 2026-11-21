@@ -72,6 +72,8 @@ phone                                      server                         parent
    is the complete truth; there are no deltas. A release request changes the ETag, so a
    phone polling with its previous ETag receives `200` with `release: true`. See the
    [server benchmark](../server/README.md#measure-the-server-footprint) for polling costs.
+   Every `/device/*` answer, also `304` and errors, carries `X-Server-Time` (milliseconds since
+   the epoch). The phone keeps its schedules on it ([light-mode.md](light-mode.md#the-phones-clock)).
 3. **Apps.** Send the full list of launchable apps after pairing and whenever packages change
    (`ACTION_PACKAGE_ADDED/REMOVED`). Mark dialer, messages, settings, launcher, keyboard, clock,
    camera and contacts as `core`; they are never hidden. Apps the server has not seen yet are
@@ -128,6 +130,7 @@ phone                                      server                         parent
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
+   | `clockMovedId` | A UUID, sent once when the phone's clock is more than 10 minutes from the server's time ([light-mode.md](light-mode.md#the-phones-clock)). The parent API shows `clockMoved: true` for seven days |
    | `liftedPolicies` | Lock steps the phone lifted on purpose for a parent-approved window, each `{ "name", "until" }` (name 1 to 200 characters, `until` ISO 8601 with a time zone; at most 10). Today only `restriction no_modify_accounts` during **Allow accounts briefly** ([policies](policies.md#account-changes-during-an-approved-sign-in)). Within its deadline a lifted step is not a failure: `lockIntact` stays true and the dashboard shows "allowed until HH:MM". More than 2 minutes past `until`, the server stores the name in `failedPolicies` and `lockIntact: false`, which raises the usual protection alert. If the phone has not reported for 10 minutes after `until`, the sweeper tells the parents once (protection alert, reason `lifted`) |
 
    In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,

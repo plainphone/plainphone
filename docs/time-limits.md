@@ -40,6 +40,9 @@ The rules document sends every limit and only the bonuses for today and tomorrow
 zone, server clock), so the list stays short. Use is counted on the phone (usage access) and
 reported as `timeUsed` in `PUT /device/status`; the server keeps only the latest report, and
 the parent API shows it only when that report is from today in the phone's time zone.
+In light mode the phone decides which day it is with the trusted time
+([light-mode.md](light-mode.md#the-phones-clock)), so setting the date forward does not start a
+new day, and limits start again at the trusted midnight.
 
 ## Parent API
 

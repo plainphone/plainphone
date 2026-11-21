@@ -123,6 +123,18 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 | T2 | Change time zone | Greyed out | Same |
 | T3 | Airplane mode + reboot to stop time sync | Time stays roughly right (the clock keeps running). Note the result for phase 3 school time | Turn on airplane mode and restart |
 
+Light mode lets the child set the clock, so the windows run on the server's time instead
+([light-mode.md](light-mode.md#the-phones-clock)). Set a bedtime that starts in a few minutes first.
+
+| # | Attempt | Expected | How to test |
+|---|---|---|---|
+| L-T1 | During bedtime, turn off automatic time and set the clock to 07:05 | Bedtime stays on. Within a minute the parent's page says the phone's clock shows the wrong time (once) | Settings → System → Date & time |
+| L-T2 | Before bedtime, set the clock back an hour and wait for the real start | Bedtime starts on time | Same, then wait |
+| L-T3 | Use a limited app, then set the date to tomorrow | The used minutes still count; the limit does not start again | Same, then open the app |
+| L-T4 | Airplane mode, restart, set the clock to just before bedtime ends | Every window that may be on counts as on until the first sync; 112 and the parents can still be called | Restart with airplane mode on, then set the clock |
+| L-T5 | After L-T4, turn airplane mode off | The phone syncs and the right windows come back within a minute | Turn airplane mode off |
+| L-T6 | Use all emergency openings, then set the date to next month | None left: the month follows the server's time | Self phone with emergency openings on |
+
 ## Maker-specific (Samsung)
 
 | # | Attempt | Expected | How to test |
