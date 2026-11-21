@@ -1,0 +1,140 @@
+{
+  "__inputs": [
+    { "name": "DS_PROMETHEUS", "label": "Prometheus", "description": "The Prometheus that scrapes /api/metrics", "type": "datasource", "pluginId": "prometheus", "pluginName": "Prometheus" }
+  ],
+  "title": "Plainphone delivery speed",
+  "uid": "plainphone-latency",
+  "description": "p50 and p95 per path, push failures per provider and sample counts, from GET /api/metrics (docs/latency.md). Aggregates only.",
+  "tags": ["plainphone", "latency"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "window",
+        "label": "Window",
+        "type": "custom",
+        "query": "1h,24h",
+        "current": { "text": "1h", "value": "1h" },
+        "options": [
+          { "text": "1h", "value": "1h", "selected": true },
+          { "text": "24h", "value": "24h", "selected": false }
+        ],
+        "description": "The server's own window for p50 and p95. Samples are kept by clock hour, so 1h covers the current and the previous hour."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "row", "title": "SOS: from the press on the child phone to the server", "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "panels": []
+    },
+    {
+      "id": 2, "type": "stat", "title": "SOS p50",
+      "description": "Median time from the press on the child phone to the server (undo window not included).",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_ms{path=\"phone-server\",kind=\"sos\",window=\"$window\",quantile=\"0.5\"}", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 0, "noValue": "no data" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "none" }
+    },
+    {
+      "id": 3, "type": "stat", "title": "SOS p95",
+      "description": "95 out of 100 SOS reports reached the server at least this fast.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_ms{path=\"phone-server\",kind=\"sos\",window=\"$window\",quantile=\"0.95\"}", "instant": true }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms", "decimals": 0, "noValue": "no data",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 5000 }, { "color": "red", "value": 15000 }] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "SOS and other reports: p50 and p95 per kind",
+      "description": "Phone to server, per kind (sos, quick, callback).",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 1 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_ms{path=\"phone-server\",window=\"$window\"}", "legendFormat": "{{kind}} p{{quantile}}" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "spanNulls": true, "lineWidth": 2, "fillOpacity": 0 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } },
+      "transformations": []
+    },
+    {
+      "id": 5, "type": "row", "title": "Alerts: from the server to the parents' devices", "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }, "panels": []
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Server to push service: p50 and p95 per provider",
+      "description": "From the SOS (or event) reaching the server to the push service accepting the message. A retry counts its wait.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_ms{path=\"server-parent\",window=\"$window\"}", "legendFormat": "{{provider}} p{{quantile}}" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "spanNulls": true, "lineWidth": 2, "fillOpacity": 0 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Event to parent's device: p50 and p95 per provider",
+      "description": "Until the parent's device confirmed it arrived. Only pushes that sent a receipt back count (a native app confirms while it is open).",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_ms{path=\"parent-device\",window=\"$window\"}", "legendFormat": "{{provider}} p{{quantile}}" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "spanNulls": true, "lineWidth": 2, "fillOpacity": 0 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 8, "type": "row", "title": "Wake-ups to the child phone and failures", "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }, "panels": []
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Wake-up to the phone's next sync: p50 and p95 per transport",
+      "description": "fcm, unifiedpush or poll (no push, the phone fetches on its own schedule).",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_ms{path=\"server-child\",window=\"$window\"}", "legendFormat": "{{provider}} p{{quantile}}" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "spanNulls": true, "lineWidth": 2, "fillOpacity": 0 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Push failures per provider",
+      "description": "Failed pushes to parents (not removed subscriptions). A counter since the server started; the graph shows how many failed in each interval.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "targets": [{ "refId": "A", "expr": "sum by (provider) (increase(plainphone_push_failures_total[$__rate_interval]))", "legendFormat": "{{provider}}" }],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "min": 0, "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 11, "type": "row", "title": "Sample counts", "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }, "panels": []
+    },
+    {
+      "id": 12, "type": "table", "title": "Samples behind the numbers",
+      "description": "A p95 from a handful of samples says little. Check the count before trusting a number.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [{ "refId": "A", "expr": "plainphone_latency_samples{window=\"$window\"}", "instant": true, "format": "table" }],
+      "fieldConfig": { "defaults": { "decimals": 0 }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "Value", "desc": true }] },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "window": true }, "renameByName": { "Value": "samples" } } }
+      ]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Samples per path (24h window)",
+      "description": "How many timings the 24h numbers rest on, over time.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [{ "refId": "A", "expr": "sum by (path) (plainphone_latency_samples{window=\"24h\"})", "legendFormat": "{{path}}" }],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "min": 0, "custom": { "spanNulls": true, "lineWidth": 2, "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    }
+  ]
+}
