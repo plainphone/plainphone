@@ -49,4 +49,7 @@ cargo fmt --check
 
 Versions are pinned with `=` and `Cargo.lock` is committed. The tree is the
 research harness's (research/e2ee/mls-harness), including its pinned-back
-crates, plus `jni-sys` 0.3.0 for the JNI types.
+crates, plus `jni-sys` 0.3.0 for the JNI types. The phone uses a hand-written
+JNI function instead of the recommendation's UniFFI; the reasons are in
+[docs/e2ee-prototype.md](../../docs/e2ee-prototype.md#design-as-built)
+("Why JNI and not UniFFI").

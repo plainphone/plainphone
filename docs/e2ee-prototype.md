@@ -96,7 +96,10 @@ The demo prints step names and counts, never texts, keys or sizes. It fails
   - adding or removing members needs an admin device (the server compares the
     declared member list with the current one);
   - each recipient has one total order (the delivery cursor); nothing is sent
-    back to its sender;
+    back to its sender. The cursor is a global sequence, so `fanOut` locks the
+    recipients' device rows until its transaction ends: two deliveries to one
+    device, even from different conversations, get cursors in the order they
+    commit, and a fetch never skips a cursor that commits later;
   - a revoked device, or a device of a parent who left the household, gets
     nothing more, and what waited for a revoked device is deleted;
   - acknowledged deliveries are deleted, and a message is deleted when nobody
@@ -110,6 +113,17 @@ The demo prints step names and counts, never texts, keys or sizes. It fails
   copies bytes in and out and zeroes its buffers. Panics are caught and become
   `{"ok":false,"error":"panic"}`. Errors carry a code and a fixed sentence;
   OpenMLS errors are reduced to their variant names (`error.rs`, `mls`).
+- **Why JNI and not UniFFI.** The recommendation says "generate bindings with
+  UniFFI". The prototype deviates on purpose for the phone: the whole API is
+  one function that takes and returns bytes, so the hand-written JNI shim
+  (`jni.rs`, about 50 lines) can be read in full, and `jni-sys` (no
+  dependencies, no build script) is the only new crate. UniFFI would add its
+  runtime and code generator to the supply chain, generated Kotlin to review,
+  and JNA as an Android dependency, without removing the unsafe code that
+  matters here. The JSON layer in `api.rs` is the same either way. UniFFI
+  stays the plan for Expo (uniffi-bindgen-react-native, gap 3), where it
+  generates the TurboModule glue that a single JNI function does not cover;
+  the reviewer should decide whether the phone then uses it too.
 
 ## Threat model
 
@@ -181,6 +195,17 @@ Each of these is a reason the prototype is not a product.
    build), no iOS, and no browser build: browser decryption waits, as the
    recommendation and [family-comms](research/family-comms.md#family-inbox) say.
    The arm64 `.so` is built in CI but has never been loaded on a phone.
+   **The parent app is one of the clients the recommendation names, and the
+   prototype does not deliver it:** in the demo the parents are the `pp-mls`
+   CLI, which runs the same core and `call` API that an app binding would.
+   The plan for the parent-app client, as a follow-up issue under #120:
+   (a) a local Expo module in `parent-app/modules/` that exposes `call`
+   through uniffi-bindgen-react-native, built for arm64 Android and iOS;
+   (b) a development build only, never in a store build, behind the same
+   kind of build flag as the phone; (c) state at rest in SecureStore-wrapped
+   storage, excluded from backup (gap 2); (d) the shared `selftest` op and the
+   demo's scenarios run on a physical iPhone and an Android parent phone (the
+   recommendation's real-device gate).
 4. **No push.** Clients poll `/api/e2ee/inbox`. The real path must keep push
    payloads generic (a conversation handle and a cursor at most).
 5. **No retention sweeper.** Deliveries are deleted on acknowledgement; a

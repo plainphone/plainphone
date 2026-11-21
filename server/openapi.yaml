@@ -6564,7 +6564,7 @@ paths:
               type: object
               required: [deviceId, mlsSignPub]
               properties:
-                deviceId: { type: string, format: uuid, description: "A random UUIDv4 the client picks; its MLS credential carries it" }
+                deviceId: { type: string, format: uuid, description: "A random lowercase UUIDv4 the client picks; its MLS credential carries it" }
                 householdId: { type: string, format: uuid, description: Required for parents }
                 mlsSignPub: { type: string, description: 32-byte Ed25519 MLS leaf key, base64url }
       responses:

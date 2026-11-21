@@ -274,9 +274,12 @@ the repository root; `core` is `e2ee/mls-core`.
 - [ ] Server ordering rules (one commit per epoch, stale-epoch refusal) and
       what clients do on 409 and on forks.
       Code: `server/src/routes/e2ee.ts` `POST /groups/:gid/commits` and
-      `/messages` (row lock, 409), `fanOut`; client side `clear_pending` and
-      the pending-commit handling in `client.rs` `process_protocol`. Tests:
-      `server/test/e2ee.test.ts`, `concurrent_commits_resolve_to_one`, demo
+      `/messages` (row lock, 409), `fanOut` (recipient rows locked, so a
+      device's cursors follow commit order across conversations); client side
+      `clear_pending` and the pending-commit handling in `client.rs`
+      `process_protocol`. Tests: `server/test/e2ee.test.ts` (including "keeps
+      one order per device across conversations"),
+      `concurrent_commits_resolve_to_one`, demo
       step 9. Header parsing: `parseMlsHeader` with the `wire` and
       `wireRejections` vectors.
 - [ ] `max_past_epochs` and sender-ratchet tolerance versus forward secrecy.

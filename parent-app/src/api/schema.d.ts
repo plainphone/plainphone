@@ -12669,7 +12669,7 @@ export interface operations {
                 "application/json": {
                     /**
                      * Format: uuid
-                     * @description A random UUIDv4 the client picks; its MLS credential carries it
+                     * @description A random lowercase UUIDv4 the client picks; its MLS credential carries it
                      */
                     deviceId: string;
                     /**

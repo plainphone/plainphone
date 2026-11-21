@@ -51,8 +51,19 @@ function decode(text: string, max: number, what: string): Uint8Array {
 
 const notFound = () => new HTTPException(404, { message: "not found" });
 
+/** Device IDs are lowercase UUIDs, as the core requires (`roster.rs`). */
+const deviceUuid = z.uuid().regex(/^[0-9a-f-]+$/, "lowercase UUID");
+
 export function e2eeRoutes(ctx: Ctx) {
   const app = new Hono<Env>();
+
+  /** Not revoked, and a child phone or the device of a parent who still belongs to the household. */
+  const activeDevice = and(
+    isNull(e2eeDevices.revokedAt),
+    or(isNotNull(e2eeDevices.phoneId), exists(ctx.db.select({ one: sql`1` }).from(householdMembers).where(and(
+      eq(householdMembers.householdId, e2eeDevices.householdId), eq(householdMembers.userId, e2eeDevices.userId),
+    )))),
+  );
 
   app.use("/*", async (c, next) => {
     if (!ctx.cfg.E2EE_PROTOTYPE_ENABLED) throw notFound();
@@ -123,7 +134,7 @@ export function e2eeRoutes(ctx: Ctx) {
 
   app.post("/devices", async (c) => {
     // The client picks its random device ID first: the MLS credential carries it.
-    const input = await body(c, z.strictObject({ deviceId: z.uuid(), householdId: z.uuid().optional(), mlsSignPub: b64(32) }));
+    const input = await body(c, z.strictObject({ deviceId: deviceUuid, householdId: z.uuid().optional(), mlsSignPub: b64(32) }));
     if (decode(input.mlsSignPub, 32, "mlsSignPub").length !== 32) throw new HTTPException(400, { message: "mlsSignPub must be 32 bytes" });
     const caller = c.get("caller");
     const householdId = await householdOf(c, input.householdId);
@@ -146,6 +157,8 @@ export function e2eeRoutes(ctx: Ctx) {
   });
 
   app.get("/devices", async (c) => {
+    const caller = c.get("caller");
+    if (caller.kind === "phone" && caller.phone.profile !== "child") throw notFound();
     const householdId = await householdOf(c, z.uuid().optional().catch(undefined).parse(c.req.query("householdId")));
     const rows = await ctx.db.select().from(e2eeDevices)
       .where(and(eq(e2eeDevices.householdId, householdId), isNull(e2eeDevices.revokedAt)))
@@ -214,8 +227,13 @@ export function e2eeRoutes(ctx: Ctx) {
       if (found.length !== targets.length) throw notFound();
       const claimed: { deviceId: string; keyPackage: string }[] = [];
       for (const target of targets) {
-        const [kp] = await tx.select().from(e2eeKeyPackages).where(eq(e2eeKeyPackages.deviceId, target))
-          .orderBy(asc(e2eeKeyPackages.lastResort), asc(e2eeKeyPackages.createdAt)).limit(1).for("update", { skipLocked: true });
+        // A normal package goes to one claimer (a concurrent claim skips it); the last resort is
+        // shared, so it is read without a lock and never skipped.
+        const [normal] = await tx.select().from(e2eeKeyPackages)
+          .where(and(eq(e2eeKeyPackages.deviceId, target), eq(e2eeKeyPackages.lastResort, false)))
+          .orderBy(asc(e2eeKeyPackages.createdAt)).limit(1).for("update", { skipLocked: true });
+        const kp = normal ?? (await tx.select().from(e2eeKeyPackages)
+          .where(and(eq(e2eeKeyPackages.deviceId, target), eq(e2eeKeyPackages.lastResort, true))).limit(1))[0];
         if (!kp) throw new HTTPException(409, { message: `no key package for ${target}` });
         if (!kp.lastResort) await tx.delete(e2eeKeyPackages).where(eq(e2eeKeyPackages.id, kp.id));
         claimed.push({ deviceId: target, keyPackage: kp.keyPackage });
@@ -254,14 +272,13 @@ export function e2eeRoutes(ctx: Ctx) {
   async function fanOut(tx: Parameters<Parameters<typeof ctx.db.transaction>[0]>[0], groupId: string, kind: "welcome" | "commit" | "application", epoch: number, payload: string, to: string[]) {
     if (!to.length) return;
     // Revoked devices, and devices of parents who left the household, get nothing, even while
-    // the group still lists them.
-    const active = await tx.select({ id: e2eeDevices.id }).from(e2eeDevices).where(and(
-      inArray(e2eeDevices.id, to), isNull(e2eeDevices.revokedAt),
-      or(isNotNull(e2eeDevices.phoneId), exists(tx.select({ one: sql`1` }).from(householdMembers).where(and(
-        eq(householdMembers.householdId, e2eeDevices.householdId), eq(householdMembers.userId, e2eeDevices.userId),
-      )))),
-    ));
-    const ids = active.map((d) => d.id).sort();
+    // the group still lists them. The recipients' rows stay locked until the transaction ends,
+    // taken in ID order so two fan-outs cannot deadlock. Two fan-outs to one device therefore
+    // take its cursors in commit order: a device never sees cursor 11 while 10 is uncommitted.
+    const active = await tx.select({ id: e2eeDevices.id }).from(e2eeDevices)
+      .where(and(inArray(e2eeDevices.id, to), activeDevice))
+      .orderBy(asc(e2eeDevices.id)).for("update", { of: e2eeDevices });
+    const ids = active.map((d) => d.id);
     if (!ids.length) return;
     const [m] = await tx.insert(e2eeMessages).values({ groupId, kind, epoch, payload }).returning({ id: e2eeMessages.id });
     await tx.insert(e2eeDeliveries).values(ids.map((deviceId) => ({ deviceId, messageId: m!.id })));
@@ -286,7 +303,7 @@ export function e2eeRoutes(ctx: Ctx) {
     const next = [...new Set(input.members)].sort();
     if (next.length !== input.members.length || !next.includes(device.id)) throw new HTTPException(400, { message: "members must be unique and include the sender" });
     const valid = await ctx.db.select({ id: e2eeDevices.id }).from(e2eeDevices)
-      .where(and(inArray(e2eeDevices.id, next), eq(e2eeDevices.householdId, group.householdId), isNull(e2eeDevices.revokedAt)));
+      .where(and(inArray(e2eeDevices.id, next), eq(e2eeDevices.householdId, group.householdId), activeDevice));
     if (valid.length !== next.length) throw new HTTPException(400, { message: "members must be active devices of the household" });
 
     const epoch = await ctx.db.transaction(async (tx) => {

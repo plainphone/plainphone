@@ -105,6 +105,12 @@ describe("E2EE prototype delivery service", () => {
     expect((await stranger.get(`/api/e2ee/devices?householdId=${hid}`)).status).toBe(404);
     expect((await stranger.post("/api/e2ee/devices", { deviceId: randomUUID(), householdId: hid, mlsSignPub: b64(randomBytes(32)) })).status).toBe(404);
     expect((await mum.post("/api/e2ee/devices", { deviceId: randomUUID(), householdId: hid, mlsSignPub: "not+base64" })).status).toBe(400);
+    // The core accepts only lowercase device IDs, so the server does too.
+    expect((await mum.post("/api/e2ee/devices", { deviceId: randomUUID().toUpperCase(), householdId: hid, mlsSignPub: b64(randomBytes(32)) })).status).toBe(400);
+    // Self phones are not part of the prototype: they neither register nor list.
+    const { device: self } = await pairPhone(h, mum, { name: "Test self", profile: "self" });
+    expect((await self.get("/api/e2ee/devices")).status).toBe(404);
+    expect((await self.post("/api/e2ee/devices", { deviceId: randomUUID(), mlsSignPub: b64(randomBytes(32)) })).status).toBe(404);
   });
 
   it("hands out each key package once and keeps the last resort", async () => {
@@ -134,6 +140,43 @@ describe("E2EE prototype delivery service", () => {
     expect((await inbox(mum, ids.mum)).map((i) => i.kind)).toEqual(["application"]);
     const view = await phone.get(`/api/e2ee/groups/${gid}?deviceId=${ids.child}`);
     expect(view.json).toEqual({ groupId: gid, epoch: 1, members: [ids.mum, ids.dad, ids.child].sort() });
+  });
+
+  it("keeps one order per device across conversations: no delivery appears below a cursor already seen", async () => {
+    const { mum, phone, ids, gid, mlsGroupId } = await conversation();
+    // A second conversation of mum and the child (the child's last-resort package).
+    const yGroupId = randomBytes(16);
+    const y = (await mum.post("/api/e2ee/groups", { deviceId: ids.mum, mlsGroupId: b64(yGroupId) })).json.groupId as string;
+    expect((await mum.post("/api/e2ee/key-packages/claim", { deviceId: ids.mum, deviceIds: [ids.child] })).status).toBe(200);
+    expect((await mum.post(`/api/e2ee/groups/${y}/commits`, {
+      deviceId: ids.mum, commit: privateMessage(yGroupId, 0, 3), welcome: welcome(), members: [ids.mum, ids.child],
+    })).status).toBe(201);
+    await phone.post("/api/e2ee/inbox/ack", { deviceId: ids.child, upTo: (await inbox(phone, ids.child)).at(-1)!.cursor });
+
+    // Hold the commit in X open after its fan-out: its member delete waits for this lock.
+    let release!: () => void;
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    const holder = h.ctx.db.transaction(async (tx) => {
+      await tx.execute(sql`select 1 from e2ee_group_members where group_id = ${gid} and device_id = ${ids.dad} for update`);
+      locked();
+      await new Promise<void>((r) => (release = r));
+    });
+    await isLocked;
+    const removal = mum.post(`/api/e2ee/groups/${gid}/commits`, { deviceId: ids.mum, commit: privateMessage(mlsGroupId, 1, 3), members: [ids.mum, ids.child] });
+    await new Promise((r) => setTimeout(r, 200));
+    const text = mum.post(`/api/e2ee/groups/${y}/messages`, { deviceId: ids.mum, message: privateMessage(yGroupId, 1, 1) });
+    await new Promise((r) => setTimeout(r, 200));
+    const seen = await inbox(phone, ids.child);
+    release();
+    await holder;
+    expect((await removal).status).toBe(201);
+    expect((await text).status).toBe(201);
+
+    const all = await inbox(phone, ids.child);
+    expect(all.map((i) => i.kind).sort()).toEqual(["application", "commit"]);
+    const highest = Math.max(0, ...seen.map((i) => i.cursor));
+    for (const item of all.filter((i) => !seen.some((s) => s.cursor === i.cursor))) expect(item.cursor).toBeGreaterThan(highest);
   });
 
   it("accepts one commit per epoch and refuses texts for any other epoch", async () => {
@@ -190,6 +233,9 @@ describe("E2EE prototype delivery service", () => {
     const rows = await h.ctx.db.execute<{ n: number }>(sql`select count(*)::int as n from e2ee_deliveries d join e2ee_messages m on m.id = d.message_id where d.device_id = ${ids.dad} and m.kind = 'application'`);
     expect(rows[0]!.n).toBe(0);
     expect((await dad.get(`/api/e2ee/inbox?deviceId=${ids.dad}`)).status).toBe(404);
+    // Nor can a commit declare the departed parent's device a member.
+    const r = await mum.post(`/api/e2ee/groups/${gid}/commits`, { deviceId: ids.mum, commit: privateMessage(mlsGroupId, 1, 3), members: [ids.mum, ids.dad, ids.child] });
+    expect(r.status).toBe(400);
   });
 
   it("deletes delivered messages once every recipient has acknowledged them", async () => {
