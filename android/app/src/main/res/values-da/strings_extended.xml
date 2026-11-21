@@ -1,0 +1,53 @@
+<resources>
+    <string name="ext_section_title">Familiekontakter</string>
+    <string name="ext_paused">Dine forældre har sat beskeder med familiekontakter på pause. Du kan stadig blokere nogen.</string>
+    <string name="ext_invited_question">Dine forældre har inviteret %1$s. Vil du skrive sammen med %1$s?</string>
+    <string name="ext_yes">Ja</string>
+    <string name="ext_no_thanks">Nej tak</string>
+    <string name="ext_waiting_for">Venter på %1$s</string>
+    <string name="ext_blocked">Blokeret</string>
+    <string name="ext_row_hint">Skriv hurtigbeskeder med %1$s</string>
+    <string name="ext_changes_title">Hvad er ændret</string>
+    <string name="ext_change_invited">Dine forældre har inviteret %1$s</string>
+    <string name="ext_change_joined">%1$s er med</string>
+    <string name="ext_change_new_link">%1$s har fået et nyt link af dine forældre. Sig ja igen, hvis du vil skrive sammen.</string>
+    <string name="ext_change_removed">%1$s er ikke længere på din liste</string>
+    <string name="ext_change_blocked">Du har blokeret %1$s</string>
+    <string name="ext_only_you_and">Kun dig og %1$s. Plainphones server kan også læse den.</string>
+    <string name="ext_who_reads">Kun du og %1$s kan læse samtalen. Plainphone-serveren kan også læse den og sletter den efter 30 dage.</string>
+    <string name="ext_empty_title">Her er ingenting endnu</string>
+    <string name="ext_empty">Send %1$s en hurtigbesked. Svarene vises her.</string>
+    <string name="ext_gone_title">Ikke på din liste</string>
+    <string name="ext_gone">Personen er ikke længere på din liste.</string>
+    <string name="ext_state_not_delivered">Ikke leveret</string>
+    <string name="ext_shared_location">Du delte, hvor du er</string>
+    <string name="ext_not_during">Ikke under %1$s</string>
+    <string name="ext_sent_now">Er på vej</string>
+    <string name="ext_not_active">Du kan skrive til %1$s, når I begge har sagt ja.</string>
+    <string name="ext_blocked_note">Du har blokeret %1$s. Intet fra %1$s når frem til dig.</string>
+    <string name="ext_block">Blokér %1$s</string>
+    <string name="ext_block_title">Vil du blokere %1$s?</string>
+    <string name="ext_block_text">%1$s kan ikke sende dig noget mere. Kun dine forældre kan fortryde det ved at invitere %1$s igen. Så bestemmer du igen.</string>
+    <string name="ext_block_confirm">Blokér</string>
+    <string name="ext_notification_from">Besked fra %1$s</string>
+    <string name="ext_share">Del, hvor jeg er</string>
+    <string name="ext_share_working">Finder, hvor du er …</string>
+    <string name="ext_share_title">Vil du dele, hvor du er?</string>
+    <string name="ext_share_text">%1$s kan se, hvor du er lige nu, %2$s. Det er ét sted, delt én gang.</string>
+    <string name="ext_share_confirm">Del</string>
+    <string name="ext_share_sent">Delt. Du kan se det i samtalen.</string>
+    <string name="ext_your_parents">dine forældre</string>
+    <string name="ext_location_off">Positionen er slået fra på telefonen</string>
+    <string name="ext_no_fix">Kunne ikke finde, hvor du er. Prøv igen udenfor.</string>
+    <string name="sharing_extended">Familiekontakter er slået til. Personer, dine forældre inviterer, kan skrive hurtigbeskeder med dig, men kun hvis du siger ja. Du kan blokere dem alle.</string>
+    <string name="sharing_snapshots">Du kan dele, hvor du er, én gang i en samtale. Du vælger først, hvem der får det, og de kan se det %1$s.</string>
+    <string name="sharing_snapshot_log">Du delte, hvor du var, med %1$s kl. %2$s, indtil %3$s</string>
+    <plurals name="ext_for_hours">
+        <item quantity="one">i 1 time</item>
+        <item quantity="other">i %d timer</item>
+    </plurals>
+    <plurals name="ext_for_minutes">
+        <item quantity="one">i 1 minut</item>
+        <item quantity="other">i %d minutter</item>
+    </plurals>
+</resources>

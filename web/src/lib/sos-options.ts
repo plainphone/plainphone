@@ -14,6 +14,9 @@ export interface SosSettings {
   /** The family inbox and its check-in (docs/family-inbox.md). */
   familyInbox: boolean;
   checkIns: boolean;
+  /** Named extended family contacts, and one-time location snapshots (docs/extended-family.md). */
+  extendedFamily: boolean;
+  locationSnapshots: boolean;
   /** The child may ask a parent to call back; true only with a confirmed number (docs/sos.md). */
   callbackRequests: boolean;
   callbackConfirmed: boolean;
@@ -29,6 +32,8 @@ export const DEFAULT_SOS_SETTINGS: SosSettings = {
   quickSuggestionsEnabled: true,
   familyInbox: false,
   checkIns: false,
+  extendedFamily: false,
+  locationSnapshots: false,
   callbackRequests: false,
   callbackConfirmed: false,
 };
@@ -78,7 +83,7 @@ export const REPLY_LENGTH = 60;
 export interface FamilyMessage {
   id: string;
   from: "child" | "parent";
-  kind: "quick" | "checkin" | "reply";
+  kind: "quick" | "checkin" | "reply" | "snapshot";
   text: string;
   sentAt: string;
   /** Child messages: parent devices that got a push; 0 means the phone sent an SMS. */
@@ -86,6 +91,8 @@ export interface FamilyMessage {
   /** Parent replies: the name the parent signed with, and when the phone got it. */
   author?: string | null;
   receivedAt?: string | null;
+  /** Snapshots: the position while it is live; null once it expired or was replaced. */
+  location?: import("./extended-family").LocationSnapshot | null;
 }
 
 export interface FamilyInboxThread {
@@ -99,7 +106,8 @@ export interface FamilyInboxThread {
 /** Where a message is, as a parent sees it: a key, and the time for "On the phone {time}". */
 export function familyState(m: FamilyMessage): { key: MessageKey; at?: string } {
   if (m.from === "parent") return m.receivedAt ? { key: "inbox.received", at: m.receivedAt } : { key: "inbox.waiting" };
-  if (m.delivered === 0) return { key: "inbox.sms" };
+  // Snapshots have no SMS fallback: no push only means the line waits in the inbox.
+  if (m.delivered === 0 && m.kind !== "snapshot") return { key: "inbox.sms" };
   return { key: m.delivered ? "inbox.delivered" : "inbox.sent" };
 }
 

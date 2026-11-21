@@ -70,6 +70,8 @@ interface SyncDevice {
     fun onSafetyRules(rules: ServerRules) {}
     /** The family inbox: fetch new replies and send the device receipt (docs/family-inbox.md). */
     fun refreshFamilyInbox(token: String, rules: ServerRules) {}
+    /** Extended family contacts: roster changes, conversations, what waits to be sent (docs/extended-family.md). */
+    fun refreshExtendedFamily(token: String, rules: ServerRules) {}
     /** Answers and "shown" events the server has not heard yet, oldest first. */
     fun pendingSafetyEvents(): List<SafetyEvent> = emptyList()
     fun safetyEventDone(event: SafetyEvent) {}
@@ -214,6 +216,7 @@ class SyncRunner(
         }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("family inbox") { device.refreshFamilyInbox(token, rules) }
+        if (rules != null) guarded("extended family") { device.refreshExtendedFamily(token, rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
         if (rules != null) guarded("app updates") { device.onAppUpdateRules() }
