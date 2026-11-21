@@ -39,6 +39,7 @@ import { PhoneAppVersion } from "./PhoneAppVersion";
 import { AppUpdates } from "../components/AppUpdates";
 import { appUpdateReceiptLine } from "../lib/app-updates";
 import { healthRows, receiptText } from "../lib/phone-health";
+import { AlertSpeed } from "../components/AlertSpeed";
 import { isIphone, platformLine, ruleRowUnavailable } from "../lib/platform";
 
 interface PhoneCtx {
@@ -408,6 +409,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           ))}
         </dl>
       )}
+      {showHealth && phone.profile === "child" && <AlertSpeed />}
       {!showHealth && filterStatus && <p className={s?.filterWorking ? "help" : "notice notice-warn"}>{t(filterStatus)}</p>}
       {lockNeedsAction && (!showHealth || failedSteps.length > 0) && (
         <div className="notice notice-error" role="status">

@@ -309,6 +309,13 @@
       "when": 1795257193563,
       "tag": "0055_extended_family",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795259426905,
+      "tag": "0056_latency_samples",
+      "breakpoints": true
     }
   ]
 }

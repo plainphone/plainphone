@@ -11,6 +11,7 @@ export const appDe: AppMessages = {
   "native.notifications": "Benachrichtigungen",
   "native.notificationsHelp": "Sie erhalten eine Benachrichtigung, wenn eine Änderung auf Ihre Freigabe wartet oder der Standort des Telefons vorliegt.",
   "native.notificationsOn": "Benachrichtigungen sind aktiviert.",
+  "native.sosChannel": "Ton und „Nicht stören“ für Dringenden SOS",
   "native.notificationsOff": "Benachrichtigungen sind deaktiviert. Sie können sie in den Telefoneinstellungen aktivieren.",
   "native.notificationsAsk": "Benachrichtigungen einschalten",
   "native.scan": "Code scannen",

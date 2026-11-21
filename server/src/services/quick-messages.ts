@@ -7,6 +7,7 @@ import { callbackEnabled } from "./callback-requests.js";
 import { inboxSwitches, markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
 import { publishLive } from "./live-events.js";
 import { notifyUsers } from "./notifications.js";
+import { recordUpload } from "./latency.js";
 
 type Phone = typeof phones.$inferSelect;
 
@@ -119,7 +120,7 @@ function sendAnswer(notified: number): SendAnswer {
  */
 export async function sendQuickMessage(
   ctx: Ctx, phone: Phone,
-  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date; smsSent?: boolean },
+  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date; smsSent?: boolean; elapsedMs?: number },
 ): Promise<SendAnswer> {
   const now = ctx.now();
   // Sent from the family inbox (a check-in always is): it joins the thread, even if the inbox was
@@ -146,16 +147,21 @@ export async function sendQuickMessage(
     if (inThread) live();
     return { notified: 0 };
   }
-  const [recent] = await ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
-    eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),
-  ));
+  recordUpload(ctx, "quick", input.elapsedMs, input.sentAt);
+  // The child's phone waits for this answer: look up the limit and the parents (by mute) at the same time.
+  const [[recent], mutes] = await Promise.all([
+    ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
+      eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),
+    )),
+    parentsByMute(ctx, phone),
+  ]);
   let notified: number;
   if ((recent?.total ?? 0) > SEND_LIMIT) notified = NOTIFY_LIMITED;
   else if (phone.releaseRequestedAt) notified = 0;
   else {
     // Never urgent, also in the child's quiet hours: only a code word (through SOS) is. A parent who
     // muted the phone gets no push, but the message still lands in the thread.
-    const { loud, muted } = await parentsByMute(ctx, phone);
+    const { loud, muted } = mutes;
     if (muted > 0 && !inThread) {
       await recordChildMessage(ctx, phone, { id: input.id, kind, text: input.text, sentAt: input.sentAt });
       inThread = true;

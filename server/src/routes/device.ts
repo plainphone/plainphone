@@ -46,6 +46,7 @@ import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson, sendMoreTimeReceip
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
 import { deviceIosSelectionRoutes } from "./ios-selection.js";
+import { finishWake } from "../services/latency.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -383,6 +384,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           ),
         ),
       );
+    // Closes the timing of a wake-up the phone answered with this fetch (docs/latency.md).
+    void finishWake(ctx, phone.id);
     // A first sync (pairing done) or one after an offline alert is news on the dashboard.
     if (!phone.lastSeenAt || phone.offlineAlertedAt) {
       publishLive(ctx, { type: "phone.status", householdId: phone.householdId, phoneId: phone.id });

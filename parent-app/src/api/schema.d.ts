@@ -790,6 +790,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/latency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How fast alerts and wake-ups travel (last 7 days)
+         * @description Median and 95th percentile per path (docs/latency.md). `phone-server`: from the press on the child phone to the server, per `kind` (`sos`, `quick`, `callback`). `server-parent`: from the server to the push service accepting the alert, per `provider` (`web`, `fcm`, `apns`). `parent-device`: from the server to the parent's device confirming it arrived. `server-child`: from a wake-up to the child phone's next rules fetch, per `provider` (`fcm`, `unifiedpush`, `poll`). Paths with fewer than `minSamples` samples are left out, and the sample counts are never shown, so the numbers cannot reveal when a single alert happened. No personal data; cached for a minute.
+         */
+        get: operations["getLatency"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A parent device confirms a notification arrived or was opened
+         * @description `receipt` is the random id in the push payload (`receipt`). Only the first `delivered` and the first `opened` per id count. Unknown ids answer 204 too. Rate limited to 120 a minute per IP.
+         */
+        post: operations["postPushReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/pairings": {
         parameters: {
             query?: never;
@@ -4990,7 +5030,10 @@ export interface operations {
     reportSos: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Milliseconds since the press on the phone's monotonic clock, for the delivery timing (docs/latency.md). A header, so older servers ignore it. Also accepted on `POST /device/quick-messages/send`. */
+                "X-Plainphone-Elapsed-Ms"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6727,6 +6770,75 @@ export interface operations {
             };
             /** @description Database down */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getLatency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description False when the server has LATENCY_STATS=off. */
+                        enabled: boolean;
+                        windowDays: number;
+                        minSamples: number;
+                        paths: {
+                            /** @enum {unknown} */
+                            path: "phone-server" | "server-parent" | "parent-device" | "server-child";
+                            provider: string | null;
+                            kind: string | null;
+                            p50Ms: number;
+                            p95Ms: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postPushReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    receipt: string;
+                    /**
+                     * @default delivered
+                     * @enum {unknown}
+                     */
+                    event?: "delivered" | "opened";
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded (or ignored) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many receipts */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

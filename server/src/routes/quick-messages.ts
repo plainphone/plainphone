@@ -9,6 +9,7 @@ import { phones, quickMessages } from "../db/schema.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { wakePhone } from "../services/phones.js";
+import { elapsedHeader } from "../services/latency.js";
 import { deviceExtendedRoutes, parentExtendedRoutes } from "./extended-family.js";
 import { deviceFamilyInboxRoutes, parentFamilyInboxRoutes } from "./family-inbox.js";
 import {
@@ -34,7 +35,10 @@ export function deviceQuickMessageRoutes<E extends { Variables: { phone: Phone }
     }));
     const [phone] = await ctx.db.select().from(phones).where(eq(phones.id, c.get("phone").id));
     if (!phone || phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
-    return c.json(await sendQuickMessage(ctx, phone, { ...input, sentAt: input.sentAt ? new Date(input.sentAt) : undefined }));
+    return c.json(await sendQuickMessage(ctx, phone, {
+      ...input, sentAt: input.sentAt ? new Date(input.sentAt) : undefined,
+      elapsedMs: elapsedHeader(c.req.header("x-plainphone-elapsed-ms")),
+    }));
   });
 
   deviceFamilyInboxRoutes(app, ctx);

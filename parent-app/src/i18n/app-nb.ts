@@ -11,6 +11,7 @@ export const appNb: AppMessages = {
   "native.notifications": "Varsler",
   "native.notificationsHelp": "Få et varsel når en endring venter på godkjenning, eller når telefonens posisjon er klar.",
   "native.notificationsOn": "Varsler er på.",
+  "native.sosChannel": "Lyd og Ikke forstyrr for Akutt SOS",
   "native.notificationsOff": "Varsler er av. Du kan slå dem på i telefonens innstillinger.",
   "native.notificationsAsk": "Slå på varsler",
   "native.scan": "Skann koden",
