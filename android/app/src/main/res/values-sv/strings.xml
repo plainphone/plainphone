@@ -137,6 +137,12 @@
     <string name="blocked_title">Blockerad (%1$d)</string>
     <string name="blocked_empty">Inget blockerat ännu.</string>
     <string name="blocked_clear">Rensa den blockerade loggen</string>
+    <string name="call_paused_title">Samtalet startades inte</string>
+    <string name="call_paused_text">Plainphone kan inte kontrollera numret just nu. Du kan fortfarande ringa dina föräldrar och 112.</string>
+    <string name="held_title">Hållna för granskning (%1$d)</string>
+    <string name="held_intro">Plainphone kunde inte kontrollera vem som skickade de här meddelandena, så de sparas här. Barnet ser dem inte.</string>
+    <string name="held_delete">Ta bort meddelandet från %1$s</string>
+    <string name="held_clear">Ta bort alla hållna meddelanden</string>
     <string name="blocked_call_in">Inkommande samtal</string>
     <string name="blocked_call_out">Utgående samtal</string>
     <string name="blocked_sms_in">Inkommande meddelande</string>

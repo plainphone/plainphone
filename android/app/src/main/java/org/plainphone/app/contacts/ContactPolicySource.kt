@@ -191,7 +191,11 @@ class SyncedContactPolicySource(
     override fun rules(): ContactRules {
         val base = local.rules()
         val server = store.rules()
-        val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts) ?: return base
+        val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts)
+            ?: return base.also {
+                // Never replace a copy from synced rules with the local list: the local list may be empty or stale.
+                ParentNumbers(app).let { copy -> if (copy.snapshot() == null) copy.remember(it.contacts, it) }
+            }
         val restrictInLight = server?.lightContactRestriction == true ||
             (server?.profile == "self" && server.selfScheduleContacts == true)
         val controlled = base.enforced || (restrictInLight && Mode.isLight(app) && LightSetup.isComplete(app) &&
@@ -207,12 +211,15 @@ class SyncedContactPolicySource(
             silentBedtime = BedtimeQuiet.silentNow(server, time),
             bedtimeRingers = server?.let(BedtimeQuiet::ringers).orEmpty(),
         )
-        return if (server?.profile == "self") {
+        val result = if (server?.profile == "self") {
             val restriction = server.selfScheduleContacts
             // Before this setting existed, only a locked Device Owner enforced the list.
             val self = if (restriction == null) synced.copy(enforced = base.enforced) else synced
             selfTelephonyRules(self, restriction, server.schedules, server.timezone, time.instant, time)
         } else synced
+        // The always-readable copy of the parents' numbers (ParentNumbers.kt), from the list before modes narrow it.
+        ParentNumbers(app).remember(server?.sos?.parents.orEmpty().ifEmpty { fromServer }, result)
+        return result
     }
 
     override val managedRemotely: Boolean
@@ -228,5 +235,21 @@ class SyncedContactPolicySource(
 
 /** The one source the app uses. */
 object ContactPolicySources {
-    fun get(context: Context): EditableContactPolicySource = SyncedContactPolicySource(context)
+    /** Tests put a source here that fails, to see what the phone does when the rules cannot be read. */
+    @Volatile internal var override: ((Context) -> EditableContactPolicySource)? = null
+
+    fun get(context: Context): EditableContactPolicySource = override?.invoke(context) ?: SyncedContactPolicySource(context)
+
+    /**
+     * Like [get] followed by rules(), but stored rules that no longer parse count as unreadable and throw,
+     * instead of quietly falling back to the local list. For the call and SMS paths, which then use the
+     * always-readable parent list ([ParentNumbers]).
+     */
+    fun strictRules(context: Context): ContactRules {
+        override?.let { return it(context).rules() }
+        val app = context.applicationContext
+        val store = SyncStore(app)
+        if (store.rawRules() != null && store.rules() == null) throw IllegalStateException("stored rules do not parse")
+        return SyncedContactPolicySource(app).rules()
+    }
 }

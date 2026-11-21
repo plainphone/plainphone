@@ -88,7 +88,7 @@ active. It is optional on light-mode child phones.
 | Call screening | `CallScreeningService` (bound for the default phone app) | Incoming calls from numbers that are not approved, and from hidden numbers, are rejected before the phone rings. No ring, no notification, no call log entry |
 | In-call service | `InCallService` | Ends outgoing calls to numbers that are not approved, **whoever started the call** (Plainphone's keypad, the maker's dialer, a `tel:` link in Chrome, a contact card). Also a second check on incoming calls |
 | Default SMS app | `RoleManager.ROLE_SMS`, set by `DevicePolicyManager.setDefaultSmsApplication` | Only the default SMS app receives `SMS_DELIVER` and may write the SMS store |
-| Incoming SMS | `SMS_DELIVER` receiver | Messages from approved contacts are stored and shown. Others are dropped and never stored. Only the sender and time go to Plainphone's local blocked log, never the text |
+| Incoming SMS | `SMS_DELIVER` receiver | Messages from approved contacts are stored and shown. Others are dropped and never stored. Only the sender and time go to Plainphone's local blocked log, never the text. If handling a message fails, it is [held for review](#held-for-review) instead of lost |
 | Outgoing SMS | `SmsManager` | Plainphone's own message screen only sends to approved contacts. "Reply with a message" on the incoming-call screen (`RESPOND_VIA_MESSAGE`) checks the list too |
 | MMS | `WAP_PUSH_DELIVER` receiver | Required for the SMS role. **Phase 2 drops MMS and group messages** and logs that one arrived. See "Not covered yet" |
 | Maker's phone and SMS apps | `setApplicationHidden` | Hidden once Plainphone holds the role (on Android 10 to 13 the extra dialers are hidden even before, see [android-versions.md](android-versions.md)), except the system dialer (see "Emergency calls") and apps the parent allowed in the QR code. "SMS app" means an app that can receive `SMS_DELIVER`, not every app that opens `smsto:` links (WhatsApp does) |
@@ -111,7 +111,29 @@ Emergency calls must never fail because of Plainphone. That is handled in four l
 
 Plainphone never ends a call to a number Android treats as an emergency number, nor a call Android flags as an emergency (`PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL`, `PROPERTY_EMERGENCY_CALLBACK_MODE`). The lock screen's emergency button does not go through Plainphone's screens at all.
 
-If Plainphone itself fails while screening a call (an exception in the policy code), the call is let through. A bug must not make the phone unreachable for the parents.
+If Plainphone itself fails while screening an **incoming** call (an exception in the policy code), the call is let through. A bug must not make the phone unreachable for the parents. For **outgoing** calls the answer depends on the parents' copy, see "When the rules cannot be read" below.
+
+## When the rules cannot be read
+
+The read of the rules (`ContactPolicySources.get(context).rules()`) should never throw, and the child cannot make it throw. If it does anyway (a bug, a damaged store), the phone no longer knows the approved list, and two things must not go wrong: a stranger must not become callable, and a parent must not become unreachable.
+
+- **Outgoing calls.** Every time the rules are put together, the phone writes a second copy of the parents' numbers to its own small file in device-protected storage ([`ParentNumbers.kt`](../android/app/src/main/java/org/plainphone/app/contacts/ParentNumbers.kt)). The file holds numbers only, no names or settings, and it can be read without the keystore or the rules file. (The file itself is device-protected, but the call and SMS components are not direct-boot aware, so nothing uses it before the first unlock.) It holds the parents the server marked; other trusted contacts are not on it, so while the rules are unreadable only the parents can be called. If none is marked, the phone cannot tell who the parents are and it holds every approved contact (the rule `Modes` uses too). When the rules cannot be read, the in-call service and the call redirection service use that file: **112 and the emergency numbers and the numbers in the file are allowed, everything else is ended** with the calm message "Plainphone cannot check this number right now. You can still call your parents and 112." If the copy says the contact list was not limiting calls (the phone was not locked), calls stay open. **Without the copy** (first boot, never synced, or a damaged file) outgoing calls stay open, as they were before: a phone that knows nobody must not lock the child out of calling. Incoming calls still ring when the rules cannot be read. "Cannot be read" includes stored rules that no longer parse, and a read that fails never shrinks the copy: once the phone has synced, only newer synced rules change it.
+- **Incoming SMS.** See "Held for review" below.
+
+Both are failsafes for a fault, not features: they do nothing while the rules can be read, and they cannot sit behind a per-phone switch, because a switch lives in the same rules that cannot be read. Nothing in them is a new thing the child can reach or a parent can set.
+
+## Held for review
+
+When handling an incoming SMS throws, the message is not lost and the child does not see it:
+
+- A message from a number in the parents' copy is stored and shown as usual. A parent must never be lost. The same goes for every message when the copy says the contact list was not limiting anything (the phone was not locked), as for calls.
+- Any other message goes to the **held-for-review store** ([`HeldSms.kt`](../android/app/src/main/java/org/plainphone/app/telephony/HeldSms.kt)): each message is sealed with a key that never leaves the Android Keystore, outside the system's message store, no notification and no sound. The child has no screen that reads it.
+- The parents see it on the PIN-protected "Approved contacts and blocked log" screen under "Held for review", with sender, time and text. They can delete one message or all of them. The screen closes as soon as it is left, so the PIN is needed again. This is the same review path as the blocked log.
+- Retention follows the blocked log: the newest 100, kept until a parent clears them. Because this store holds message text and the log does not, nothing older than 30 days is kept, and expired messages are removed from the disk the next time the store is read.
+- A message the phone has already stored is never held a second time.
+- Known gap: the parents are not notified that a message is held, because a notification would show the child that something arrived. A parent sees it only by opening the PIN screen within 30 days. Reporting a count (no text) to the dashboard is a follow-up.
+
+If the held store cannot be written either (for example the keystore is locked before the first unlock), the message is lost and the phone writes the reason to its log. Nothing is sent to the server: the held messages stay on the phone.
 
 ## Phone numbers
 
