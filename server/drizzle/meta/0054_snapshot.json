@@ -1,5 +1,5 @@
 {
-  "id": "6fb8233f-ce8b-453d-91f7-7cce8c0b3971",
+  "id": "23493e9d-3d63-4faa-a3d4-6225654e8005",
   "prevId": "ca8fde43-b8bf-4289-90d6-b5dd20fe221f",
   "version": "7",
   "dialect": "postgresql",
@@ -624,271 +624,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.extended_contacts": {
-      "name": "extended_contacts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contact_group": {
-          "name": "contact_group",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'others'"
-        },
-        "invited_by": {
-          "name": "invited_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invite_token_hash": {
-          "name": "invite_token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invite_expires_at": {
-          "name": "invite_expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "child_approved_at": {
-          "name": "child_approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "child_declined_at": {
-          "name": "child_declined_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_at": {
-          "name": "accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contact_declined_at": {
-          "name": "contact_declined_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_token_hash": {
-          "name": "session_token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "blocked_at": {
-          "name": "blocked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rev": {
-          "name": "rev",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "extended_contacts_phone_idx": {
-          "name": "extended_contacts_phone_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "extended_contacts_phone_id_phones_id_fk": {
-          "name": "extended_contacts_phone_id_phones_id_fk",
-          "tableFrom": "extended_contacts",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "extended_contacts_invited_by_users_id_fk": {
-          "name": "extended_contacts_invited_by_users_id_fk",
-          "tableFrom": "extended_contacts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "extended_contacts_invite_token_hash_unique": {
-          "name": "extended_contacts_invite_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "invite_token_hash"
-          ]
-        },
-        "extended_contacts_session_token_hash_unique": {
-          "name": "extended_contacts_session_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "session_token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.extended_messages": {
-      "name": "extended_messages",
-      "schema": "",
-      "columns": {
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sender": {
-          "name": "sender",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "received_at": {
-          "name": "received_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "extended_messages_created_idx": {
-          "name": "extended_messages_created_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "extended_messages_contact_id_extended_contacts_id_fk": {
-          "name": "extended_messages_contact_id_extended_contacts_id_fk",
-          "tableFrom": "extended_messages",
-          "tableTo": "extended_contacts",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "extended_messages_contact_id_id_pk": {
-          "name": "extended_messages_contact_id_id_pk",
-          "columns": [
-            "contact_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1564,117 +1299,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.location_snapshots": {
-      "name": "location_snapshots",
-      "schema": "",
-      "columns": {
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "message_id": {
-          "name": "message_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lat": {
-          "name": "lat",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lon": {
-          "name": "lon",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "accuracy_m": {
-          "name": "accuracy_m",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "location_snapshots_expires_idx": {
-          "name": "location_snapshots_expires_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "location_snapshots_phone_id_phones_id_fk": {
-          "name": "location_snapshots_phone_id_phones_id_fk",
-          "tableFrom": "location_snapshots",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "location_snapshots_contact_id_extended_contacts_id_fk": {
-          "name": "location_snapshots_contact_id_extended_contacts_id_fk",
-          "tableFrom": "location_snapshots",
-          "tableTo": "extended_contacts",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -3535,20 +3159,6 @@
           "notNull": true,
           "default": false
         },
-        "extended_family_enabled": {
-          "name": "extended_family_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "location_snapshots_enabled": {
-          "name": "location_snapshots_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "age_preset": {
           "name": "age_preset",
           "type": "text",
@@ -4679,6 +4289,20 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -5066,6 +4690,21 @@
               "asc": true,
               "nulls": "last"
             },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "summary_events_at_idx": {
+          "name": "summary_events_at_idx",
+          "columns": [
             {
               "expression": "at",
               "isExpression": false,

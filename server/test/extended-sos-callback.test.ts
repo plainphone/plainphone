@@ -40,6 +40,9 @@ describe("extended family next to SOS and callback requests", () => {
     expect(rules.extended.contacts).toHaveLength(1);
   });
 
+  // Weak by itself: an extended contact has no push channel, so these checks would also pass if the
+  // code tried to notify them. The real guards are the 401 test below and `sos.parents` being built
+  // only from contacts with `sosParent`.
   it("never sends an SOS or a callback request to an extended contact", async () => {
     const s = await setup();
     h.parentPush.sent.length = 0;

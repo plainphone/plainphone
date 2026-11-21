@@ -212,7 +212,7 @@ and the roster while paused with people on it):
 `rev` changes whenever the phone should fetch that conversation again (a reply, a receipt, a new
 link). Older phone apps ignore both blocks.
 
-Migration `0054_extended_family` is additive: three new tables (`extended_contacts`,
+Migration `0055_extended_family` is additive: three new tables (`extended_contacts`,
 `extended_messages`, `location_snapshots`) and two phone columns, both default false.
 
 ## Decided: the parents see the list, not the conversations
