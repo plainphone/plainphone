@@ -8,7 +8,7 @@
 // (409 for the loser), refuses texts for any other epoch (409), gives every recipient one total
 // order (the delivery cursor) and never stores who sent an application message. It logs
 // nothing about the content, the keys or the sizes. Clients do every cryptographic check.
-import { and, asc, count, eq, gt, inArray, isNull, lte, ne, notExists, sql } from "drizzle-orm";
+import { and, asc, count, eq, exists, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -253,11 +253,18 @@ export function e2eeRoutes(ctx: Ctx) {
 
   async function fanOut(tx: Parameters<Parameters<typeof ctx.db.transaction>[0]>[0], groupId: string, kind: "welcome" | "commit" | "application", epoch: number, payload: string, to: string[]) {
     if (!to.length) return;
-    const [m] = await tx.insert(e2eeMessages).values({ groupId, kind, epoch, payload }).returning({ id: e2eeMessages.id });
-    // Revoked devices get nothing, even while the group still lists them.
-    const active = await tx.select({ id: e2eeDevices.id }).from(e2eeDevices).where(and(inArray(e2eeDevices.id, to), isNull(e2eeDevices.revokedAt)));
+    // Revoked devices, and devices of parents who left the household, get nothing, even while
+    // the group still lists them.
+    const active = await tx.select({ id: e2eeDevices.id }).from(e2eeDevices).where(and(
+      inArray(e2eeDevices.id, to), isNull(e2eeDevices.revokedAt),
+      or(isNotNull(e2eeDevices.phoneId), exists(tx.select({ one: sql`1` }).from(householdMembers).where(and(
+        eq(householdMembers.householdId, e2eeDevices.householdId), eq(householdMembers.userId, e2eeDevices.userId),
+      )))),
+    ));
     const ids = active.map((d) => d.id).sort();
-    if (ids.length) await tx.insert(e2eeDeliveries).values(ids.map((deviceId) => ({ deviceId, messageId: m!.id })));
+    if (!ids.length) return;
+    const [m] = await tx.insert(e2eeMessages).values({ groupId, kind, epoch, payload }).returning({ id: e2eeMessages.id });
+    await tx.insert(e2eeDeliveries).values(ids.map((deviceId) => ({ deviceId, messageId: m!.id })));
   }
 
   app.post("/groups/:gid/commits", async (c) => {

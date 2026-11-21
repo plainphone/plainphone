@@ -181,6 +181,17 @@ describe("E2EE prototype delivery service", () => {
     expect(rows[0]!.n).toBe(0);
   });
 
+  it("delivers nothing more to a parent who left the household", async () => {
+    const { mum, dad, hid, ids, gid, mlsGroupId } = await conversation();
+    const { members } = (await mum.get(`/api/households/${hid}/members`)).json as { members: { id: string; email: string }[] };
+    const dadId = members.find((m) => m.email === "dad@example.org")!.id;
+    expect((await mum.del(`/api/households/${hid}/members/${dadId}`)).status).toBe(204);
+    await mum.post(`/api/e2ee/groups/${gid}/messages`, { deviceId: ids.mum, message: privateMessage(mlsGroupId, 1, 1) });
+    const rows = await h.ctx.db.execute<{ n: number }>(sql`select count(*)::int as n from e2ee_deliveries d join e2ee_messages m on m.id = d.message_id where d.device_id = ${ids.dad} and m.kind = 'application'`);
+    expect(rows[0]!.n).toBe(0);
+    expect((await dad.get(`/api/e2ee/inbox?deviceId=${ids.dad}`)).status).toBe(404);
+  });
+
   it("deletes delivered messages once every recipient has acknowledged them", async () => {
     const { mum, dad, phone, ids, gid, mlsGroupId } = await conversation();
     await mum.post(`/api/e2ee/groups/${gid}/messages`, { deviceId: ids.mum, message: privateMessage(mlsGroupId, 1, 1) });

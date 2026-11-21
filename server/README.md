@@ -54,6 +54,9 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
   phones with withdrawal and refunds. Providers (`providers/stripe.ts`, `providers/play-billing.ts`)
   are plain fetch clients that tests replace with fakes. The older D13 table (`unlock_payments`),
   flag (`PAYMENTS_ENABLED`) and `/changes/{cid}/pay-unlock` endpoint (409/501) are unused.
+- **E2EE prototype (#120).** The MLS delivery service under `/api/e2ee` (`routes/e2ee.ts`) answers
+  404 unless `E2EE_PROTOTYPE_ENABLED` is set, and stays off in production
+  ([docs/e2ee-prototype.md](../docs/e2ee-prototype.md)).
 - **Location (D7).** One row per phone; an older fix never overwrites a newer one; switching
   location off deletes it.
 - **Secrets at rest.** Magic links, sessions, invites, pairing codes and device tokens are stored

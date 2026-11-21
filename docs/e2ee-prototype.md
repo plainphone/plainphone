@@ -97,7 +97,8 @@ The demo prints step names and counts, never texts, keys or sizes. It fails
     declared member list with the current one);
   - each recipient has one total order (the delivery cursor); nothing is sent
     back to its sender;
-  - a revoked device gets nothing more, and what waited for it is deleted;
+  - a revoked device, or a device of a parent who left the household, gets
+    nothing more, and what waited for a revoked device is deleted;
   - acknowledged deliveries are deleted, and a message is deleted when nobody
     still has to fetch it;
   - size limits: key package 4 KiB, commit and Welcome 64 KiB, text 8 KiB,
