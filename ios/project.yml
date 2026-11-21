@@ -35,10 +35,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).core
-        SWIFT_VERSION: "6.0"
+        # Swift 5 mode, like the Expo pod (PlainphoneScreenTime.podspec) that ships this code.
+        # The Apple-free parts also build in Swift 6 mode with warnings as errors (ios/README.md).
         APPLICATION_EXTENSION_API_ONLY: YES
         GENERATE_INFOPLIST_FILE: YES
-        SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
 
   PlainphoneCoreTests:
     type: bundle.unit-test
@@ -50,7 +50,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).core-tests
-        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
 
   ActivityMonitor:

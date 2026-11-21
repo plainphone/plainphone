@@ -7,6 +7,7 @@
 
 import PlainphoneCore
 import SwiftUI
+import UIKit
 
 @main
 struct DevHostApp: App {

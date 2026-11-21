@@ -5,10 +5,10 @@
 // date (docs/ios/architecture.md, "Phases"). Schedules and limits come in phase 2.
 
 #if canImport(FamilyControls) && canImport(ManagedSettings)
-import DeviceActivity
-import FamilyControls
+@preconcurrency import DeviceActivity
+@preconcurrency import FamilyControls
 import Foundation
-import ManagedSettings
+@preconcurrency import ManagedSettings
 
 @MainActor
 public final class FamilyControlsApplier: ScreenTimeApplying {

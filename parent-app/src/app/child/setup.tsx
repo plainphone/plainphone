@@ -7,7 +7,7 @@ import { Redirect, useRouter } from "expo-router";
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { nativeScreenTime } from "../../../modules/plainphone-screentime";
 import { QrCode } from "../../components/QrCode";
-import { Button, Loading, Notice, PageTitle, Screen, Stack, Text } from "../../components/ui";
+import { Button, Loading, Notice, PageTitle, Screen, Stack, Text, useLoad } from "../../components/ui";
 import { useI18n } from "../../i18n/I18n";
 import { SERVER_URL } from "../../lib/config";
 import { deviceFetch, loadIdentity, saveIdentity } from "../../lib/iphone/device-api";
@@ -23,24 +23,21 @@ export default function ChildSetupScreen() {
   return <ChildSetup />;
 }
 
+async function loadFacts(): Promise<WizardFacts> {
+  const [flags, identity, authorization] = await Promise.all([
+    loadWizardFlags(),
+    loadIdentity(),
+    nativeScreenTime().authorizationStatus().catch(() => "unavailable"),
+  ]);
+  return { ...flags, paired: identity !== null, authorization };
+}
+
 function ChildSetup() {
   const router = useRouter();
-  const [facts, setFacts] = useState<WizardFacts | null>(null);
-  const load = useCallback(async () => {
-    const screenTime = nativeScreenTime();
-    const [flags, identity, authorization] = await Promise.all([
-      loadWizardFlags(),
-      loadIdentity(),
-      screenTime.authorizationStatus().catch(() => "unavailable"),
-    ]);
-    setFacts({ ...flags, paired: identity !== null, authorization });
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data: facts, reloadQuiet } = useLoad(loadFacts, []);
+  const next = useCallback(() => void reloadQuiet(), [reloadQuiet]);
   if (!facts) return <Screen><Loading /></Screen>;
   const step = currentStep(facts);
-  const next = () => void load();
   return (
     <Screen testID={`setup-${step}`}>
       <StepTitle step={step} />
