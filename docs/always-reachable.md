@@ -4,7 +4,10 @@ The rule behind [design principle 3](design-principles.md): in every mode and in
 can reach **112 and the local emergency numbers, the parents, and the help lines**. It can call them,
 they ring through, and the child can message them (SMS, and the [family inbox](family-inbox.md) where
 it is on). Nothing a parent can switch on, no limit, no schedule and no update can take that away.
-This is why 112 and the parents' reachability are the only things without a switch.
+This is why 112 and the parents' reachability are the only things without a switch. The optional
+[callback request](sos.md#asking-a-parent-to-call) on the SOS screen is an addition to calling the parents and
+112, never a replacement: it sits below SOS and Call 112, and switching it off removes nothing the child could
+do before.
 
 | Group | Calls out | Rings in | Messages |
 |---|---|---|---|

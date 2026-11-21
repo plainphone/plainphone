@@ -82,4 +82,19 @@ class SosExtrasRulesTest {
         assertThat(SosSharing.from(rules(on, release = true))).isEqualTo(SosSharing.NONE)
         assertThat(SosSharing.from(rules("{$parents}"))).isEqualTo(SosSharing(withPosition = true))
     }
+
+    @Test
+    fun `asking for a callback is off for an older server and on only when the rules say so`() {
+        assertThat(checkNotNull(rules("{$parents}").sos).callback).isEqualTo(CallbackRules.OFF)
+        assertThat(checkNotNull(rules("""{$parents,"callback":{"enabled":false}}""").sos).callback.enabled).isFalse()
+        assertThat(checkNotNull(rules("""{$parents,"callback":{"enabled":true}}""").sos).callback.enabled).isTrue()
+    }
+
+    @Test
+    fun `what can my parents see says the callback is on, and nothing after release`() {
+        val on = """{$parents,"callback":{"enabled":true}}"""
+        assertThat(SosSharing.from(rules(on)).callback).isTrue()
+        assertThat(SosSharing.from(rules(on, release = true))).isEqualTo(SosSharing.NONE)
+        assertThat(SosSharing.from(rules("{$parents}")).callback).isFalse()
+    }
 }

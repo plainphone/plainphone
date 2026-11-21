@@ -128,6 +128,9 @@ fun SharingScreen(
             val words = hiddenSos.codeWords.joinToString(", ") { "«$it»" }
             Text(stringResource(R.string.sharing_code_words, words), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (hiddenSos.callback) {
+            Text(stringResource(R.string.sharing_callback), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         // The family inbox: who reads it, and that a check-in has no position (docs/family-inbox.md).
         if (inbox.enabled) {
             Text(stringResource(R.string.sharing_inbox), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

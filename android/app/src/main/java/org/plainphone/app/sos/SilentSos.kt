@@ -27,6 +27,8 @@ data class SosSharing(
     val codeWords: List<String> = emptyList(),
     /** The SOS can carry a position, so the child is told it does. */
     val withPosition: Boolean = false,
+    /** The child may ask a parent to call back from the SOS screen (docs/sos.md). */
+    val callback: Boolean = false,
 ) {
     companion object {
         val NONE = SosSharing()
@@ -39,6 +41,7 @@ data class SosSharing(
                 clock = sos.hidden.clock,
                 codeWords = sos.quickMessages.codeWords,
                 withPosition = r.locationEnabled && r.locationMode != ServerRules.LOCATION_OFF,
+                callback = sos.callback.enabled,
             )
         }
     }

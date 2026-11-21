@@ -288,6 +288,13 @@
       "when": 1795209295340,
       "tag": "0052_ios_pairing",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795211795517,
+      "tag": "0053_sos_callback",
+      "breakpoints": true
     }
   ]
 }
