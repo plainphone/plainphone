@@ -120,7 +120,8 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 | `PROVISIONING_DNS_HOST` | `family.adguard-dns.com` | Private DNS a phone uses from setup until its own filter host is ready |
 | `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
-| `PAYMENTS_ENABLED` | `false` | Experimental pay-to-unlock control. Payment processing is unavailable. Leave disabled when self-hosting. |
+| `BILLING_ENABLED` | `false` | Paid plan and paid early unlock of the hosted service. Leave it off when self-hosting: every household then has everything, and no payment provider is called. The other `BILLING_*`, `STRIPE_*` and `PLAY_*` variables only matter with it on ([billing.md](billing.md)) |
+| `PAYMENTS_ENABLED` | `false` | Unused (the old pay-to-unlock flag, replaced by [billing](billing.md)). |
 | `IOS_PAIRING_ENABLED` | `false` | iPhone pairing ([docs/ios/architecture.md](ios/architecture.md)). Leave off until the iOS app is released: the server then refuses iPhone pairings with a clear "not yet" error, and the dashboard hides "Add an iPhone". |
 | `APNS_BUNDLE_ID` | `org.plainphone.app` | APNs topic for iOS; override for custom builds ([push-setup.md](push-setup.md)) |
 | `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.app` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |

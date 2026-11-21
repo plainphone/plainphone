@@ -4,6 +4,7 @@ import { type ComponentRef, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, findNodeHandle, Platform, Share, View } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import type { InviteResult, Members } from "../api/models";
+import { PlanCard } from "../components/Billing";
 import { ItemRow } from "../components/parts";
 import { HouseholdPicker } from "../components/HouseholdPicker";
 import { RequireAuth } from "../components/RequireAuth";
@@ -204,6 +205,8 @@ function Household() {
           )
         }
       </LoadGate>
+
+      <PlanCard />
 
       <ResetProtection hid={hid} />
 

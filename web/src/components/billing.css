@@ -1,0 +1,68 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Plan page and paid early unlock. Calm: no colour for money, the same weight for every choice. */
+
+.early-unlock {
+  flex-basis: 100%;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.early-unlock-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.early-unlock-step h3 {
+  font-size: 1rem;
+}
+
+.early-unlock-terms {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.early-unlock-terms li + li {
+  margin-top: 0.25rem;
+}
+
+.early-unlock-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+
+.early-unlock-consent input {
+  margin-top: 0.125rem;
+}
+
+.early-unlock-contract {
+  overflow-wrap: anywhere;
+}
+
+.early-unlock-actions .btn {
+  flex: 1 1 12rem;
+}
+
+.plan-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.plan-list li + li {
+  margin-top: 0.25rem;
+}
+
+.plan-usage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.375rem 1rem;
+  margin: 0;
+}
+
+.plan-usage dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

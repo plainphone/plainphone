@@ -17,6 +17,8 @@ val signingProps: Properties? = System.getenv("PLAINPHONE_SIGNING")
     ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
 val fcmEnabled = providers.gradleProperty("plainphoneFcm").orNull == "true"
+// Play builds (-PplainphonePlay=true) pay through Google Play Billing; the direct build has no store.
+val playEnabled = providers.gradleProperty("plainphonePlay").orNull == "true"
 
 android {
     namespace = "org.plainphone.app"
@@ -78,6 +80,7 @@ android {
     }
 
     sourceSets["main"].kotlin.directories.add(if (fcmEnabled) "src/fcm/java" else "src/noFcm/java")
+    sourceSets["main"].kotlin.directories.add(if (playEnabled) "src/play/java" else "src/direct/java")
     if (fcmEnabled) {
         sourceSets["debug"].manifest.srcFile("src/fcm/AndroidManifest.xml")
         sourceSets["release"].manifest.srcFile("src/fcm/AndroidManifest.xml")
@@ -131,6 +134,9 @@ tasks.withType<Test>().configureEach {
 
 dependencies {
     if (fcmEnabled) implementation("com.google.firebase:firebase-messaging:25.0.1")
+    if (playEnabled) implementation("com.android.billingclient:billing:9.1.0")
+    // Billing's Play services pull in fragment 1.1, too old for the activity result APIs (lint error).
+    if (playEnabled) implementation("androidx.fragment:fragment:1.9.1")
     // Phone and messages UI (phase 2).
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")

@@ -2,6 +2,7 @@
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
 import { ageSv } from "./age";
+import { billingSv } from "./billing";
 import { appUpdatesSv } from "./app-updates";
 import { platformSv } from "./platform";
 import { callbackSv } from "./callback";
@@ -13,6 +14,7 @@ export const sv: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesSv,
   ...ageSv,
+  ...billingSv,
   ...platformSv,
   ...modesSv,
   ...extendedSv,
@@ -558,13 +560,6 @@ export const sv: Messages = {
   "key.emailInvalid": "Ange en giltig e-postadress till någon annan än dig.",
   "key.accepted": "{email} har loggat in och kan godkänna ändringar.",
   "key.notAccepted": "{email} har inte loggat in än. Förändringar väntar tills de gör det.",
-  "key.payTitle": "Betala för att låsa upp",
-  "key.payNotYet": "Betala för att låsa upp är inte tillgängligt ännu.",
-  "key.payHelp": "Senare kan du välja att hoppa över en försening genom att betala ett belopp du ställt in. Pengarna går till Plainphone-projektet.",
-  "key.payEnabled": "Erbjud betalning för att låsa upp",
-  "key.payAmount": "Belopp",
-  "key.payRecipient": "Pengar går till",
-  "key.recipient.plainphone": "Plainphone-projektet",
   "key.looseningNote": "Att byta nyckel är i sig en uppluckring, förutom att fördröjningen blir längre.",
 
   "house.title": "Hushåll",

@@ -33,12 +33,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import { type TFn, useI18n } from "../i18n/I18n";
+import { planLimitKey, planLimitOf } from "../shared/lib/billing";
 import { type Colors, fonts, radius, radiusControl, radiusPill, space, touch, useColors } from "../lib/theme";
 
 /** Turns any error into a sentence for the user. */
 export function errorMessage(err: unknown, t: TFn): string {
   if (err instanceof ApiError) {
     if (err.status === 0) return t("error.network");
+    // Adding beyond the free plan (docs/billing.md). Explained, never sold: no store build links to a payment.
+    const limit = planLimitOf(err.status, err.data);
+    if (limit) return t(planLimitKey(limit), { max: limit.max });
     if (err.status === 429) return t("error.tooMany");
     if (err.status === 404) return t("error.notFound");
     if (err.status === 400 && err.issues.length) return t("error.form");

@@ -8,6 +8,7 @@ import en from "./content/en.mjs";
 import da from "./content/da.mjs";
 import { help } from "./content/help.mjs";
 import { home } from "./content/home.mjs";
+import { giving, organisations } from "./content/giving.mjs";
 import sv from "./content/sv.mjs";
 import nb from "./content/nb.mjs";
 import de from "./content/de.mjs";
@@ -534,6 +535,30 @@ ${footer(t, route)}
 `;
 }
 
+// "Give directly" (issue #103). Unlinked and noindex until Mads confirms the organisations' permission:
+// no nav, footer or sitemap entry points here, and head() writes robots noindex (no canonical, no hreflang).
+// See content/giving.mjs for how to publish it.
+function givingPage(t) {
+  const p = giving[t.lang];
+  const route = (x) => giving[x.lang].path;
+  return `${head(t, { path: p.path, noindex: true, title: p.title, description: p.description, ogTitle: p.h1 })}
+<body>
+${header(t, "giving", route)}
+<main id="main" tabindex="-1" class="doc">
+<h1>${p.h1}</h1>
+<p class="lead">${p.lead}</p>
+${p.body.map((b) => `<p>${b}</p>`).join("\n")}
+<section aria-labelledby="giving-list"><h2 id="giving-list">${p.listTitle}</h2>
+<p>${p.listNote}</p>
+<ul>${organisations.map(([name, url]) => `<li><a href="${esc(url)}" rel="noopener noreferrer">${esc(name)}</a></li>`).join("")}</ul>
+</section>
+</main>
+${footer(t, route)}
+</body>
+</html>
+`;
+}
+
 function setupPage(t) {
   const p = t.setup;
   const route = (x) => x.setup.path;
@@ -601,6 +626,8 @@ for (const t of pages) {
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
   writeFileSync(join(dist, t.privacy.path, "index.html"), privacyPage(t));
+  mkdirSync(join(dist, giving[t.lang].path), { recursive: true });
+  writeFileSync(join(dist, giving[t.lang].path, "index.html"), givingPage(t));
   mkdirSync(join(dist, t.setup.path), { recursive: true });
   writeFileSync(join(dist, t.setup.path, "index.html"), setupPage(t));
 }
@@ -664,4 +691,4 @@ writeFileSync(
   Cross-Origin-Resource-Policy: cross-origin
 `,
 );
-console.log(`Built ${pages.length * 6} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 7} pages + 404 into dist/ (css ${css.length} bytes)`);

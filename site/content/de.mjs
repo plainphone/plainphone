@@ -200,7 +200,7 @@ export default {
     description:
       "Was Plainphone über Sie und die von Ihnen verwalteten Telefone speichert, wie lange, wer sonst noch beteiligt ist und wie Sie uns bitten können, die Daten zu korrigieren oder zu löschen.",
     h1: "Datenschutzerklärung",
-    updated: "Zuletzt aktualisiert am 17. November 2026",
+    updated: "Zuletzt aktualisiert am 20. November 2026",
     lead:
       "Plainphone behält so wenig wie möglich und so kurz wie möglich. Auf dieser Seite erfahren Sie, was das in der Praxis bedeutet. Es ist geschrieben, um gelesen zu werden, und nicht, um Dinge zu verbergen.",
     status:
@@ -315,6 +315,24 @@ export default {
         ],
       },
       {
+        id: "billing",
+        title: "Zahlung",
+        body: [
+          "Plainphone verlangt noch kein Geld, und der gehostete Dienst hat heute keine kostenpflichtigen Funktionen. Dieser Abschnitt beschreibt, was gespeichert wird, sobald die Zahlung eingeschaltet ist. Dann ändert sich zuerst diese Seite.",
+          "Für jeden Haushalt speichern wir:",
+          {
+            list: [
+              "seinen Tarif (kostenlos oder bezahlt) und welcher Anbieter die Zahlung abwickelt: Google Play oder Stripe",
+              "die Kennungen beim Anbieter: bei Stripe eine Kundennummer und eine Abonnementnummer, bei Google Play das Kauf-Token",
+              "wenn Sie dafür zahlen, eine Wartezeit auf einem Handy mit dem Profil Für mich selbst vorzeitig zu beenden: Betrag und Währung, den Zeitpunkt Ihrer Einwilligung, der Zahlung, der Freischaltung, eines Widerrufs und einer Erstattung sowie die Vertragsnummer",
+            ],
+          },
+          "Belege werden per E-Mail an die Adresse Ihres Kontos gesendet.",
+          "Wir sehen oder speichern niemals Kartennummern oder andere Kartendaten. Zahlungen werden von Stripe (im Web-Dashboard) oder von Google Play (in der Plainphone-App aus Google Play) abgewickelt. Was dort erhoben wird, regeln deren eigene Datenschutzerklärungen.",
+          "Wenn ein Handy oder ein Haushalt gelöscht wird, bleiben die Kaufdaten für die Buchhaltung gespeichert, wie es das Buchführungsrecht verlangt. Sobald Ihr Konto gelöscht ist, bleiben sie ohne Verbindung zum Konto erhalten.",
+        ],
+      },
+      {
         id: "cookies",
         title: "Diese Website, Cookies und Browserspeicher",
         body: [
@@ -336,6 +354,7 @@ export default {
               "Cloudflare hostet diese Website (plainphone.org) und das Logo in unseren E-Mails.",
               "Quad9 und Mullvad, mit Cloudflare als Fallback, beantworten zulässige Webfilter-Suchen, wie oben beschrieben.",
               "Wenn Sie Benachrichtigungen aktivieren: Der Push-Dienst Ihres Browsers (Google, Apple, Mozilla oder Microsoft) stellt sie zu. Der Inhalt ist Ende-zu-Ende verschlüsselt.",
+              "Wenn die Zahlung eingeschaltet ist: Stripe oder Google Play wickelt die Zahlung ab, wie unter Zahlung beschrieben.",
             ],
           },
           "Konto- und Telefondaten werden auf Servern in der EU gespeichert.",

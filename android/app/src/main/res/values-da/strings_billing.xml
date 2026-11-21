@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="early_unlock_waiting">Ændringen venter til %1$s.</string>
+    <string name="early_unlock_keep_waiting">Vent videre (gratis)</string>
+    <string name="early_unlock_pay">Lås op om ca. %1$d min for %2$s</string>
+    <string name="early_unlock_title">Tidlig oplåsning</string>
+    <string name="early_unlock_info_price">Pris: %1$s inkl. moms, betales via Google Play.</string>
+    <string name="early_unlock_info_when">Ændringen træder i kraft ca. %1$d min efter, du har betalt.</string>
+    <string name="early_unlock_info_cap">Du kan højst bruge en tidlig oplåsning én gang hver 7. dag.</string>
+    <string name="early_unlock_info_withdraw">Du har 14 dages fortrydelsesret. Indtil ændringen træder i kraft, kan du bruge \"Fortryd aftale\" her under I dag og få pengene tilbage.</string>
+    <string name="early_unlock_consent">Jeg beder om, at den tidlige oplåsning starter nu, før fortrydelsesfristen på 14 dage udløber. Jeg forstår, at jeg mister min fortrydelsesret, når den tidlige oplåsning er leveret.</string>
+    <string name="early_unlock_pay_now">Betal %1$s</string>
+    <string name="early_unlock_scheduled">Din tidlige oplåsning er planlagt til %1$s.</string>
+    <string name="early_unlock_withdraw">Fortryd aftale</string>
+    <string name="early_unlock_withdraw_confirm">Bekræft fortrydelse</string>
+    <string name="early_unlock_contract_number">Aftalenummer: %1$s</string>
+    <string name="early_unlock_withdraw_effect">Du får pengene tilbage, og ændringen beholder sit oprindelige tidspunkt.</string>
+    <string name="early_unlock_cap">Du kan bruge en tidlig oplåsning igen fra %1$s.</string>
+    <string name="early_unlock_busy">Et øjeblik …</string>
+    <string name="early_unlock_paid">Betalingen er modtaget.</string>
+    <string name="early_unlock_paid_confirming">Betalingen er modtaget. Telefonen bekræfter den om lidt.</string>
+    <string name="early_unlock_pending">Google Play venter på din betaling. Oplåsningen bliver planlagt, når den er gået igennem.</string>
+    <string name="early_unlock_unavailable">Google Play kan ikke tage imod betalingen lige nu. Der er ikke trukket noget.</string>
+    <string name="early_unlock_failed">Det lykkedes ikke. Der er ikke trukket noget. Prøv igen senere.</string>
+    <string name="early_unlock_withdraw_failed">Fortrydelsen gik ikke igennem. Prøv igen om lidt.</string>
+    <string name="early_unlock_withdrawn">Fortrudt. Du får pengene tilbage, og ændringen beholder sit oprindelige tidspunkt.</string>
+    <string name="early_unlock_withdraw_too_late">Ændringen er allerede trådt i kraft, så aftalen kan ikke længere fortrydes.</string>
+</resources>

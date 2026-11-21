@@ -13,6 +13,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
 import { errorFrames, errorSummary } from "./lib/log.js";
 import { attestationRoutes } from "./routes/attestation.js";
+import { billingWebhookRoutes } from "./routes/billing.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
 import { downloadRoutes } from "./routes/download.js";
@@ -159,6 +160,8 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
   app.route("/api/catalog", publicCatalogRoutes());
   app.route("/api", latencyRoutes(ctx));
   app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
+  // Signed provider webhooks (docs/billing.md); 404 while billing is off.
+  app.route("/api/billing", billingWebhookRoutes(ctx));
   const resetProtection = resetProtectionRoutes(ctx);
   app.route("/api/reset-protection", resetProtection.callback);
   // Before the parent API: an extended contact has no parent session (docs/extended-family.md).

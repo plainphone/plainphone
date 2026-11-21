@@ -75,6 +75,12 @@ export const households = pgTable("households", {
   timeZone: text("time_zone").notNull().default("Europe/Copenhagen"),
   /** When the weekly summary went live for this household: no summary before it has a full week of history behind it. */
   summarySince: timestamp("summary_since", { withTimezone: true }).notNull().defaultNow(),
+  /** Hosted plan (docs/billing.md). Only read while BILLING_ENABLED is on. */
+  plan: text("plan", { enum: ["free", "plus"] }).notNull().default("free"),
+  /** Who granted the paid plan: a Play subscription, a Stripe subscription or Mahope by hand. */
+  planSource: text("plan_source", { enum: ["play", "stripe", "manual"] }),
+  /** The paid plan ends here (null: no end, only for manual grants). */
+  planUntil: timestamp("plan_until", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -1145,6 +1151,92 @@ export const modeSlots = pgTable("mode_slots", {
   endMinute: integer("end_minute").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("mode_slots_phone_idx").on(t.phoneId)]);
+
+/**
+ * Paid subscriptions of a household (docs/billing.md). Only the provider's own ids are stored,
+ * never card data. `subscriptionRef` is Stripe's subscription id or Play's purchase token.
+ */
+export const billingSubscriptions = pgTable(
+  "billing_subscriptions",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["stripe", "play"] }).notNull(),
+    subscriptionRef: text("subscription_ref").notNull(),
+    customerRef: text("customer_ref"),
+    productRef: text("product_ref"),
+    status: text("status", { enum: ["active", "grace", "canceled", "on_hold", "paused", "expired", "pending"] }).notNull(),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    /** The provider's time for the newest state seen, so an older event never overwrites a newer one. */
+    stateAt: timestamp("state_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("billing_subscriptions_ref_idx").on(t.provider, t.subscriptionRef),
+    index("billing_subscriptions_household_idx").on(t.householdId),
+  ],
+);
+
+/** Provider events already handled (Stripe event id, Pub/Sub message id): webhooks are retried. */
+export const billingEvents = pgTable(
+  "billing_events",
+  {
+    provider: text("provider", { enum: ["stripe", "play"] }).notNull(),
+    eventId: text("event_id").notNull(),
+    type: text("type").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.eventId] })],
+);
+
+/**
+ * created: checkout started, not paid. scheduled: paid, the change applies at `unlockAt`.
+ * delivered: the change applied. refund_due: paid but withdrawn or undeliverable, refund pending.
+ * refunded: money returned. expired: never paid.
+ */
+export const EARLY_UNLOCK_STATUSES = ["created", "scheduled", "delivered", "refund_due", "refunded", "expired"] as const;
+
+/**
+ * A paid early unlock on a Myself phone (docs/billing.md, #103): the user's own wait-time key
+ * ends about ten minutes after payment. Kept after the change is gone, as the purchase record.
+ */
+export const earlyUnlocks = pgTable(
+  "early_unlocks",
+  {
+    id: id(),
+    phoneId: uuid("phone_id").references(() => phones.id, { onDelete: "set null" }),
+    householdId: uuid("household_id").references(() => households.id, { onDelete: "set null" }),
+    pendingChangeId: uuid("pending_change_id").references(() => pendingChanges.id, { onDelete: "set null" }),
+    buyerId: uuid("buyer_id").references(() => users.id, { onDelete: "set null" }),
+    channel: text("channel", { enum: ["stripe", "play"] }).notNull(),
+    amount: integer("amount").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status", { enum: EARLY_UNLOCK_STATUSES }).notNull().default("created"),
+    /** Stripe checkout session id, or Play order id. */
+    providerRef: text("provider_ref"),
+    /** Stripe payment intent, or Play purchase token: what a refund needs. */
+    paymentRef: text("payment_ref"),
+    /** The express, unticked consent to start before the withdrawal period ends. */
+    consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),
+    /** When the change would have applied without paying; restored on withdrawal. */
+    originalEffectiveAt: timestamp("original_effective_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    unlockAt: timestamp("unlock_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    /** Why it was refunded: withdrawn, undeliverable, duplicate or provider. */
+    refundReason: text("refund_reason"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("early_unlocks_phone_idx").on(t.phoneId, t.createdAt),
+    index("early_unlocks_status_idx").on(t.status),
+    uniqueIndex("early_unlocks_provider_ref_idx").on(t.channel, t.providerRef),
+  ],
+);
 
 /** Who picked an iPhone's apps (docs/ios/architecture.md, "App selections"). */
 export const IOS_SELECTION_SOURCES = ["parent", "phone"] as const;
