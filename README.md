@@ -21,7 +21,7 @@ Plainphone is free today. Running it on your own server and keeping one fully pr
 
 ## Why
 
-See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work.
+See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work. The [endpoint encryption recommendation](docs/research/e2ee-recommendation.md) compares OpenMLS with a Matrix SDK on synthetic data ([harnesses](research/e2ee/README.md)).
 
 **iPhone:** planned, not available yet. Plainphone for iPhone will use Apple's Family Controls, and
 some things stay Apple's to decide (who can call, who rings at bedtime). The dashboard already says

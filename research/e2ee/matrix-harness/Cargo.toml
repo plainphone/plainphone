@@ -1,0 +1,23 @@
+[package]
+name = "matrix-harness"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "Synthetic Matrix-crypto (vodozemac) experiment for Plainphone #120. Not part of the app."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+vodozemac = "=0.11.2"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+vodozemac = { version = "=0.11.2", features = ["wasm_js"] }
+
+[profile.release]
+# Size measurements in the recommendation use this profile.
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
