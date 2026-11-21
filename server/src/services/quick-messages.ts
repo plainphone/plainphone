@@ -3,7 +3,9 @@
 import { and, asc, count, eq, gt, lt } from "drizzle-orm";
 import { householdMembers, phones, quickMessageSends, quickMessages } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+import { callbackEnabled } from "./callback-requests.js";
 import { markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
+import { publishLive } from "./live-events.js";
 import { notifyUsers } from "./notifications.js";
 import { recordUpload } from "./latency.js";
 
@@ -30,6 +32,8 @@ export function sosSettingsJson(phone: Phone) {
     quickSuggestionsEnabled: phone.quickSuggestionsEnabled,
     familyInbox: phone.familyInboxEnabled,
     checkIns: phone.checkInsEnabled,
+    callbackRequests: callbackEnabled(phone),
+    callbackConfirmed: phone.sosCallbackNumber !== null && phone.sosCallbackSetAt !== null,
   };
 }
 
@@ -51,6 +55,8 @@ export async function sosRulesExtras(ctx: Ctx, phone: Phone) {
   if (phone.profile !== "child") return {};
   const { messages } = phone.quickMessagesEnabled ? await listQuickMessages(ctx.db, phone.id) : { messages: [] };
   return {
+    // Only the switch: the number stays with the parents, the phone never supplies or shows one.
+    callback: { enabled: callbackEnabled(phone) },
     hidden: {
       power: phone.hiddenSosPower,
       presses: phone.hiddenSosPresses,
@@ -119,9 +125,13 @@ export async function sendQuickMessage(
     if (first.notified === NOTIFY_PENDING && now.getTime() - first.createdAt.getTime() > PENDING_MS) return { notified: 0 };
     return sendAnswer(first.notified);
   }
+  // Open dashboards show the message at once, before the push goes out, and again with its delivery count.
+  const live = () => publishLive(ctx, { type: "inbox.message", householdId: phone.householdId, phoneId: phone.id, id: input.id });
+  live();
   // The phone was offline and sent an SMS: the parents have it, so the late report only fills in the thread.
   if (input.smsSent) {
     if (inThread) await markDelivered(ctx, phone.id, input.id, 0);
+    if (inThread) live();
     return { notified: 0 };
   }
   recordUpload(ctx, "quick", input.elapsedMs, input.sentAt);
@@ -143,7 +153,10 @@ export async function sendQuickMessage(
     ).catch(() => 0);
   }
   await ctx.db.update(quickMessageSends).set({ notified }).where(row);
-  if (inThread && notified !== NOTIFY_LIMITED) await markDelivered(ctx, phone.id, input.id, notified);
+  if (inThread && notified !== NOTIFY_LIMITED) {
+    await markDelivered(ctx, phone.id, input.id, notified);
+    live();
+  }
   return sendAnswer(notified);
 }
 

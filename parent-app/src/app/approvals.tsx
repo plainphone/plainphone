@@ -11,6 +11,7 @@ import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
+import { useLiveRefresh } from "../lib/live";
 import { savePendingInvite } from "../lib/pendingInvite";
 import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../shared/lib/approval-state";
 
@@ -47,6 +48,7 @@ function ApprovalsList() {
     () => unwrap<{ people: HelpedPerson[] }>(client.GET("/people-i-help")).then((r) => r.people).catch(() => [] as HelpedPerson[]),
     [],
   );
+  useLiveRefresh(["request.created", "request.answered", "phone.status"], undefined, res.reloadQuiet, 0);
   const [busy, setBusy] = useState<string | null>(null);
   const sending = useRef(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);

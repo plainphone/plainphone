@@ -12,7 +12,7 @@ phones have run for a week (see [Test on real phones](#test-on-real-phones)).
 
 ## The paths
 
-### 1. Child phone to server (SOS, code word, quick message)
+### 1. Child phone to server (SOS, code word, quick message, callback request)
 
 | | |
 |---|---|
@@ -20,7 +20,7 @@ phones have run for a week (see [Test on real phones](#test-on-real-phones)).
 | Before this change | The first attempt was an ordinary WorkManager job. With the screen on it usually ran within a second or two, but the job scheduler may hold ordinary jobs back for Doze, app standby buckets and battery saver. Retries backed off exponentially from 30 s. |
 | Now | The first attempt starts the moment the undo window ends: an ordinary SOS in a short foreground service with a visible "Sending your SOS to your parents…" notice, a silent SOS quietly in the app's process with a partial wake lock (a notice would give it away). The WorkManager job is still queued, now expedited, as the safety net across restarts; a lock makes it wait for the first attempt and then find the work done. Retries back off linearly from 10 s, and a new network retries a waiting SOS at once. The SMS fallback is unchanged. |
 | Expected | Best about 0.3 s after the undo window, typical 1 to 3 s (most of it the position), worst: no network, so the SMS goes at once and the online report follows within 10 s of the network coming back. |
-| Measured as | `phone-server`, per `kind` (`sos`, `quick`). The phone sends `X-Plainphone-Elapsed-Ms`, the time since the press on its monotonic clock, so a wrong phone clock does not matter. Without it (older app, reboot in between) the server uses `sentAt`. Only the first arrival of a report counts; one already sent by SMS is not timed. |
+| Measured as | `phone-server`, per `kind` (`sos`, `quick`, `callback`). The phone sends `X-Plainphone-Elapsed-Ms`, the time since the press on its monotonic clock, so a wrong phone clock does not matter. Without it (older app, reboot in between) the server uses `sentAt`. Only the first arrival of a report counts; one already sent by SMS is not timed. |
 
 ### 2. Server to parent devices
 
@@ -36,7 +36,7 @@ Each notification gets a class, and each provider gets the matching settings
 |---|---|---|---|---|---|
 | alarm | Urgent SOS, code word, hidden SOS, lost protection | `priority: HIGH`, channel **Urgent SOS** | `Urgency: high` | `apns-priority: 10`, `interruption-level: time-sensitive` | 24 h |
 | prompt | Help SOS, quick messages, "I'm home", ring and "Are you okay?" answers, requests, approvals, test | `priority: HIGH` | `Urgency: high` | `apns-priority: 10` | 4 h |
-| normal | Everything else (weekly summary, offline notices, silent follow-ups) | `priority: NORMAL` | `Urgency: normal` | `apns-priority: 5` | 24 h |
+| normal | Requests to be called back (not urgent: the SOS itself is), and everything else (weekly summary, offline notices, silent follow-ups) | `priority: NORMAL` | `Urgency: normal` | `apns-priority: 5` | 24 h |
 
 Every APNs request sets `apns-push-type: alert` and `apns-expiration` (without it APNs tries once
 and drops the alert when the phone is unreachable). FCM alerts carry no collapse key: FCM keeps

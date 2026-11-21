@@ -4,6 +4,7 @@ import type { Messages } from "./en";
 import { ageDe } from "./age";
 import { appUpdatesDe } from "./app-updates";
 import { platformDe } from "./platform";
+import { callbackDe } from "./callback";
 import { modesDe } from "./modes";
 import { statusEn } from "./status";
 
@@ -13,6 +14,7 @@ export const de: Messages = {
   ...ageDe,
   ...platformDe,
   ...modesDe,
+  ...callbackDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",
   "status.stale.title": "Zuletzt online {when}",
@@ -1054,6 +1056,18 @@ export const de: Messages = {
   "notif.hours": "{n} Stunden",
   "notif.never": "Niemals",
   "notif.mailToo": "Sie können auch eine E-Mail erhalten, wenn eine erforderliche Einstellung deaktiviert ist oder ein Telefon den Check-in stoppt.",
+  "live.title": "Live-Aktualisierung",
+  "live.intro": "Neuigkeiten erscheinen sofort, ohne dass Sie die Seite neu laden müssen.",
+  "live.switch": "Live-Aktualisierung auf diesem Gerät",
+  "live.switchHelp": "SOS, Antworten und Standorte erscheinen sofort. Ausgeschaltet prüft die Seite in regelmäßigen Abständen auf Neues.",
+  "live.sound": "Ton bei SOS",
+  "live.soundHelp": "Auf diesem Gerät einen kurzen Alarmton abspielen, wenn ein SOS eingeht, während diese Seite geöffnet ist.",
+  "live.on": "Live",
+  "live.connecting": "Verbinden",
+  "live.fallback": "Nicht live",
+  "live.fallbackHint": "Die Live-Aktualisierung ist gerade nicht verfügbar. Die Seite prüft in regelmäßigen Abständen auf Neues.",
+  "live.sosOpen": "Telefon öffnen",
+  "live.sosDismiss": "Schließen",
 
   "requests.title": "{name} fragt nach",
   "requests.app": "Möchte diese App nutzen",

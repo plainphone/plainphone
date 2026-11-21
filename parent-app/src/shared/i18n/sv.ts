@@ -4,6 +4,7 @@ import type { Messages } from "./en";
 import { ageSv } from "./age";
 import { appUpdatesSv } from "./app-updates";
 import { platformSv } from "./platform";
+import { callbackSv } from "./callback";
 import { modesSv } from "./modes";
 import { statusEn } from "./status";
 
@@ -13,6 +14,7 @@ export const sv: Messages = {
   ...ageSv,
   ...platformSv,
   ...modesSv,
+  ...callbackSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",
   "status.never.title": "Ännu inte ansluten",
   "status.stale.title": "Senast online {when}",
@@ -1054,6 +1056,18 @@ export const sv: Messages = {
   "notif.hours": "{n} timmar",
   "notif.never": "Aldrig",
   "notif.mailToo": "Du kan också få ett e-postmeddelande när en obligatorisk inställning är avstängd eller en telefon slutar checka in.",
+  "live.title": "Liveuppdateringar",
+  "live.intro": "Se nyheter direkt när de kommer, utan att ladda om sidan.",
+  "live.switch": "Liveuppdateringar på den här enheten",
+  "live.switchHelp": "SOS, svar och positioner visas direkt. När det är avstängt kollar sidan efter nyheter med jämna mellanrum.",
+  "live.sound": "Ljud vid SOS",
+  "live.soundHelp": "Spela en kort larmsignal på den här enheten när ett SOS kommer medan sidan är öppen.",
+  "live.on": "Live",
+  "live.connecting": "Ansluter",
+  "live.fallback": "Inte live",
+  "live.fallbackHint": "Liveuppdateringar är inte tillgängliga just nu. Sidan kollar efter nyheter med jämna mellanrum.",
+  "live.sosOpen": "Öppna telefonen",
+  "live.sosDismiss": "Stäng",
 
   "requests.title": "{name} frågar efter",
   "requests.app": "Vill använda denna app",

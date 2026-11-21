@@ -6,6 +6,7 @@
 import { ageEn } from "./age";
 import { appUpdatesEn } from "./app-updates";
 import { platformEn } from "./platform";
+import { callbackEn } from "./callback";
 import { modesEn } from "./modes";
 import { statusEn } from "./status";
 
@@ -20,6 +21,7 @@ export const en = {
   ...ageEn,
   ...platformEn,
   ...modesEn,
+  ...callbackEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",
@@ -1122,6 +1124,18 @@ export const en = {
   "notif.hours": "{n} hours",
   "notif.never": "Never",
   "notif.mailToo": "You can also get an email when a required setting is switched off or a phone stops checking in.",
+  "live.title": "Live updates",
+  "live.intro": "See news here the moment it arrives, without reloading the page.",
+  "live.switch": "Live updates on this device",
+  "live.switchHelp": "SOS, answers and positions show up at once. Switched off, the page checks for news every so often.",
+  "live.sound": "Sound for SOS",
+  "live.soundHelp": "Play a short alarm tone on this device when an SOS arrives while this page is open.",
+  "live.on": "Live",
+  "live.connecting": "Connecting",
+  "live.fallback": "Not live",
+  "live.fallbackHint": "Live updates are not available right now. This page checks for news every so often.",
+  "live.sosOpen": "Open phone",
+  "live.sosDismiss": "Dismiss",
 
   "requests.title": "{name} asks for",
   "requests.app": "Wants to use this app",

@@ -1,0 +1,11 @@
+<resources>
+    <string name="callback_ask">Bed en forælder ringe til mig</string>
+    <string name="callback_hint">Dine forældre ringer til dig på dit eget nummer. SOS og 112 virker som før.</string>
+    <string name="callback_waiting">Venter på forbindelse. Ønsket sendes, så snart telefonen er online.</string>
+    <string name="callback_queued">Dit ønske er gemt. Dine forældre ser det, så snart de åbner appen.</string>
+    <string name="callback_sent">Dine forældre er bedt om at ringe til dig.</string>
+    <string name="callback_done">En forælder har svaret på dit ønske.</string>
+    <string name="callback_expired">Ingen svarede inden for 24 timer. Ring eller skriv selv til dine forældre.</string>
+    <string name="callback_failed">Ønsket kunne ikke sendes. Ring eller skriv selv til dine forældre.</string>
+    <string name="sharing_callback">Du kan bede dine forældre ringe tilbage fra SOS. De ringer til det nummer, de har gemt til din telefon. Ønsket sender ikke noget nummer.</string>
+</resources>

@@ -16,12 +16,15 @@ import { attestationRoutes } from "./routes/attestation.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
 import { downloadRoutes } from "./routes/download.js";
+import { liveEventRoutes } from "./routes/events.js";
 import { parentRoutes } from "./routes/parent.js";
 import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
 import { latencyRoutes } from "./routes/latency.js";
+import { LocalEventBus } from "./services/live-events.js";
+import { LiveHub, type LiveHubOptions } from "./services/live-hub.js";
 
 /** The largest request body the API reads, unless a route sets its own limit. */
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
@@ -67,8 +70,10 @@ function encodingNotAcceptable(): Response {
   return new Response(null, { status: 406, headers: { Vary: "Accept-Encoding", "Cache-Control": "no-cache" } });
 }
 
-export function createApp(ctx: Ctx) {
+export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partial<LiveHubOptions> } = {}) {
   const app = new Hono();
+  ctx.events ??= new LocalEventBus();
+  const live = opts.live ?? new LiveHub(ctx, ctx.events, opts.liveOptions);
 
   app.use(
     "*",
@@ -155,7 +160,10 @@ export function createApp(ctx: Ctx) {
   app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
   const resetProtection = resetProtectionRoutes(ctx);
   app.route("/api/reset-protection", resetProtection.callback);
-  app.route("/api", parentRoutes(ctx, updateWake, resetProtection.parent));
+  app.route("/api", parentRoutes(ctx, updateWake, (parent) => {
+    resetProtection.parent(parent);
+    liveEventRoutes(parent, live);
+  }));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   // Stable APK address for provisioning QR codes (redirects to the newest release).
   app.route("/download", downloadRoutes(ctx));

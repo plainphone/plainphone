@@ -39,10 +39,10 @@ const sinceAnchor = (now: Date) => sql<number>`greatest(0, least(2147483647,
   round(extract(epoch from (${now.toISOString()}::timestamptz - coalesce(${latencySamples.anchorAt}, ${now.toISOString()}::timestamptz))) * 1000)))::int`;
 
 /**
- * The phone's upload of an SOS or quick message: from the press to the server. `elapsedMs` is the
+ * The phone's upload of an SOS, a quick message or a callback request: from the press to the server. `elapsedMs` is the
  * phone's own monotonic clock (no clock skew); without it the phone's wall clock `sentAt` is used.
  */
-export function recordUpload(ctx: Ctx, kind: "sos" | "quick", elapsedMs: number | undefined, sentAt: Date | undefined) {
+export function recordUpload(ctx: Ctx, kind: "sos" | "quick" | "callback", elapsedMs: number | undefined, sentAt: Date | undefined) {
   if (!latencyOn(ctx)) return;
   const now = ctx.now();
   const ms = elapsedMs ?? (sentAt ? now.getTime() - sentAt.getTime() : undefined);

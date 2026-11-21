@@ -2447,3 +2447,55 @@ details.key-advanced > summary {
 details.key-advanced[open] > summary {
   margin-bottom: 0.5rem;
 }
+
+/* Live updates: the header indicator and the SOS banner shown on any page. */
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-inline: 0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: #2e7d32; /* 4.6:1 on bg; the word carries the meaning */
+}
+
+.live-indicator[data-state="connecting"] .live-dot {
+  background: transparent;
+  border: 2px solid var(--muted);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+.live-indicator[data-state="fallback"] .live-dot {
+  background: var(--warn-line);
+  border-radius: 1px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .live-indicator[data-state="live"] .live-dot {
+    background: var(--brand);
+  }
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-indicator .live-dot {
+    animation: none;
+  }
+}
+
+.live-sos {
+  padding-block-start: 1rem;
+}

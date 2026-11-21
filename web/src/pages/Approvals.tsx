@@ -5,6 +5,7 @@ import { ApprovalScanner } from "../components/ApprovalScanner";
 import { errorMessage, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { EmergencyBlock } from "../components/EmergencyOpenings";
+import { useLiveRefresh } from "../lib/live";
 import { api, ApiError, type Approval, type EmergencyOpening, type EmergencySettings } from "../lib/api";
 import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../lib/approval-state";
 
@@ -25,6 +26,7 @@ export function ApprovalsPage() {
     if (window.location.hash.startsWith("#code=")) window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
   const { reload: reloadApprovals } = res;
+  useLiveRefresh(["request.created", "request.answered"], undefined, reloadApprovals, null);
   const scanApproval = useCallback((value: string) => {
     setCode(value);
     void reloadApprovals();

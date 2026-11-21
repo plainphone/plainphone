@@ -55,4 +55,10 @@ export const appDe: AppMessages = {
   "native.serverSignsOut": "Nach dem Wechsel des Servers müssen Sie sich neu anmelden.",
   "native.serverError": "Prüfen Sie die Adresse und ob auf dem Server eine kompatible Version von Plainphone läuft.",
   "native.pushRegistrationError": "Benachrichtigungen konnten auf diesem Server nicht registriert werden.",
+  "native.liveHelp": "SOS, Antworten und Standorte erscheinen sofort, solange die App geöffnet ist. Ist es aus, aktualisiert sich die App stattdessen von Zeit zu Zeit.",
+  "native.liveSosTitle": "SOS-Alarm",
+  "native.liveSosHelp": "Bei einem SOS vibrieren, solange die App geöffnet ist. Die Mitteilung kommt trotzdem.",
+  "native.liveFallback": "Aktualisiert regelmäßig",
+  "native.liveSosFrom": "SOS von {name}",
+  "native.liveSosUnknown": "SOS von einem Telefon",
 };

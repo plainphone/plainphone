@@ -1,0 +1,130 @@
+=== mls-harness
+PASS  encrypt/decrypt between all members
+      - 4 devices, epoch 1, every member decrypted every other member's text; epoch authenticators match
+      - ciphersuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519: X25519 and Ed25519 as in docs/encryption.md, but AES-128-GCM where the spec uses AES-256-GCM (RFC 9420 has no X25519 + AES-256 suite)
+PASS  substituted endpoint
+      - without a roster check OpenMLS admits the substituted key package and the server-held endpoint reads the text (measured): BasicCredential is only a label
+      - with the roster check the add is refused: roster: child-phone presents a signature key the household log does not list
+      - the child phone refuses a Welcome whose member list does not match its roster: roster: parent-b-phone is not in the household log
+PASS  stale roster
+      - server withholds the removal from parent B; B's next text is in epoch 1 while A and the child are in 2
+      - a stolen copy of the revoked tablet that ignores its removal decrypts B's stale-epoch text (measured): a lagging sender leaks to a removed device until it catches up
+      - the child phone (max_past_epochs = 0) cannot open the stale text (ValidationError(UnableToDecrypt(SecretTreeError(TooDistantInThePast))))
+      - with the server-side epoch check the stale send is refused (409 text for epoch 1, conversation is at 2), B syncs, sees the removal and resends in epoch 2
+      - the server-side check is only a mitigation: a malicious server can still withhold, so the client must also refuse to send while its roster head is behind the household log (docs/encryption.md §3)
+PASS  revoke then send
+      - removal commit moves the group from epoch 1 to 2; the tablet processes its own removal and its group turns inactive
+      - text sent after the removal: parent B and the child read it, the revoked tablet cannot
+      - the revoked tablet cannot create a message any more: group inactive after removal
+      - the removed tablet still holds every text it decrypted before the removal; MLS gives no remote wipe (document in the UI)
+PASS  lost device
+      - parent A replaces the lost leaf with the re-enrolled phone in one commit (remove + add, epoch 2); the new phone joins from the Welcome
+      - the re-enrolled phone cannot open any of the 1 ciphertexts queued before the loss: no history without a separate backup design
+      - text sent after re-enrollment reaches the new phone
+PASS  retry and reordering
+      - 5 texts delivered as 3,1,5,2,4 inside one epoch: 5/5 decrypted (default SenderRatchetConfiguration: out_of_order_tolerance 5, maximum_forward_distance 1000)
+      - the same ciphertext delivered twice fails the second time (ValidationError(UnableToDecrypt(SecretTreeError(SecretReuseError)))); dedupe by the server's message id before decrypting and do not treat this error as tampering
+      - a sender retry after a lost acknowledgement re-encrypts: the receiver decrypts both copies (2), so the client message id must sit inside the plaintext and be deduplicated by the app
+      - 12 texts, newest first then the oldest: newest decrypts and oldest fails: ValidationError(UnableToDecrypt(SecretTreeError(TooDistantInThePast))) (11 generations behind with tolerance 5)
+PASS  concurrent commits need server ordering
+      - no ordering: A's removal and B's key update both target epoch 1; the child applies the first and rejects the second (ValidationError(WrongEpoch))
+      - A merged its own removal, B merged its own update; each then rejects the other's commit (ValidationError(WrongEpoch) / ValidationError(WrongEpoch)); A and B now disagree on the epoch (fork) and cannot read each other
+      - with one accepted commit per epoch (409 for the loser, which clears its pending commit, syncs and retries) all members agree at epoch 3
+PASS  offline child catches up in server order
+      - child offline across 3 commits and 4 texts (7 queued items): read all 4 in server order with max_past_epochs = 0
+      - if delivery puts the commit before an older text the child reads 0 of 1 with max_past_epochs = 0: the queue must keep one total order per conversation
+      - with max_past_epochs = 1 the same out-of-order delivery reads 1 of 1, at the cost of keeping one old epoch's keys
+PASS  local storage and restart
+      - child phone state after joining a 4-member group: 10075 bytes in openmls_memory_storage's serialization
+      - the serialized store contains the raw Ed25519 private signature key (measured): the app must encrypt the store at rest (Android Keystore AES-GCM, Expo SecureStore-wrapped key) exactly as docs/encryption.md requires for H/R/L keys
+      - a process restart from the serialized store continues the conversation
+      - live state and a rolled-back copy each send one text from the same sender-ratchet generation: parent A reads 1 of 2 and rejects the other (ValidationError(UnableToDecrypt(SecretTreeError(SecretReuseError)))); MLS's reuse_guard keeps the AES-GCM nonces apart, but the second text is lost
+      - once the group moves to a new epoch the rolled-back copy reads 0 texts (ValidationError(WrongEpoch)): it is stuck and must be re-added; keep MLS state out of OS backups
+PASS  ciphertext-only server and push inspection
+      - 43 server-visible blobs (key packages, commits, welcomes, texts, push payloads): no plaintext canary in any of them
+      - the device label 'child-phone' is visible in 1 published key package(s) and 0 queued commits/Welcomes/texts: PURE_CIPHERTEXT commits and the encrypted Welcome hide the roster, but key packages are public by design, so the MLS identity must be an opaque device ID
+      - PrivateMessage cleartext header the server can parse: wire_format=PrivateMessage, group_id=16 bytes, epoch=1, content_type=Application; wire_format=PrivateMessage, group_id=16 bytes, epoch=2, content_type=Application
+      - ciphertext sizes for texts of [15, 53, 100, 21, 15] bytes with padding_size 64: [190, 254, 254, 190, 190]; length leaks only in 64-byte steps, and the sender's leaf index is inside the encrypted sender data
+      - push payloads carry only the conversation id and queue cursor
+=== matrix-harness
+PASS  encrypt/decrypt between all members
+      - 4 devices, 3 senders: every member decrypted every other member's text
+      - each sender owns one outbound Megolm session and sent its key to the 3 other devices over pairwise Olm (9 to-device messages for 3 senders)
+PASS  substituted endpoint
+      - without a binding check the sender trusts keys/query, shares its Megolm key with the server-held identity key and that endpoint reads the text (measured)
+      - with the roster check the share is refused: roster: child-phone presents identity keys the household log does not list
+      - Matrix's own answer is cross-signing plus user verification; with the Plainphone household log as the source of truth, cross-signing duplicates the log and must be mapped or disabled
+      - the child refuses a to-device room key from an identity key the log does not list: roster: to-device from parent-b-phone with an identity key the household log does not list
+PASS  stale roster
+      - parent B builds recipients from a stale server member list: its existing Megolm session stays shared with the revoked tablet, which reads B's next text (measured)
+      - taking recipients from the verified household log makes B notice the removal, rotate, and the tablet reads nothing; a server that withholds log entries can still delay this, exactly as with MLS
+PASS  revoke then send
+      - A rotates its Megolm session on removal and the tablet cannot read A (true); B keeps its old session and the tablet reads B's post-revocation text (true): every sender must rotate on every removal
+      - after B also rotates, the child reads all 3 texts and the tablet none
+      - the revoked tablet can still encrypt with the session it shared before the revocation; the child rejects it only because the app checks the sender against the log (roster: sender parent-a-tablet is no longer in the household log)
+      - without that app check the child accepts 1 text(s) from the revoked tablet (measured)
+PASS  lost device
+      - the re-enrolled phone reads 1 of 2 texts: new sessions reach it, the pre-loss session does not (unknown session Zbw9Vbkm)
+      - if parent A forwards (or a key backup restores) the old Megolm session, the new phone also reads the old text (1 more): Matrix makes history access possible, and so a policy decision
+PASS  retry and reordering
+      - 5 texts delivered as 3,1,5,2,4: 5/5 decrypted
+      - the same event delivered twice: vodozemac decrypts it again; only the app's (session, index) check rejects it (replay: index 0 of session sbtfMKs9 seen before)
+      - with that check off the duplicate is accepted (true)
+      - 12 texts, newest first then the oldest: newest true, oldest true: an inbound Megolm session keeps every earlier index decryptable (no forward secrecy inside a session until it rotates)
+PASS  concurrent key changes
+      - both parents rotate in parallel after a removal; nothing to order, every member reads both: per-sender sessions have no shared epoch to fork
+PASS  offline child catches up
+      - child offline across 2 rotations and 4 texts reads 4 of 4 once it syncs
+      - timeline before the to-device key: 0 read (unknown session X92uXMBa), retried after the key arrived: 1 read; the app needs an 'unable to decrypt yet' state and a retry queue
+PASS  local storage and restart
+      - child phone state (account, 3 Olm sessions, own and inbound Megolm sessions) as encrypted pickles: 8088 bytes
+      - vodozemac pickles are encrypted with an app-supplied 32-byte key (the matrix-sdk stores add their own store cipher); the app still has to keep that key in Android Keystore / SecureStore
+      - a restart from the pickles continues the conversation
+      - live state and a rolled-back copy both encrypt at Megolm index 1 (same index: true); the first AES-CBC block is identical: true (both texts start with the same 16 bytes), so a restored backup leaks plaintext equality
+      - parent A reads 1 of the 2 and rejects the second as a replay (replay: index 1 of session np+cfMyY seen before)
+PASS  ciphertext-only server and push inspection
+      - 18 server-visible blobs (to-device Olm, Megolm events, push payloads): no plaintext canary
+      - Megolm event sizes for texts of [15, 53, 100, 21, 15] bytes: [93, 141, 189, 109, 93]: no padding, so the server learns each text's length to 16 bytes
+      - cleartext per event: sender device, session id and the message index (1 for A's second text); per to-device message: sender, recipient, sender identity key and Olm message type. The server sees who shares keys with whom and when each sender rotates
+=== matrix-sdk-probe
+PASS  SDK roundtrip, 3 users / 4 devices
+      - OlmMachine 0.19.1 with MemoryStore, driven only through its public API against an in-process homeserver: every device read both texts; 12 server-visible items, no plaintext canary
+PASS  SDK rotation after a device is deleted
+      - after the server deletes the tablet and announces the device-list change, parent B's next share rotates the Megolm session (new session id) and the tablet cannot read the new text (measured)
+      - the trigger is the server's device list: a server that keeps listing the tablet keeps it in the share, the same stale-roster gap the vodozemac harness shows
+PASS  SDK default sharing with a server-injected device
+      - server lists another user's signed device keys under the child's user ID: the SDK ignores them (the user and device IDs are inside the signed keys); attacker reads: false
+      - the homeserver operator registers a new device on the child's own account: with the SDK default (CollectStrategy::AllDevices) parent A shares the room key with it, and the server-held device reads: true (measured)
+      - with CollectStrategy::OnlyTrustedDevices and parent A marking exactly the household-log devices as locally verified, the injected device reads: false, the real child reads: true. This is the integration hook for the Plainphone roster
+PASS  SDK unable-to-decrypt, then retry
+      - decrypt before the to-device key: error (Can't find the room key to decrypt the event, withheld code: None); after the sync: ok. The app must keep and retry undecryptable events
+PASS  SDK duplicate and replayed events
+      - the same event (same event id) decrypted again: ok, idempotent
+      - the same ciphertext re-sent by the server under a new event id: accepted (measured): the app must dedupe by session id and message index
+=== cross-runtime (native <-> wasm32 in Node)
+== native parent creates, wasm child joins
+[native] parent-a-phone: keys and key package written
+[wasm32 in Node] child-phone: keys and key package written
+[native] parent-a-phone: group created, child-phone added after the roster check, text sent
+[wasm32 in Node] child-phone: joined from the Welcome, read ["SYNTH-CANARY hello from native"], replied
+[native] parent-a-phone: read ["SYNTH-CANARY reply from wasm32 in Node"]
+== wasm parent creates, native child joins
+[wasm32 in Node] parent-a-phone: keys and key package written
+[native] child-phone: keys and key package written
+[wasm32 in Node] parent-a-phone: group created, child-phone added after the roster check, text sent
+[native] child-phone: joined from the Welcome, read ["SYNTH-CANARY hello from wasm32 in Node"], replied
+[wasm32 in Node] parent-a-phone: read ["SYNTH-CANARY reply from native"]
+== sizes (bytes): native binary, wasm-bindgen module, gzip of the module
+2067496
+1625014
+516171
+=== sizes
+mls-harness android-arm64 .so: 2219816 bytes (gzip 970926)
+mls-harness wasm32 module:     2143090 bytes (gzip 617807)
+matrix-harness android-arm64 .so: 889616 bytes (gzip 440380)
+matrix-harness wasm32 module:     543255 bytes (gzip 204319)
+matrix-sdk-probe android-arm64 .so: 4553288 bytes (gzip 1726684)
+matrix-sdk-probe wasm32 module:     3271868 bytes (gzip 930061)
+plainphone_mls_selftest() on host: ok
+plainphone_matrix_selftest() on host: ok
+plainphone_matrix_sdk_selftest() on host: ok

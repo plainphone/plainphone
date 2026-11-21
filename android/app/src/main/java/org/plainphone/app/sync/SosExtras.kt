@@ -55,3 +55,15 @@ data class QuickMessages(
         }
     }
 }
+
+/**
+ * "Ask a parent to call" (docs/sos.md#asking-a-parent-to-call): only whether the parents switched it on.
+ * The number never reaches the phone. Missing from older servers: off.
+ */
+data class CallbackRules(val enabled: Boolean = false) {
+    companion object {
+        val OFF = CallbackRules()
+
+        fun parse(o: JSONObject?): CallbackRules = if (o == null) OFF else CallbackRules(o.optBoolean("enabled", false))
+    }
+}

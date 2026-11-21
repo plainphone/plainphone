@@ -131,6 +131,9 @@ sealed interface RulesResult {
  */
 data class QuickSendAnswer(val notified: Int, val limited: Boolean = false, val pending: Boolean = false)
 
+/** How far a callback request got (docs/sos.md#asking-a-parent-to-call): queued, sent, expired or done. */
+data class CallbackAnswer(val id: String, val state: String)
+
 data class InstalledApp(val packageName: String, val label: String, val core: Boolean)
 
 data class LocationFix(val lat: Double, val lon: Double, val accuracyM: Float?, val recordedAtMs: Long)
@@ -659,6 +662,30 @@ class PlainphoneApi private constructor(
         } catch (err: JSONException) {
             throw IOException("Invalid quick message response", err)
         }
+    }
+
+    /**
+     * The child asks a parent to call back. No number goes along. Safe to repeat: a repeated [id], or a tap while
+     * another request is open, is answered with the first request. [HttpError] 403 when the parents switched it off.
+     */
+    fun requestCallback(token: String, id: String, sentAtMs: Long): CallbackAnswer {
+        val body = JSONObject().put("id", id).put("sentAt", java.time.Instant.ofEpochMilli(sentAtMs).toString())
+        val r = call("POST", "/device/callback-requests", token, body, readTimeoutMs = 8_000, replayable = true)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return parseCallback(r.body)
+    }
+
+    /** Where a callback request is now. [HttpError] 404 when the server does not know it. */
+    fun callbackRequest(token: String, id: String): CallbackAnswer {
+        val r = call("GET", "/device/callback-requests/$id", token, readTimeoutMs = 8_000)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return parseCallback(r.body)
+    }
+
+    private fun parseCallback(body: String): CallbackAnswer = try {
+        JSONObject(body).let { CallbackAnswer(it.getString("id"), it.getString("state")) }
+    } catch (err: JSONException) {
+        throw IOException("Invalid callback response", err)
     }
 
     /** The child suggests a new quick message. 201 on success; [HttpError] 409 when three are waiting, 403 when off. */

@@ -36,6 +36,8 @@ import { canPreviewMove, MoveError, redeemMove, redeemMoveInput } from "../servi
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { approveRequestOnPhone, createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
+import { publishLive } from "../services/live-events.js";
+import { statusVisiblyChanged } from "../services/live-status.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
 import { recordAppUpdateWindow } from "../services/app-updates.js";
@@ -377,6 +379,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       );
     // Closes the timing of a wake-up the phone answered with this fetch (docs/latency.md).
     void finishWake(ctx, phone.id);
+    // A first sync (pairing done) or one after an offline alert is news on the dashboard.
+    if (!phone.lastSeenAt || phone.offlineAlertedAt) {
+      publishLive(ctx, { type: "phone.status", householdId: phone.householdId, phoneId: phone.id });
+    }
     const ifNoneMatch = c.req.header("if-none-match");
     const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
     const { body: rules, etag, hasMove } = await respondWithRules(ctx, phone, candidates);
@@ -683,10 +689,12 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
       }
       if (always || forFind) await storeLatestLocation(tx, phone.id, values);
-      return { status: 204 } as const;
+      return { status: 204, stored: always || forFind } as const;
     });
     if (result.status === 409) return c.json({ error: result.error ?? "no position was asked for" }, 409);
     if (result.status === 400) return c.json({ error: result.error }, 400);
+    // A check-in's position waits for the sweeper (it may still be discarded), so only a stored one is news.
+    if (result.stored) publishLive(ctx, { type: "location.updated", householdId: c.get("phone").householdId, phoneId });
     return c.body(null, 204);
   });
 
@@ -704,7 +712,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         .set({ shownAt: now })
         .where(and(request, isNull(safetyRequests.shownAt)))
         .returning({ id: safetyRequests.id });
-      if (shown.length) return c.body(null, 204);
+      if (shown.length) {
+        publishLive(ctx, { type: "safety.updated", householdId: phone.householdId, phoneId: phone.id });
+        return c.body(null, 204);
+      }
     } else {
       // Clear any unpublished fix in the same update that records the answer.
       const first = await ctx.db
@@ -867,8 +878,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         }, prev.attestation) : null,
         withAttestation({ ...status, lockIntact: lockIntactWithoutFilter ?? status.lockIntact }, prev.attestation),
       );
-      return { reason: lockLost ?? (filterLost ? "lock" as const : null), filterLost };
+      return { reason: lockLost ?? (filterLost ? "lock" as const : null), filterLost, shown: statusVisiblyChanged(prev.status, status) };
     });
+    if (lost?.shown) publishLive(ctx, { type: "phone.status", householdId: phone.householdId, phoneId: phone.id });
     if (lost?.reason) {
       const event = { type: "protection" as const, phoneId: phone.id, phoneName: phone.name, reason: lost.reason };
       await notifyHousehold(ctx, phone.id, event);

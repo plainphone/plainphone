@@ -138,6 +138,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/callback-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a parent to call the phone back
+         * @description The request carries no number. A repeated id, or a tap while another request is still open, answers with the first request and notifies nobody again. A report with `sentAt` is recorded even if the switch was turned off since; one older than 24 hours is stored as expired without an alert.
+         */
+        post: operations["requestCallback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/callback-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How far a callback request got */
+        get: operations["getDeviceCallbackRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/callback-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The last callback requests of a Child phone (kept 48 hours)
+         * @description Includes the number as saved now, so the app can show it before anything is dialled.
+         */
+        get: operations["listCallbackRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/callback-requests/{id}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A parent is calling back, or has called another way
+         * @description `number` carries the number the screen showed and is only accepted while it is still the saved one (409 `changed` or `missing`), so a stale number is never dialled. `other` records a call from the parent's own contacts and may carry the time it happened, so a report queued on a device is still recorded after the request expired. Repeating it changes nothing.
+         */
+        post: operations["markCallbackDone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/inbox": {
         parameters: {
             query?: never;
@@ -430,7 +512,7 @@ export interface paths {
         };
         /**
          * How fast alerts and wake-ups travel (last 7 days)
-         * @description Median and 95th percentile per path (docs/latency.md). `phone-server`: from the press on the child phone to the server, per `kind` (`sos`, `quick`). `server-parent`: from the server to the push service accepting the alert, per `provider` (`web`, `fcm`, `apns`). `parent-device`: from the server to the parent's device confirming it arrived. `server-child`: from a wake-up to the child phone's next rules fetch, per `provider` (`fcm`, `unifiedpush`, `poll`). Paths with fewer than `minSamples` samples are left out, and the sample counts are never shown, so the numbers cannot reveal when a single alert happened. No personal data; cached for a minute.
+         * @description Median and 95th percentile per path (docs/latency.md). `phone-server`: from the press on the child phone to the server, per `kind` (`sos`, `quick`, `callback`). `server-parent`: from the server to the push service accepting the alert, per `provider` (`web`, `fcm`, `apns`). `parent-device`: from the server to the parent's device confirming it arrived. `server-child`: from a wake-up to the child phone's next rules fetch, per `provider` (`fcm`, `unifiedpush`, `poll`). Paths with fewer than `minSamples` samples are left out, and the sample counts are never shown, so the numbers cannot reveal when a single alert happened. No personal data; cached for a minute.
          */
         get: operations["getLatency"];
         put?: never;
@@ -1118,6 +1200,32 @@ export interface paths {
         head?: never;
         /** Change my language */
         patch: operations["patchMe"];
+        trace?: never;
+    };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live updates (server-sent events)
+         * @description A `text/event-stream` that stays open while the dashboard or the parent app is open
+         *     (docs/live-updates.md). Only events of your own households. Each event carries ids only
+         *     (`{"type","phoneId","id"?,"kind"?}`); refetch through the normal API. Event names:
+         *     `sos.created`, `sos.updated`, `request.created`, `request.answered`, `location.updated`,
+         *     `safety.updated`, `inbox.message`, `phone.status`. Control events: `ready` (connected;
+         *     `{"resumed":bool}`), `refetch` (the gap since `Last-Event-ID` is unknown: reload everything),
+         *     `ping` (every 25 s) and `bye` (signed out; the stream ends).
+         */
+        get: operations["getEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/notifications": {
@@ -2932,8 +3040,49 @@ export interface components {
             battery: number | null;
             location: components["schemas"]["SosPosition"] | null;
         };
+        /** @description How far a callback request got, as the child's phone sees it. */
+        CallbackDeviceState: {
+            /**
+             * Format: uuid
+             * @description The request this tap belongs to; the first open one when a request was already open
+             */
+            id: string;
+            /**
+             * @description queued: no parent device has been notified yet, it waits in the dashboard; sent: a parent device got it; expired: nobody answered within 24 hours; done: a parent called or handled it
+             * @enum {unknown}
+             */
+            state: "queued" | "sent" | "expired" | "done";
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CallbackRequest: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            state: "queued" | "sent" | "expired" | "done";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            doneAt: string | null;
+            /** @enum {unknown} */
+            doneVia: "number" | "other" | null;
+            /**
+             * @description The saved number now: ok to dial, missing (cleared), or changed since the request was made
+             * @enum {unknown}
+             */
+            number: "ok" | "missing" | "changed";
+        };
         /** @description Per-phone switches for hidden SOS and quick messages (docs/sos.md). */
         SosSettings: {
+            /**
+             * @description The child may ask a parent to call back from the SOS screen. True only with a confirmed number (docs/sos.md#asking-a-parent-to-call)
+             * @default false
+             */
+            callbackRequests: boolean;
+            /** @description A parent has entered and confirmed the number in `callbackNumber` */
+            callbackConfirmed: boolean;
             /**
              * @description Pressing the power button quickly sends a silent urgent SOS
              * @default false
@@ -3545,6 +3694,10 @@ export interface components {
                     name: string;
                     number: components["schemas"]["E164"];
                 }[];
+                /** @description The child may ask a parent to call back. Only the switch; the number is never sent to the phone. */
+                callback?: {
+                    enabled: boolean;
+                };
                 hidden?: {
                     power: boolean;
                     /** @enum {integer} */
@@ -4758,7 +4911,12 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description The phone's own number. A new number is unconfirmed and switches callback requests off until `callbackConfirmed` is sent */
                     callbackNumber?: string | null;
+                    /** @description The parent says this is the phone's number */
+                    callbackConfirmed?: boolean;
+                    /** @description Let the phone ask for a callback. 409 without a confirmed number */
+                    callbackRequests?: boolean;
                     hiddenPower?: boolean;
                     /** @enum {integer} */
                     hiddenPresses?: 3 | 4 | 5 | 6;
@@ -4782,6 +4940,170 @@ export interface operations {
             };
             /** @description Not a Child phone */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Callback requests need a number a parent has confirmed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    requestCallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    /**
+                     * Format: date-time
+                     * @description When the child pressed the button
+                     */
+                    sentAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CallbackDeviceState"];
+                };
+            };
+            /** @description Asking for a callback is switched off (only for a request without `sentAt`; the phone always sends it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDeviceCallbackRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CallbackDeviceState"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listCallbackRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requests, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        callbackNumber: string | null;
+                        requests: components["schemas"]["CallbackRequest"][];
+                    };
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markCallbackDone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    via: "number";
+                    number: components["schemas"]["E164"];
+                } | {
+                    /** @enum {unknown} */
+                    via: "other";
+                    /** Format: date-time */
+                    at?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CallbackRequest"];
+                };
+            };
+            /** @description Request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `expired`, `changed` or `missing` */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6987,6 +7309,53 @@ export interface operations {
         responses: {
             /** @description Saved */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getEvents: {
+        parameters: {
+            query?: {
+                /** @description Same as the header, for clients that cannot set it */
+                lastEventId?: string;
+            };
+            header?: {
+                /** @description The last event id seen; missed events are replayed when still known */
+                "Last-Event-ID"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Sign in first */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many live connections for this account; fall back to polling and retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server has too many live connections; fall back to polling and retry later */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

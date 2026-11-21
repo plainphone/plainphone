@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
+import { CallbackRequests } from "../../../components/CallbackRequests";
 import { SosOptions } from "../../../components/SosOptions";
 import { SosPanel } from "../../../components/SosPanel";
 import { filterStatusKey } from "../../../shared/lib/filter-status";
@@ -543,6 +544,7 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
+      {phone.profile === "child" && <CallbackRequests key={`callbacks-${phone.id}`} pid={phone.id} />}
       {phone.profile === "child" && <SosOptions key={`sos-options-${phone.id}`} pid={phone.id} />}
       <Notice tone={state.attention ? "warn" : "info"} text={state.hint} />
       {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}

@@ -12,6 +12,7 @@ import { moreTimeRequests, phoneApps, phones, timeLimits } from "../db/schema.js
 import { applyOp } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { localDate, TOTAL } from "./limits.js";
+import { publishLive } from "./live-events.js";
 import { notifyAlertRecipients, notifyHousehold, phoneAlertRecipients } from "./notifications.js";
 import { respondWithRules, wakePhone } from "./phones.js";
 
@@ -143,6 +144,7 @@ export async function createMoreTimeRequest(
     return { request: row!, created: true };
   });
   if (out.created) {
+    publishLive(ctx, { type: "request.created", householdId: phone.householdId, phoneId: phone.id, id: out.request.id, kind: "more-time" });
     await notifyHousehold(ctx, phone.id, {
       type: "moreTime",
       requestId: out.request.id,
@@ -214,6 +216,10 @@ export async function answerMoreTimeRequest(
       .returning();
     return { request: decided!, won: true };
   });
+  // A request that expired on the way is news for the dashboards too.
+  if (out.won || out.request.status === "expired") {
+    publishLive(ctx, { type: "request.answered", householdId: phone.householdId, phoneId: phone.id, id: out.request.id, kind: "more-time" });
+  }
   // The phone shows the answer and applies the bonus: let it sync now.
   if (out.won) await wakePhone(ctx, phone.id, "rules");
   return out;

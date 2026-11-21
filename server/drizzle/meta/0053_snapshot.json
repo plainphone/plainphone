@@ -1,9 +1,127 @@
 {
-  "id": "d5289da9-6f0f-470b-973f-1a2dcd612a7e",
+  "id": "ca8fde43-b8bf-4289-90d6-b5dd20fe221f",
   "prevId": "a820cc17-1e20-4b7d-8b79-2d749e592331",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.callback_requests": {
+      "name": "callback_requests",
+      "schema": "",
+      "columns": {
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pushed_at": {
+          "name": "pushed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_by": {
+          "name": "done_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_via": {
+          "name": "done_via",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "callback_requests_expires_idx": {
+          "name": "callback_requests_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "callback_requests_phone_id_phones_id_fk": {
+          "name": "callback_requests_phone_id_phones_id_fk",
+          "tableFrom": "callback_requests",
+          "tableTo": "phones",
+          "columnsFrom": [
+            "phone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "callback_requests_done_by_users_id_fk": {
+          "name": "callback_requests_done_by_users_id_fk",
+          "tableFrom": "callback_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "done_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "callback_requests_phone_id_id_pk": {
+          "name": "callback_requests_phone_id_id_pk",
+          "columns": [
+            "phone_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.contact_suggestions": {
       "name": "contact_suggestions",
       "schema": "",
@@ -1181,153 +1299,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.latency_samples": {
-      "name": "latency_samples",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hour": {
-          "name": "hour",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ms": {
-          "name": "ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delivered_ms": {
-          "name": "delivered_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "opened_ms": {
-          "name": "opened_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "receipt": {
-          "name": "receipt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "anchor_at": {
-          "name": "anchor_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "latency_samples_receipt_uq": {
-          "name": "latency_samples_receipt_uq",
-          "columns": [
-            {
-              "expression": "receipt",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "latency_samples_open_wake_idx": {
-          "name": "latency_samples_open_wake_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"latency_samples\".\"ms\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "latency_samples_hour_idx": {
-          "name": "latency_samples_hour_idx",
-          "columns": [
-            {
-              "expression": "path",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "hour",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "latency_samples_phone_id_phones_id_fk": {
-          "name": "latency_samples_phone_id_phones_id_fk",
-          "tableFrom": "latency_samples",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -3118,6 +3089,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "sos_callback_set_at": {
+          "name": "sos_callback_set_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "callback_requests_enabled": {
+          "name": "callback_requests_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "hidden_sos_power": {
           "name": "hidden_sos_power",

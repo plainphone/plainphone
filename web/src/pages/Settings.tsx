@@ -5,6 +5,7 @@ import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../comp
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone } from "../lib/api";
 import { clearAccountState, useMe, useSession } from "../lib/session";
+import { LiveSettings } from "../components/LiveSettings";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { NotificationsSection } from "./Notifications";
 
@@ -14,6 +15,7 @@ export function SettingsPage() {
     <>
       <PageTitle>{t("settings.title")}</PageTitle>
       <NotificationsSection />
+      <LiveSettings />
       <WeeklySummarySettings />
       <section className="section" aria-labelledby="free-promise-h">
         <h2 id="free-promise-h">{t("settings.freeTitle")}</h2>

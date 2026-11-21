@@ -12,6 +12,7 @@ import type { Ctx } from "../services/context.js";
 import {
   addParentReply, familyMessageJson, inboxSwitches, listFamilyMessages, markReceived, REPLY_MAX,
 } from "../services/family-inbox.js";
+import { publishLive } from "../services/live-events.js";
 import { wakePhone } from "../services/phones.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -38,7 +39,10 @@ export function deviceFamilyInboxRoutes<E extends { Variables: { phone: Phone } 
   // The device receipt: the phone has these parent replies. A repeat changes nothing.
   app.post("/inbox/received", async (c) => {
     const input = await body(c, z.strictObject({ ids: z.array(z.uuid()).max(50) }));
-    await markReceived(ctx, c.get("phone").id, input.ids);
+    const phone = c.get("phone");
+    if (await markReceived(ctx, phone.id, input.ids)) {
+      publishLive(ctx, { type: "inbox.message", householdId: phone.householdId, phoneId: phone.id });
+    }
     return c.body(null, 204);
   });
 }
@@ -62,6 +66,8 @@ export function parentFamilyInboxRoutes<E extends { Variables: { user: { id: str
       name: z.string().trim().min(1).max(60).optional(),
     }));
     const row = await addParentReply(ctx, phone.id, { userId: c.get("user").id, text: input.text, name: input.name });
+    // The other parents' open dashboards show the reply too.
+    publishLive(ctx, { type: "inbox.message", householdId: phone.householdId, phoneId: phone.id, id: row.id });
     // The rules' `inbox.latest` changed: the phone fetches the thread and sends its receipt.
     await wakePhone(ctx, phone.id, "rules");
     return c.json(familyMessageJson(row), 201);

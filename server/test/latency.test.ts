@@ -47,6 +47,17 @@ describe("timing what the child phone sends", () => {
     expect(upload!.hour.toISOString()).toBe("2026-11-16T12:00:00.000Z");
   });
 
+  it("times a request to be called back as a non-urgent push, once", async () => {
+    const { parent, phoneId, device } = await parentWithPhone();
+    expect((await parent.put(`/api/phones/${phoneId}/sos`, { callbackNumber: "+4500000001", callbackConfirmed: true, callbackRequests: true })).status).toBe(204);
+    const id = randomUUID();
+    await device.call("POST", "/api/device/callback-requests", { id }, { "x-plainphone-elapsed-ms": "800" });
+    await device.call("POST", "/api/device/callback-requests", { id }, { "x-plainphone-elapsed-ms": "9000" });
+    await vi.waitFor(async () => expect((await samples()).filter((s) => s.path === "server-parent" && s.ms !== null)).toHaveLength(1));
+    expect((await samples()).filter((s) => s.path === "phone-server")).toMatchObject([{ kind: "callback", ms: 800 }]);
+    expect((await samples()).find((s) => s.path === "server-parent")).toMatchObject({ kind: "normal" });
+  });
+
   it("falls back to the phone's wall clock and ignores nonsense", async () => {
     const { device } = await parentWithPhone();
     await device.post("/api/device/sos", { id: randomUUID(), kind: "help", sentAt: new Date(h.clock.now.getTime() - 2_500).toISOString() });
