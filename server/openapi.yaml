@@ -1503,6 +1503,11 @@ components:
           format: uuid
           writeOnly: true
           description: Stable identifier for an unexpected catalog account change. Account identities are never sent.
+        clockMovedId:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: Stable identifier for "the phone's clock is set more than 10 minutes from the server's time". Sent once per move.
         mode:
           enum: [strong, light]
           description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
@@ -1629,6 +1634,11 @@ components:
             lateGoogleAccount:
               type: boolean
               description: The phone detected an unexpected account change during catalog fallback or a late Google sign-in.
+            clockMoved:
+              type: boolean
+              description: >-
+                The phone's clock was set far from the real time recently. Schedules and limits keep following
+                the server's time, so nothing opened up.
 
     ContactGroup:
       type: string
@@ -2703,6 +2713,11 @@ paths:
           description: Rules changed (or first fetch). Cache the document and ETag, and confirm the ETag in status after a successful application.
           headers:
             ETag: { schema: { type: string } }
+            X-Server-Time:
+              description: >-
+                The server's clock in milliseconds since the epoch. Every `/device/*` answer carries it.
+                Phones keep their schedules on it instead of their own clock (docs/light-mode.md, "The phone's clock").
+              schema: { type: string, pattern: "^[0-9]+$" }
           content:
             application/json:
               schema:
@@ -2710,7 +2725,10 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Rules"
                   - $ref: "#/components/schemas/IosRules"
-        "304": { description: "Unchanged" }
+        "304":
+          description: Unchanged
+          headers:
+            X-Server-Time: { description: "The server's clock in milliseconds since the epoch.", schema: { type: string, pattern: "^[0-9]+$" } }
         "401": { description: "Token unknown (phone removed by a parent). Keep the last rules and show \"pair again\"." }
 
   /device/ios-selection:

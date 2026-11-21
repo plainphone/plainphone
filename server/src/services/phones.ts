@@ -526,7 +526,7 @@ function visibleNotice(notice: StatusNotice | undefined, now: Date): true | unde
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
   const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
-    lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
+    lateGoogleAccountNotice, clockMovedNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
     lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline,
     liftedOverdueAlertedAt: _liftedAlerted, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
@@ -538,6 +538,7 @@ function summaryStatus(phone: Phone, now: Date) {
     ...withAttestation({ ...status, failedPolicies }, phone.attestation),
     parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
     lateGoogleAccount: visibleNotice(lateGoogleAccountNotice, now),
+    clockMoved: visibleNotice(clockMovedNotice, now),
     reportedAt: phone.statusReportedAt.toISOString(),
   };
 }
