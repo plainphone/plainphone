@@ -436,7 +436,8 @@ jobs:
       - name: Use the newest Xcode 26
         if: needs.changes.outputs.ios == 'true'
         run: |
-          xcode=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          # Highest released Xcode 26 by version number; betas are skipped.
+          xcode=$(python3 -c 'import glob, re; c = [p for p in glob.glob("/Applications/Xcode_26*.app") if "beta" not in p.lower()]; print(max(c, key=lambda p: [int(n) for n in re.findall(r"\d+", p)]) if c else "")')
           if [[ -z "$xcode" ]]; then echo "::error::No Xcode 26 on this runner."; exit 1; fi
           sudo xcode-select -s "$xcode"
           xcodebuild -version
