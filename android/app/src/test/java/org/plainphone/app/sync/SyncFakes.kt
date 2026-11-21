@@ -40,6 +40,9 @@ class FakeSyncDevice(
     var releases = 0
 
     override fun nowMs() = now
+    val serverTimes = mutableListOf<ServerTime>()
+    var appliedAfterServerTime: Boolean? = null
+    override fun serverTime(time: ServerTime) { serverTimes += time }
     override fun appVersion() = "0.1.2"
     var dynamicCorePackages = emptySet<String>()
     override fun dynamicCorePackages() = dynamicCorePackages
@@ -49,7 +52,10 @@ class FakeSyncDevice(
         installedAppsCalls++
         return apps
     }
-    override fun applyLockIfNeeded(reason: String, maxAgeMs: Long) { applies += reason }
+    override fun applyLockIfNeeded(reason: String, maxAgeMs: Long) {
+        if (appliedAfterServerTime == null) appliedAfterServerTime = serverTimes.isNotEmpty()
+        applies += reason
+    }
     override fun lockState() = lock
     override fun removeSetupUndoAdmin() = Unit
 
@@ -81,6 +87,8 @@ class FakeSyncDevice(
 class FakeSyncApi : SyncApi {
     var rules: RulesResult = RulesResult.Unchanged
     var failRules: IOException? = null
+    var serverTime: ServerTime? = null
+    override fun lastServerTime() = serverTime
     val etagsSent = mutableListOf<String?>()
     var onReportApps: (() -> Unit)? = null
     val appsReported = mutableListOf<List<InstalledApp>>()
