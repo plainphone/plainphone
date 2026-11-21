@@ -86,7 +86,7 @@ async function parentIds(ctx: Ctx, householdId: string) {
 /** The parents of a phone who have not muted it (`loud`) and how many have (`muted`). */
 async function parentsByMute(ctx: Ctx, phone: Phone) {
   const [all, mutes] = await Promise.all([
-    parentsByMute(ctx, phone),
+    parentIds(ctx, phone.householdId),
     ctx.db.select({ id: notificationMutes.userId }).from(notificationMutes).where(eq(notificationMutes.phoneId, phone.id)),
   ]);
   const quiet = new Set(mutes.map((m) => m.id));
