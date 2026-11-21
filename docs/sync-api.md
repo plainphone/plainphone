@@ -222,7 +222,8 @@ parent (PWA)                                server                          phon
 on the boot when setup completed. After switching off locally, it sends an authenticated
 `POST /device/undo-setup`. In one transaction the server removes the phone and queues the
 standard protection-removed notice, which says setup was undone on the phone. The sweeper
-retries failed deliveries. The phone retries the report until it gets `204` (removed) or
+retries a failed delivery after 1 minute, then 2, 4 and so on up to an hour, and drops the
+notice (one log line, no personal data) once it is a day old. The phone retries the report until it gets `204` (removed) or
 `401` with `{"error":"unknown device; pair again"}` (pairing already gone). A `404` from
 an older server can mean the route is missing, so the phone keeps retrying. Repeated
 reports cannot enqueue a second notice.

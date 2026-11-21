@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Hidden SOS and quick messages (docs/sos.md). Every part has its own per-phone switch.
 import { and, asc, count, eq, gt, lt } from "drizzle-orm";
-import { householdMembers, phones, quickMessageSends, quickMessages } from "../db/schema.js";
+import { householdMembers, notificationMutes, phones, quickMessageSends, quickMessages } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import { callbackEnabled } from "./callback-requests.js";
-import { markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
+import { inboxSwitches, markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
 import { publishLive } from "./live-events.js";
 import { notifyUsers } from "./notifications.js";
 
@@ -82,6 +82,17 @@ async function parentIds(ctx: Ctx, householdId: string) {
   return rows.map((r) => r.id);
 }
 
+/** The parents of a phone who have not muted it (`loud`) and how many have (`muted`). */
+async function parentsByMute(ctx: Ctx, phone: Phone) {
+  const [all, mutes] = await Promise.all([
+    parentIds(ctx, phone.householdId),
+    ctx.db.select({ id: notificationMutes.userId }).from(notificationMutes).where(eq(notificationMutes.phoneId, phone.id)),
+  ]);
+  const quiet = new Set(mutes.map((m) => m.id));
+  const loud = all.filter((id) => !quiet.has(id));
+  return { loud, muted: all.length - loud.length };
+}
+
 /** `quick_message_sends.notified` while the first call is still notifying. */
 const NOTIFY_PENDING = -2;
 /** `quick_message_sends.notified` for a send over the limit: recorded but quiet. */
@@ -112,7 +123,7 @@ export async function sendQuickMessage(
   // Sent from the family inbox (a check-in always is): it joins the thread, even if the inbox was
   // switched off after the phone sent it (docs/family-inbox.md).
   const kind = input.kind ?? "quick";
-  const inThread = input.inbox === true || kind === "checkin";
+  let inThread = input.inbox === true || kind === "checkin";
   if (inThread) await recordChildMessage(ctx, phone, { id: input.id, kind, text: input.text, sentAt: input.sentAt });
   const row = and(eq(quickMessageSends.phoneId, phone.id), eq(quickMessageSends.id, input.id));
   const [claimed] = await ctx.db.insert(quickMessageSends)
@@ -140,11 +151,20 @@ export async function sendQuickMessage(
   if ((recent?.total ?? 0) > SEND_LIMIT) notified = NOTIFY_LIMITED;
   else if (phone.releaseRequestedAt) notified = 0;
   else {
-    // Never urgent, also in the child's quiet hours: only a code word (through SOS) is.
-    notified = await notifyUsers(ctx, await parentIds(ctx, phone.householdId), kind === "checkin"
+    // Never urgent, also in the child's quiet hours: only a code word (through SOS) is. A parent who
+    // muted the phone gets no push, but the message still lands in the thread.
+    const { loud, muted } = await parentsByMute(ctx, phone);
+    if (muted > 0 && !inThread) {
+      await recordChildMessage(ctx, phone, { id: input.id, kind, text: input.text, sentAt: input.sentAt });
+      inThread = true;
+    }
+    const pushed = await notifyUsers(ctx, loud, kind === "checkin"
       ? { type: "checkIn", id: input.id, phoneId: phone.id, phoneName: phone.name }
       : { type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text },
     ).catch(() => 0);
+    // With every parent muted and the inbox visible the thread has it: the phone must not send an SMS
+    // on top. With the inbox off nobody would ever see it, so the phone falls back to SMS.
+    notified = loud.length === 0 && inboxSwitches(phone).familyInbox ? muted : pushed;
   }
   await ctx.db.update(quickMessageSends).set({ notified }).where(row);
   if (inThread && notified !== NOTIFY_LIMITED) {
@@ -173,7 +193,7 @@ export async function suggestQuickMessage(ctx: Ctx, phone: Phone, text: string) 
   if (row.fresh) {
     await notifyUsers(ctx, await parentIds(ctx, phone.householdId), {
       type: "quickSuggestion", phoneId: phone.id, phoneName: phone.name, text,
-    }).catch(() => 0);
+    }, { respectMuteFor: phone.id }).catch(() => 0);
   }
   return { id: row.row.id, status: row.row.status };
 }

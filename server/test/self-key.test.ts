@@ -144,6 +144,23 @@ describe("Self profile: ways around the key", () => {
     h.clock.advance(24 * 3_600_000);
     expect(await allowed(device)).toContain("com.instagram.android");
   });
+
+  it("uses the key's own delay, not 24 hours, while the trusted person has not joined", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    for (const delayHours of [1, 6]) {
+      const key = { keyType: "trusted", delayHours, trustedEmail: "typo@example.org", payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" };
+      expect((await me.put(`/api/phones/${phoneId}/key`, key)).status).toBeLessThan(300);
+      h.clock.advance(24 * 3_600_000);
+      await sweep(h.ctx);
+      expect((await me.get(`/api/phones/${phoneId}/key`)).json).toMatchObject({ keyType: "trusted", delayHours });
+      const show = await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true });
+      expect(show.json.change.keyType).toBe("delay");
+      expect(new Date(show.json.change.effectiveAt).getTime() - h.clock.now.getTime()).toBe(delayHours * 3_600_000);
+      h.clock.advance(delayHours * 3_600_000);
+      expect(await allowed(device)).toContain("com.instagram.android");
+      await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: false });
+    }
+  });
 });
 
 describe("Self profile with a trusted person", () => {

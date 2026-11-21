@@ -178,7 +178,7 @@ shifts its stored usage when the clock changes, so the count follows. Check that
    as done clears its own help.
    On **Myself**, **Back** goes one screen at a time and keeps every choice (other VPN, undo
    time, key). The last screen summarises the undo time and the key: the wait in hours or, for a
-   trusted person, that changes wait 24 hours until they accept.
+   trusted person, that changes wait for the key's own delay until they accept.
 6. Background operation, location and always-on VPN are optional. For always-on VPN, leave
    **Block connections without VPN** off. The filter only carries DNS lookups
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's
