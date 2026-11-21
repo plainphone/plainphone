@@ -30,10 +30,9 @@ object MlsCore {
         return loaded
     }
 
-    /** JVM unit tests load a host build of the same library from an absolute path. */
+    /** JVM unit tests load a host build of the same library themselves, then call this. */
     @Synchronized
-    internal fun loadForTest(path: String) {
-        System.load(path)
+    internal fun markLoadedForTest() {
         loaded = true
     }
 

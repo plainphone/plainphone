@@ -274,6 +274,17 @@ jobs:
     timeout-minutes: 40
     env:
       RUSTUP_TOOLCHAIN: "1.99.1"
+    services:
+      postgres:
+        image: ${{ needs.changes.result == 'success' && needs.changes.outputs.e2ee == 'true' && 'postgres:18' || '' }}
+        env:
+          POSTGRES_USER: plainphone
+          POSTGRES_PASSWORD: plainphone
+          POSTGRES_DB: plainphone_e2ee
+        ports: ["5432"]
+        options: >-
+          --health-cmd "pg_isready -U plainphone -d plainphone_e2ee"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - name: Require a successful change check
         if: needs.changes.result != 'success'
@@ -319,6 +330,8 @@ jobs:
         if: needs.changes.outputs.e2ee == 'true'
       - name: Demo against the real server (two parents, a child, add, remove, rotate, texts)
         if: needs.changes.outputs.e2ee == 'true'
+        env:
+          DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2ee
         run: scripts/e2ee-prototype-demo.sh
       - name: Build the core for the host JVM and for arm64 Android
         if: needs.changes.outputs.e2ee == 'true'

@@ -26,7 +26,8 @@ class MlsCoreJniTest {
         fun loadLibrary() {
             val path = System.getProperty("plainphone.mlsHostLib").orEmpty()
             assumeTrue("set -PplainphoneMlsHostLib to run the JNI test", path.isNotEmpty() && File(path).isFile)
-            MlsCore.loadForTest(path)
+            System.load(path)
+            MlsCore.markLoadedForTest()
         }
     }
 
