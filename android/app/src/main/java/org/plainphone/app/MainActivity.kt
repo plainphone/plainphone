@@ -284,7 +284,7 @@ class MainActivity : Activity() {
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))
             val contacts = ContactPolicySources.get(this@MainActivity).rules()
             // The mode on now (docs/modes.md). Its groups narrow the list, so count the whole list first.
-            val mode = org.plainphone.app.sync.Modes.shown(rules, contacts.enforced, java.time.Instant.now())
+            val mode = org.plainphone.app.sync.Modes.shown(rules, contacts.enforced, org.plainphone.app.time.TrustedClock.of(this@MainActivity).now())
             mode?.let {
                 val name = org.plainphone.app.home.modeLabel(this@MainActivity, it.mode)
                 appendLine(

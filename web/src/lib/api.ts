@@ -76,6 +76,8 @@ export interface PhoneStatus {
   callRoleActionNeeded?: boolean;
   parallelAppsRemoved?: boolean;
   lateGoogleAccount?: boolean;
+  /** The phone's clock was set far from the server's time recently; schedules still follow the server. */
+  clockMoved?: boolean;
   /** Missing on older phones, which are strong mode. */
   mode?: "strong" | "light";
   /** What is active on the phone right now. */

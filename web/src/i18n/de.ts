@@ -620,6 +620,7 @@ export const de: Messages = {
   "phone.callRoleActionNeeded": "Öffnen Sie Plainphone auf dem Telefon und tippen Sie auf Zulassen",
   "phone.parallelAppsRemoved": "Parallele Apps wurden entfernt.",
   "phone.lateGoogleAccount": "Während oder nach der App-Installation wurde eine unerwartete Kontoänderung festgestellt",
+  "phone.clockMoved": "Die Uhr des Telefons zeigt eine falsche Zeit. Schulzeit, Schlafenszeit und Limits folgen weiter der echten Zeit.",
   "phone.liftedOpen": "Kontoänderungen sind für eine genehmigte Anmeldung bis {time} Uhr erlaubt.",
   "phone.liftedOverdue": "Kontoänderungen waren für eine Anmeldung bis {time} Uhr erlaubt. Das Handy hat sich seitdem nicht gemeldet.",
   "phone.accountTypes": "Konten am Telefon: {types}",

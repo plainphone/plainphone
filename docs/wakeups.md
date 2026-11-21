@@ -16,7 +16,7 @@ in this table against the production source, including both branches of platform
 | `PlainphoneApplication.kt` `getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(` | When the default network becomes available | Either | Request sync, throttled to once a minute. |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)` | On default-role changes | Either | Recheck phone and SMS roles (Android 13+). |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter)` | On default-role changes | Either | Recheck phone and SMS roles (older Android). |
-| `Lock.kt` `am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli() + 1_000L, windowIntent(context))` | Next rule-window boundary + 1 s | Either | Apply school time and bedtime transitions. |
+| `Lock.kt` `am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, windowIntent(context))` | Next rule-window boundary + 1 s, on the trusted time and the boot clock | Either | Apply school time and bedtime transitions; moving the phone's clock does not move it. |
 | `Lock.kt` `context.getSystemService(AlarmManager::class.java).setAndAllowWhileIdle(` | At maintenance expiry | Either | Restore the lock after a parent unlocks it. |
 | `MaintenanceActivity.kt` `handler.postDelayed(this, remaining)` | At the install-window deadline | On | Update the maintenance UI when an install window closes. |
 | `light/GuardService.kt` `main.postDelayed(this, TICK_MS)` | 30 s | On | Recheck the foreground app’s allow-list and time limit. |

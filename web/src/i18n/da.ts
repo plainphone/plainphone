@@ -653,6 +653,7 @@ export const da: Messages = {
   "phone.callRoleActionNeeded": "Åbn Plainphone på telefonen og tryk Tillad",
   "phone.parallelAppsRemoved": "Parallelle apps er fjernet.",
   "phone.lateGoogleAccount": "Der blev registreret en uventet kontoændring under eller efter appinstallation",
+  "phone.clockMoved": "Telefonens ur viser forkert tid. Skoletid, sengetid og grænser følger stadig den rigtige tid.",
   "phone.liftedOpen": "Kontoændringer er tilladt til et godkendt login indtil kl. {time}.",
   "phone.liftedOverdue": "Kontoændringer var tilladt til et login indtil kl. {time}. Telefonen har ikke meldt sig siden.",
   "phone.accountTypes": "Konti på telefonen: {types}",

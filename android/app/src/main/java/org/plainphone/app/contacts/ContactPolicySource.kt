@@ -6,7 +6,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.telephony.TelephonyManager
 import android.util.Log
-import java.time.Instant
+import org.plainphone.app.time.TrustedClock
 import org.plainphone.app.quiet.BedtimeQuiet
 import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.LightSetup
@@ -196,20 +196,22 @@ class SyncedContactPolicySource(
             (server?.profile == "self" && server.selfScheduleContacts == true)
         val controlled = base.enforced || (restrictInLight && Mode.isLight(app) && LightSetup.isComplete(app) &&
             !LightRelease.isReleased(app) && !Lock.isInMaintenanceWindow(app))
+        // Modes, bedtime and schedules on the trusted time, not the phone's clock (time/TrustedClock.kt).
+        val time = TrustedClock.of(app).now()
         val synced = base.copy(
             enforced = controlled,
             // A mode can narrow calls and texts to some contact groups; parents always stay (docs/modes.md).
-            contacts = Modes.allowedContacts(server, fromServer, Instant.now()),
+            contacts = Modes.allowedContacts(server, fromServer, time),
             childProfile = server?.profile == "child",
             suggestDeviceContacts = server?.profile == "child" && server.suggestDeviceContacts,
-            silentBedtime = BedtimeQuiet.silentNow(server, Instant.now()),
+            silentBedtime = BedtimeQuiet.silentNow(server, time),
             bedtimeRingers = server?.let(BedtimeQuiet::ringers).orEmpty(),
         )
         return if (server?.profile == "self") {
             val restriction = server.selfScheduleContacts
             // Before this setting existed, only a locked Device Owner enforced the list.
             val self = if (restriction == null) synced.copy(enforced = base.enforced) else synced
-            selfTelephonyRules(self, restriction, server.schedules, server.timezone, Instant.now())
+            selfTelephonyRules(self, restriction, server.schedules, server.timezone, time.instant, time)
         } else synced
     }
 

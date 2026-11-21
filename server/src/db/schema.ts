@@ -354,6 +354,7 @@ export const phones = pgTable(
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
       parallelAppsRemovedNotice?: StatusNotice;
       lateGoogleAccountNotice?: StatusNotice;
+      clockMovedNotice?: StatusNotice;
       installOverrun?: { policy: string; sequence?: number; receivedAt: string };
     }>(),
     /** Server time of that report. */

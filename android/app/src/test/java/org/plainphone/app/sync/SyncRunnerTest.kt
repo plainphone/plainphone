@@ -51,6 +51,20 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `the server's clock reaches the trusted time before the lock is applied`() {
+        pair()
+        api.serverTime = ServerTime(serverMs = 1_900_000_000_000L, elapsedMs = 12_345L)
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        runner.run("test")
+        assertThat(device.serverTimes).containsExactly(api.serverTime)
+        assertThat(device.appliedAfterServerTime).isTrue()
+        // A failed fetch whose answer still came from the server keeps the clock too.
+        api.failRules = HttpError(503, "busy")
+        runner.run("again")
+        assertThat(device.serverTimes).hasSize(2)
+    }
+
+    @Test
     fun `new rules are stored and applied, then polled with their ETag`() {
         pair()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson())

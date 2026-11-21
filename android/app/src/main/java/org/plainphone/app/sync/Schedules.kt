@@ -8,6 +8,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import org.plainphone.app.time.TrustedTime
 
 /**
  * School time and bedtime, evaluated in wall-clock time of the phone's time zone.
@@ -34,6 +35,29 @@ object Schedules {
                 (today in s.days && time >= s.start) || (yesterday in s.days && time < s.end)
             }
         }
+    }
+
+    /**
+     * The windows that may apply at [time]. With an exact time that is [active]. After a restart
+     * without a sync the phone only knows a range, and a window that is on anywhere in it counts
+     * ("cautious": docs/light-mode.md, "The phone's clock").
+     */
+    fun active(schedules: List<Schedule>, time: TrustedTime, zone: ZoneId): List<Schedule> {
+        if (time.exact) return active(schedules, time.earliest, zone)
+        val on = active(schedules, time.earliest, zone)
+        return schedules.filter { s -> s in on || nextStart(s, time.earliest, zone)?.let { !it.isAfter(time.latest) } == true }
+    }
+
+    /** The first start of [s] after [after], or null when it has no days. */
+    private fun nextStart(s: Schedule, after: Instant, zone: ZoneId): Instant? {
+        val first = after.atZone(zone).toLocalDate()
+        for (offset in 0L..7L) {
+            val date = first.plusDays(offset)
+            if (date.dayOfWeek.value !in s.days) continue
+            val at = wallClock(date, s.start, zone)
+            if (at.isAfter(after)) return at
+        }
+        return null
     }
 
     /**

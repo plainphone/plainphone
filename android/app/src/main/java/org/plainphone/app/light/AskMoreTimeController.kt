@@ -15,6 +15,7 @@ import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.time.MoreTime
 import org.plainphone.app.time.MoreTimeOutbox
 import org.plainphone.app.time.TimeGuard
+import org.plainphone.app.time.TrustedClock
 
 /**
  * The stop screen's side of asking for more time for [pkg]. Blocking: call off the main thread.
@@ -30,14 +31,16 @@ internal class AskMoreTimeController(context: Context, private val pkg: String) 
         val rules = store.rules() ?: return null
         if (!rules.askMoreTimeEnabled || rules.profile != "child") return null
         val snap = TimeGuard.snapshot(app) ?: return null
-        val now = Instant.now()
+        // Which day it is and when the ask was made: the trusted time (time/TrustedClock.kt).
+        val time = TrustedClock.of(app).now()
+        val now = time.instant
         val today = now.atZone(rules.timezone).toLocalDate()
         if (online) exchange(today)
         val target = MoreTime.target(snap.evaluation, pkg) { store.moreTime.latest(it, today) } ?: return null
         return MoreTime.ui(
             store.moreTime.latest(target, today), today, now.toEpochMilli(),
             snap.limits.capMinutes(target, today), snap.evaluation.remainingFor(pkg),
-        ) { ms -> HomeActivity.timeText(app, Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalTime()) }
+        ) { ms -> HomeActivity.timeText(app, time.onWallClock(Instant.ofEpochMilli(ms)).atZone(ZoneId.systemDefault()).toLocalTime()) }
     }
 
     /** Saves the ask for whatever is used up, tries to send it at once, and returns the new state. */
@@ -46,9 +49,10 @@ internal class AskMoreTimeController(context: Context, private val pkg: String) 
         // Switched off (or no parent to ask) since the screen was drawn: save nothing.
         if (!rules.askMoreTimeEnabled || rules.profile != "child") return null
         val snap = TimeGuard.snapshot(app) ?: return null
-        val today = Instant.now().atZone(rules.timezone).toLocalDate()
+        val time = TrustedClock.of(app).now()
+        val today = time.instant.atZone(rules.timezone).toLocalDate()
         val target = MoreTime.target(snap.evaluation, pkg) { null } ?: return state(online = false)
-        store.moreTime.ask(target, today, reason, System.currentTimeMillis(), snap.limits.capMinutes(target, today))
+        store.moreTime.ask(target, today, reason, time.ms, snap.limits.capMinutes(target, today))
         if (!exchange(today)) runCatching { SyncScheduler.now(app, "ask for more time") }
         return state(online = false)
     }

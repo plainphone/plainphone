@@ -59,7 +59,7 @@ class SharingActivity : ComponentActivity() {
                     activeMode = org.plainphone.app.sync.Modes.shown(
                         rules,
                         org.plainphone.app.contacts.ContactPolicySources.get(this).rules().enforced,
-                        java.time.Instant.now(),
+                        org.plainphone.app.time.TrustedClock.of(this).now(),
                     ),
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),

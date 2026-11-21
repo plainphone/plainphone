@@ -620,6 +620,7 @@ export const nb: Messages = {
   "phone.callRoleActionNeeded": "Åpne Plainphone på telefonen og trykk på Tillat",
   "phone.parallelAppsRemoved": "Parallelle apper er fjernet.",
   "phone.lateGoogleAccount": "En uventet kontoendring ble oppdaget under eller etter appinstallasjon",
+  "phone.clockMoved": "Telefonens klokke viser feil tid. Skoletid, leggetid og grenser følger fortsatt riktig tid.",
   "phone.liftedOpen": "Kontoendringer er tillatt for en godkjent innlogging til kl. {time}.",
   "phone.liftedOverdue": "Kontoendringer var tillatt for en innlogging til kl. {time}. Telefonen har ikke meldt seg siden.",
   "phone.accountTypes": "Kontoer på telefonen: {types}",

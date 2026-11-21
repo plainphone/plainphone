@@ -6,13 +6,15 @@ import java.time.Instant
 import java.time.ZoneId
 import org.plainphone.app.sync.Schedule
 import org.plainphone.app.sync.Schedules
+import org.plainphone.app.time.TrustedTime
 
 internal fun selfTelephonyRules(
     base: ContactRules, restricted: Boolean?, schedules: List<Schedule>, zone: ZoneId, now: Instant,
+    time: TrustedTime = TrustedTime.at(now),
 ): ContactRules = base.copy(
     enforced = base.enforced && when (restricted) {
         null -> true
-        true -> Schedules.active(schedules, now, zone).isNotEmpty()
+        true -> Schedules.active(schedules, time, zone).isNotEmpty()
         false -> false
     },
     selfProfile = true,

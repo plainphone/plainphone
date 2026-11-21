@@ -32,6 +32,8 @@ internal class StatusNotices(context: Context) {
     companion object {
         const val PARALLEL_APPS_REMOVED = "parallel_apps_removed"
         const val LATE_GOOGLE_ACCOUNT = "late_google_account"
+        /** The phone's clock is set far from the server's time (time/TrustedClock.kt). */
+        const val CLOCK_MOVED = "clock_moved"
         private val LOCK = Any()
     }
 }

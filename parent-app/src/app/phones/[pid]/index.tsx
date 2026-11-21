@@ -561,6 +561,7 @@ function Overview() {
       ) : filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" && !isIphone(phone) ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
+      {phone.status?.clockMoved ? <Notice tone="info" text={t("phone.clockMoved")} /> : null}
       {lifted ? <Notice tone={lifted.overdue ? "warn" : "info"} text={t(lifted.overdue ? "phone.liftedOverdue" : "phone.liftedOpen", { time: formatTimeOfDay(lifted.until, locale) })} /> : null}
       {!showHealth && phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}

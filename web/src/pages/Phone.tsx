@@ -426,6 +426,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
       {!showHealth && s?.lockIntact && !s.maintenance && <p className="row-title">{t("phone.lockIntact")}</p>}
       {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
       {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
+      {s?.clockMoved && <p className="notice notice-info" role="status">{t("phone.clockMoved")}</p>}
       {lifted && (
         <p className={lifted.overdue ? "notice notice-warn" : "notice notice-info"} role="status">
           {t(lifted.overdue ? "phone.liftedOverdue" : "phone.liftedOpen", { time: formatTimeOfDay(lifted.until, locale) })}
