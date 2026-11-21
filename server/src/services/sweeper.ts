@@ -19,6 +19,7 @@ import { sweepExtended } from "./extended-family.js";
 import { sweepCallbackRequests } from "./callback-requests.js";
 import { sweepSummaries } from "./weekly-summary.js";
 import { sweepReviewReminders } from "./age-review.js";
+import { sweepEarlyUnlocks } from "./early-unlock.js";
 
 const DAY = 86_400_000;
 /** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
@@ -59,6 +60,8 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   await ctx.db.delete(phoneMoves).where(lt(phoneMoves.expiresAt, now));
   await ctx.db.delete(moveImports).where(lt(moveImports.expiresAt, now));
   const applied = await applyDueChanges(ctx);
+  // Paid early unlocks (docs/billing.md): delivered, refunded or expired. Nothing while billing never ran.
+  await sweepEarlyUnlocks(ctx);
   // A resolver retry that succeeds changes the rules' ETag for phones that confirmed the
   // "waiting" state: wake them so they fetch and confirm the final one.
   const waitingForDns = (await ctx.db.select({ id: phones.id }).from(phones)

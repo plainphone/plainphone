@@ -47,6 +47,16 @@ are local to the workspace unless an encryption key is configured for CI
 transfer. The Android jobs cache the requested platform and build-tools
 directories when the hosted runner does not already have them.
 
+The Android app has two build properties instead of product flavours, so task
+names such as `assembleDebug` stay the same. `-PplainphoneFcm=true` adds Firebase
+push (docs/push-setup.md). `-PplainphonePlay=true` builds the Google Play
+edition: it compiles `app/src/play/java` and adds the Google Play Billing
+Library, which the paid early unlock needs (docs/billing.md). Without it the
+build compiles `app/src/direct/java`, has no billing dependency and never shows
+a paid offer. The default unit tests read `app/src/play` as text and fail if it
+mentions Stripe, a checkout URL, or finishes (acknowledges or consumes) a
+purchase itself, which only the server may do.
+
 ## Baseline and comparison
 
 Job durations are elapsed seconds from the public GitHub Actions jobs API.

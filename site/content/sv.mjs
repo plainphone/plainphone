@@ -200,7 +200,7 @@ export default {
     description:
       "Vad Plainphone lagrar om dig och de telefoner du hanterar, hur länge, vilka mer som är inblandade och hur man ber oss korrigera eller radera det.",
     h1: "Integritetspolicy",
-    updated: "Senast uppdaterad 17 november 2026",
+    updated: "Senast uppdaterad 20 november 2026",
     lead:
       "Plainphone håller så lite den kan, under så kort tid som den kan. Den här sidan säger vad det betyder i praktiken. Den är skriven för att läsas, inte för att dölja saker.",
     status:
@@ -315,6 +315,24 @@ export default {
         ],
       },
       {
+        id: "billing",
+        title: "Betalning",
+        body: [
+          "Plainphone tar inte betalt för något ännu, och den värdbaserade tjänsten har inga betalfunktioner i dag. Det här avsnittet beskriver vad som sparas när betalning slås på. När det sker ändras den här sidan först.",
+          "För varje hushåll sparar vi:",
+          {
+            list: [
+              "dess plan (gratis eller betald) och vilken leverantör som hanterar betalningen: Google Play eller Stripe",
+              "leverantörens id: hos Stripe ett kund-id och ett prenumerations-id, hos Google Play köptoken",
+              "om du betalar för att avsluta en väntetid i förtid på en telefon med profilen För mig själv: belopp och valuta, tidpunkten för ditt samtycke, betalningen, upplåsningen, ett ångrande och en återbetalning samt avtalsnumret",
+            ],
+          },
+          "Kvitton skickas med e-post till adressen på ditt konto.",
+          "Vi ser eller sparar aldrig kortnummer eller andra kortuppgifter. Betalningar hanteras av Stripe (i webbpanelen) eller av Google Play (i Plainphone-appen från Google Play). Det de samlar in omfattas av deras egna integritetspolicyer.",
+          "När en telefon eller ett hushåll tas bort sparas köpuppgifterna för bokföring, som bokföringslagen kräver. När ditt konto är raderat sparas de utan koppling till kontot.",
+        ],
+      },
+      {
         id: "cookies",
         title: "Denna webbplats, cookies och webbläsarlagring",
         body: [
@@ -336,6 +354,7 @@ export default {
               "Cloudflare är värd för denna webbplats (plainphone.org) och logotypen i våra e-postmeddelanden.",
               "Quad9 och Mullvad, med Cloudflare som reserv, tillät webbfilteruppslagningar enligt beskrivningen ovan.",
               "Om du aktiverar aviseringar: din webbläsares push-tjänst (Google, Apple, Mozilla eller Microsoft) levererar dem. Innehållet är krypterat från början till slut.",
+              "Om betalning är påslagen: Stripe eller Google Play hanterar betalningen, som beskrivet under Betalning.",
             ],
           },
           "Konto- och telefondata lagras på servrar i EU.",

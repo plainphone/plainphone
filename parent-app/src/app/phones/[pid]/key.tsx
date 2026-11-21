@@ -6,12 +6,12 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, KeyInput, SelfKey } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { EmergencySection } from "../../../components/EmergencyOpenings";
-import { Button, Card, Choice, Disclosure, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
+import { Button, Choice, Disclosure, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import type { MessageKey } from "../../../shared/i18n/translate";
 import { useMe } from "../../../lib/session";
 import { EMAIL_RE } from "../../../lib/validate";
-import { formatMoney } from "../../../shared/lib/format";
+import { usePlan } from "../../../components/Billing";
 
 function KeyLoader() {
   const { t } = useI18n();
@@ -46,7 +46,8 @@ function choiceOf(key: Pick<SelfKey, "keyType" | "delayHours">): Picked {
 }
 
 function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const plan = usePlan();
   const me = useMe();
   const { phone, run, notify } = usePhone();
   const [choice, setChoice] = useState<Picked>(choiceOf(current));
@@ -57,7 +58,11 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   const [qrInvite, setQrInvite] = useState(current.keyType === "trusted" && !current.trustedEmail);
   const [errors, setErrors] = useState<{ hours?: string; email?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [payUnlock, setPayUnlock] = useState(current.payUnlockEnabled);
   const keyType: KeyInput["keyType"] = choice === "strict" ? "trusted" : "delay";
+  // Paid early unlock (docs/billing.md): only with billing on, and only for the user's own delay key.
+  // The switch only allows it; buying happens outside this app.
+  const offerSwitch = Boolean(plan?.billing) && keyType === "delay";
   const shownHours = choice === "mild" ? "1" : choice === "firm" ? "24" : hours;
   const sentHours = choice === "mild" ? 1 : choice === "firm" ? 24 : Number(hours);
   const waitingForInvite = current.keyType === "trusted" && !current.trustedEmail && !current.trustedAccepted;
@@ -84,8 +89,8 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
       delayHours: h,
       trustedEmail: keyType === "trusted" && !qrInvite ? mail : null,
       ...(keyType === "trusted" && qrInvite ? { qrInvite: true } : {}),
-      // Pay to unlock is not offered yet: send the stored values back unchanged.
-      payUnlockEnabled: current.payUnlockEnabled,
+      // Without the switch the stored value goes back unchanged. Amount and recipient are legacy and echo as stored.
+      payUnlockEnabled: offerSwitch ? payUnlock : current.payUnlockEnabled,
       payUnlockAmount: current.payUnlockAmount,
       payUnlockRecipient: current.payUnlockRecipient,
     };
@@ -177,23 +182,9 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
         </VStack>
       ) : null}
 
-      {/* Pay to unlock only ever applies to the delay key (D13). */}
-      {keyType === "delay" ? (
-        <Card>
-          <Text variant="heading">{t("key.payTitle")}</Text>
-          <Notice tone="info" text={t("key.payNotYet")} />
-          <Text variant="small">{t("key.payHelp")}</Text>
-          <Switch label={t("key.payEnabled")} value={current.payUnlockEnabled} disabled onValueChange={() => undefined} />
-          <Field
-            label={t("key.payAmount")}
-            value={formatMoney(current.payUnlockAmount, current.payUnlockCurrency, locale)}
-            editable={false}
-          />
-          <VStack gap={4}>
-            <Text variant="label">{t("key.payRecipient")}</Text>
-            <Text>{t("key.recipient.plainphone")}</Text>
-          </VStack>
-        </Card>
+      {/* Early unlock only ever applies to the delay key (D13). */}
+      {offerSwitch ? (
+        <Switch testID="key-early-unlock" label={t("early.switch")} help={t("early.switchHelpApp")} value={payUnlock} onValueChange={setPayUnlock} />
       ) : null}
 
       <Text variant="small">{t("key.looseningNote")}</Text>

@@ -200,7 +200,7 @@ export default {
     description:
       "Hva Plainphone lagrer om deg og telefonene du administrerer, hvor lenge, hvem andre er involvert, og hvordan du kan be oss om å rette eller slette det.",
     h1: "Personvernerklæring",
-    updated: "Sist oppdatert 17. november 2026",
+    updated: "Sist oppdatert 20. november 2026",
     lead:
       "Plainphone holder så lite den kan, så kort tid den kan. Denne siden sier hva det betyr i praksis. Den er skrevet for å leses, ikke for å skjule ting.",
     status:
@@ -315,6 +315,24 @@ export default {
         ],
       },
       {
+        id: "billing",
+        title: "Betaling",
+        body: [
+          "Plainphone tar ikke betalt for noe ennå, og den driftede tjenesten har ingen betalte funksjoner i dag. Denne delen beskriver hva som lagres når betaling blir slått på. Når det skjer, endres denne siden først.",
+          "For hver husholdning lagrer vi:",
+          {
+            list: [
+              "planen (gratis eller betalt) og hvilken leverandør som håndterer betalingen: Google Play eller Stripe",
+              "leverandørens id-er: hos Stripe en kunde-id og en abonnements-id, hos Google Play kjøpstokenet",
+              "hvis du betaler for å avslutte en ventetid tidlig på en telefon med profilen For meg selv: beløp og valuta, tidspunktet for samtykket ditt, betalingen, opplåsingen, en angring og en refusjon samt avtalenummeret",
+            ],
+          },
+          "Kvitteringer sendes på e-post til adressen på kontoen din.",
+          "Vi ser eller lagrer aldri kortnumre eller andre kortopplysninger. Betalinger håndteres av Stripe (i nettdashbordet) eller av Google Play (i Plainphone-appen fra Google Play). Det de samler inn, dekkes av deres egne personvernerklæringer.",
+          "Når en telefon eller en husholdning slettes, lagres kjøpsregistreringene for regnskapsformål, slik regnskapsloven krever. Når kontoen din er slettet, lagres de uten kobling til kontoen.",
+        ],
+      },
+      {
         id: "cookies",
         title: "Denne nettsiden, informasjonskapsler og nettleserlagring",
         body: [
@@ -336,6 +354,7 @@ export default {
               "Cloudflare er vert for denne nettsiden (plainphone.org) og logoen i e-postene våre.",
               "Quad9 og Mullvad, med Cloudflare som reserve, tillot svar på nettfilteroppslag, som beskrevet ovenfor.",
               "Hvis du slår på varsler: push-tjenesten til nettleseren din (Google, Apple, Mozilla eller Microsoft) leverer dem. Innholdet er kryptert ende til ende.",
+              "Hvis betaling er slått på: Stripe eller Google Play håndterer betalingen, som beskrevet under Betaling.",
             ],
           },
           "Konto- og telefondata oppbevares på servere i EU.",

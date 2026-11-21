@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "../i18n/translate";
 import { api, type EmergencyOpenings, type SelfKey } from "../lib/api";
+import { formatPrice, type Plan } from "../lib/billing";
 import { formatDateTime } from "../lib/format";
 import { KeyPage } from "./Key";
 
@@ -20,7 +21,7 @@ const { ctx } = vi.hoisted(() => ({
 vi.mock("./Phone", () => ({
   usePhone: () => ({ phone: ctx.phone, run: (fn: () => Promise<unknown>) => ctx.run(fn), notify: () => undefined }),
 }));
-vi.mock("../lib/session", () => ({ useMe: () => ({ user: { email: "me@example.test" } }) }));
+vi.mock("../lib/session", () => ({ useMe: () => ({ user: { email: "me@example.test" }, households: [{ id: "h1", name: "Home", role: "owner" }] }) }));
 
 const baseKey: SelfKey = {
   keyType: "delay",
@@ -36,7 +37,15 @@ const baseKey: SelfKey = {
 
 const baseEmergency: EmergencyOpenings = { enabled: false, allowance: 3, minutes: 15, used: { month: "2026-11", count: 0 }, openings: [] };
 
+const offPlan: Plan = {
+  billing: false, plan: "unlimited", source: null, until: null,
+  limits: { phones: null, trusted: null }, usage: { phones: 1, trusted: 0 }, prioritySupport: false,
+  prices: { currency: "DKK", plus: 2900, earlyUnlock: 1000 }, channels: { stripe: false, play: false }, canManage: false,
+};
+const onPlan: Plan = { ...offPlan, billing: true, plan: "free", limits: { phones: 1, trusted: 1 }, channels: { stripe: true, play: false } };
+
 const calls: { method: string; path: string; body?: unknown }[] = [];
+let plan: Plan;
 let key: SelfKey;
 let emergency: EmergencyOpenings;
 let putResult: unknown;
@@ -53,10 +62,12 @@ beforeEach(() => {
   key = { ...baseKey };
   emergency = { ...baseEmergency };
   putResult = { status: "applied" };
+  plan = offPlan;
   ctx.phone = { id: PID, profile: "self", mode: "light", pairedAt: null };
   ctx.run = async (fn) => fn();
   vi.spyOn(api, "get").mockImplementation((async (path: string) => {
     calls.push({ method: "GET", path });
+    if (path === "/households/h1/plan") return plan;
     return path.endsWith("/emergency-openings") ? emergency : key;
   }) as never);
   vi.spyOn(api, "put").mockImplementation((async (path: string, body?: unknown) => {
@@ -244,4 +255,57 @@ it("says emergency openings are for light-mode phones on a strong-mode phone, wi
   expect(container.textContent).toContain(t("emergency.lightOnly"));
   expect(container.querySelector('[role="switch"]')).toBeNull();
   expect(calls.some((c) => c.path.endsWith("/emergency-openings"))).toBe(false);
+});
+
+const earlySwitch = () => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="switch"]'))
+  .find((b) => document.getElementById(b.getAttribute("aria-labelledby")!)?.textContent === t("early.switch"));
+
+it("shows no early unlock switch while billing is off", async () => {
+  await mount();
+  expect(earlySwitch()).toBeUndefined();
+  expect(container.textContent).not.toContain(t("early.switch"));
+  expect(container.textContent).not.toMatch(/kr\.|DKK/);
+  await submit(keyForm());
+  expect(puts()[0]!.body).toMatchObject({ payUnlockEnabled: false });
+});
+
+it("offers early unlock on the delay key with billing on, with the server's price, and saves it with the key", async () => {
+  plan = onPlan;
+  await mount();
+  const sw = earlySwitch()!;
+  expect(sw.getAttribute("aria-checked")).toBe("false");
+  expect(container.textContent).toContain(t("early.switchHelp", { price: formatPrice(1000, "DKK", "en") }));
+  await click(sw);
+  await submit(keyForm());
+  expect(puts()[0]!.body).toMatchObject({ keyType: "delay", payUnlockEnabled: true, payUnlockAmount: 0, payUnlockRecipient: "plainphone" });
+});
+
+it("hides the early unlock switch for a trusted person key", async () => {
+  plan = onPlan;
+  await mount();
+  expect(earlySwitch()).toBeTruthy();
+  await click(radio("strict"));
+  expect(earlySwitch()).toBeUndefined();
+});
+
+it("shows the receipt of an early unlock when Stripe sends the browser back", async () => {
+  const id = "22222222-2222-4222-8222-222222222222";
+  const purchase = {
+    id, status: "created", channel: "stripe", amount: 1000, currency: "DKK", consentAt: "2026-11-20T11:50:00Z",
+    paidAt: null, unlockAt: null, deliveredAt: null, withdrawnAt: null, refundedAt: null, canWithdraw: true,
+  };
+  vi.mocked(api.get).mockImplementation((async (path: string) => {
+    if (path === `/early-unlocks/${id}`) return purchase;
+    if (path === "/households/h1/plan") return offPlan;
+    return path.endsWith("/emergency-openings") ? emergency : key;
+  }) as never);
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(
+    <MemoryRouter initialEntries={[`/phones/${PID}/key?earlyUnlock=${id}`]}><I18nProvider><KeyPage /></I18nProvider></MemoryRouter>,
+  ));
+  await act(async () => undefined);
+  expect(container.textContent).toContain(t("early.waitingPayment"));
+  expect(container.textContent).toContain(t("early.withdraw"));
 });

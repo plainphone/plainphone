@@ -41,6 +41,14 @@ A Self phone can allow itself a few emergency openings a month: one blocked app 
 logged and shown to the person you trust. It is a switch, off by default, and changing it goes through the
 key. See [emergency-openings.md](emergency-openings.md).
 
+## Paid early unlock (off)
+
+Behind the billing flag, which is off ([billing.md](billing.md)): with your own wait-time key and the
+"Offer early unlock" switch on, a waiting change can take effect about ten minutes after a fixed
+payment, at most once every 7 days. Waiting stays free and is offered just as clearly. It is never
+offered on a child phone or when a trusted person holds the key, and you can withdraw until the
+unlock has happened.
+
 ## Undo setup
 
 For a light-mode Myself phone, choose off, 5, 10, 30 or 60 minutes. A Child phone

@@ -28,6 +28,7 @@ import { PhoneSettingsPage } from "./pages/PhoneSettings";
 import { GrowingUpPage } from "./pages/GrowingUp";
 import { AgreementPage } from "./pages/Agreement";
 import { PhonesPage } from "./pages/Phones";
+import { PlanPage } from "./pages/Plan";
 import { SchedulesPage } from "./pages/Schedules";
 import { SettingsPage } from "./pages/Settings";
 import { SummaryPage } from "./pages/Summary";
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/household" element={<RequireAuth><HouseholdPage /></RequireAuth>} />
         <Route path="/approvals" element={<RequireAuth><ApprovalsPage /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+        <Route path="/plan" element={<RequireAuth><PlanPage /></RequireAuth>} />
         <Route path="/summary" element={<RequireAuth><SummaryPage /></RequireAuth>} />
         <Route path="/phones/:pid" element={<RequireAuth><PhoneLayout /></RequireAuth>}>
           <Route index element={<PhoneOverview />} />

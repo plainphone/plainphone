@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Messages } from "./en";
 import { ageDa } from "./age";
+import { billingDa } from "./billing";
 import { appUpdatesDa } from "./app-updates";
 import { platformDa } from "./platform";
 import { callbackDa } from "./callback";
@@ -18,6 +19,7 @@ export const da: Messages = {
   ...statusDa,
   ...appUpdatesDa,
   ...ageDa,
+  ...billingDa,
   ...platformDa,
   ...modesDa,
   ...extendedDa,
@@ -591,13 +593,6 @@ export const da: Messages = {
   "key.qrWaiting": "Venter på, at din hjælper scanner invitationen. Indtil de accepterer, venter ændringer {hours} timer.",
   "key.qrAccepted": "Din hjælper har accepteret invitationen og kan godkende ændringer.",
   "key.qrExpiredHint": "Invitationskoder udløber efter 15 minutter. Vis en ny, hvis den er løbet ud. En invitation er ikke en godkendelse.",
-  "key.payTitle": "Betal for at låse op",
-  "key.payNotYet": "Betal for at låse op er ikke tilgængeligt endnu.",
-  "key.payHelp": "Senere kan du vælge at springe en ventetid over ved at betale et beløb, du selv bestemmer. Pengene går til Plainphone-projektet.",
-  "key.payEnabled": "Tilbyd betal for at låse op",
-  "key.payAmount": "Beløb",
-  "key.payRecipient": "Pengene går til",
-  "key.recipient.plainphone": "Plainphone-projektet",
   "key.looseningNote": "At skifte nøgle løsner også reglerne, undtagen når du gør ventetiden længere.",
 
   "house.title": "Husstand",

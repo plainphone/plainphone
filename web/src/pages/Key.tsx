@@ -2,25 +2,34 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { encode } from "uqr";
 import { QrImage } from "./AddPhone";
-import { Navigate } from "react-router";
-import { errorMessage, Field, LoadGate, PageTitle, useLoad } from "../components/ui";
+import { Navigate, useSearchParams } from "react-router";
+import { errorNotice, Field, LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type ChangeResult, type KeyInput, type SelfKey } from "../lib/api";
 import { EmergencySection } from "../components/EmergencyOpenings";
+import { EarlyUnlockReceipt } from "../components/EarlyUnlock";
+import { formatPrice, type Plan } from "../lib/billing";
 import type { MessageKey } from "../i18n/translate";
 import { useMe } from "../lib/session";
 import { usePhone } from "./Phone";
+import { usePlan } from "./Plan";
 
 export function KeyPage() {
   const { t } = useI18n();
   const { phone } = usePhone();
   const res = useLoad(() => api.get<SelfKey>(`/phones/${phone.id}/key`), [phone.id]);
+  const plan = usePlan();
+  // Stripe sends the browser back here after paying for an early unlock. The receipt shows
+  // also with billing off again: the right to withdraw stays.
+  const [params] = useSearchParams();
+  const earlyUnlock = params.get("earlyUnlock");
   if (phone.profile !== "self") return <Navigate to={`/phones/${phone.id}`} replace />;
   return (
     <>
       <PageTitle sub={t("key.intro")}>{t("key.title")}</PageTitle>
+      {earlyUnlock && <EarlyUnlockReceipt id={earlyUnlock} />}
       <SelfTemplate phoneId={phone.id} />
-      <LoadGate res={res}>{(key) => <KeyForm current={key} onSaved={() => void res.reload()} />}</LoadGate>
+      <LoadGate res={res}>{(key) => <KeyForm current={key} plan={plan} onSaved={() => void res.reload()} />}</LoadGate>
       <EmergencySection />
     </>
   );
@@ -35,8 +44,8 @@ function choiceOf(key: Pick<SelfKey, "keyType" | "delayHours">): Choice {
   return key.delayHours === 1 ? "mild" : key.delayHours === 24 ? "firm" : "custom";
 }
 
-function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }) {
-  const { t } = useI18n();
+function KeyForm({ current, plan, onSaved }: { current: SelfKey; plan: Plan | null; onSaved: () => void }) {
+  const { t, locale } = useI18n();
   const me = useMe();
   const { phone, run, notify } = usePhone();
   // The level is only a name for the key: Mild is a 1 hour delay, Firm 24 hours, Strict a trusted
@@ -50,7 +59,10 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   const [inviteUrl, setInviteUrl] = useState<string>();
   const [errors, setErrors] = useState<{ hours?: string; email?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [payUnlock, setPayUnlock] = useState(current.payUnlockEnabled);
   const keyType = choice === "strict" ? "trusted" : "delay";
+  // Paid early unlock (docs/billing.md): only with billing on, and only for the user's own delay key.
+  const offerSwitch = Boolean(plan?.billing) && keyType === "delay";
   const level = choice === "custom" ? null : choice;
   const shownHours = choice === "mild" ? "1" : choice === "firm" ? "24" : hours;
   const sentHours = choice === "mild" ? 1 : choice === "firm" ? 24 : Number(hours);
@@ -72,6 +84,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
     setEmail(current.trustedEmail ?? "");
     setQrInvite(current.keyType === "trusted" && !current.trustedEmail);
     setInviteUrl(undefined);
+    setPayUnlock(current.payUnlockEnabled);
   }, [current]);
 
   async function submit(e: FormEvent) {
@@ -88,8 +101,9 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
       delayHours: h,
       trustedEmail: keyType === "trusted" && !qrInvite ? mail : null,
       ...(keyType === "trusted" && qrInvite ? { qrInvite: true } : {}),
-      // Pay to unlock is not offered yet: send the stored values back unchanged.
-      payUnlockEnabled: current.payUnlockEnabled,
+      // The early unlock switch only exists with billing on and a delay key; otherwise the stored
+      // value goes back unchanged. Amount and recipient are not used any more and echo as stored.
+      payUnlockEnabled: offerSwitch ? payUnlock : current.payUnlockEnabled,
       payUnlockAmount: current.payUnlockAmount,
       payUnlockRecipient: current.payUnlockRecipient,
     };
@@ -160,7 +174,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
               const invite = await api.post<{ url: string }>(`/phones/${phone.id}/trusted-invite`);
               if (invite) setInviteUrl(invite.url);
             } catch (err) {
-              notify({ tone: "error", text: errorMessage(err, t) });
+              notify(errorNotice(err, t));
             }
           }}>{t("key.showInviteQr")}</button></div>
           <p className="help">{t("key.qrExpiredHint")}</p>
@@ -173,6 +187,14 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
       )}
       {current.keyType === "trusted" && current.trustedAccepted && (
         <p className="help">{t("key.endHelp")}</p>
+      )}
+      {offerSwitch && plan && (
+        <Switch
+          label={t("early.switch")}
+          description={t("early.switchHelp", { price: formatPrice(plan.prices.earlyUnlock, plan.prices.currency, locale) })}
+          checked={payUnlock}
+          onChange={setPayUnlock}
+        />
       )}
       <p className="help">{t("key.looseningNote")}</p>
       <div>
@@ -196,7 +218,7 @@ function SelfTemplate({ phoneId }: { phoneId: string }) {
         const response = await api.post<{ url: string }>(`/phones/${phoneId}/self-template`);
         if (response) setUrl(response.url);
       } catch (err) {
-        notify({ tone: "error", text: errorMessage(err, t) });
+        notify(errorNotice(err, t));
       }
     }}>{t("template.share")}</button></div>
     {url && <>

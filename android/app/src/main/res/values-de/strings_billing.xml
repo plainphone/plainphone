@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="early_unlock_waiting">Diese Änderung wartet bis %1$s.</string>
+    <string name="early_unlock_keep_waiting">Weiter warten (kostenlos)</string>
+    <string name="early_unlock_pay">In etwa %1$d Min. freigeben für %2$s</string>
+    <string name="early_unlock_title">Frühe Freigabe</string>
+    <string name="early_unlock_info_price">Preis: %1$s inkl. MwSt., bezahlt über Google Play.</string>
+    <string name="early_unlock_info_when">Die Änderung gilt etwa %1$d Min. nach deiner Zahlung.</string>
+    <string name="early_unlock_info_cap">Du kannst eine frühe Freigabe höchstens einmal alle 7 Tage nutzen.</string>
+    <string name="early_unlock_info_withdraw">Du hast ein 14-tägiges Widerrufsrecht. Bis die Änderung gilt, kannst du hier unter Heute \"Vertrag widerrufen\" nutzen und bekommst dein Geld zurück.</string>
+    <string name="early_unlock_consent">Ich verlange, dass die frühe Freigabe jetzt beginnt, vor Ablauf der Widerrufsfrist von 14 Tagen. Mir ist bekannt, dass ich mein Widerrufsrecht verliere, sobald die frühe Freigabe erbracht ist.</string>
+    <string name="early_unlock_pay_now">%1$s bezahlen</string>
+    <string name="early_unlock_scheduled">Deine frühe Freigabe ist für %1$s geplant.</string>
+    <string name="early_unlock_withdraw">Vertrag widerrufen</string>
+    <string name="early_unlock_withdraw_confirm">Widerruf bestätigen</string>
+    <string name="early_unlock_contract_number">Vertragsnummer: %1$s</string>
+    <string name="early_unlock_withdraw_effect">Du bekommst dein Geld zurück, und die Änderung behält ihren ursprünglichen Zeitpunkt.</string>
+    <string name="early_unlock_cap">Du kannst ab %1$s wieder eine frühe Freigabe nutzen.</string>
+    <string name="early_unlock_busy">Einen Moment …</string>
+    <string name="early_unlock_paid">Zahlung erhalten.</string>
+    <string name="early_unlock_paid_confirming">Zahlung erhalten. Dein Telefon bestätigt sie gleich.</string>
+    <string name="early_unlock_pending">Google Play wartet auf deine Zahlung. Die Freigabe wird geplant, sobald sie eingegangen ist.</string>
+    <string name="early_unlock_unavailable">Google Play kann die Zahlung gerade nicht annehmen. Es wurde nichts abgebucht.</string>
+    <string name="early_unlock_failed">Das hat nicht geklappt. Es wurde nichts abgebucht. Versuche es später noch einmal.</string>
+    <string name="early_unlock_withdraw_failed">Der Widerruf hat nicht geklappt. Versuche es gleich noch einmal.</string>
+    <string name="early_unlock_withdrawn">Widerrufen. Du bekommst dein Geld zurück, und die Änderung behält ihren ursprünglichen Zeitpunkt.</string>
+    <string name="early_unlock_withdraw_too_late">Die Änderung gilt bereits, daher kann der Vertrag nicht mehr widerrufen werden.</string>
+</resources>
