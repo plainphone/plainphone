@@ -137,6 +137,12 @@
     <string name="blocked_title">Blokkert (%1$d)</string>
     <string name="blocked_empty">Ingenting er blokkert ennå.</string>
     <string name="blocked_clear">Tøm den blokkerte loggen</string>
+    <string name="call_paused_title">Samtalen ble ikke satt i gang</string>
+    <string name="call_paused_text">Plainphone kan ikke sjekke nummeret akkurat nå. Du kan fortsatt ringe foreldrene dine og 112.</string>
+    <string name="held_title">Holdt tilbake til gjennomgang (%1$d)</string>
+    <string name="held_intro">Plainphone kunne ikke sjekke hvem som sendte disse meldingene, så de ligger her. Barnet ser dem ikke.</string>
+    <string name="held_delete">Slett meldingen fra %1$s</string>
+    <string name="held_clear">Slett alle tilbakeholdte meldinger</string>
     <string name="blocked_call_in">Innkommende samtale</string>
     <string name="blocked_call_out">Utgående samtale</string>
     <string name="blocked_sms_in">Innkommende melding</string>

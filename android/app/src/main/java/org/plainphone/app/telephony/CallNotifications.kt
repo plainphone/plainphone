@@ -89,12 +89,14 @@ object CallNotifications {
         runCatching { nm.notify(ID_CALL, builder.build()) }
     }
 
-    fun showBlockedCall(context: Context, number: String?) {
+    /** [rulesUnreadable]: the phone could not check the number, so only parents and 112 can be called for now. */
+    fun showBlockedCall(context: Context, number: String?, rulesUnreadable: Boolean = false) {
         createChannels(context)
-        val text = context.getString(R.string.call_blocked_text, number ?: context.getString(R.string.call_unknown))
+        val text = if (rulesUnreadable) context.getString(R.string.call_paused_text)
+        else context.getString(R.string.call_blocked_text, number ?: context.getString(R.string.call_unknown))
         val n = Notification.Builder(context, CHANNEL_BLOCKED)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.call_blocked_title))
+            .setContentTitle(context.getString(if (rulesUnreadable) R.string.call_paused_title else R.string.call_blocked_title))
             .setContentText(text)
             .setAutoCancel(true)
             .build()
