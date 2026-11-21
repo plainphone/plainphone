@@ -13,13 +13,16 @@ interface RoleValue {
   /** Null while the saved role loads. */
   role: AppRole | null;
   ask: boolean;
+  /** The roles this build offers on this iPhone (roles.ts: Child only on iOS 26 or later). */
+  offered: readonly AppRole[];
   choose(role: AppRole): Promise<void>;
 }
 
-const RoleContext = createContext<RoleValue>({ role: "parent", ask: false, choose: async () => {} });
+const RoleContext = createContext<RoleValue>({ role: "parent", ask: false, offered: ["parent"], choose: async () => {} });
 
 export function RoleProvider({ children, flags = ROLE_FLAGS }: { children: ReactNode; flags?: RoleFlags }) {
-  const multi = availableRoles(flags).length > 1;
+  const offered = useMemo(() => availableRoles(flags), [flags]);
+  const multi = offered.length > 1;
   const [state, setState] = useState<{ role: AppRole | null; ask: boolean }>({ role: multi ? null : "parent", ask: false });
   useEffect(() => {
     if (multi) void loadRoleChoice(flags).then(setState);
@@ -27,7 +30,7 @@ export function RoleProvider({ children, flags = ROLE_FLAGS }: { children: React
   const choose = useCallback(async (role: AppRole) => {
     setState({ role: await saveRole(role, flags), ask: false });
   }, [flags]);
-  const value = useMemo(() => ({ ...state, choose }), [state, choose]);
+  const value = useMemo(() => ({ ...state, offered, choose }), [state, offered, choose]);
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
 

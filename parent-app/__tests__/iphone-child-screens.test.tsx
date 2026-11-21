@@ -14,6 +14,12 @@ jest.mock("expo-constants", () => {
   const C = actual.default ?? actual;
   return { __esModule: true, default: { ...C, expoConfig: { ...C.expoConfig, version: "0.2.0", extra: { ...C.expoConfig?.extra, iosChildRole: true } } } };
 });
+// The Child role needs iOS 26 (CHILD_MIN_IOS_MAJOR); jest-expo leaves Platform.Version empty.
+jest.mock("react-native", () => {
+  const RN = jest.requireActual("react-native");
+  Object.defineProperty(RN.Platform, "Version", { get: () => "26.1", configurable: true });
+  return RN;
+});
 jest.mock("expo-linking", () => {
   const actual = jest.requireActual("expo-linking");
   return { ...actual, getInitialURL: jest.fn(async () => null), useLinkingURL: jest.fn(() => null) };

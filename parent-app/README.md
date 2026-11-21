@@ -18,7 +18,8 @@ The native parent app for iOS and Android. It does the same as the parent web ap
 English and Danish, light and dark mode, screen readers and large text. No analytics, crash reporting or other tracking SDKs.
 
 On iPhone the same app will also be the child's app (docs/ios/architecture.md, phase 1). An iOS
-build made with `PLAINPHONE_IOS_CHILD=1` asks "Whose phone is this?" on the first launch and, for a
+build made with `PLAINPHONE_IOS_CHILD=1` asks "Whose phone is this?" on the first launch of an
+iPhone with iOS 26 or later (older iPhones get the parent app only) and, for a
 child's iPhone, runs a guided setup (Screen Time permission, pairing by QR code, Apple's own
 settings) and then syncs the rules through the Swift module in
 [`modules/plainphone-screentime`](modules/plainphone-screentime). Other builds are Parent only.

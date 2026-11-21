@@ -2,7 +2,8 @@
 //
 // "Whose phone is this?" on the first launch of an iPhone build with the Child role
 // (docs/ios/architecture.md, "App roles"). Two answers; a parent's goes on to sign in as today.
-import { useRouter } from "expo-router";
+// Without the Child role (another build, or an iPhone before iOS 26) there is nothing to ask.
+import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { Button, Choice, PageTitle, Screen, Stack } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
@@ -10,6 +11,12 @@ import { useRole } from "../lib/role-context";
 import type { AppRole } from "../lib/roles";
 
 export default function RoleScreen() {
+  const { offered } = useRole();
+  if (!offered.includes("child")) return <Redirect href="/" />;
+  return <RoleChoice />;
+}
+
+function RoleChoice() {
   const { t } = useI18n();
   const router = useRouter();
   const { choose } = useRole();
