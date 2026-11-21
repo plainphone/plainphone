@@ -7,6 +7,8 @@ import { ApiError, api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import { INBOX_NAME_KEY } from "../lib/session";
 import { type FamilyInboxThread, familyState, REPLY_LENGTH, type SosSettings } from "../lib/sos-options";
+import { ExtendedFamily } from "./ExtendedFamily";
+import { SnapshotLine } from "./SnapshotLine";
 import { Field, Switch, useLoad } from "./ui";
 
 /**
@@ -29,9 +31,17 @@ export function FamilyInbox({ pid, settings, saving, onSetting }: {
         <Switch label={t("inbox.checkIns")}
           description={settings.familyInbox ? t("inbox.checkInsHelp") : `${t("inbox.checkInsHelp")} ${t("inbox.needsInbox")}`}
           checked={settings.checkIns} disabled={saving} onChange={(on) => onSetting({ checkIns: on })} />
+        <Switch label={t("ext.switch")}
+          description={settings.familyInbox ? t("ext.switchHelp") : `${t("ext.switchHelp")} ${t("inbox.needsInbox")}`}
+          checked={settings.extendedFamily} disabled={saving} onChange={(on) => onSetting({ extendedFamily: on })} />
+        <Switch label={t("ext.snapSwitch")}
+          description={settings.familyInbox ? t("ext.snapSwitchHelp") : `${t("ext.snapSwitchHelp")} ${t("inbox.needsInbox")}`}
+          checked={settings.locationSnapshots} disabled={saving} onChange={(on) => onSetting({ locationSnapshots: on })} />
         <p className="help">{t("inbox.quickNote")}</p>
         <p className="help">{t("inbox.privacy")}</p>
         {settings.familyInbox && <Thread pid={pid} />}
+        {/* Paused (either switch off) still shows the people already on the list, so they can be removed. */}
+        <ExtendedFamily pid={pid} paused={!settings.familyInbox || !settings.extendedFamily} />
       </div>
     </details>
   );
@@ -83,7 +93,8 @@ function Thread({ pid }: { pid: string }) {
             return (
               <li key={m.id} className={`inbox-message inbox-${m.from}`} data-message={m.id}>
                 <span className="row-meta">{who} · {formatDateTime(m.sentAt, locale)}</span>
-                <span className="inbox-text">{m.kind === "checkin" ? t("inbox.checkIn") : m.text}</span>
+                {m.kind === "snapshot" ? <SnapshotLine location={m.location} /> : (
+                  <span className="inbox-text">{m.kind === "checkin" ? t("inbox.checkIn") : m.text}</span>)}
                 <span className="row-meta">
                   {t(state.key, state.at ? { time: formatDateTime(state.at, locale) } : undefined)}
                 </span>

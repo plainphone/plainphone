@@ -7,6 +7,7 @@ import { appUpdatesDe } from "./app-updates";
 import { platformDe } from "./platform";
 import { callbackDe } from "./callback";
 import { modesDe } from "./modes";
+import { extendedDe } from "./extended";
 import { statusEn } from "./status";
 
 export const de: Messages = {
@@ -16,6 +17,7 @@ export const de: Messages = {
   ...billingDe,
   ...platformDe,
   ...modesDe,
+  ...extendedDe,
   ...callbackDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",

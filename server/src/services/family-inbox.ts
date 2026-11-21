@@ -6,11 +6,12 @@
 // only whether a message reached a parent device (child to parent) or the child's phone (parent to
 // child). Code words go through the SOS flow and never land here.
 import { and, desc, eq, inArray, isNull, lt, notInArray } from "drizzle-orm";
-import { familyMessages, phones } from "../db/schema.js";
+import { familyMessages, locationSnapshots, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 
 type Phone = typeof phones.$inferSelect;
 type Row = typeof familyMessages.$inferSelect;
+type Snapshot = typeof locationSnapshots.$inferSelect;
 
 /** The thread keeps this many messages per phone, and none older than [KEEP_MS]. */
 export const INBOX_KEEP = 50;
@@ -32,7 +33,15 @@ export function inboxSwitches(phone: Phone): InboxSwitches {
   return { familyInbox: on, quickMessages: on && phone.quickMessagesEnabled, checkIns: on && phone.checkInsEnabled };
 }
 
-export function familyMessageJson(row: Row) {
+export function snapshotJson(s: Snapshot) {
+  return { lat: s.lat, lon: s.lon, accuracyM: s.accuracyM, recordedAt: s.recordedAt, expiresAt: s.expiresAt };
+}
+
+/**
+ * One line of the thread. A location snapshot (docs/extended-family.md) carries its position only
+ * while it is the phone's live snapshot for the parents; after that it says only that one was shared.
+ */
+export function familyMessageJson(row: Row, snapshot?: Snapshot) {
   return {
     id: row.id,
     from: row.sender,
@@ -40,6 +49,9 @@ export function familyMessageJson(row: Row) {
     text: row.text,
     sentAt: row.sentAt,
     ...(row.sender === "parent" ? { author: row.authorName, receivedAt: row.receivedAt } : { delivered: row.delivered }),
+    ...(row.kind === "snapshot"
+      ? { location: snapshot && snapshot.messageId === row.id && snapshot.contactId === null ? snapshotJson(snapshot) : null }
+      : {}),
   };
 }
 

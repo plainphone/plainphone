@@ -10,6 +10,7 @@ import { AppsPage } from "./pages/Apps";
 import { AuthCallbackPage } from "./pages/AuthCallback";
 import { CatalogPage } from "./pages/Catalog";
 import { ContactsPage } from "./pages/Contacts";
+import { FamilyContactPage } from "./pages/FamilyContact";
 import { FilterPage } from "./pages/Filter";
 import { HomeScreenPage } from "./pages/HomeScreen";
 import { HouseholdPage } from "./pages/Household";
@@ -56,6 +57,8 @@ function AppRoutes() {
         <Route path="/auth/app" element={<AuthCallbackPage />} />
         <Route path="/install-phone" element={<InstallPhonePage />} />
         <Route path="/invite" element={<InvitePage />} />
+        {/* An invited family member's page: no account, so not behind RequireAuth. */}
+        <Route path="/family" element={<FamilyContactPage />} />
         <Route path="/invite/trusted" element={<InvitePage />} />
         <Route path="/" element={<RequireAuth><PhonesPage /></RequireAuth>} />
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />

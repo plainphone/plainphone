@@ -1,0 +1,53 @@
+<resources>
+    <string name="ext_section_title">Family contacts</string>
+    <string name="ext_paused">Your parents have paused messages with family contacts. You can still block someone.</string>
+    <string name="ext_invited_question">Your parents invited %1$s. Do you want to swap messages with %1$s?</string>
+    <string name="ext_yes">Yes</string>
+    <string name="ext_no_thanks">No thanks</string>
+    <string name="ext_waiting_for">Waiting for %1$s</string>
+    <string name="ext_blocked">Blocked</string>
+    <string name="ext_row_hint">Swap quick messages with %1$s</string>
+    <string name="ext_changes_title">What changed</string>
+    <string name="ext_change_invited">Your parents invited %1$s</string>
+    <string name="ext_change_joined">%1$s joined</string>
+    <string name="ext_change_new_link">%1$s got a new link from your parents. Say yes again if you want to swap messages.</string>
+    <string name="ext_change_removed">%1$s is no longer on your list</string>
+    <string name="ext_change_blocked">You blocked %1$s</string>
+    <string name="ext_only_you_and">Only you and %1$s. Plainphone\'s server can read it too.</string>
+    <string name="ext_who_reads">Only you and %1$s can read this. The Plainphone server can read it too, and deletes it after 30 days.</string>
+    <string name="ext_empty_title">Nothing here yet</string>
+    <string name="ext_empty">Send %1$s a quick message. The answers show up here.</string>
+    <string name="ext_gone_title">Not on your list</string>
+    <string name="ext_gone">This person is no longer on your list.</string>
+    <string name="ext_state_not_delivered">Not delivered</string>
+    <string name="ext_shared_location">You shared your location</string>
+    <string name="ext_not_during">Not during %1$s</string>
+    <string name="ext_sent_now">On its way</string>
+    <string name="ext_not_active">You can write to %1$s when you both have said yes.</string>
+    <string name="ext_blocked_note">You blocked %1$s. Nothing from %1$s reaches you.</string>
+    <string name="ext_block">Block %1$s</string>
+    <string name="ext_block_title">Block %1$s?</string>
+    <string name="ext_block_text">%1$s will not be able to send you anything any more. Only your parents can undo it, by inviting %1$s again. Then you decide again.</string>
+    <string name="ext_block_confirm">Block</string>
+    <string name="ext_notification_from">Message from %1$s</string>
+    <string name="ext_share">Share where I am</string>
+    <string name="ext_share_working">Finding where you are …</string>
+    <string name="ext_share_title">Share where you are?</string>
+    <string name="ext_share_text">%1$s will see where you are right now, %2$s. It is one position, shared once.</string>
+    <string name="ext_share_confirm">Share</string>
+    <string name="ext_share_sent">Shared. You can see it in the conversation.</string>
+    <string name="ext_your_parents">your parents</string>
+    <string name="ext_location_off">Location is off on this phone</string>
+    <string name="ext_no_fix">Couldn\'t find where you are. Try again outside.</string>
+    <string name="sharing_extended">Family contacts are on. People your parents invite can swap quick messages with you, but only if you say yes. You can block anyone.</string>
+    <string name="sharing_snapshots">You can share where you are once, in a conversation. You choose who gets it first, and they see it %1$s.</string>
+    <string name="sharing_snapshot_log">You shared your location with %1$s at %2$s, until %3$s</string>
+    <plurals name="ext_for_hours">
+        <item quantity="one">for 1 hour</item>
+        <item quantity="other">for %d hours</item>
+    </plurals>
+    <plurals name="ext_for_minutes">
+        <item quantity="one">for 1 minute</item>
+        <item quantity="other">for %d minutes</item>
+    </plurals>
+</resources>

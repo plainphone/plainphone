@@ -72,6 +72,10 @@ data class ServerRules(
     val sos: SosRules? = null,
     /** The family inbox (InboxRules.kt); off when missing. */
     val inbox: InboxRules = InboxRules.OFF,
+    /** Extended family contacts (ExtendedRules.kt); off when missing. */
+    val extended: ExtendedRules = ExtendedRules.OFF,
+    /** The one-time location snapshot (ExtendedRules.kt); off when missing. */
+    val locationSnapshot: SnapshotRules = SnapshotRules.OFF,
     /** The family agreement (AgreementRules.kt); nothing when missing. */
     val agreement: AgreementRules = AgreementRules.NONE,
     val locationAlwaysUntil: Instant? = null,
@@ -219,6 +223,8 @@ data class ServerRules(
                         CallbackRules.parse(sos.optJSONObject("callback")))
                 },
                 inbox = InboxRules.parse(j.optJSONObject("inbox")),
+                extended = ExtendedRules.parse(j.optJSONObject("extended")),
+                locationSnapshot = SnapshotRules.parse(j.optJSONObject("locationSnapshot")),
                 agreement = AgreementRules.parse(j.optJSONObject("ageAgreement")),
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }

@@ -17,6 +17,7 @@ import { billingWebhookRoutes } from "./routes/billing.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
 import { downloadRoutes } from "./routes/download.js";
+import { familyContactRoutes } from "./routes/extended-family.js";
 import { liveEventRoutes } from "./routes/events.js";
 import { parentRoutes } from "./routes/parent.js";
 import { resetProtectionRoutes } from "./routes/reset-protection.js";
@@ -161,6 +162,8 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
   app.route("/api/billing", billingWebhookRoutes(ctx));
   const resetProtection = resetProtectionRoutes(ctx);
   app.route("/api/reset-protection", resetProtection.callback);
+  // Before the parent API: an extended contact has no parent session (docs/extended-family.md).
+  app.route("/api/family-contact", familyContactRoutes(ctx));
   app.route("/api", parentRoutes(ctx, updateWake, (parent) => {
     resetProtection.parent(parent);
     liveEventRoutes(parent, live);

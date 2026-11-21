@@ -725,6 +725,74 @@ class PlainphoneApi private constructor(
         if (r.status != 204) throw HttpError(r.status, r.body)
     }
 
+    /** The conversation with one extended contact (docs/extended-family.md); null when the person is not on this phone's roster. */
+    fun extendedThread(token: String, contactId: String): ExtendedThread? {
+        val r = call("GET", "/device/extended/$contactId", token, readTimeoutMs = 10_000)
+        if (r.status == 404) return null
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return try {
+            ExtendedThread.parse(JSONObject(r.body))
+        } catch (err: JSONException) {
+            throw IOException("Invalid extended conversation response", err)
+        }
+    }
+
+    /** The child's yes or no to an invitation. False when it is no longer waiting for an answer (404, 409). Safe to repeat. */
+    fun extendedAnswer(token: String, contactId: String, allow: Boolean): Boolean {
+        val r = call("POST", "/device/extended/$contactId/answer", token, JSONObject().put("allow", allow), readTimeoutMs = 8_000, replayable = true)
+        return when (r.status) {
+            204 -> true
+            404, 409 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
+    }
+
+    /** Blocks a person. False when they are not on the roster any more. Safe to repeat. */
+    fun extendedBlock(token: String, contactId: String): Boolean {
+        val r = call("POST", "/device/extended/$contactId/block", token, JSONObject(), readTimeoutMs = 8_000, replayable = true)
+        return when (r.status) {
+            204 -> true
+            404 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
+    }
+
+    /** A quick message to an extended contact. The same [id] again keeps the first. */
+    fun extendedSend(token: String, contactId: String, id: String, text: String, sentAtMs: Long): ExtendedSendAnswer {
+        val body = JSONObject().put("id", id).put("text", text).put("sentAt", iso(sentAtMs))
+        val r = call("POST", "/device/extended/$contactId/messages", token, body, readTimeoutMs = 8_000, replayable = true)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return try {
+            val json = JSONObject(r.body)
+            ExtendedSendAnswer(json.optBoolean("stored"), json.optBoolean("gone"))
+        } catch (err: JSONException) {
+            throw IOException("Invalid extended message response", err)
+        }
+    }
+
+    /** The device receipt for a person's replies. Safe to repeat. */
+    fun extendedReceived(token: String, contactId: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        val body = JSONObject().put("ids", JSONArray(ids))
+        val r = call("POST", "/device/extended/$contactId/received", token, body, readTimeoutMs = 8_000, replayable = true)
+        if (r.status != 204 && r.status != 404) throw HttpError(r.status, r.body)
+    }
+
+    /** A location snapshot the child confirmed. [to] is `parents` or a contact id. The same [id] again keeps the first. */
+    fun sendLocationSnapshot(token: String, id: String, to: String, fix: LocationFix, sentAtMs: Long): ExtendedSendAnswer {
+        val body = JSONObject().put("id", id).put("to", to).put("lat", fix.lat).put("lon", fix.lon)
+            .put("recordedAt", iso(fix.recordedAtMs)).put("sentAt", iso(sentAtMs))
+        fix.accuracyM?.let { body.put("accuracyM", it.toDouble()) }
+        val r = call("POST", "/device/location-snapshot", token, body, readTimeoutMs = 8_000, replayable = true)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return try {
+            val json = JSONObject(r.body)
+            ExtendedSendAnswer(json.optBoolean("stored"), json.optBoolean("gone"), json.optBoolean("kept"))
+        } catch (err: JSONException) {
+            throw IOException("Invalid location snapshot response", err)
+        }
+    }
+
     fun sosStatus(token: String, id: String): JSONObject {
         val response = call("GET", "/device/sos/$id", token, readTimeoutMs = 8_000)
         if (response.status != 200) throw HttpError(response.status, response.body)

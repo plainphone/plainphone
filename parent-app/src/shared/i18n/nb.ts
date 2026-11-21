@@ -7,6 +7,7 @@ import { appUpdatesNb } from "./app-updates";
 import { platformNb } from "./platform";
 import { callbackNb } from "./callback";
 import { modesNb } from "./modes";
+import { extendedNb } from "./extended";
 import { statusEn } from "./status";
 
 export const nb: Messages = {
@@ -16,6 +17,7 @@ export const nb: Messages = {
   ...billingNb,
   ...platformNb,
   ...modesNb,
+  ...extendedNb,
   ...callbackNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",

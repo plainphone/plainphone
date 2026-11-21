@@ -82,6 +82,9 @@ the phone has already sent, even if a parent removed that quick message in the m
 most 60 characters. End-to-end encryption and free text are a separate piece of work
 ([research](research/family-comms-issues.md)).
 
+Named contacts beyond the parents and one-time location snapshots build on the inbox; see
+[extended-family.md](extended-family.md).
+
 ## API
 
 | Endpoint | Who | What |
