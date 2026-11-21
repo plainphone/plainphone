@@ -16,7 +16,7 @@ import { localTime, validTimeZone, zonedTimeToUtc } from "../lib/zoned-time.js";
 import { type ChangeResult, submitChange } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { TOTAL } from "./limits.js";
-import { notifyUsers } from "./notifications.js";
+import { notifyUsers, phoneAlertRecipients } from "./notifications.js";
 import { nextRulesRevision, wakePhone } from "./phones.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -199,11 +199,8 @@ export async function sweepReviewReminders(ctx: Ctx): Promise<number> {
 async function sendReminder(ctx: Ctx, phone: Phone) {
   const [h] = await ctx.db.select().from(households).where(eq(households.id, phone.householdId));
   if (!h) return;
-  const members = await ctx.db
-    .select({ id: users.id, email: users.email, locale: users.locale })
-    .from(householdMembers)
-    .innerJoin(users, eq(users.id, householdMembers.userId))
-    .where(eq(householdMembers.householdId, h.id));
+  // A parent who muted the phone gets neither the push nor the mail; the dashboard still shows the date.
+  const members = await phoneAlertRecipients(ctx.db, phone.id, h.id);
   const suggestions = suggestNext(await currentRules(ctx, phone.id), phone.agePreset);
   if (h.summaryByMail && ctx.mail.canSend) {
     for (const m of members) {

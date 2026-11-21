@@ -1099,7 +1099,7 @@ export const sv: Messages = {
   "phone.pushUnified": "Använder UnifiedPush",
   "phone.pushWaiting": "Väntar på att telefonen rapporterar",
   "phone.pushAlerts": "Aviseringar om den här telefonen",
-  "phone.pushAlertsHelp": "Få aviseringar om den här telefonen på dina registrerade enheter.",
+  "phone.pushAlertsHelp": "Få aviseringar om den här telefonen på dina registrerade enheter. Avstängt tystar även påminnelser om översyn och barnets snabbmeddelanden (de hamnar ändå i inkorgen). SOS kommer alltid fram.",
   "sos.yourName": "Ditt namn för barnet (valfritt)",
   "sos.seenBy": "Sett av {name}",
   "sos.title": "SOS-historik",

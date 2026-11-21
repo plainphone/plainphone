@@ -1099,7 +1099,7 @@ export const nb: Messages = {
   "phone.pushUnified": "Bruker UnifiedPush",
   "phone.pushWaiting": "Venter på at telefonen rapporterer",
   "phone.pushAlerts": "Varsler om denne telefonen",
-  "phone.pushAlertsHelp": "Få varsler om denne telefonen på de registrerte enhetene dine.",
+  "phone.pushAlertsHelp": "Få varsler om denne telefonen på de registrerte enhetene dine. Avslått demper også påminnelser om gjennomgang og barnets hurtigmeldinger (de havner fortsatt i innboksen). SOS kommer alltid frem.",
   "sos.yourName": "Ditt navn for barnet (valgfritt)",
   "sos.seenBy": "Sett av {name}",
   "sos.title": "SOS-historikk",

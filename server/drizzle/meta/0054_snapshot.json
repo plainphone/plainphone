@@ -1,5 +1,5 @@
 {
-  "id": "60c5a60a-3454-48f8-9ca3-a76f0717b0bd",
+  "id": "23493e9d-3d63-4faa-a3d4-6225654e8005",
   "prevId": "ca8fde43-b8bf-4289-90d6-b5dd20fe221f",
   "version": "7",
   "dialect": "postgresql",
@@ -1299,153 +1299,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.latency_samples": {
-      "name": "latency_samples",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hour": {
-          "name": "hour",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ms": {
-          "name": "ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delivered_ms": {
-          "name": "delivered_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "opened_ms": {
-          "name": "opened_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "receipt": {
-          "name": "receipt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "anchor_at": {
-          "name": "anchor_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "latency_samples_receipt_uq": {
-          "name": "latency_samples_receipt_uq",
-          "columns": [
-            {
-              "expression": "receipt",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "latency_samples_open_wake_idx": {
-          "name": "latency_samples_open_wake_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"latency_samples\".\"ms\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "latency_samples_hour_idx": {
-          "name": "latency_samples_hour_idx",
-          "columns": [
-            {
-              "expression": "path",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "hour",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "latency_samples_phone_id_phones_id_fk": {
-          "name": "latency_samples_phone_id_phones_id_fk",
-          "tableFrom": "latency_samples",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -4436,6 +4289,20 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -4823,6 +4690,21 @@
               "asc": true,
               "nulls": "last"
             },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "summary_events_at_idx": {
+          "name": "summary_events_at_idx",
+          "columns": [
             {
               "expression": "at",
               "isExpression": false,

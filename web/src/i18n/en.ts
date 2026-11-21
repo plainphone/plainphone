@@ -1031,7 +1031,7 @@ export const en = {
   "phone.pushUnified": "Uses UnifiedPush",
   "phone.pushWaiting": "Waiting for the phone to report",
   "phone.pushAlerts": "Alerts about this phone",
-  "phone.pushAlertsHelp": "Get notifications about this phone on your registered devices.",
+  "phone.pushAlertsHelp": "Get notifications about this phone on your registered devices. Off also quiets review reminders and the child's quick messages (they still land in the inbox). SOS always comes through.",
   "phone.manage": "This phone",
   "phone.name": "Name",
   "phone.rename": "Rename",
