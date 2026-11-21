@@ -4,7 +4,8 @@ import { Link, useSearchParams } from "react-router";
 import { LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
-import { useMe } from "../lib/session";
+import { useActiveHousehold } from "../lib/session";
+import { HouseholdPicker } from "../components/HouseholdPicker";
 import {
   phoneWeekLines,
   type SummarySettings,
@@ -18,8 +19,7 @@ import {
 /** The last 8 weekly summaries (docs/weekly-summary.md). A mail or push links here with ?week=. */
 export function SummaryPage() {
   const { t, locale } = useI18n();
-  const me = useMe();
-  const household = me.households[0];
+  const household = useActiveHousehold();
   const [params] = useSearchParams();
   const open = params.get("week");
   const res = useLoad(async () => {
@@ -39,6 +39,7 @@ export function SummaryPage() {
   return (
     <>
       <PageTitle sub={t("summary.intro")}>{t("summary.title")}</PageTitle>
+      <HouseholdPicker />
       <LoadGate res={res}>
         {(data) =>
           data && (

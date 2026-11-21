@@ -17,7 +17,7 @@ import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPrefere
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, Choice, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
+import { Button, Card, Choice, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow, useSingleFlight } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
@@ -337,7 +337,9 @@ function RemovePhone() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  async function remove() {
+  // Two taps in one frame must send one request: the busy state only disables the button after a re-render.
+  const once = useSingleFlight();
+  const remove = () => once(async () => {
     setBusy(true);
     try {
       const r = await run(() => unwrap<ChangeResult>(client.DELETE("/phones/{pid}", { params: { path: { pid: phone.id } } })));
@@ -351,7 +353,7 @@ function RemovePhone() {
     } finally {
       setBusy(false);
     }
-  }
+  });
 
   return (
     <Card>

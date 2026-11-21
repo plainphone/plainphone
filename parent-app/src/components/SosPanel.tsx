@@ -6,7 +6,7 @@ import type { components } from "../api/schema";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { triggerLabel } from "../shared/lib/sos-options";
-import { Button, Card, Field, Notice, Text, useLoad } from "./ui";
+import { Button, Card, Field, Notice, Text, useLoad, useSingleFlight } from "./ui";
 
 type SosEvent = components["schemas"]["SosEvent"];
 type History = { events: SosEvent[]; callbackNumber: string | null };
@@ -43,7 +43,9 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [res.data]);
 
-  async function save(action: () => Promise<void>) {
+  // One "I've seen it" at a time, even for two taps inside one frame.
+  const once = useSingleFlight();
+  const save = (action: () => Promise<void>) => once(async () => {
     setBusy(true);
     setError(false);
     try {
@@ -54,7 +56,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
     } finally {
       setBusy(false);
     }
-  }
+  });
 
   function row(event: SosEvent) {
     const map = event.location && `https://maps.google.com/?q=${event.location.lat},${event.location.lon}`;

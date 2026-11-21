@@ -39,10 +39,18 @@ export default function AuthLinkScreen() {
     void linkAskedHere().then(setAskedHere);
   }, []);
 
-  const token = [currentUrl(linking), initial]
+  const fromUrl = [currentUrl(linking), initial]
     .filter((url) => matchesServerLink(url, serverUrl, "/auth/app"))
     .map(tokenFromUrl)
     .find(Boolean) ?? null;
+  // The token is kept here once read, so the web build can drop it from the address bar and the
+  // history at once, while "Log in with this link?" is still waiting for a tap.
+  const [kept, setKept] = useState<string | null>(null);
+  if (fromUrl && fromUrl !== kept) setKept(fromUrl);
+  useEffect(() => {
+    if (fromUrl && Platform.OS === "web") window.history.replaceState(null, "", window.location.pathname);
+  }, [fromUrl]);
+  const token = fromUrl ?? kept;
 
   // Still reading the launch URL while `initial` is undefined.
   const missing = initial !== undefined && !token;

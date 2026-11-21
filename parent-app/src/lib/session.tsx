@@ -2,15 +2,18 @@
 //
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
+import { AppState } from "react-native";
 import { isLanguage } from "../shared/lib/phone-language";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap, configureApiServer } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { checkServer, HOSTED_SERVER, BUILD_SERVER, normalizeServerUrl, restoreServer, saveServer, SERVER_URL } from "./config";
 import { clearLocalNotifications, syncNativePush, watchNativePush } from "./notifications";
 import { logoutNativeSession } from "./push-registration";
-import { clearPendingInvite, loadPendingInvite } from "./pendingInvite";
+import { clearPendingInvite, forgetAcceptedInvites, loadPendingInvite } from "./pendingInvite";
+import { forgetHouseholdChoice, getHouseholdChoice, loadHouseholdChoice, subscribeHouseholdChoice } from "./household-choice";
+import { pickHousehold } from "../shared/lib/household";
 import { rememberLogout, retryPendingLogouts, signOutOnServer } from "./pending-logout";
 import { getItem, removeItem, setItem } from "./storage";
 
@@ -156,6 +159,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [restore, signOutLocally]);
 
+  // An app that stays in the background for days would otherwise only retry an offline logout
+  // when it is started again.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void retryPendingLogouts();
+    });
+    return () => sub.remove();
+  }, []);
+
   const verify = useCallback(
     async (linkToken: string) => {
       if (switching.current) return null;
@@ -213,6 +225,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // The next person to sign in here must not inherit this account's destination or invitation.
       inflight.clear();
       setNext(null);
+      forgetAcceptedInvites();
+      void forgetHouseholdChoice();
       await clearPendingInvite().catch(() => undefined);
       await signOutLocally();
     }
@@ -243,6 +257,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await removeItem(TOKEN_KEY);
       await removeItem(CUSTOM_TOKEN_KEY);
       await removeItem(NEXT_KEY);
+      forgetAcceptedInvites();
+      void forgetHouseholdChoice();
       await clearPendingInvite();
       await saveServer(target);
       inflight.clear();
@@ -286,6 +302,16 @@ export function useMe(): Me {
   const { state } = useSession();
   if (state.status !== "in") throw new Error("not signed in");
   return state.me;
+}
+
+/** The household the screens show: the one the parent picked, else the first. Only behind the signed-in layout. */
+export function useActiveHousehold(): Me["households"][number] | undefined {
+  const me = useMe();
+  const chosen = useSyncExternalStore(subscribeHouseholdChoice, getHouseholdChoice);
+  useEffect(() => {
+    void loadHouseholdChoice();
+  }, []);
+  return pickHousehold(me.households, chosen);
 }
 
 /** True when this server pairs iPhones (`iosPairing` in /me). False outside a session. */

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Platform, Share } from "react-native";
+import { type ComponentRef, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, findNodeHandle, Platform, Share, View } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import type { InviteResult, Members } from "../api/models";
 import { ItemRow } from "../components/parts";
+import { HouseholdPicker } from "../components/HouseholdPicker";
 import { RequireAuth } from "../components/RequireAuth";
 import { ResetProtection } from "../components/ResetProtection";
 import { Button, Card, errorMessage, Field, LiveStatus, LoadGate, Notice, type NoticeValue, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { useMe, useSession } from "../lib/session";
+import { useActiveHousehold, useMe, useSession } from "../lib/session";
 import { space } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
 import { formatDateTime } from "../shared/lib/format";
@@ -19,7 +20,7 @@ function Household() {
   const me = useMe();
   const { refresh } = useSession();
   const router = useRouter();
-  const household = me.households[0];
+  const household = useActiveHousehold();
   const res = useLoad<Members | null>(
     () =>
       household
@@ -33,6 +34,16 @@ function Household() {
   const [busyId, setBusyId] = useState<string | null>(null);
   // Removing a parent (or leaving) cuts them off the phones and their SOS alerts, so it asks first.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // The button unmounts when the question opens (and the reverse on Cancel), so screen-reader focus is moved by hand.
+  const question = useRef<ComponentRef<typeof View>>(null);
+  const removeButtons = useRef(new Map<string, ComponentRef<typeof View> | null>());
+  const lastConfirming = useRef<string | null>(null);
+  useEffect(() => {
+    const node = confirmingId ? question.current : lastConfirming.current ? removeButtons.current.get(lastConfirming.current) : null;
+    const handle = node ? findNodeHandle(node) : null;
+    if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
+    lastConfirming.current = confirmingId;
+  }, [confirmingId]);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
   const [link, setLink] = useState<{ url: string; email: string } | null>(null);
 
@@ -120,6 +131,7 @@ function Household() {
   return (
     <Screen testID="household" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
       <PageTitle sub={t("house.intro")}>{household.name === "Home" ? t("house.title") : household.name}</PageTitle>
+      <HouseholdPicker />
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(data) =>
@@ -140,7 +152,9 @@ function Household() {
                       >
                         {canRemove && confirmingId === m.id ? (
                           <VStack>
-                            <Text>{self ? t("house.leaveQuestion") : t("house.removeQuestion", { email: m.email })}</Text>
+                            <View ref={question} accessible>
+                              <Text>{self ? t("house.leaveQuestion") : t("house.removeQuestion", { email: m.email })}</Text>
+                            </View>
                             <Row>
                               <Button
                                 testID={`member-remove-confirm-${m.id}`}
@@ -154,6 +168,9 @@ function Household() {
                           </VStack>
                         ) : canRemove ? (
                           <Button
+                            ref={(node) => {
+                              removeButtons.current.set(m.id, node);
+                            }}
                             kind="secondary"
                             title={self ? t("house.leave") : t("app.remove")}
                             accessibilityLabel={self ? undefined : t("house.removeLabel", { email: m.email })}

@@ -6,7 +6,7 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, KeyInput, SelfKey } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { EmergencySection } from "../../../components/EmergencyOpenings";
-import { Button, Card, Choice, Disclosure, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
+import { Button, Card, Choice, Disclosure, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad, useSingleFlight } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import type { MessageKey } from "../../../shared/i18n/translate";
 import { useMe } from "../../../lib/session";
@@ -62,16 +62,19 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   const sentHours = choice === "mild" ? 1 : choice === "firm" ? 24 : Number(hours);
   const waitingForInvite = current.keyType === "trusted" && !current.trustedEmail && !current.trustedAccepted;
 
-  async function shareInvite() {
+  // Two taps in one frame must not create two trusted-person invitations or save twice.
+  const once = useSingleFlight();
+
+  const shareInvite = () => once(async () => {
     try {
       const invite = await unwrap<{ url: string }>(client.POST("/phones/{pid}/trusted-invite", { params: { path: { pid: phone.id } } }));
       if (invite) await Share.share({ message: invite.url });
     } catch (err) {
       notify({ tone: "error", text: errorMessage(err, t) });
     }
-  }
+  });
 
-  async function submit() {
+  const submit = () => once(async () => {
     const h = sentHours;
     const mail = email.trim().toLowerCase();
     const next: typeof errors = {};
@@ -104,7 +107,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
     } finally {
       setSaving(false);
     }
-  }
+  });
 
   return (
     <VStack>

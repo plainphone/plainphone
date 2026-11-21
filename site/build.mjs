@@ -178,7 +178,13 @@ function footer(t, route = (p) => p.path) {
 </div>
 <div class="operator"><p><a href="https://mahoje.dk">Mahoje</a> (CVR 39413892)</p>
 <p>${t.footer.license}</p></div>
-</div></footer>`;
+</div></footer>
+<script type="module" src="/${appSearchFile}" integrity="sha256-${appSearchHash}"></script>`;
+}
+
+function statusParagraph(text) {
+  if (!text.includes("{STATUS_LINK}")) throw new Error("A translation of statusText lacks {STATUS_LINK}");
+  return text.replace("{STATUS_LINK}", `href="${STATUS_URL}" target="_blank" rel="noopener noreferrer"`);
 }
 
 const plainText = (html) => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
@@ -399,7 +405,6 @@ ${header(t, "apps", route)}
 ${compatibilityContent(t, esc)}
 </main>
 ${footer(t, route)}
-<script type="module" src="/${appSearchFile}" integrity="sha256-${appSearchHash}"></script>
 </body>
 </html>
 `;
@@ -480,7 +485,7 @@ ${p.sections.map(section).join("\n")}
 <h2 id="contact-title">${esc(p.contact)}</h2>
 <p>${esc(p.contactText)}</p>
 <p><a href="mailto:support@plainphone.org">support@plainphone.org</a></p>
-<p>${p.statusText.replace("{STATUS_LINK}", `href="${STATUS_URL}" target="_blank" rel="noopener noreferrer"`)}</p>
+<p>${statusParagraph(p.statusText)}</p>
 </section>
 </main>
 ${footer(t, route)}

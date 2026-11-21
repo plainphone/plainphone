@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { isLanguage } from "./phone-language";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { pickHousehold } from "./household";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Locale, type Me, setUnauthorizedHandler } from "./api";
 import { disablePush, PUSH_ID_KEY } from "./push";
@@ -63,6 +64,32 @@ export function linkAskedHere(): boolean {
   }
 }
 
+/** The household a parent in more than one has picked (an id, not a credential). */
+export const HOUSEHOLD_KEY = "pp.household";
+const householdListeners = new Set<() => void>();
+
+function savedHousehold(): string | null {
+  try {
+    return localStorage.getItem(HOUSEHOLD_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function subscribeHousehold(listener: () => void) {
+  householdListeners.add(listener);
+  return () => void householdListeners.delete(listener);
+}
+
+export function chooseHousehold(id: string) {
+  try {
+    localStorage.setItem(HOUSEHOLD_KEY, id);
+  } catch {
+    // ignore
+  }
+  householdListeners.forEach((listener) => listener());
+}
+
 /** The inbox signature name (components/FamilyInbox.tsx); a display name, not a credential. */
 export const INBOX_NAME_KEY = "pp.inboxName";
 
@@ -70,7 +97,7 @@ export const INBOX_NAME_KEY = "pp.inboxName";
 export function clearAccountState() {
   const kept: [() => Storage, string[]][] = [
     [() => sessionStorage, [NEXT_KEY, INVITE_KEY]],
-    [() => localStorage, [INBOX_NAME_KEY, LINK_ASKED_KEY, PUSH_ID_KEY]],
+    [() => localStorage, [INBOX_NAME_KEY, LINK_ASKED_KEY, PUSH_ID_KEY, HOUSEHOLD_KEY]],
   ];
   for (const [storage, keys] of kept) {
     for (const key of keys) {
@@ -80,6 +107,25 @@ export function clearAccountState() {
         // ignore
       }
     }
+  }
+}
+
+/**
+ * A session that expired (or was replaced) leaves this browser's push subscription behind, bound to
+ * the previous account. If the signed-in account does not list it, someone else signed in here:
+ * unsubscribe the browser so it stops showing the previous parent's alerts. A failed lookup keeps it.
+ */
+async function dropForeignPush() {
+  let id: string | null = null;
+  try {
+    id = localStorage.getItem(PUSH_ID_KEY);
+    if (!id) return;
+    const { subscriptions } = await api.get<{ subscriptions: { id: string }[] }>("/notifications");
+    if (subscriptions.some((s) => s.id === id)) return;
+    await disablePush(null);
+    localStorage.removeItem(PUSH_ID_KEY);
+  } catch {
+    // Keep the subscription when we could not tell.
   }
 }
 
@@ -103,6 +149,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const me = await api.get<Me>("/me");
       setState({ status: "in", me });
+      void dropForeignPush();
       if (isLanguage(me.user.locale)) setLocale(me.user.locale);
       return me;
     } catch (err) {
@@ -163,7 +210,15 @@ export function useSession(): SessionValue {
  */
 export function useHouseholdId(): string | undefined {
   const v = useContext(SessionContext);
-  return v?.state.status === "in" ? v.state.me.households[0]?.id : undefined;
+  const saved = useSyncExternalStore(subscribeHousehold, savedHousehold);
+  return v?.state.status === "in" ? pickHousehold(v.state.me.households, saved)?.id : undefined;
+}
+
+/** The household the pages show: the one the parent picked, else the first. Only below <RequireAuth>. */
+export function useActiveHousehold(): Me["households"][number] | undefined {
+  const { state } = useSession();
+  const saved = useSyncExternalStore(subscribeHousehold, savedHousehold);
+  return state.status === "in" ? pickHousehold(state.me.households, saved) : undefined;
 }
 
 /** The signed-in user. Only use below <RequireAuth>. */

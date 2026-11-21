@@ -6,7 +6,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
 import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import { RequireAuth } from "../components/RequireAuth";
-import { useMe } from "../lib/session";
+import { useActiveHousehold } from "../lib/session";
 import { ScanCode } from "../components/ScanCode";
 import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack, Switch, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
@@ -19,7 +19,7 @@ import { IOS_PAIRING_NOT_YET } from "../shared/lib/platform";
 function PairForm() {
   const { t } = useI18n();
   // The household the app shows; without it the server picks any of the parent's households.
-  const householdId = useMe().households[0]?.id;
+  const householdId = useActiveHousehold()?.id;
   const router = useRouter();
   const params = useLocalSearchParams<{ code?: string; profile?: string }>();
   const [code, setCode] = useState(() => normaliseCode(params.code ?? ""));

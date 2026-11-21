@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
-import { useMe } from "../lib/session";
+import { useActiveHousehold } from "../lib/session";
+import { HouseholdPicker } from "./HouseholdPicker";
 import { type SummarySettings, summaryDayName, summaryTime } from "../lib/weekly-summary";
 import { errorMessage, LiveStatus, LoadGate, type Notice, useLoad } from "./ui";
 
@@ -20,7 +21,7 @@ const deviceZone = () => {
 /** The household's weekly summary: on or off, how it is delivered, when, and what may wait for it. */
 export function WeeklySummarySettings() {
   const { t, locale } = useI18n();
-  const household = useMe().households[0];
+  const household = useActiveHousehold();
   const res = useLoad(
     () => (household ? api.get<SummarySettings>(`/households/${household.id}/summary-settings`) : Promise.resolve(null)),
     [household?.id],
@@ -58,6 +59,7 @@ export function WeeklySummarySettings() {
     <section className="section" aria-labelledby="summary-settings-h">
       <h2 id="summary-settings-h">{t("summary.settingsTitle")}</h2>
       <p>{t("summary.settingsIntro")}</p>
+      <HouseholdPicker />
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(s) =>

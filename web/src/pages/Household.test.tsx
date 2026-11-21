@@ -13,6 +13,8 @@ vi.mock("../components/HouseholdMove", () => ({ HouseholdMove: () => null }));
 vi.mock("../lib/session", () => ({
   useMe: () => ({ user: { id: "u1", email: "me@example.org", locale: "en" }, households: [{ id: "h1", name: "Home", role: "owner" }] }),
   useSession: () => ({ refresh: async () => null }),
+  useActiveHousehold: () => ({ id: "h1", name: "Home", role: "owner" }),
+  chooseHousehold: () => undefined,
 }));
 
 let root: Root;
@@ -65,6 +67,14 @@ it("asks before removing another parent from the household", async () => {
   await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove co-parent@example.org"]')!.click());
   await act(async () => button("Yes, remove")!.click());
   expect(removed).toEqual(["/households/h1/members/u2"]);
+});
+
+it("moves focus to the question, and back to the button on Cancel", async () => {
+  await mount();
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove co-parent@example.org"]')!.click());
+  expect(document.activeElement?.id).toBe("remove-q-u2");
+  await act(async () => button("Cancel")!.click());
+  expect(document.activeElement?.id).toBe("remove-btn-u2");
 });
 
 it("asks before the parent leaves the household", async () => {

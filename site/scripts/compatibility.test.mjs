@@ -16,6 +16,12 @@ test("finds an app by name or by package in a Play Store link", () => {
   assert.ok(!matches(terms, "dk.mitid.other"));
 });
 
+test("matches a domain that is still being typed, but not a longer host", () => {
+  assert.ok(matches("YouTube\nwww.youtube.com", "youtube.c"));
+  assert.ok(matches("YouTube\nwww.youtube.com", "youtube."));
+  assert.ok(!matches("YouTube\nwww.youtube.com", "youtube.org"));
+});
+
 test("accepts website links without treating their paths as domains", () => {
   assert.ok(matches("TikTok\ntiktok.com", "https://www.tiktok.com/@plainphone"));
   assert.ok(matches("YouTube\nwww.youtube.com", "youtube.com."));
