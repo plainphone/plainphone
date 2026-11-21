@@ -135,7 +135,7 @@ Light mode lets the child set the clock, so the windows run on the server's time
 | L-T5 | After L-T4, turn airplane mode off | The phone syncs and the right windows come back within a minute | Turn airplane mode off |
 | L-T6 | Use all emergency openings, then set the date to next month | None left: the month follows the server's time | Self phone with emergency openings on |
 | L-T7 | Use the 5 Play windows of the day, then set the date to tomorrow | No sixth window: the day follows the server's time | Maintenance PIN → Install an app, then change the date |
-| L-T8 | Play a video in a blocked app, press Home so it floats in picture-in-picture (also: let its time limit run out while it plays there) | Within a second the stop screen shows and the floating window is dismissed or covered; the audio stops. 112 and the parents can still be called | Open a video app that supports picture-in-picture, block it or use up its time, press Home |
+| L-T8 | Play a video in a blocked app, press Home so it floats in picture-in-picture (also: let its time limit run out while it plays there) | Within a second the stop screen shows and the floating window is dismissed or covered; the audio stops. 112 and the parents can still be called | Also: if the window does not close, the stop screen shows once, not every second, and a call stays usable. Open a video app that supports picture-in-picture, block it or use up its time, press Home |
 | L-T9 | Same as L-T8 during an emergency opening of that app | It keeps playing until the opening ends (15 min), then it is closed | Self phone with emergency openings on |
 
 ## Maker-specific (Samsung)

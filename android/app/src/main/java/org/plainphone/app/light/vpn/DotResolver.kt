@@ -224,13 +224,25 @@ class DotResolver(
 
     /** After a burst the sockets would otherwise stay open until the next lookup: close them on a timer. */
     private fun scheduleSweep() {
+        // One pending sweep at a time: under steady traffic every release would otherwise add another task.
+        synchronized(lock) {
+            if (sweepPending) return
+            sweepPending = true
+        }
         runCatching { SWEEPER.schedule({ sweepIdle() }, idleTimeoutMs + 100, java.util.concurrent.TimeUnit.MILLISECONDS) }
+            .onFailure { synchronized(lock) { sweepPending = false } }
     }
+
+    private var sweepPending = false
+
+    /** Test hook: whether a sweep is waiting on the timer. */
+    internal fun sweepScheduled(): Boolean = synchronized(lock) { sweepPending }
 
     /** Closes the idle connections that have waited long enough; looks again later while some are left. */
     internal fun sweepIdle() {
         val expired = ArrayList<DotConnection>()
         val more = synchronized(lock) {
+            sweepPending = false
             dropExpired(expired)
             idle.isNotEmpty() && !closed
         }

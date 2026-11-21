@@ -16,14 +16,18 @@ object PipGuard {
 
     /**
      * The picture-in-picture windows whose app the plan blocks, unless an emergency opening covers
-     * that app right now. Our own screens and unreadable windows are left alone.
+     * that app right now. Our own screens and unreadable windows are left alone. An app in
+     * [alreadyStopped] has had its stop screen once for this window: showing it again every tick
+     * would push the phone (a call screen too) away for as long as the window floats.
      */
     fun targets(
         windows: List<Win>,
         ownPackage: String,
         plan: LightPlan,
+        alreadyStopped: Set<String> = emptySet(),
         openedForNow: (String) -> Boolean,
     ): List<Target> = packages(windows, ownPackage)
+        .filterNot { it in alreadyStopped }
         .mapNotNull { pkg -> plan.why(pkg)?.let { Target(pkg, it) } }
         .filterNot { openedForNow(it.pkg) }
 

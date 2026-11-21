@@ -85,6 +85,50 @@ class PipGuardTest {
         assertEquals(BlockedActivity::class.java.name, shadowOf(service.application).nextStartedActivity.component?.className)
     }
 
+    @Test fun `an app already stopped is not a target again`() {
+        assertEquals(
+            listOf(PipGuard.Target(video, LightPlan.Why.TIME_USED_UP)),
+            PipGuard.targets(listOf(PipGuard.Win(game, true), PipGuard.Win(video, true)), "org.plainphone.app", plan, setOf(game)) { false },
+        )
+    }
+
+    @Test fun `a window that will not close is stopped once, not on every event and tick`() {
+        shadow.windowList = listOf(window(game, true))
+        windowsChanged()
+        assertEquals(1, homeActions())
+        repeat(3) {
+            shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+            windowsChanged()
+        }
+        org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(65))
+        assertEquals(1, homeActions())
+    }
+
+    @Test fun `the same app is stopped again when it returns to picture-in-picture after the window was gone`() {
+        shadow.windowList = listOf(window(game, true))
+        windowsChanged()
+        shadow.windowList = listOf(window("com.android.launcher", false))
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        shadow.windowList = listOf(window(game, true))
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        assertEquals(2, homeActions())
+    }
+
+    @Test fun `a call in progress is not pushed aside by the stop screen`() {
+        val audio = service.getSystemService(android.media.AudioManager::class.java)
+        audio.mode = android.media.AudioManager.MODE_IN_CALL
+        shadow.windowList = listOf(window(game, true))
+        windowsChanged()
+        assertEquals(0, homeActions())
+        audio.mode = android.media.AudioManager.MODE_NORMAL
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        assertEquals(1, homeActions())
+    }
+
     @Test fun `an allowed app in picture-in-picture is not touched`() {
         shadow.windowList = listOf(window(fine, true))
         windowsChanged()

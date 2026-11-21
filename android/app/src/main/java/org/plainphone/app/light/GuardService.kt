@@ -39,6 +39,8 @@ class GuardService : AccessibilityService() {
     private var lastTimeCheckPkg: String? = null
     private var lastPipTimeCheck = 0L
     private var pipPackages: List<String> = emptyList()
+    /** Picture-in-picture apps already stopped once; forgotten when their window is gone. */
+    private val pipStopped = mutableSetOf<String>()
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
@@ -271,14 +273,19 @@ class GuardService : AccessibilityService() {
             }
         }
         pipPackages = PipGuard.packages(wins, packageName)
-        val targets = PipGuard.targets(wins, packageName, LightLock.plan(this), ::openedForNow)
+        pipStopped.retainAll(pipPackages.toSet())
+        // A call (112 included) is never pushed aside by the stop screen; the window is looked at again after it.
+        val inCall = getSystemService(android.media.AudioManager::class.java)?.mode == android.media.AudioManager.MODE_IN_CALL
+        val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, LightLock.plan(this), pipStopped, ::openedForNow)
         for (t in targets) {
             roots[t.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS)
-            block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)
+            // Once per window: if dismissing does not close it, Home and the stop screen must not repeat every tick.
+            if (block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)) pipStopped += t.pkg
         }
         roots.values.forEach(::recycle)
         // Time may be up before the stored plan knows it: the live check covers picture-in-picture apps too.
-        if (pipPackages.any { p -> targets.none { it.pkg == p } && !isOverlay(p) }) pipTimeCheck(pipPackages)
+        val unchecked = pipPackages.filter { p -> p !in pipStopped && targets.none { it.pkg == p } && !isOverlay(p) }
+        if (!inCall && unchecked.isNotEmpty()) pipTimeCheck(unchecked)
     }
 
     /**
@@ -383,16 +390,17 @@ class GuardService : AccessibilityService() {
             val used = pkgs.filter { it in snap.blocked }
             if (used.isEmpty()) return@execute
             main.post {
-                val still = used.filter { it in pipPackages && !openedForNow(it) }
+                val still = used.filter { it in pipPackages && it !in pipStopped && !openedForNow(it) }
                 if (still.isEmpty()) return@post
-                still.forEach { block(it, BlockedActivity.Reason.TIME_USED_UP) }
+                still.forEach { if (block(it, BlockedActivity.Reason.TIME_USED_UP)) pipStopped += it }
                 Lock.applyAsync(this, "time used up")
             }
         } }
     }
 
-    private fun block(pkg: String, reason: BlockedActivity.Reason) {
-        if (LightRelease.isReleased(this)) return
+    /** True when the stop screen was started; false when the rate limit dropped it (it is retried). */
+    private fun block(pkg: String, reason: BlockedActivity.Reason): Boolean {
+        if (LightRelease.isReleased(this)) return false
         val now = SystemClock.elapsedRealtime()
         if (now - lastBlockAt < BLOCK_GAP_MS) {
             // Dropped for now, not forgotten: a quick switch back to the app would otherwise keep it open.
@@ -400,12 +408,13 @@ class GuardService : AccessibilityService() {
             // Settings watch: its next content event, scheduled re-check or VPN retry runs it again.
             main.removeCallbacks(reguard)
             main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))
-            return
+            return false
         }
         lastBlockAt = now
         if (reason != BlockedActivity.Reason.PROTECTION) performGlobalAction(GLOBAL_ACTION_HOME)
         runCatching { startActivity(BlockedActivity.intent(this, pkg, reason)) }
             .onFailure { Log.w(TAG, "could not show the blocked screen: ${it.message}") }
+        return true
     }
 
     private fun collect(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
@@ -428,10 +437,19 @@ class GuardService : AccessibilityService() {
     /** The shade, the keyboard and the launcher are not "an app in front". */
     private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg in keyboardPackages()
 
-    /** Packages of the enabled keyboards, not any package with "inputmethod" in its name. */
-    private fun keyboardPackages(): Set<String> =
-        runCatching { getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.map { it.packageName }?.toSet() }
-            .getOrNull().orEmpty() + "com.android.inputmethod.latin"
+    private var keyboards: Set<String> = emptySet()
+    private var keyboardsAt = 0L
+
+    /** Packages of the enabled keyboards, not any package with "inputmethod" in its name. Cached: it is a binder call. */
+    private fun keyboardPackages(): Set<String> {
+        val now = SystemClock.elapsedRealtime()
+        if (keyboardsAt == 0L || now - keyboardsAt > KEYBOARD_CACHE_MS) {
+            keyboards = runCatching { getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.map { it.packageName }?.toSet() }
+                .getOrNull().orEmpty() + "com.android.inputmethod.latin"
+            keyboardsAt = now
+        }
+        return keyboards
+    }
 
     private val privateDnsOptions by lazy {
         listOf("private_dns_mode_provider", "private_dns_mode_provider_hostname").mapNotNull(::settingsString)
@@ -498,6 +516,7 @@ class GuardService : AccessibilityService() {
             AccessibilityEvent.WINDOWS_CHANGE_ACTIVE
         private const val TICK_MS = 30_000L
         private const val BLOCK_GAP_MS = 700L
+        private const val KEYBOARD_CACHE_MS = 60_000L
 
         @Volatile var isConnected = false
             private set
