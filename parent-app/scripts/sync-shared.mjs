@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webSrc = join(here, "..", "..", "web", "src");
 const shared = join(here, "..", "src", "shared");
 
-export const FILES = ["i18n/en.ts", "i18n/da.ts", "i18n/sv.ts", "i18n/nb.ts", "i18n/de.ts", "lib/phone-language.ts", "i18n/translate.ts", "lib/format.ts", "lib/failedPolicies.ts", "lib/filter-status.ts", "lib/lock-steps.ts", "lib/ops.ts", "lib/phoneUpdate.ts", "lib/phoneSupport.ts", "lib/settings.ts", "lib/phone-state.ts", "lib/approval-state.ts", "lib/more-time.ts", "lib/status-fixtures.ts", "i18n/status.ts", "lib/phone-health.ts", "lib/weekly-summary.ts", "lib/sos-options.ts", "i18n/app-updates.ts", "lib/app-updates.ts", "i18n/platform.ts", "lib/platform.ts", "i18n/age.ts", "lib/age.ts", "i18n/modes.ts", "lib/liftedPolicies.ts", "lib/live-events.ts", "i18n/callback.ts", "i18n/extended.ts", "lib/extended-family.ts", "i18n/billing.ts", "lib/billing.ts"];
+export const FILES = ["i18n/en.ts", "i18n/da.ts", "i18n/sv.ts", "i18n/nb.ts", "i18n/de.ts", "lib/phone-language.ts", "i18n/translate.ts", "lib/format.ts", "lib/failedPolicies.ts", "lib/filter-status.ts", "lib/lock-steps.ts", "lib/ops.ts", "lib/phoneUpdate.ts", "lib/phoneSupport.ts", "lib/settings.ts", "lib/phone-state.ts", "lib/approval-state.ts", "lib/more-time.ts", "lib/status-fixtures.ts", "i18n/status.ts", "lib/phone-health.ts", "lib/weekly-summary.ts", "lib/sos-options.ts", "i18n/app-updates.ts", "lib/app-updates.ts", "i18n/platform.ts", "lib/platform.ts", "i18n/age.ts", "lib/age.ts", "i18n/modes.ts", "lib/liftedPolicies.ts", "lib/live-events.ts", "i18n/callback.ts", "i18n/extended.ts", "lib/extended-family.ts", "lib/household.ts", "i18n/billing.ts", "lib/billing.ts"];
 
 const check = process.argv.includes("--check");
 let drift = 0;

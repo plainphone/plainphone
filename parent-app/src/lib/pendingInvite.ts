@@ -10,6 +10,17 @@ import { getItem, removeItem, setItem } from "./storage";
 const KEY = "pp.invite";
 let memory: string | null = null;
 
+/**
+ * The accept request per token, so one token is accepted once while the app runs. It belongs to
+ * the signed-in account: logging out or switching server forgets it, or the next person to open
+ * the same link would be shown the previous account's result without any request.
+ */
+export const acceptedInvites = new Map<string, Promise<unknown>>();
+
+export function forgetAcceptedInvites(): void {
+  acceptedInvites.clear();
+}
+
 export async function savePendingInvite(token: string): Promise<void> {
   memory = token;
   await setItem(KEY, token).catch(() => undefined);

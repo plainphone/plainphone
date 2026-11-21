@@ -24,6 +24,7 @@ it("claims the phone into the household the dashboard shows, not one the server 
     posts.push({ path, body });
     return path === "/phones/pairing-profile" ? { profile: null } : { id: "p1", pairedAt: "2026-11-20T12:00:00Z" };
   }) as never);
+  window.history.replaceState(null, "", "/pair?code=ABCD-EFGH&profile=self");
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -38,7 +39,9 @@ it("claims the phone into the household the dashboard shows, not one the server 
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
-    expect(posts.find((p) => p.path === "/phones/claim")?.body).toMatchObject({ name: "Test phone", householdId: "h-own" });
+    expect(posts.find((p) => p.path === "/phones/claim")?.body).toMatchObject({ code: "ABCD-EFGH", name: "Test phone", householdId: "h-own" });
+    // The code is kept in state, not in the address bar.
+    expect(window.location.search).toBe("?profile=self");
   } finally {
     await act(async () => root.unmount());
     container.remove();

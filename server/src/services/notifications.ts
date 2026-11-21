@@ -5,6 +5,7 @@
 // sent once, when it happens, never on every poll. A failed push never fails the request
 // that caused it.
 
+import { withTimeout } from "../lib/http.js";
 import { errorSummary } from "../lib/log.js";
 import { publishForPhone } from "./live-events.js";
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
@@ -215,8 +216,17 @@ export async function notifyUsers(
   }
 }
 
+/** One alert mail may take this long; the sweeper and the phone's requests do not wait longer. */
+export const ALERT_MAIL_TIMEOUT_MS = 10_000;
+
+export interface NotifyOpts {
+  urgent?: boolean;
+  /** Do not wait for the alert mails (they are still sent, with a timeout). For requests from the phone. */
+  mailsAfterResponse?: boolean;
+}
+
 /** Sends an event about a phone to the parents of its household who have not muted it. */
-export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: { urgent?: boolean } = {}): Promise<number> {
+export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: NotifyOpts = {}): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId, summaryOn: phones.weeklySummaryEnabled }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
   if (phone.summaryOn) await noteForSummary(ctx, phoneId, e);
@@ -250,7 +260,7 @@ export async function notifyAlertRecipients(
   ctx: Ctx,
   members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
   e: NotifyEvent,
-  opts: { urgent?: boolean } = {},
+  opts: NotifyOpts = {},
 ): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
@@ -259,7 +269,7 @@ export async function notifyAlertRecipients(
     ? members.map(async (m) => {
       const locale = toLocale(m.locale);
       try {
-        await ctx.mail.send(
+        await withTimeout(ctx.mail.send(
           phoneAlertMail(
             m.email,
             locale,
@@ -270,12 +280,15 @@ export async function notifyAlertRecipients(
                 ? { kind: "neverConnected", phoneId: e.phoneId, phoneName: e.phoneName }
                 : { kind: "offline", phoneId: e.phoneId, phoneName: e.phoneName, hours: e.hours, lastSeen: lastSeen(e, locale) },
           ),
-        );
+        ), ALERT_MAIL_TIMEOUT_MS);
       } catch (err) {
         console.error(`alert mail failed: ${errorSummary(err)}`);
       }
     })
     : [];
+  // A phone's own request (status report, attestation check) asks for the mails to go out after
+  // its answer: it must not wait for a slow mail server. They still start now and have a timeout.
+  if (opts.mailsAfterResponse) return notifyUsers(ctx, members.map((m) => m.id), e, opts);
   const [sent] = await Promise.all([notifyUsers(ctx, members.map((m) => m.id), e, opts), ...mails]);
   return sent;
 }

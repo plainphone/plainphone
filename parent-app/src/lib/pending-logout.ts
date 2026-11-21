@@ -8,16 +8,23 @@ import { getItem, setItem } from "./storage";
 
 const KEY = "pp.pendingLogout";
 
+/** A session lasts this long on the server (SESSION_DAYS), so a logout older than that has nothing left to end. */
+const MAX_AGE_MS = 60 * 86_400_000;
+
 interface Pending {
   server: string;
   token: string;
+  /** When the logout was queued (ms). Entries from before this field get the time they are first read. */
+  at: number;
 }
 
 async function load(): Promise<Pending[]> {
   try {
     const saved = JSON.parse((await getItem(KEY)) ?? "[]") as unknown;
     return Array.isArray(saved)
-      ? saved.filter((p): p is Pending => typeof p?.server === "string" && typeof p?.token === "string")
+      ? saved
+          .filter((p) => typeof p?.server === "string" && typeof p?.token === "string")
+          .map((p): Pending => ({ server: p.server, token: p.token, at: typeof p.at === "number" ? p.at : Date.now() }))
       : [];
   } catch {
     return [];
@@ -42,7 +49,7 @@ export async function endSession(server: string, token: string): Promise<boolean
 export async function rememberLogout(server: string, token: string): Promise<void> {
   const pending = await load();
   if (pending.some((p) => p.server === server && p.token === token)) return;
-  await setItem(KEY, JSON.stringify([...pending, { server, token }]));
+  await setItem(KEY, JSON.stringify([...pending, { server, token, at: Date.now() }]));
 }
 
 /** Ends a session on its server now, and keeps trying later if the server can't be reached. */
@@ -58,7 +65,11 @@ export function retryPendingLogouts(): Promise<void> {
     const pending = await load();
     if (!pending.length) return;
     const left: Pending[] = [];
-    for (const p of pending) if (!(await endSession(p.server, p.token))) left.push(p);
+    for (const p of pending) {
+      // Past the session lifetime the session has expired by itself: stop keeping its token.
+      if (Date.now() - p.at > MAX_AGE_MS) continue;
+      if (!(await endSession(p.server, p.token))) left.push(p);
+    }
     // Another logout may have been added meanwhile.
     const added = (await load()).filter((p) => !pending.some((q) => q.server === p.server && q.token === p.token));
     await setItem(KEY, JSON.stringify([...left, ...added]));

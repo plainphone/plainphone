@@ -3,7 +3,7 @@
 // The requests a trusted person was asked to answer: open ones first, answered ones below with
 // their result in place. Same states and copy as the dashboard (src/shared/lib/approval-state).
 import { type ComponentRef, useEffect, useRef } from "react";
-import { AccessibilityInfo, findNodeHandle, View } from "react-native";
+import { AccessibilityInfo, findNodeHandle, Platform, View } from "react-native";
 import type { Approval } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { radius, space, useColors } from "../lib/theme";
@@ -31,7 +31,7 @@ export function ApprovalQueue({ open, done, busy, approveOnly, focusId, onDecide
   const summary = queueSummaryKey(open.length, done.length);
   const answered = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
-    const node = focusId ? findNodeHandle(answered.current) : null;
+    const node = focusId && Platform.OS !== "web" ? findNodeHandle(answered.current) : null;
     if (node) AccessibilityInfo.setAccessibilityFocus(node);
   }, [focusId]);
   const from = (a: Approval) => (a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : t("appr.fromPhone", { phone: a.phoneName }));

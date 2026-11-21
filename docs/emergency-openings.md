@@ -77,7 +77,7 @@ more than a day in the future is not believed and becomes "now". Phone-side retr
   minutes. 1 of 3 used this month.") the first time an opening is reported, and sees the switch, this
   month's count and the ten latest openings under **People I help** (`GET /people-i-help`,
   `emergency`). No push is sent when the key is a plain delay (there is nobody to tell), and a muted
-  phone sends none.
+  phone sends none. Every report is recorded, but past 20 reports an hour for one phone the trusted person is no longer pinged for each one.
 - **The owner** sees the same history on the Key page: `GET /phones/{pid}/emergency-openings` gives the
   switch, the allowance, the month's use and the openings of the last 90 days. Rows older than that are
   not shown.

@@ -81,6 +81,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const app = new Hono<Env>();
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(320, 60 * 60_000);
+  // Per address as well, since a client can mint ids: sized for several phones pairing behind one carrier NAT.
+  const pairPollIpLimit = new RateLimiter(3000, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const suggestionLimit = new RateLimiter(30, 60 * 60_000);
@@ -188,7 +190,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.on(["GET", "POST"], "/pairings/:id", async (c) => {
     // Checked before the limiter, so made-up ids cannot each take a slot in its memory.
     const id = param(c, "id");
-    if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
+    const ip = clientIp(c, ctx.cfg.TRUST_PROXY);
+    if (!pairPollIpLimit.take(ip) || !pairPollLimit.take(`${ip}:${id}`)) throw new HTTPException(429, { message: "slow down" });
     const decision = c.req.method === "POST" ? await body(c, z.object({ action: z.enum(["confirm", "cancel"]), key: initialSelfKey.optional(), filterMethod: z.enum(FILTER_METHODS).optional() })) : undefined;
     const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", decision?.action, decision?.key, decision?.filterMethod);
     c.header("Cache-Control", "no-store");
@@ -598,10 +601,12 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const pack = starterPack(phone.timezone);
     await ctx.db.transaction(async (tx) => {
       await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
-      for (const a of input.apps) {
+      // One statement per 500 apps, not one per app; a package listed twice counts once (the last one).
+      const apps = [...new Map(input.apps.map((a) => [a.packageName, a])).values()];
+      for (let from = 0; from < apps.length; from += 500) {
         await tx
           .insert(phoneApps)
-          .values({
+          .values(apps.slice(from, from + 500).map((a) => ({
             phoneId: phone.id,
             packageName: a.packageName,
             label: a.label,
@@ -610,10 +615,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
             allowed: a.core || pack.has(a.packageName),
             installed: true,
             reportedAt: ctx.now(),
-          })
+          })))
           .onConflictDoUpdate({
             target: [phoneApps.phoneId, phoneApps.packageName],
-            set: { label: a.label, core: a.core, installed: true, reportedAt: ctx.now() },
+            set: { label: sql`excluded.label`, core: sql`excluded.core`, installed: true, reportedAt: ctx.now() },
           });
       }
       const names = input.apps.map((a) => a.packageName);
@@ -900,7 +905,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (lost?.shown) publishLive(ctx, { type: "phone.status", householdId: phone.householdId, phoneId: phone.id });
     if (lost?.reason) {
       const event = { type: "protection" as const, phoneId: phone.id, phoneName: phone.name, reason: lost.reason };
-      await notifyHousehold(ctx, phone.id, event);
+      await notifyHousehold(ctx, phone.id, event, { mailsAfterResponse: true });
       if (lost.filterLost && phone.profile === "self") {
         const household = ctx.db.select({ id: householdMembers.userId }).from(householdMembers)
           .where(eq(householdMembers.householdId, phone.householdId));
@@ -911,7 +916,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
             eq(selfKeys.phoneId, phone.id), eq(selfKeys.keyType, "trusted"),
             notInArray(selfKeys.trustedUserId, household), notInArray(selfKeys.trustedUserId, muted),
           ));
-        await notifyAlertRecipients(ctx, recipients, { ...event, trusted: true });
+        await notifyAlertRecipients(ctx, recipients, { ...event, trusted: true }, { mailsAfterResponse: true });
       }
     }
     // New apps caught during an app update window become requests (docs/policies.md, "App updates").

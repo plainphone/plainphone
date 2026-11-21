@@ -5,6 +5,7 @@ import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../comp
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone } from "../lib/api";
 import { clearAccountState, useMe, useSession } from "../lib/session";
+import { disablePush } from "../lib/push";
 import { LiveSettings } from "../components/LiveSettings";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { NotificationsSection } from "./Notifications";
@@ -59,6 +60,9 @@ function AccountSection() {
     setBlocking([]);
     try {
       await api.del("/me", { confirmEmail: email.trim() });
+      // The server dropped the subscription rows; the browser's own subscription goes too. Only
+      // after the delete went through, so a refused delete (409) keeps SOS notifications on.
+      await disablePush(null).catch(() => undefined);
       clearAccountState();
       // Leave the protected page before the session state turns anonymous.
       navigate("/login", { replace: true, state: { deleted: true } });

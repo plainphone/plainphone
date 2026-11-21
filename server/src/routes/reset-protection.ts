@@ -14,6 +14,7 @@ import {
   googleAccountId,
   googleAuthUrl,
   PendingLogins,
+  PendingLoginsFull,
   removeAccount,
   resetProtectionAvailable,
   saveAccount,
@@ -51,7 +52,14 @@ export function resetProtectionRoutes(ctx: Ctx) {
       if (!resetProtectionAvailable(ctx)) return c.json({ error: "Google sign-in is not set up on this server" }, 409);
       if (!startLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many attempts" });
       const native = !c.get("viaCookie") && c.req.header("x-plainphone-app") === "parent";
-      const { state, challenge } = pending.start(c.get("user").id, hid, ctx.now().getTime(), native);
+      let started;
+      try {
+        started = pending.start(c.get("user").id, hid, ctx.now().getTime(), native);
+      } catch (err) {
+        if (err instanceof PendingLoginsFull) throw new HTTPException(503, { message: "try again in a few minutes" });
+        throw err;
+      }
+      const { state, challenge } = started;
       return c.json({ url: googleAuthUrl(ctx, state, challenge) });
     });
 

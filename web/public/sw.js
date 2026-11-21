@@ -212,7 +212,9 @@ function showFollowUp(notification, data, text, failed) {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const url = new URL(data.url || "/", self.location.origin).href;
+  // Only a page of this app: a URL on another origin opens the start page instead.
+  const target = new URL(data.url || "/", self.location.origin);
+  const url = (target.origin === self.location.origin ? target : new URL("/", self.location.origin)).href;
   const answer = event.action;
   if (data.receipt) event.waitUntil(sendReceipt(data.receipt, "opened"));
   if (data.type === "more-time" && MORE_TIME_ANSWERS.includes(answer) && data.phoneId && data.requestId) {

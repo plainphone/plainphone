@@ -55,7 +55,6 @@ const searchHash = existsSync(searchFile) ? createHash("sha256").update(readFile
 if (!searchHash || directives.get("script-src")?.join(" ") !== `'sha256-${searchHash}'`) {
   errors.push("_headers: script-src must pin only the published search module");
 }
-const lookupPaths = Object.values(pagePaths[routes.indexOf(lookupRoute)]);
 const seenHashes = new Set();
 for (const directive of ["default-src", "style-src-attr", "frame-ancestors", "base-uri", "form-action"]) {
   if (directives.get(directive)?.join(" ") !== "'none'") errors.push(`_headers: expected ${directive} 'none'`);
@@ -106,7 +105,6 @@ for (const file of html) {
     errors.push(`${name}: links to an unpublished giving page`);
   }
   const scripts = [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
-  const isLookup = lookupPaths.some((path) => target(path) === file);
   const searchAttrs = ` type="module" src="${searchPath}" integrity="sha256-${searchHash}"`;
   let searchCount = 0;
   for (const [, attrs, value] of scripts) {
@@ -122,7 +120,7 @@ for (const file of html) {
     }
   }
   if ((src.match(/<script\b/gi) ?? []).length !== scripts.length) errors.push(`${name}: malformed script`);
-  if (searchCount !== Number(isLookup)) errors.push(`${name}: expected search module only on lookup pages`);
+  if (searchCount !== 1) errors.push(`${name}: expected exactly one site script`);
   // Hash the exact published styles, and check CSS requests even if CSP would block them.
   const styles = [...src.matchAll(/<style>([\s\S]*?)<\/style>/gi)];
   if (styles.length !== 1 || (src.match(/<style\b/gi) ?? []).length !== 1 || !styles[0][1].trim()) {
@@ -148,6 +146,9 @@ for (const file of html) {
         [...attributes.keys()].some((key) => key === "style" || key.startsWith("on") || key === "ping" || key === "srcdoc") ||
         (tag === "meta" && attributes.has("http-equiv"))) {
       errors.push(`${relative(dist, file)}: disallowed element or attribute on <${tag}>`);
+    }
+    if (attributes.get("target")?.toLowerCase() === "_blank" && !/(^|\s)noopener(\s|$)/i.test(attributes.get("rel") ?? "")) {
+      errors.push(`${relative(dist, file)}: target="_blank" link without rel="noopener"`);
     }
     for (const key of ["src", "poster", "background", "data", "manifest", "xlink:href"]) {
       if (attributes.has(key)) checkResource(file, attributes.get(key));

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+import { HouseholdPicker } from "../components/HouseholdPicker";
 import { useLocalSearchParams } from "expo-router";
 import { client, unwrap } from "../api/client";
 import { RequireAuth } from "../components/RequireAuth";
 import { Card, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { useMe } from "../lib/session";
+import { useActiveHousehold } from "../lib/session";
 import { space } from "../lib/theme";
 import {
   phoneWeekLines,
@@ -19,7 +20,7 @@ import {
 /** The last 8 weekly summaries (docs/weekly-summary.md). */
 function Summary() {
   const { t, locale } = useI18n();
-  const household = useMe().households[0];
+  const household = useActiveHousehold();
   const { week } = useLocalSearchParams<{ week?: string }>();
   const res = useLoad(async () => {
     if (!household) return null;
@@ -36,6 +37,7 @@ function Summary() {
   return (
     <Screen testID="summary">
       <PageTitle sub={t("summary.intro")}>{t("summary.title")}</PageTitle>
+      <HouseholdPicker />
       <LoadGate res={res}>
         {(data) => data && (
           <VStack gap={space.md}>

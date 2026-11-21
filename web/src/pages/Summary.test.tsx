@@ -13,6 +13,8 @@ vi.mock("../components/ui", async (original) => ({
 }));
 vi.mock("../lib/session", () => ({
   useMe: () => ({ households: [{ id: "h1", name: "Home", role: "owner" }], user: { id: "u1", email: "parent@example.org", locale: "en" } }),
+  useActiveHousehold: () => ({ id: "h1", name: "Home", role: "owner" }),
+  chooseHousehold: () => undefined,
 }));
 
 afterEach(() => vi.unstubAllGlobals());

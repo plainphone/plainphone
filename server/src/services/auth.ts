@@ -51,9 +51,14 @@ export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
 
     let [user] = await tx.select().from(users).where(eq(users.email, link.email));
     if (!user) {
-      [user] = await tx.insert(users).values({ email: link.email, locale }).returning();
-      const [household] = await tx.insert(households).values({ name: "Home", summarySince: now }).returning();
-      await tx.insert(householdMembers).values({ householdId: household!.id, userId: user!.id, role: "owner" });
+      // Two login links opened at once (two tabs): the loser of the insert uses the winner's user.
+      [user] = await tx.insert(users).values({ email: link.email, locale }).onConflictDoNothing().returning();
+      if (user) {
+        const [household] = await tx.insert(households).values({ name: "Home", summarySince: now }).returning();
+        await tx.insert(householdMembers).values({ householdId: household!.id, userId: user.id, role: "owner" });
+      } else {
+        [user] = await tx.select().from(users).where(eq(users.email, link.email));
+      }
     }
     // A trusted person chosen by email before they had an account.
     await tx

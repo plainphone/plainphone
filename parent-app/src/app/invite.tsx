@@ -9,13 +9,13 @@ import { Platform } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import { Button, errorMessage, Loading, Notice, PageTitle, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { clearPendingInvite, loadPendingInvite, savePendingInvite } from "../lib/pendingInvite";
+import { acceptedInvites, clearPendingInvite, loadPendingInvite, savePendingInvite } from "../lib/pendingInvite";
 import { useSession } from "../lib/session";
 import { useLaunchToken } from "../lib/useLaunchToken";
 
 // One accept per token, also when effects run twice in development or the screen is opened
 // again after it worked. A failed accept is forgotten, so the link can be tried again.
-const inflight = new Map<string, Promise<unknown>>();
+const inflight = acceptedInvites;
 
 export default function InviteScreen() {
   const { t } = useI18n();

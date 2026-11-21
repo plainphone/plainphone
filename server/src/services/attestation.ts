@@ -7,7 +7,7 @@
 // only ever happens here, never on the phone. No serial number or IMEI is attested or stored.
 
 import { errorSummary } from "../lib/log.js";
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { randomBytes, X509Certificate } from "node:crypto";
 import { GOOGLE_ATTESTATION_ROOTS } from "../lib/attestation-roots.js";
 import { asBool, asInt, asOctets, certificateExtension, children, readTlv, type Tlv } from "../lib/der.js";
@@ -73,7 +73,7 @@ function explicitField(list: Tlv, tag: number): Tlv | null {
  * Verifies a chain (leaf first) for [challenge]. Throws [ChallengeMismatch] when the record was
  * made for another challenge, and plain errors for a chain that does not parse or does not link up.
  */
-export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked: Set<string> | null, now = Date.now()): AttestationResult {
+export async function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked: Set<string> | null, now = Date.now()): Promise<AttestationResult> {
   if (chainDer.length < 2) throw new Error("chain too short");
   const certs = chainDer.map((d) => new X509Certificate(d));
   for (let i = 0; i < certs.length - 1; i++) {
@@ -97,7 +97,7 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
   const rootKey = root.publicKey.export({ type: "spki", format: "der" }).toString("base64");
   if (!rootKeys.includes(rootKey)) return unverifiable;
   if (revoked && certs.some((c) => revoked.has(serialKey(c)))) return unverifiable;
-  if (level === "software" || level === null || !validCertificatePath(certs, now)) return unverifiable;
+  if (level === "software" || level === null || !(await validCertificatePath(certs, now))) return unverifiable;
 
   const hardware = desc[7]!;
   const rot = explicitField(hardware, TAG_ROOT_OF_TRUST);
@@ -119,7 +119,7 @@ export function bootVerdict(locked: boolean, boot: AttestationResult["verifiedBo
 }
 
 /** Verify CA constraints, key usage, validity, and critical extensions against the pinned root. */
-function validCertificatePath(certs: X509Certificate[], now: number): boolean {
+async function validCertificatePath(certs: X509Certificate[], now: number): Promise<boolean> {
   if (certs.some((cert) => now < Date.parse(cert.validFrom) || now > Date.parse(cert.validTo))) return false;
 
   // Pass PEM through anonymous pipes. The chain never needs a file or a command-line argument.
@@ -138,11 +138,19 @@ function validCertificatePath(certs: X509Certificate[], now: number): boolean {
     certs.slice(1, -1).map((cert) => cert.toString()).join(""),
     "",
   ].join("\0");
-  const result = spawnSync("bash", ["-c", verify, "verify", String(Math.floor(now / 1000))], { input, timeout: 3000 });
-  if (result.error || (result.status !== 0 && result.status !== 2)) {
-    throw new AttestationVerifierUnavailable("certificate verifier unavailable", { cause: result.error });
-  }
-  return result.status === 0;
+  // Asynchronous, so a slow openssl does not hold up every other request.
+  const status = await new Promise<number | null>((resolve, reject) => {
+    const child = execFile("bash", ["-c", verify, "verify", String(Math.floor(now / 1000))], { timeout: 3000 }, (error) => {
+      if (!error) return resolve(0);
+      typeof error.code === "number" && !error.killed ? resolve(error.code) : reject(error);
+    });
+    child.stdin?.on("error", () => {}); // a verifier that exits early closes the pipe; the exit code tells
+    child.stdin?.end(input);
+  }).catch((cause: unknown) => {
+    throw new AttestationVerifierUnavailable("certificate verifier unavailable", { cause });
+  });
+  if (status !== 0 && status !== 2) throw new AttestationVerifierUnavailable("certificate verifier unavailable");
+  return status === 0;
 }
 
 export function newChallenge(): Buffer {

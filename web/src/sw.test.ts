@@ -207,6 +207,13 @@ it("leaves the live event stream and the rest of /api alone", () => {
   expect(fetchEvent("/", "navigate")).toHaveBeenCalled();
 });
 
+it("opens the start page when a notification url leaves the app's origin", async () => {
+  load(4);
+  await click("", { url: "//other.example/x" });
+  await click("", { url: "https://other.example/x" });
+  expect(opened).toEqual(["https://pp.example/", "https://pp.example/"]);
+});
+
 it("opens the url on a click without an action, and ignores unknown actions", async () => {
   load(4);
   await click("");

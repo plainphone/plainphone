@@ -63,7 +63,7 @@ export class HttpDnsProvider implements DnsProvider {
 
   private async call(method: string, path: string, body?: unknown): Promise<Response> {
     const base = this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`;
-    return fetch(new URL(path, base), {
+    const res = await fetch(new URL(path, base), {
       method,
       headers: {
         authorization: `Bearer ${this.token}`,
@@ -72,6 +72,9 @@ export class HttpDnsProvider implements DnsProvider {
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(10_000),
     });
+    // Only the status is used; discard the body so the connection can be reused.
+    await res.body?.cancel().catch(() => {});
+    return res;
   }
 
   async upsertClient(config: DnsClientConfig) {
@@ -99,6 +102,7 @@ export class HttpDnsProvider implements DnsProvider {
     try {
       const base = this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`;
       const res = await fetch(new URL("healthz", base), { signal: AbortSignal.timeout(3_000) });
+      await res.body?.cancel().catch(() => {});
       return res.ok;
     } catch {
       return false;

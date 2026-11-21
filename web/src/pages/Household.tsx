@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { HouseholdPicker } from "../components/HouseholdPicker";
 import { ResetProtectionSection } from "../components/ResetProtection";
 import { HouseholdMove } from "../components/HouseholdMove";
 import { errorMessage, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type InviteResult, type Members } from "../lib/api";
 import { formatDateTime } from "../lib/format";
-import { useMe, useSession } from "../lib/session";
+import { useActiveHousehold, useMe, useSession } from "../lib/session";
 
 export function HouseholdPage() {
   const { t, locale } = useI18n();
   const me = useMe();
   const { refresh } = useSession();
   const navigate = useNavigate();
-  const household = me.households[0];
+  const household = useActiveHousehold();
   const res = useLoad(
     () => (household ? api.get<Members>(`/households/${household.id}/members`) : Promise.resolve(null)),
     [household?.id],
@@ -25,6 +26,13 @@ export function HouseholdPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   // Removing a parent (or leaving) cuts them off the phones and their SOS alerts, so it asks first.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // The button unmounts when the question opens (and the reverse on Cancel), so focus is moved by hand.
+  const lastConfirming = useRef<string | null>(null);
+  useEffect(() => {
+    if (confirmingId) document.getElementById(`remove-q-${confirmingId}`)?.focus();
+    else if (lastConfirming.current) document.getElementById(`remove-btn-${lastConfirming.current}`)?.focus();
+    lastConfirming.current = confirmingId;
+  }, [confirmingId]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [link, setLink] = useState<{ url: string; email: string } | null>(null);
 
@@ -108,6 +116,7 @@ export function HouseholdPage() {
   return (
     <>
       <PageTitle sub={t("house.intro")}>{household.name === "Home" ? t("house.title") : household.name}</PageTitle>
+      <HouseholdPicker />
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(data) =>
@@ -130,7 +139,7 @@ export function HouseholdPage() {
                         </div>
                         {canRemove && confirmingId === m.id ? (
                           <div className="stack-sm" role="group" aria-labelledby={`remove-q-${m.id}`}>
-                            <p id={`remove-q-${m.id}`}>
+                            <p id={`remove-q-${m.id}`} tabIndex={-1}>
                               <strong>{self ? t("house.leaveQuestion") : t("house.removeQuestion", { email: m.email })}</strong>
                             </p>
                             <div className="actions">
@@ -150,6 +159,7 @@ export function HouseholdPage() {
                         ) : canRemove ? (
                           <button
                             type="button"
+                            id={`remove-btn-${m.id}`}
                             className="btn btn-secondary btn-small"
                             onClick={() => setConfirmingId(m.id)}
                             aria-label={self ? undefined : t("house.removeLabel", { email: m.email })}

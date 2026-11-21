@@ -78,6 +78,13 @@ export class RateLimiter {
   }
 }
 
+/** Rejects with `timeout` when `work` takes longer than `ms`; the work itself is not cancelled. */
+export function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const limit = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("timeout")), ms); });
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
+}
+
 export function clientIp(c: Context, trustProxy: boolean): string {
   if (trustProxy) {
     // Behind one reverse proxy the last X-Forwarded-For entry is the address the proxy

@@ -54,7 +54,7 @@ export function attestationRoutes(ctx: Ctx) {
       let result;
       let verifierUnavailable = false;
       try {
-        result = input.chain.length === 0 ? UNVERIFIABLE_ATTESTATION : verifyAttestation(
+        result = input.chain.length === 0 ? UNVERIFIABLE_ATTESTATION : await verifyAttestation(
           input.chain.map((s) => Buffer.from(s, "base64")),
           open.value,
           await revocations.get(now),
@@ -89,7 +89,7 @@ export function attestationRoutes(ctx: Ctx) {
           withAttestation(previous.status, previous.attestation),
           withAttestation(previous.status, previous.stored),
         );
-        if (lost) await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
+        if (lost) await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost }, { mailsAfterResponse: true });
       }
       if (verifierUnavailable) return c.json({ error: "certificate verifier unavailable" }, 503);
       return c.json(result);

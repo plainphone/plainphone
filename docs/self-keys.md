@@ -92,7 +92,9 @@ On the phone's Today screen, **Ask for approval** lists the requested changes,
 including the current and requested limit when it changes. Choose a request
 to show its details and QR code. The helper can scan it from the dashboard,
 the Plainphone parent app, or the phone camera. The helper reads the same
-rule details before choosing Approve. If the rule changes in the meantime,
+rule details before choosing Approve. The helper gets one mail and one push an hour, however many
+requests are waiting (every request is in their list). A phone holds at most 50 waiting requests; the
+51st is refused until some are answered or cancelled. If the rule changes in the meantime,
 the helper must review the updated request, even if the summary still looks
 the same. The server checks a fingerprint of the requested operation and
 the current rule before applying it. For a QR approval, the owner

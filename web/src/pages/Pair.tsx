@@ -26,6 +26,14 @@ export function PairPage() {
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
   const [formError, setFormError] = useState<Notice | null>(null);
 
+  // The code is in state now; keep it out of the address bar and the history.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("code")) return;
+    url.searchParams.delete("code");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, []);
+
   useEffect(() => {
     setHint(null);
     setLight(false);

@@ -7,7 +7,9 @@
 // - colours come from useColors(), so light and dark both work.
 import {
   type DependencyList,
+  type ComponentRef,
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
   useRef,
@@ -113,6 +115,23 @@ export function useNow(ms = 30_000): number {
   return now;
 }
 
+/**
+ * Runs an action only when the previous run has finished. A `busy` state alone is not enough:
+ * two taps inside one frame both fire before the re-render disables the button.
+ */
+export function useSingleFlight() {
+  const flying = useRef(false);
+  return useCallback(async (action: () => Promise<void>) => {
+    if (flying.current) return;
+    flying.current = true;
+    try {
+      await action();
+    } finally {
+      flying.current = false;
+    }
+  }, []);
+}
+
 // --- Text ---------------------------------------------------------------------
 
 type Variant = "body" | "muted" | "small" | "title" | "heading" | "label" | "mono" | "error";
@@ -206,9 +225,12 @@ export function Button({
   accessibilityLabel,
   accessibilityHint,
   testID,
+  ref,
 }: {
   title: string;
   onPress: () => void;
+  /** For moving screen-reader focus to the button, e.g. after a confirmation closes. */
+  ref?: Ref<ComponentRef<typeof View>>;
   kind?: ButtonKind;
   disabled?: boolean;
   busy?: boolean;
@@ -223,6 +245,7 @@ export function Button({
   const off = disabled || busy;
   return (
     <Pressable
+      ref={ref}
       testID={testID}
       onPress={onPress}
       disabled={off}

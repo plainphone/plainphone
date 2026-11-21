@@ -7,7 +7,7 @@ import type { Phone, Profile } from "../api/models";
 import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
 import { RequireAuth } from "../components/RequireAuth";
-import { useMe } from "../lib/session";
+import { useActiveHousehold } from "../lib/session";
 import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
@@ -20,7 +20,7 @@ type Stage = "who" | "age" | "agreement";
 function StrongSetup() {
   const { t } = useI18n();
   // The household the app shows; without it the server picks any of the parent's households.
-  const householdId = useMe().households[0]?.id;
+  const householdId = useActiveHousehold()?.id;
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("who");
   const [name, setName] = useState("");

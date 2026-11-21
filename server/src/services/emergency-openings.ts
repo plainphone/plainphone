@@ -5,6 +5,7 @@
 // enforces the allowance itself, offline, and reports each use. The server never refuses a
 // report: it records it, and tells the trusted person.
 
+import { RateLimiter } from "../lib/http.js";
 import { errorSummary } from "../lib/log.js";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -122,7 +123,12 @@ export async function recordOpening(ctx: Ctx, phone: Phone, report: z.infer<type
   return { recorded: true };
 }
 
+/** Reports are always recorded; past this many an hour the trusted person is no longer pinged for each one. */
+const NOTICES_PER_HOUR = 20;
+const noticeLimiter = new RateLimiter(NOTICES_PER_HOUR, 3_600_000);
+
 async function tellTrustedPerson(ctx: Ctx, phone: Phone, pkg: string, openedAt: Date, minutes: number) {
+  if (!noticeLimiter.take(phone.id, ctx.now().getTime())) return;
   try {
     const [key] = await ctx.db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
     const helper = key?.keyType === "trusted" ? key.trustedUserId : null;

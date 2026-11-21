@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { INVITE_KEY, LINK_ASKED_KEY, NEXT_KEY, SessionProvider, useHouseholdId, useSession } from "./session";
+import { chooseHousehold, HOUSEHOLD_KEY, INVITE_KEY, LINK_ASKED_KEY, NEXT_KEY, SessionProvider, useHouseholdId, useSession } from "./session";
 
 const push = vi.hoisted(() => ({ disablePush: vi.fn(async (_id: string | null) => undefined) }));
 vi.mock("./push", () => ({ PUSH_ID_KEY: "pp_push_id", disablePush: push.disablePush }));
@@ -110,7 +110,45 @@ it("treats an already expired session as logged out", async () => {
   expect(view.state.status).toBe("anon");
 });
 
+function stubNotifications(ids: string[]) {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url === "/api/me") return Response.json(me);
+    if (url === "/api/notifications") return Response.json({ subscriptions: ids.map((id) => ({ id })) });
+    return new Response(null, { status: 404 });
+  }));
+}
+
+it("unsubscribes a browser whose push subscription belongs to a previous account", async () => {
+  stubNotifications(["mine"]);
+  localStorage.setItem("pp_push_id", "someone-elses");
+  await mount();
+  expect(push.disablePush).toHaveBeenCalledTimes(1);
+  expect(localStorage.getItem("pp_push_id")).toBeNull();
+});
+
+it("keeps this browser's push subscription when the account lists it", async () => {
+  stubNotifications(["sub-1"]);
+  localStorage.setItem("pp_push_id", "sub-1");
+  await mount();
+  expect(push.disablePush).not.toHaveBeenCalled();
+  expect(localStorage.getItem("pp_push_id")).toBe("sub-1");
+});
+
 it("puts new phones in the household the Household page shows", async () => {
+  await mount();
+  expect(householdId).toBe("h-own");
+});
+
+it("follows the household a parent in two picks, and forgets it on logout", async () => {
+  await mount();
+  await act(async () => chooseHousehold("h-other"));
+  expect(householdId).toBe("h-other");
+  await act(async () => view.logout());
+  expect(localStorage.getItem(HOUSEHOLD_KEY)).toBeNull();
+});
+
+it("falls back to the first household when the saved one is gone", async () => {
+  localStorage.setItem(HOUSEHOLD_KEY, "h-left");
   await mount();
   expect(householdId).toBe("h-own");
 });

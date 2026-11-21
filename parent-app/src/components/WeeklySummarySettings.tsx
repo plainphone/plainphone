@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
+import { HouseholdPicker } from "./HouseholdPicker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
-import { useMe } from "../lib/session";
+import { useActiveHousehold } from "../lib/session";
 import { type SummarySettings, summaryDayName, summaryTime } from "../shared/lib/weekly-summary";
 import { Button, Card, Choice, errorMessage, LiveStatus, LoadGate, type NoticeValue, Switch, Text, useLoad } from "./ui";
 
@@ -14,7 +15,7 @@ const TIMES = ["08:00", "12:00", "16:00", "18:00", "20:00"];
 export function WeeklySummarySettings() {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const household = useMe().households[0];
+  const household = useActiveHousehold();
   const res = useLoad<SummarySettings | null>(
     () => household
       ? unwrap<SummarySettings>(client.GET("/households/{hid}/summary-settings", { params: { path: { hid: household.id } } }))
@@ -43,6 +44,7 @@ export function WeeklySummarySettings() {
     <Card testID="summary-settings">
       <Text variant="heading">{t("summary.settingsTitle")}</Text>
       <Text variant="muted">{t("summary.settingsIntro")}</Text>
+      <HouseholdPicker />
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(s) => s && (
