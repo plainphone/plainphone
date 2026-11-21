@@ -114,6 +114,8 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 | C17 | Call or text from a contact written in another format (with/without +45, with spaces) | Matched as the same contact | Add `12 34 56 78`, call from `+4512345678` |
 | C18 | Send an SMS through another app (Google Assistant "send a message to …", a carrier app) | Note whether it goes out without Plainphone. Expected: refused or routed through Plainphone (documented gap if not) | Ask the assistant, if visible, to text the second phone |
 | C19 | Dial 114 and hang up at once, then call from the second phone | Still blocked: only a connected emergency call opens the call-back window | Dial 114, hang up before it connects, call from the second phone |
+| C20 | Outgoing calls when the rules cannot be read (needs a debug build that makes the read throw; the child cannot cause this) | Only the parents and 112 can be called, any other call ends with "Plainphone cannot check this number right now". With the parents' file deleted (`plainphone_parent_numbers`, device-protected storage), calls stay open, which is documented | Sync once, make the rules read fail, call a parent, 112 and a stranger. Then clear the file and call a stranger |
+| C21 | SMS from a stranger when handling fails (same debug build) | No notification and nothing in the message list. The text is under "Held for review" on the maintenance screen, behind the PIN. A message from a parent is shown as usual | Make the read fail, text the phone from a stranger and from a parent. Open the maintenance screen, then "Approved contacts and blocked log" |
 
 ## Time
 
