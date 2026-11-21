@@ -810,6 +810,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Delivery speed for the operator, as Prometheus text
+         * @description Operator only (docs/latency.md). Needs `Authorization: Bearer <METRICS_TOKEN>`; answers 404 while `METRICS_TOKEN` is unset and 401 for a wrong token (10 wrong guesses a minute per IP). p50 and p95 in milliseconds (`plainphone_latency_ms`) and sample counts (`plainphone_latency_samples`) per `path`, `provider` (`fcm`, `apns`, `webpush`, `unifiedpush`, `poll`), `kind` and `window` (`1h`, `24h`), and failed parent pushes since start-up per provider (`plainphone_push_failures_total`). Aggregates only: no household, phone or user. Not cached.
+         */
+        get: operations["getMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push-receipt": {
         parameters: {
             query?: never;
@@ -7315,6 +7335,47 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+        };
+    };
+    getMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prometheus text exposition format 0.0.4 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Missing or wrong token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description METRICS_TOKEN is not set */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many wrong tokens from this IP */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

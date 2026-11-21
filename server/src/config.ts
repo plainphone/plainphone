@@ -62,6 +62,12 @@ const schema = z.object({
    */
   LATENCY_STATS: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
   /**
+   * Bearer token for `GET /api/metrics`, the operator's delivery-speed numbers in Prometheus text
+   * (docs/latency.md). At least 24 random characters; unset, or shorter (dropped and reported),
+   * the endpoint answers 404.
+   */
+  METRICS_TOKEN: unsetIfEmpty(z.string().min(24).optional()),
+  /**
    * Strong-mode setup (provisioning QR made in the dashboard). The phone downloads the app from
    * `${PUBLIC_URL}/download/android`, which redirects to APK_DOWNLOAD_URL when set, otherwise to
    * the newest APK released on GitHub in APK_RELEASES_REPO. Self-hosters with their own build set
@@ -191,6 +197,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (raw === undefined || raw === "" || check.safeParse(raw).success) continue;
     delete sane[key];
     warnings.other.push(`billing: invalid ${key}`);
+  }
+  if (sane.METRICS_TOKEN && sane.METRICS_TOKEN.length < 24) {
+    delete sane.METRICS_TOKEN;
+    warnings.other.push("metrics: invalid METRICS_TOKEN");
   }
   const parsed = schema.safeParse(sane);
   if (!parsed.success) {

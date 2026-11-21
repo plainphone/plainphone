@@ -128,6 +128,7 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 | `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.app` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
 | `LATENCY_STATS` | `on` | Delivery timings (durations and provider names only) for `/api/latency` and the dashboard's "alerts usually arrive within" line. `off` records and shows nothing ([latency.md](latency.md)) |
+| `METRICS_TOKEN` | | Bearer token (at least 24 random characters) for `GET /api/metrics`, the operator's delivery-speed numbers for Prometheus. Unset, or too short (dropped and reported), the endpoint answers 404. See [Watching delivery speed](#watching-delivery-speed) |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | | Optional. A Google OAuth client of type "Web application" for "Protect against reset" (factory reset protection with the parent's Google account). Create it in the Google Cloud console under Google Auth Platform → Clients, with the redirect URI `<PUBLIC_URL>/api/reset-protection/google/callback`. Enable **People API** for the Google Cloud project. Set both variables in the server environment. The server uses the `openid` and profile scopes to read only the numeric account ID from `people/me` and never requests an email address. Without it the dashboard says the feature is not set up |
 | `ANDROID_APP_CERT_SHA256` | | SHA-256 fingerprints of that app's signing certificates, comma separated. Empty serves no Android statement |
 
@@ -185,6 +186,33 @@ Follow [push setup](push-setup.md) for Firebase and Apple credentials. Configure
 4. Keep endpoint URLs private. They are capabilities. The example stack permits anonymous access for the distributor-generated topics and should run as a dedicated instance with normal proxy and ntfy rate limits. For the child wake channel, only a short reason goes through ntfy. Plainphone does not send names, rules or locations.
 
 See [ntfy configuration](https://docs.ntfy.sh/config/) and the [UnifiedPush Android protocol](https://unifiedpush.org/developers/spec/android/).
+
+## Watching delivery speed
+
+The server can show you how fast alerts really travel, as p50 and p95 per path and push provider
+over 1 h and 24 h, plus failed pushes per provider. It is off until you set a token:
+
+1. Make a token: `openssl rand -base64 36` and set it as `METRICS_TOKEN` (never commit it).
+2. Let Prometheus scrape it, with the token in a file:
+
+   ```yaml
+   scrape_configs:
+     - job_name: plainphone
+       metrics_path: /api/metrics
+       scheme: https
+       scrape_interval: 1m
+       authorization:
+         type: Bearer
+         credentials_file: /etc/prometheus/plainphone-metrics-token
+       static_configs:
+         - targets: ["plainphone.example.org"]
+   ```
+3. In Grafana, import [`deploy/grafana/plainphone-latency.json`](../deploy/grafana/plainphone-latency.json)
+   and pick that Prometheus.
+
+Check by hand with `curl -H "Authorization: Bearer $METRICS_TOKEN" https://plainphone.example.org/api/metrics`.
+The numbers hold no household, phone or user, and `LATENCY_STATS=off` empties them. What the
+metrics mean and what they miss: [latency.md](latency.md#operator-metrics).
 
 ## Optional settings degrade, they do not crash
 
