@@ -15,6 +15,7 @@ import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.EmergencyNumbers
 import org.plainphone.app.contacts.TelephonyLog
+import org.plainphone.app.contacts.UnreadableRules
 import org.plainphone.app.contacts.contactPolicy
 import org.plainphone.app.ui.InCallActivity
 
@@ -49,14 +50,15 @@ class PlainphoneInCallService : InCallService() {
         val flaggedEmergency = details.hasProperty(Call.Details.PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL) ||
             details.hasProperty(Call.Details.PROPERTY_EMERGENCY_CALLBACK_MODE)
         val rules = runCatching { ContactPolicySources.get(this).rules() }.getOrNull()
+        // Rules that cannot be read: outgoing calls go only to the parents and emergency numbers (UnreadableRules).
         val decision = rules?.let {
             contactPolicy().decide(it, Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
-        }
+        } ?: if (outgoing) UnreadableRules.outgoingCall(this, number) else null
         if (decision != null && !decision.allowed && !flaggedEmergency) {
             Log.i(TAG, "ending call: $decision")
             TelephonyLog(this).recordBlocked(Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
             if (outgoing) call.disconnect() else call.reject(false, null)
-            if (outgoing) CallNotifications.showBlockedCall(this, number)
+            if (outgoing) CallNotifications.showBlockedCall(this, number, rulesUnreadable = rules == null)
             return
         }
 

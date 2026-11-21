@@ -53,6 +53,7 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.TelephonyLog
+import org.plainphone.app.telephony.HeldSms
 
 /**
  * Parent screen behind the maintenance PIN: add and remove approved contacts,
@@ -83,6 +84,8 @@ private fun ApprovedContactsScreen(onBack: () -> Unit) {
     var version by remember { mutableIntStateOf(0) }
     val contacts = remember(version) { source.rules().contacts }
     val blocked = remember(version) { log.blocked() }
+    val heldStore = remember { HeldSms(context) }
+    val held = remember(version) { heldStore.messages() }
     var name by remember { mutableStateOf("") }
     var number by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -145,6 +148,31 @@ private fun ApprovedContactsScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+            }
+            if (held.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SectionTitle(stringResource(R.string.held_title, held.size))
+                        Text(stringResource(R.string.held_intro), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                items(held, key = { "h" + it.id }) { m ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(m.sender.ifBlank { TelephonyLog.HIDDEN }, style = MaterialTheme.typography.titleMedium)
+                            Text(m.body, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(m.atMs)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        IconButton(onClick = { heldStore.discard(m.id); version++ }) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.held_delete, m.sender))
+                        }
+                    }
+                }
+                item { TextButton(onClick = { heldStore.clear(); version++ }) { Text(stringResource(R.string.held_clear)) } }
             }
             item { SectionTitle(stringResource(R.string.blocked_title, blocked.size)) }
             if (blocked.isEmpty()) {

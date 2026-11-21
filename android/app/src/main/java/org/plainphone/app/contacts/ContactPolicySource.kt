@@ -191,7 +191,8 @@ class SyncedContactPolicySource(
     override fun rules(): ContactRules {
         val base = local.rules()
         val server = store.rules()
-        val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts) ?: return base
+        val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts)
+            ?: return base.also { ParentNumbers(app).remember(it.contacts, it) }
         val restrictInLight = server?.lightContactRestriction == true ||
             (server?.profile == "self" && server.selfScheduleContacts == true)
         val controlled = base.enforced || (restrictInLight && Mode.isLight(app) && LightSetup.isComplete(app) &&
@@ -207,12 +208,15 @@ class SyncedContactPolicySource(
             silentBedtime = BedtimeQuiet.silentNow(server, time),
             bedtimeRingers = server?.let(BedtimeQuiet::ringers).orEmpty(),
         )
-        return if (server?.profile == "self") {
+        val result = if (server?.profile == "self") {
             val restriction = server.selfScheduleContacts
             // Before this setting existed, only a locked Device Owner enforced the list.
             val self = if (restriction == null) synced.copy(enforced = base.enforced) else synced
             selfTelephonyRules(self, restriction, server.schedules, server.timezone, time.instant, time)
         } else synced
+        // The always-readable copy of the parents' numbers (ParentNumbers.kt), from the list before modes narrow it.
+        ParentNumbers(app).remember(server?.sos?.parents.orEmpty().ifEmpty { fromServer }, result)
+        return result
     }
 
     override val managedRemotely: Boolean
@@ -228,5 +232,8 @@ class SyncedContactPolicySource(
 
 /** The one source the app uses. */
 object ContactPolicySources {
-    fun get(context: Context): EditableContactPolicySource = SyncedContactPolicySource(context)
+    /** Tests put a source here that fails, to see what the phone does when the rules cannot be read. */
+    @Volatile internal var override: ((Context) -> EditableContactPolicySource)? = null
+
+    fun get(context: Context): EditableContactPolicySource = override?.invoke(context) ?: SyncedContactPolicySource(context)
 }

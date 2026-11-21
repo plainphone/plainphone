@@ -10,6 +10,7 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.TelephonyLog
+import org.plainphone.app.contacts.UnreadableRules
 import org.plainphone.app.contacts.contactPolicy
 
 /**
@@ -22,12 +23,15 @@ import org.plainphone.app.contacts.contactPolicy
 class PlainphoneCallRedirectionService : CallRedirectionService() {
     override fun onPlaceCall(handle: Uri, initialPhoneAccount: PhoneAccountHandle, allowInteractiveResponse: Boolean) {
         val number = handle.schemeSpecificPart?.takeIf { it.isNotBlank() }
+        var unreadable = false
         val allowed = runCatching {
             contactPolicy().decide(ContactPolicySources.get(this).rules(), Channel.CALL, Direction.OUTGOING, number).allowed
         }.getOrElse {
-            // Same rule as the in-call service: a bug in Plainphone must never make the phone unable to call.
-            Log.e(TAG, "redirection check failed, placing the call", it)
-            true
+            // The rules cannot be read: only the parents and emergency numbers, or everything when the
+            // phone has no copy of the parents' numbers (same rule as the in-call service).
+            Log.e(TAG, "redirection check failed, using the parents' numbers", it)
+            unreadable = true
+            runCatching { UnreadableRules.outgoingCall(this, number).allowed }.getOrDefault(true)
         }
         if (allowed) {
             placeCallUnmodified()
@@ -35,7 +39,7 @@ class PlainphoneCallRedirectionService : CallRedirectionService() {
         }
         Log.i(TAG, "cancelled outgoing call to a number that is not approved")
         TelephonyLog(this).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
-        CallNotifications.showBlockedCall(this, number)
+        CallNotifications.showBlockedCall(this, number, rulesUnreadable = unreadable)
         cancelCall()
     }
 

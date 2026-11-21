@@ -255,7 +255,8 @@ class SmsSentReceiver : BroadcastReceiver() {
 /**
  * Receives SMS as the default SMS app (SMS_DELIVER). Messages from approved
  * contacts are stored and shown; others are dropped without being stored, and
- * only the sender and time go to the local blocked log.
+ * only the sender and time go to the local blocked log. If handling a message throws, it is not lost:
+ * [SmsFailsafe] keeps it for a parent's review and the child does not see it.
  */
 class SmsDeliverReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -263,30 +264,42 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent)?.filterNotNull().orEmpty()
         if (parts.isEmpty()) return
         val subId = intent.getIntExtra("android.telephony.extra.SUBSCRIPTION_INDEX", -1)
-        val policy = context.contactPolicy()
-        val rules = ContactPolicySources.get(context).rules()
-        // One broadcast can hold several parts of one long message.
         val format = intent.getStringExtra("format")
+        // One broadcast can hold several parts of one long message.
         for ((key, msgs) in parts.groupBy { it.originatingAddress.orEmpty() to it.isNumericHelpSender(format) }) {
-            val (sender, numeric) = key
-            val decision = policy.decide(rules, Channel.SMS, Direction.INCOMING, sender.ifBlank { null }, numeric)
-            if (!decision.allowed) {
-                Log.i(TAG, "dropped incoming SMS: $decision")
-                TelephonyLog(context).recordBlocked(Channel.SMS, Direction.INCOMING, sender)
-                continue
+            var stored = false
+            try {
+                handle(context, key.first, key.second, msgs, subId) { stored = true }
+            } catch (e: Exception) {
+                // Once the message is in the inbox it is not lost, and holding it as well would show it twice.
+                if (!stored) SmsFailsafe.onFailure(
+                    context, key.first, runCatching { msgs.joinToString("") { it.displayMessageBody.orEmpty() } }.getOrDefault(""),
+                    msgs.first().timestampMillis, subId, e,
+                )
             }
-            val body = msgs.joinToString("") { it.displayMessageBody.orEmpty() }
-            val helpReply = if (numeric) rules.incomingHelpContact(sender, Channel.SMS) else null
-            SmsStore.insertIncoming(context, sender, body, msgs.first().timestampMillis, subId, helpReply != null)
-            val contact = helpReply ?: rules.contactFor(sender)
-            CallNotifications.showMessage(
-                context, contact?.name ?: sender, contact?.number ?: sender, body,
-                privateOnLockScreen = rules.isHelpNumber(sender),
-                helpReply = helpReply != null,
-                // Silent bedtime: messages arrive without a sound or a heads-up, whoever sent them.
-                quiet = rules.silentBedtime,
-            )
         }
+    }
+
+    private fun handle(context: Context, sender: String, numeric: Boolean, msgs: List<PlatformSms>, subId: Int, onStored: () -> Unit) {
+        val rules = ContactPolicySources.get(context).rules()
+        val decision = context.contactPolicy().decide(rules, Channel.SMS, Direction.INCOMING, sender.ifBlank { null }, numeric)
+        if (!decision.allowed) {
+            Log.i(TAG, "dropped incoming SMS: $decision")
+            TelephonyLog(context).recordBlocked(Channel.SMS, Direction.INCOMING, sender)
+            return
+        }
+        val body = msgs.joinToString("") { it.displayMessageBody.orEmpty() }
+        val helpReply = if (numeric) rules.incomingHelpContact(sender, Channel.SMS) else null
+        SmsStore.insertIncoming(context, sender, body, msgs.first().timestampMillis, subId, helpReply != null)
+        onStored()
+        val contact = helpReply ?: rules.contactFor(sender)
+        CallNotifications.showMessage(
+            context, contact?.name ?: sender, contact?.number ?: sender, body,
+            privateOnLockScreen = rules.isHelpNumber(sender),
+            helpReply = helpReply != null,
+            // Silent bedtime: messages arrive without a sound or a heads-up, whoever sent them.
+            quiet = rules.silentBedtime,
+        )
     }
 }
 
