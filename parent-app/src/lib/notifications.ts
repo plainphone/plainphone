@@ -47,7 +47,7 @@ export function routeForPush(data: unknown): Href {
   if (d.type === "approval") return pid ? { pathname: "/phones/[pid]", params: { pid } } : "/approvals";
   if ((d.type === "sos-urgent" || d.type === "sos-help") && pid) return { pathname: "/phones/[pid]", params: { pid } };
   if (d.type === "location" && pid) return { pathname: "/phones/[pid]/location", params: { pid } };
-  if ((d.type === "quick-message" || d.type === "quick-suggestion" || d.type === "check-in") && pid) return { pathname: "/phones/[pid]", params: { pid } };
+  if ((d.type === "quick-message" || d.type === "quick-suggestion" || d.type === "check-in" || d.type === "callback-request") && pid) return { pathname: "/phones/[pid]", params: { pid } };
   if (d.type === MORE_TIME_CATEGORY && pid) return { pathname: "/phones/[pid]", params: { pid } };
   return "/";
 }

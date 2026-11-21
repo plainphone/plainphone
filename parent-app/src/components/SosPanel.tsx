@@ -20,7 +20,6 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   const [error, setError] = useState(false);
   const [name, setName] = useState("");
   const [history, setHistory] = useState(false);
-  const [number, setNumber] = useState<string | null>(null);
 
   // Live: at once. Not live: the 10 s poll it always had.
   useLiveRefresh(["sos.created", "sos.updated"], pid, reloadQuiet, 10_000);
@@ -98,14 +97,6 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
       {phoneName === undefined && <Button kind="plain" title={t("sos.title")} onPress={() => setHistory(!history)} />}
       {history && <>
         {res.data.events.filter((event) => event.seenAt).map(row)}
-        <Card>
-          <Field label={t("sos.callback")} value={number ?? res.data.callbackNumber ?? ""}
-            onChangeText={setNumber} keyboardType="phone-pad" autoComplete="off" />
-          <Button title={t("app.save")} busy={busy} disabled={number === null} onPress={() => void save(async () => {
-            await unwrap(client.PUT("/phones/{pid}/sos", { params, body: { callbackNumber: number?.trim() || null } }));
-            setNumber(null);
-          })} />
-        </Card>
       </>}
     </>
   );

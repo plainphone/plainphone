@@ -39,6 +39,8 @@ export type NotifyEvent =
   /** An ordinary quick message from the child's phone, or the child's suggestion for a new one (docs/sos.md). */
   | { type: "quickMessage"; id: string; phoneId: string; phoneName: string; text: string }
   | { type: "quickSuggestion"; phoneId: string; phoneName: string; text: string }
+  /** The child asks a parent to call (docs/sos.md#asking-a-parent-to-call). */
+  | { type: "callbackRequest"; id: string; phoneId: string; phoneName: string }
   /** "I'm home" from the family inbox (docs/family-inbox.md). */
   | { type: "checkIn"; id: string; phoneId: string; phoneName: string }
   /** A Self phone used an emergency opening. Goes to the trusted person (docs/emergency-openings.md). */
@@ -70,6 +72,7 @@ function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"
     case "sos": return pushWords.sos(e, locale);
     case "quickMessage": return pushWords.quickMessage(e, locale);
     case "quickSuggestion": return pushWords.quickSuggestion(e, locale);
+    case "callbackRequest": return pushWords.callbackRequest(e, locale);
     case "checkIn": return pushWords.checkIn(e, locale);
     case "emergencyOpening": return pushWords.emergencyOpening(e, locale);
     case "test": return pushWords.test(locale);
@@ -124,6 +127,8 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
         data: { type: e.kind === "urgent" ? "sos-urgent" : "sos-help", phoneId: e.phoneId } };
     case "quickMessage":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `quick-${e.id.replaceAll("-", "")}`, data: { type: "quick-message", phoneId: e.phoneId } };
+    case "callbackRequest":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `callback-${e.id.replaceAll("-", "")}`, data: { type: "callback-request", phoneId: e.phoneId } };
     case "checkIn":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `checkin-${e.id.replaceAll("-", "")}`, data: { type: "check-in", phoneId: e.phoneId } };
     // The helper's page for the phone they help; the owner reads the same history on the phone's own page.

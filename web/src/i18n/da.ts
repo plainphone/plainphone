@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 import { ageDa } from "./age";
 import { appUpdatesDa } from "./app-updates";
 import { platformDa } from "./platform";
+import { callbackDa } from "./callback";
 import { modesDa } from "./modes";
 import { statusDa } from "./status";
 
@@ -18,6 +19,7 @@ export const da: Messages = {
   ...ageDa,
   ...platformDa,
   ...modesDa,
+  ...callbackDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",
   "app.loading": "Henter…",

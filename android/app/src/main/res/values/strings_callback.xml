@@ -1,0 +1,11 @@
+<resources>
+    <string name="callback_ask">Ask a parent to call me</string>
+    <string name="callback_hint">Your parents call you on your own number. SOS and 112 work as before.</string>
+    <string name="callback_waiting">Waiting for a connection. The request is sent as soon as the phone is online.</string>
+    <string name="callback_queued">Your request is saved. Your parents see it as soon as they open the app.</string>
+    <string name="callback_sent">Your parents have been asked to call you.</string>
+    <string name="callback_done">A parent has answered your request.</string>
+    <string name="callback_expired">Nobody answered within 24 hours. Call or text your parents yourself.</string>
+    <string name="callback_failed">The request could not be sent. Call or text your parents yourself.</string>
+    <string name="sharing_callback">You can ask your parents to call you back from SOS. They call the number they saved for your phone. The request does not send any number.</string>
+</resources>

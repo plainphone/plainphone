@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useRef } from "react";
+import { Fragment, useCallback, useMemo, useRef } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { PendingChange, Phone } from "../api/models";
+import { CallbackRequests } from "../components/CallbackRequests";
 import { SosPanel } from "../components/SosPanel";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, LinkRow, LiveStatus, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
@@ -71,7 +72,10 @@ function PhonesList() {
       <LiveIndicator />
       <LiveStatus notice={feedback} onClose={() => router.setParams({ notice: undefined })} />
       {res.data?.filter(({ phone }) => phone.profile === "child" && phone.pairedAt).map(({ phone }) => (
-        <SosPanel key={phone.id} pid={phone.id} phoneName={phone.name} />
+        <Fragment key={phone.id}>
+          <SosPanel pid={phone.id} phoneName={phone.name} />
+          <CallbackRequests pid={phone.id} phoneName={phone.name} />
+        </Fragment>
       ))}
       <LoadGate res={res}>
         {(rows) =>
