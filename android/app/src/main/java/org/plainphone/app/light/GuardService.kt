@@ -35,6 +35,7 @@ class GuardService : AccessibilityService() {
     private var watchingContent = false
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
+    private var lastTimeCheckPkg: String? = null
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
@@ -53,13 +54,15 @@ class GuardService : AccessibilityService() {
     private val tick = object : Runnable {
         override fun run() {
             if (!isInteractive()) return
-            foreground?.let {
-                // An emergency opening that just ended: the allow-list decides again, not only the time limits.
-                if (emergency.hasActiveRecord(it)) guard(it, force = true) else checkTime(it, force = true)
-            }
+            // The allow-list decides again too, not only the time limits: an emergency opening that just
+            // ended, or a blocked app still in front after a missed block.
+            foreground?.let { if (canGuardApps()) guard(it, force = true) }
             main.postDelayed(this, TICK_MS)
         }
     }
+
+    /** A block dropped by the rate limit: look at the app in front again once the gap is over. */
+    private val reguard = Runnable { foreground?.let { if (canGuardApps()) guard(it, force = true) } }
 
     /** Limited emergency openings (Self phone, light mode only): one app, 15 minutes. */
     private val emergency by lazy { EmergencyOpenings.of(this) }
@@ -92,6 +95,15 @@ class GuardService : AccessibilityService() {
         }
         if (isInteractive()) main.postDelayed(tick, TICK_MS)
         protectionChanged("accessibility on")
+        // An app opened while the guard was away (a crash, an update) is checked now, not at its next window change.
+        rootInActiveWindow?.let { root ->
+            val pkg = root.packageName?.toString()
+            recycle(root)
+            if (pkg != null && !isOverlay(pkg)) {
+                foreground = pkg
+                if (canGuardApps()) guard(pkg, force = true)
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -214,6 +226,9 @@ class GuardService : AccessibilityService() {
     private fun canGuardSettings() =
         !Mode.isStrong(this) && !LightRelease.isReleased(this) && !Lock.isInMaintenanceWindow(this) && LightSetup.isComplete(this)
 
+    private fun canGuardApps() =
+        !Mode.isStrong(this) && !LightRelease.isReleased(this) && !Lock.isInMaintenanceWindow(this)
+
     private fun isInteractive(): Boolean =
         getSystemService(PowerManager::class.java)?.isInteractive == true
 
@@ -293,8 +308,10 @@ class GuardService : AccessibilityService() {
     private fun checkTime(pkg: String, force: Boolean) {
         if (LightRelease.isReleased(this) || pkg == packageName || isOverlay(pkg)) return
         val now = SystemClock.elapsedRealtime()
-        if (!force && now - lastTimeCheck < 5_000L) return
+        // Per app: switching from one app to another must not skip the second app's check.
+        if (!force && pkg == lastTimeCheckPkg && now - lastTimeCheck < 5_000L) return
         lastTimeCheck = now
+        lastTimeCheckPkg = pkg
         if (worker.isShutdown || Lock.isInMaintenanceWindow(this)) return
         // Reading a day of usage events is slow; this process also shows the in-call screen.
         runCatching { worker.execute {
@@ -317,7 +334,14 @@ class GuardService : AccessibilityService() {
     private fun block(pkg: String, reason: BlockedActivity.Reason) {
         if (LightRelease.isReleased(this)) return
         val now = SystemClock.elapsedRealtime()
-        if (now - lastBlockAt < 700L) return
+        if (now - lastBlockAt < BLOCK_GAP_MS) {
+            // Dropped for now, not forgotten: a quick switch back to the app would otherwise keep it open.
+            // The retry repeats the app check only. A dropped Settings or VPN-dialog block is left to the
+            // Settings watch: its next content event, scheduled re-check or VPN retry runs it again.
+            main.removeCallbacks(reguard)
+            main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))
+            return
+        }
         lastBlockAt = now
         if (reason != BlockedActivity.Reason.PROTECTION) performGlobalAction(GLOBAL_ACTION_HOME)
         runCatching { startActivity(BlockedActivity.intent(this, pkg, reason)) }
@@ -384,6 +408,7 @@ class GuardService : AccessibilityService() {
         isConnected = false
         main.removeCallbacks(tick)
         main.removeCallbacks(emergencyExpiry)
+        main.removeCallbacks(reguard)
         cancelSettingsChecks()
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
@@ -407,6 +432,7 @@ class GuardService : AccessibilityService() {
             AccessibilityEvent.WINDOWS_CHANGE_REMOVED or AccessibilityEvent.WINDOWS_CHANGE_FOCUSED or
             AccessibilityEvent.WINDOWS_CHANGE_ACTIVE
         private const val TICK_MS = 30_000L
+        private const val BLOCK_GAP_MS = 700L
 
         @Volatile var isConnected = false
             private set

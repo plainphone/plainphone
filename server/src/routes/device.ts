@@ -14,6 +14,7 @@ import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, setupUndoDeadline, setupUndoReportedLate, undoMinutesInput } from "../lib/setup-undo.js";
+import { applyOverdueLifted } from "../lib/lifted-policies.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { phoneApprovalState } from "../services/approval-outcome.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
@@ -748,6 +749,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         maintenance: z.boolean(),
         pushProvider: z.enum(WAKE_PROVIDERS).optional(),
         failedPolicies: z.array(z.string().min(1).max(200)).max(50),
+        liftedPolicies: z.array(z.object({ name: z.string().min(1).max(200), until: z.iso.datetime({ offset: true }) })).max(10).optional(),
         installOverrunSequence: z.number().int().positive().optional(),
         rulesEtag: z.string().max(100).nullable(),
         rulesReceiptConfirmed: z.boolean().optional(),
@@ -790,8 +792,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const iphone = phone.platform === "ios";
     // An iPhone has its own lock (Family Controls), not light mode's six protections.
     const light = !iphone && (phone.mode === "light" || input.mode === "light");
+    // A lifted step that is overdue counts as failed, so the usual protection-lost alert fires.
+    const overdue = applyOverdueLifted(input, ctx.now());
     const lockIntact = iphone ? iosLockIntact(input) :
-      input.lockIntact &&
+      overdue.lockIntact &&
       (!light ||
         (p !== undefined &&
           LIGHT_LOCK.every((k) => k === "vpn" && input.filterMethod === "privateDns"
@@ -800,12 +804,12 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           !input.maintenance));
     const { installOverrunSequence: sequence, parallelAppsRemoved, parallelAppsRemovedId,
       lateGoogleAccountId, ...reportedStatus } = input;
-    const status = { ...reportedStatus, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
+    const status = { ...reportedStatus, lockIntact, failedPolicies: overdue.failedPolicies, rulesAppliedAt: appliedAt?.toISOString() ?? null };
     const reportsFilter = light && input.filterMethod !== undefined && input.filterWorking !== undefined;
     // Filter setup and inconclusive canaries should not mask losses of other light protections.
     const lockIntactWithoutFilter = reportsFilter
       ? !input.maintenance && LIGHT_LOCK.every((k) => k === "vpn" || p?.[k] === true) &&
-        input.failedPolicies.every((step) => LIGHT_FILTER_POLICIES.has(step))
+        overdue.failedPolicies.every((step) => LIGHT_FILTER_POLICIES.has(step))
       : undefined;
     const policy = input.failedPolicies.find(isInstallOverrun);
     const lost = await ctx.db.transaction(async (tx) => {

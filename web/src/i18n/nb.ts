@@ -611,6 +611,8 @@ export const nb: Messages = {
   "phone.callRoleActionNeeded": "Åpne Plainphone på telefonen og trykk på Tillat",
   "phone.parallelAppsRemoved": "Parallelle apper er fjernet.",
   "phone.lateGoogleAccount": "En uventet kontoendring ble oppdaget under eller etter appinstallasjon",
+  "phone.liftedOpen": "Kontoendringer er tillatt for en godkjent innlogging til kl. {time}.",
+  "phone.liftedOverdue": "Kontoendringer var tillatt for en innlogging til kl. {time}. Telefonen har ikke meldt seg siden.",
   "phone.accountTypes": "Kontoer på telefonen: {types}",
   "phone.attVerified": "System uendret (kontrollert av telefonens sikkerhetsbrikke)",
   "phone.attUnlocked": "Et annet operativsystem kan installeres på denne telefonen. Plainphone kan ikke garantere låsen eller beskytte telefonen etter en tilbakestilling.",

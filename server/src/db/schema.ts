@@ -160,6 +160,10 @@ export interface DeviceStatus {
   maintenance: boolean;
   /** Names of the lock steps that failed. */
   failedPolicies: string[];
+  /** Lock steps lifted on purpose for a parent-approved window, each with its deadline. The lock still counts as intact until then. */
+  liftedPolicies?: { name: string; until: string }[];
+  /** Set by the sweeper when it told the parents that a lifted step was never put back. */
+  liftedOverdueAlertedAt?: string;
   /** ETag of the rules the phone last applied. */
   rulesEtag: string | null;
   rulesReceiptConfirmed?: boolean;

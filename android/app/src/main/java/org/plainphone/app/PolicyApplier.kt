@@ -37,7 +37,8 @@ class PolicyApplier(
     private val settings: SettingsApplier? = null,
     private val onInstallsAllowed: () -> Unit = {},
     private val clearInstallsIfAllowed: ((PolicyConfig, () -> Unit) -> Boolean)? = null,
-    private val enforceAccountRestriction: (() -> Unit) -> Unit = { it() },
+    /** Adds the account restriction, or returns the deadline of the approved window that has it lifted. */
+    private val enforceAccountRestriction: (() -> Unit) -> Long? = { it(); null },
     /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
     private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
@@ -82,7 +83,8 @@ class PolicyApplier(
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
             else step("restriction $key") {
                 if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
-                    enforceAccountRestriction { device.addRestriction(key) }
+                    // The status report reads the lifted state from LiftedPolicy; the log only needs the detail.
+                    if (enforceAccountRestriction { device.addRestriction(key) } != null) "lifted for an approved sign-in" else null
                 } else device.addRestriction(key)
             }
         }
@@ -130,6 +132,10 @@ class PolicyApplier(
         }
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
+        // The Android 10 force stop guard of an install window (update/ForceStopGuard.kt).
+        if (sdkInt < 30) results += step("clear ${UserManager.DISALLOW_APPS_CONTROL}") {
+            device.clearRestriction(UserManager.DISALLOW_APPS_CONTROL)
+        }
         hardening?.let { results += it.release() }
         if (results.any { it.name == "clear FRP policy" && !it.ok } && device.isDeviceOwner()) return results
         results += step("give phone and SMS roles back") { giveRolesBack() }

@@ -531,7 +531,8 @@ function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
   const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
     lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
-    lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline, ...status } = phone.deviceStatus;
+    lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline,
+    liftedOverdueAlertedAt: _liftedAlerted, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
   let failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));

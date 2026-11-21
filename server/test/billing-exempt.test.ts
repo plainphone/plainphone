@@ -13,9 +13,9 @@ import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
-const status = (rulesEtag: string | null) => ({
+const status = (rulesEtag: string | null, extra: object = {}) => ({
   appVersion: "0.1.17", batteryPct: 80, charging: false, deviceOwner: true, lockIntact: true, maintenance: false,
-  failedPolicies: [], rulesEtag, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true, dnsHost: null,
+  failedPolicies: [], rulesEtag, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true, dnsHost: null, ...extra,
 });
 
 it("keeps every never-gated path open with billing on and the free plan exceeded", async () => {
@@ -43,6 +43,10 @@ it("keeps every never-gated path open with billing on and the free plan exceeded
         ok(rules, "rules");
         ok(await d.put("/api/device/status", status(rules.headers.get("etag"))), "status");
       }
+      // The force-stop guard's report (#198): an overdue lifted step is recorded and alerted, never refused.
+      const overdue = { name: "restriction no_modify_accounts", until: new Date(h.clock.now.getTime() - 10 * 60_000).toISOString() };
+      const etag = (await child.device.get("/api/device/rules")).headers.get("etag");
+      ok(await child.device.put("/api/device/status", status(etag, { liftedPolicies: [overdue] })), "lifted-policies report");
     },
     "release and removal of a phone": async () => {
       ok(await parent.post(`/api/phones/${second.phoneId}/release`), "release");
