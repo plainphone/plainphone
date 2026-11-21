@@ -379,11 +379,8 @@ object Lock {
         // Inexact but allowed while idle: exact alarms need a permission the user must grant.
         // The boot clock, so setting the phone's clock does not move the alarm.
         // The window is also re-checked whenever the screen turns on and on every sync.
-        am.setAndAllowWhileIdle(
-            AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + next.toMillis() + 1_000L,
-            windowIntent(context),
-        )
+        val at = SystemClock.elapsedRealtime() + next.toMillis() + 1_000L
+        am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, windowIntent(context))
     }
 
     private fun windowIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
