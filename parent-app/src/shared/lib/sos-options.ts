@@ -14,6 +14,9 @@ export interface SosSettings {
   /** The family inbox and its check-in (docs/family-inbox.md). */
   familyInbox: boolean;
   checkIns: boolean;
+  /** The child may ask a parent to call back; true only with a confirmed number (docs/sos.md). */
+  callbackRequests: boolean;
+  callbackConfirmed: boolean;
 }
 
 /** What the server answers for a phone that never saved a choice. An older server sends no settings at all. */
@@ -26,6 +29,8 @@ export const DEFAULT_SOS_SETTINGS: SosSettings = {
   quickSuggestionsEnabled: true,
   familyInbox: false,
   checkIns: false,
+  callbackRequests: false,
+  callbackConfirmed: false,
 };
 
 export const PRESS_CHOICES = [3, 4, 5, 6] as const;
@@ -50,6 +55,10 @@ export interface QuickMessages {
 
 /** The three one-tap starters shown while the list is empty. */
 export const STARTER_MESSAGES: readonly MessageKey[] = ["qm.pick1", "qm.pick2", "qm.pick3"];
+
+/** "Call me" is the callback request while that is on, so it is not offered as a second, text-only action. */
+export const starterMessages = (settings: Pick<SosSettings, "callbackRequests">): readonly MessageKey[] =>
+  settings.callbackRequests ? STARTER_MESSAGES.filter((key) => key !== "qm.pick3") : STARTER_MESSAGES;
 
 export type SosTrigger = "power" | "clock" | "code" | null | undefined;
 
@@ -92,4 +101,38 @@ export function familyState(m: FamilyMessage): { key: MessageKey; at?: string } 
   if (m.from === "parent") return m.receivedAt ? { key: "inbox.received", at: m.receivedAt } : { key: "inbox.waiting" };
   if (m.delivered === 0) return { key: "inbox.sms" };
   return { key: m.delivered ? "inbox.delivered" : "inbox.sent" };
+}
+
+// --- Asking a parent to call (docs/sos.md#asking-a-parent-to-call) ---------------------
+
+export type CallbackState = "queued" | "sent" | "expired" | "done";
+
+export interface CallbackRequest {
+  id: string;
+  state: CallbackState;
+  createdAt: string;
+  expiresAt: string;
+  doneAt: string | null;
+  doneVia: "number" | "other" | null;
+  /** The saved number now: fine to dial, cleared since, or changed since the request was made. */
+  number: "ok" | "missing" | "changed";
+}
+
+export interface CallbackList {
+  callbackNumber: string | null;
+  requests: CallbackRequest[];
+}
+
+/** Open requests need an answer; the rest is history. */
+export const isOpenCallback = (r: CallbackRequest) => r.state === "queued" || r.state === "sent";
+
+/** One line for where a request is. */
+export function callbackStateKey(r: CallbackRequest): MessageKey {
+  if (r.state === "done") return r.doneVia === "number" ? "cb.doneNumber" : r.doneVia === "other" ? "cb.doneOther" : "cb.done";
+  return r.state === "expired" ? "cb.expired" : r.state === "sent" ? "cb.sent" : "cb.queued";
+}
+
+/** What a failed answer means: the server's reason is "expired", "changed" or "missing". */
+export function callbackRefusalKey(reason: string): MessageKey {
+  return reason === "expired" ? "cb.expiredNow" : reason === "missing" ? "cb.missing" : "cb.changedNow";
 }

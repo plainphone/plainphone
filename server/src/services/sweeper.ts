@@ -14,6 +14,7 @@ import { errorFrames, errorSummary } from "../lib/log.js";
 import { sweepMoreTime } from "./more-time.js";
 import { sweepSos } from "./sos.js";
 import { sweepQuickMessages } from "./quick-messages.js";
+import { sweepCallbackRequests } from "./callback-requests.js";
 import { sweepSummaries } from "./weekly-summary.js";
 import { sweepReviewReminders } from "./age-review.js";
 
@@ -134,6 +135,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   await deliverSetupUndoNotices(ctx);
   await sweepSos(ctx);
   await sweepQuickMessages(ctx);
+  await sweepCallbackRequests(ctx);
   await sweepSummaries(ctx);
   await sweepReviewReminders(ctx);
   await sweepMoreTime(ctx);

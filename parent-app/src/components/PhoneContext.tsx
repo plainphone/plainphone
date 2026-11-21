@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError, client, unwrap } from "../api/client";
 import type { App, ChangeResult, Locale, PendingChange, Phone } from "../api/models";
 import { type TFn, useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { radius, space, useColors } from "../lib/theme";
 import { formatDateTime, formatDuration } from "../shared/lib/format";
 import { describeOp } from "../shared/lib/ops";
@@ -155,6 +156,7 @@ export function PhoneProvider({ pid, children }: { pid: string; children: ReactN
   const appLabel = useCallback((pkg: string) => labels.get(pkg) ?? pkg, [labels]);
 
   const { data: phone, error, reload: reloadPhoneRes, setData } = phoneRes;
+  useLiveRefresh(["phone.status", "safety.updated"], pid, phoneRes.reloadQuiet, 0);
   const setPhone = useCallback((p: Phone) => setData(() => p), [setData]);
   const reloadPhone = useCallback(() => reloadPhoneRes(), [reloadPhoneRes]);
 

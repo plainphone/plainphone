@@ -196,11 +196,32 @@ components:
           anyOf:
             - { $ref: "#/components/schemas/SosPosition" }
             - { type: "null" }
+    CallbackDeviceState:
+      type: object
+      description: How far a callback request got, as the child's phone sees it.
+      required: [id, state, expiresAt]
+      properties:
+        id: { type: string, format: uuid, description: The request this tap belongs to; the first open one when a request was already open }
+        state: { enum: [queued, sent, expired, done], description: "queued: no parent device has been notified yet, it waits in the dashboard; sent: a parent device got it; expired: nobody answered within 24 hours; done: a parent called or handled it" }
+        expiresAt: { type: string, format: date-time }
+    CallbackRequest:
+      type: object
+      required: [id, state, createdAt, expiresAt, doneAt, doneVia, number]
+      properties:
+        id: { type: string, format: uuid }
+        state: { enum: [queued, sent, expired, done] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        doneAt: { type: [string, "null"], format: date-time }
+        doneVia: { enum: [number, other, null] }
+        number: { enum: [ok, missing, changed], description: "The saved number now: ok to dial, missing (cleared), or changed since the request was made" }
     SosSettings:
       type: object
       description: Per-phone switches for hidden SOS and quick messages (docs/sos.md).
-      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled, familyInbox, checkIns]
+      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled, familyInbox, checkIns, callbackRequests, callbackConfirmed]
       properties:
+        callbackRequests: { type: boolean, default: false, description: "The child may ask a parent to call back from the SOS screen. True only with a confirmed number (docs/sos.md#asking-a-parent-to-call)" }
+        callbackConfirmed: { type: boolean, description: A parent has entered and confirmed the number in `callbackNumber` }
         hiddenPower: { type: boolean, default: false, description: Pressing the power button quickly sends a silent urgent SOS }
         hiddenPresses: { type: integer, enum: [3, 4, 5, 6], default: 4, description: How many presses within about three seconds }
         hiddenClock: { type: boolean, default: false, description: A long press on the home screen clock sends a silent urgent SOS }
@@ -807,6 +828,12 @@ components:
                 properties:
                   name: { type: string }
                   number: { $ref: "#/components/schemas/E164" }
+            callback:
+              type: object
+              description: The child may ask a parent to call back. Only the switch; the number is never sent to the phone.
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
             hidden:
               type: object
               required: [power, presses, clock, feedback]
@@ -1908,7 +1935,9 @@ paths:
             schema:
               type: object
               properties:
-                callbackNumber: { type: [string, "null"] }
+                callbackNumber: { type: [string, "null"], description: "The phone's own number. A new number is unconfirmed and switches callback requests off until `callbackConfirmed` is sent" }
+                callbackConfirmed: { type: boolean, description: "The parent says this is the phone's number" }
+                callbackRequests: { type: boolean, description: "Let the phone ask for a callback. 409 without a confirmed number" }
                 hiddenPower: { type: boolean }
                 hiddenPresses: { type: integer, enum: [3, 4, 5, 6] }
                 hiddenClock: { type: boolean }
@@ -1920,6 +1949,108 @@ paths:
       responses:
         "204": { description: Saved }
         "404": { description: Not a Child phone }
+        "409": { description: Callback requests need a number a parent has confirmed }
+  /device/callback-requests:
+    post:
+      operationId: requestCallback
+      summary: Ask a parent to call the phone back
+      description: >
+        The request carries no number. A repeated id, or a tap while another request is still open,
+        answers with the first request and notifies nobody again. A report with `sentAt` is recorded even
+        if the switch was turned off since; one older than 24 hours is stored as expired without an alert.
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+                sentAt: { type: string, format: date-time, description: When the child pressed the button }
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallbackDeviceState" }
+        "403": { description: Asking for a callback is switched off (only for a request without `sentAt`; the phone always sends it, because it is the authority for taps it has already made) }
+        "404": { description: Not a Child phone }
+  /device/callback-requests/{id}:
+    get:
+      operationId: getDeviceCallbackRequest
+      summary: How far a callback request got
+      tags: [device]
+      security: [{ device: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: State
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallbackDeviceState" }
+        "404": { description: Not found }
+  /phones/{pid}/callback-requests:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: listCallbackRequests
+      summary: The last callback requests of a Child phone (kept 48 hours)
+      description: Includes the number as saved now, so the app can show it before anything is dialled.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Requests, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [callbackNumber, requests]
+                properties:
+                  callbackNumber: { type: [string, "null"] }
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/CallbackRequest" }
+        "404": { description: Not a Child phone }
+  /phones/{pid}/callback-requests/{id}/done:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: markCallbackDone
+      summary: A parent is calling back, or has called another way
+      description: >
+        `number` carries the number the screen showed and is only accepted while it is still the saved
+        one (409 `changed` or `missing`), so a stale number is never dialled. `other` records a call from
+        the parent's own contacts and may carry the time it happened, so a report queued on a device is
+        still recorded after the request expired. Repeating it changes nothing.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [via, number]
+                  properties:
+                    via: { enum: [number] }
+                    number: { $ref: "#/components/schemas/E164" }
+                - type: object
+                  required: [via]
+                  properties:
+                    via: { enum: [other] }
+                    at: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallbackRequest" }
+        "404": { description: Request not found }
+        "409": { description: "`expired`, `changed` or `missing`" }
   /phones/{pid}/inbox:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:
@@ -3298,6 +3429,34 @@ paths:
                 properties:
                   error: { type: string }
                   selfPhoneIds: { type: array, items: { type: string, format: uuid } }
+
+  # ---------------------------------------------------------------- live updates
+  /events:
+    get:
+      operationId: getEvents
+      tags: [notifications]
+      summary: Live updates (server-sent events)
+      description: |
+        A `text/event-stream` that stays open while the dashboard or the parent app is open
+        (docs/live-updates.md). Only events of your own households. Each event carries ids only
+        (`{"type","phoneId","id"?,"kind"?}`); refetch through the normal API. Event names:
+        `sos.created`, `sos.updated`, `request.created`, `request.answered`, `location.updated`,
+        `safety.updated`, `inbox.message`, `phone.status`. Control events: `ready` (connected;
+        `{"resumed":bool}`), `refetch` (the gap since `Last-Event-ID` is unknown: reload everything),
+        `ping` (every 25 s) and `bye` (signed out; the stream ends).
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: Last-Event-ID, in: header, required: false, schema: { type: string, maxLength: 40 }, description: "The last event id seen; missed events are replayed when still known" }
+        - { name: lastEventId, in: query, required: false, schema: { type: string, maxLength: 40 }, description: "Same as the header, for clients that cannot set it" }
+      responses:
+        "200":
+          description: The event stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { description: "Sign in first" }
+        "429": { description: "Too many live connections for this account; fall back to polling and retry later" }
+        "503": { description: "The server has too many live connections; fall back to polling and retry later" }
 
   # ---------------------------------------------------------------- notifications
   /notifications:

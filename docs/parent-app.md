@@ -57,6 +57,16 @@ SOS alerts use the same registration. An urgent SOS is sent as a high-priority a
 open the child phone's overview. In system settings, allow Urgent SOS through Do Not Disturb or
 Focus if your phone offers it. See [SOS](sos.md#push-configuration).
 
+## Live updates
+
+While the app is in the foreground it keeps a live connection to the server (`GET /api/events`)
+and refreshes the open screen when something happens: an SOS (a banner on every screen, with a
+vibration), a request or its answer, a new position, an inbox message or a status change. React
+Native's fetch cannot stream, so the app reads the stream with `XMLHttpRequest`
+(`src/lib/live-transport.ts`); no extra package. The connection closes when the app goes to the
+background, where push takes over, and resumes or refetches when it comes back. **Settings → Live
+updates** and **SOS alert** switch it off per device. See [live updates](live-updates.md).
+
 ## Location screen
 
 The screen mirrors the PWA's location page, section by section, with the same copy (`loc.*`, `ring.*` and `checkin.*` come from `web/src/i18n` through `pnpm sync:shared`):

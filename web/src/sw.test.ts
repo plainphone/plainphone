@@ -191,6 +191,22 @@ it("shows the receipt from the phone as a silent update of the same notification
   expect("actions" in shown[0]!.options).toBe(false);
 });
 
+// A stream that goes through respondWith can be buffered or cut short, so /api is never touched.
+function fetchEvent(path: string, mode = "cors") {
+  const respondWith = vi.fn((p: Promise<unknown>) => void p.catch(() => undefined));
+  handlers.fetch!({ request: { method: "GET", url: `https://pp.example${path}`, mode }, respondWith });
+  return respondWith;
+}
+
+it("leaves the live event stream and the rest of /api alone", () => {
+  load(4);
+  expect(fetchEvent("/api/events")).not.toHaveBeenCalled();
+  expect(fetchEvent("/api/events?lastEventId=7")).not.toHaveBeenCalled();
+  expect(fetchEvent("/api/phones")).not.toHaveBeenCalled();
+  // Pages are still handled, so the check above can fail.
+  expect(fetchEvent("/", "navigate")).toHaveBeenCalled();
+});
+
 it("opens the url on a click without an action, and ignores unknown actions", async () => {
   load(4);
   await click("");

@@ -2,7 +2,7 @@
 //
 // Location, "Ring the phone" and "Are you okay?": the same sections and behaviour as the
 // PWA's location page (web/src/pages/Location.tsx).
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Platform } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { type AlwaysFor, type Checkin, type Contact, LOCATION_MODES, type LocationMode, type LocationState, type Position, type Ring } from "../../../api/models";
@@ -12,6 +12,7 @@ import { AlwaysNotes, CheckinSection, RingSection } from "../../../components/sa
 import { Button, Card, Choice, errorMessage, LoadGate, type NoticeValue, PageTitle, Row, Screen, Stack as VStack, Text, useLoad, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { copyText } from "../../../lib/clipboard";
+import { useLiveRefresh } from "../../../lib/live";
 import { answers, FIND_TIMEOUT_MS, needsPolling, POLL_MS } from "../../../lib/location";
 import { positionText, routeLinks } from "../../../lib/maps";
 import { getItem, setItem } from "../../../lib/storage";
@@ -120,18 +121,13 @@ function LocationBody() {
 
   // Keep the ring and the check-in fresh while something is open on the phone.
   const open = res.data ? needsPolling(res.data) : false;
-  useEffect(() => {
-    if (!open) return;
-    const id = setInterval(() => {
-      const seen = presses.current;
-      void unwrap<LocationState>(client.GET("/phones/{pid}/location", { params: { path: { pid: phone.id } } }))
-        .then((r) => {
-          if (alive.current && seen === presses.current) setData(() => r);
-        })
-        .catch(() => undefined);
-    }, POLL_MS);
-    return () => clearInterval(id);
-  }, [open, phone.id, setData]);
+  // A new position, or an answer, shows at once while live; otherwise the same poll as before.
+  const refreshState = useCallback(async () => {
+    const seen = presses.current;
+    const r = await unwrap<LocationState>(client.GET("/phones/{pid}/location", { params: { path: { pid: phone.id } } }));
+    if (alive.current && seen === presses.current) setData(() => r);
+  }, [phone.id, setData]);
+  useLiveRefresh(["location.updated", "safety.updated", "phone.status", "request.answered"], phone.id, refreshState, open ? POLL_MS : 0);
 
   /** Runs one press: the server answers with what changed, which is merged into the screen. */
   async function act(key: string, fn: () => Promise<Partial<LocationState>>, success?: string) {

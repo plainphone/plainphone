@@ -17,6 +17,7 @@ import {
   type LocationState,
   type Ring,
 } from "../lib/api";
+import { useLiveRefresh } from "../lib/live";
 import { formatDateTime, formatMeters, formatRelative } from "../lib/format";
 import { isAppleMobile, positionText, routeLinks } from "../lib/maps";
 import { usePhone } from "./Phone";
@@ -66,16 +67,12 @@ export function LocationPage() {
 
   // Keep the ring and check-in status fresh while something is open on the phone.
   const open = res.data ? needsPolling(res.data) : false;
-  useEffect(() => {
-    if (!open) return;
-    const id = window.setInterval(() => {
-      void api
-        .get<LocationState>(`/phones/${phone.id}/location`)
-        .then((r) => res.setData(() => r))
-        .catch(() => undefined);
-    }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [open, phone.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Events refresh it at once; the 5 s polling stays for as long as something is open and not live.
+  useLiveRefresh(["location.updated", "safety.updated"], phone.id, (active) =>
+    api
+      .get<LocationState>(`/phones/${phone.id}/location`)
+      .then((r) => active() && res.setData(() => r))
+      .catch(() => undefined), POLL_MS, { poll: open });
 
   async function act(key: string, fn: () => Promise<LocationState | undefined>, success?: string) {
     setBusy(key);

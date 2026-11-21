@@ -1,0 +1,11 @@
+<resources>
+    <string name="callback_ask">Einen Elternteil um Rückruf bitten</string>
+    <string name="callback_hint">Deine Eltern rufen dich unter deiner eigenen Nummer an. SOS und 112 funktionieren wie bisher.</string>
+    <string name="callback_waiting">Warte auf eine Verbindung. Die Bitte wird gesendet, sobald das Handy online ist.</string>
+    <string name="callback_queued">Deine Bitte ist gespeichert. Deine Eltern sehen sie, sobald sie die App öffnen.</string>
+    <string name="callback_sent">Deine Eltern wurden gebeten, dich anzurufen.</string>
+    <string name="callback_done">Ein Elternteil hat deine Bitte beantwortet.</string>
+    <string name="callback_expired">Niemand hat innerhalb von 24 Stunden geantwortet. Ruf deine Eltern an oder schreib ihnen selbst.</string>
+    <string name="callback_failed">Die Bitte konnte nicht gesendet werden. Ruf deine Eltern an oder schreib ihnen selbst.</string>
+    <string name="sharing_callback">Du kannst deine Eltern über SOS um einen Rückruf bitten. Sie rufen die Nummer an, die sie für dein Handy gespeichert haben. Die Bitte sendet keine Nummer.</string>
+</resources>

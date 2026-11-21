@@ -20,7 +20,8 @@ SOS recipients in this release.
 Most Plainphone features can be turned on and off per phone. SOS is deliberately
 an exception, like 112 and the parents' own reachability: it is the child's way
 to reach their parents, and a parent switching it off would remove that. What a
-parent can set is who gets called and texted, and the callback number.
+parent can set is who gets called and texted, and the callback number. The
+[callback request](#asking-a-parent-to-call) on top of that is optional and has its own switch.
 
 The phone is the authority for what it has already done. The server records
 every report the phone sends, including one that says an SMS was sent, even if
@@ -95,14 +96,70 @@ Self-hosting: update the server before the phone app. An older server rejects th
 back to SMS after a rejection.
 
 
+## Asking a parent to call
+
+Calling is not always easy for a child, for example on Wi-Fi without a SIM at hand or when speaking is
+awkward. With **Ask for a callback** on, the SOS screen has one more button below SOS, **Ask a parent to
+call me**. A parent then calls back from the phone's normal dialler. It is not an alarm: SOS, the call
+to the parents and **Call 112** stay where they were and are never replaced by it
+(see [always reachable](always-reachable.md)).
+
+| Switch | Default | What it does |
+|---|---|---|
+| **Ask for a callback** (`callbackRequests`) | off | The button on the child's SOS screen. Needs a number that a parent entered and confirmed; without one the switch cannot be turned on, and clearing the number or changing it without confirming turns it off again |
+
+**The number.** The phone's own number is saved by a parent, in the dashboard or the parent app, with the
+tick "I have checked that this is this phone's number". The phone never supplies, sends or sees it, and
+the request carries none. The rules only say whether the button is on (`sos.callback.enabled`). The
+number is the same one **Call back** uses after an SOS; phones that had one from before count as
+unconfirmed until a parent confirms it.
+
+**One tap, one request.** The phone gives the request an id, so a retry never alerts twice. While a
+request is open, another tap joins it instead of making a second alert. A request is open for **24
+hours**; the server keeps it for 48 hours in total, then deletes it.
+
+| State | What the child sees | What it means |
+|---|---|---|
+| waiting (phone only) | "Waiting for a connection" | The phone is offline; it sends the request, with the time of the tap, as soon as it can, and gives up after 24 hours |
+| `queued` | "Your request is saved" | The server has it, but no parent device has been notified yet (no push registration, push failed or muted). It shows in the dashboard and the server retries the push |
+| `sent` | "Your parents have been asked" | A parent device got the push |
+| `done` | "A parent has answered" | A parent opened the dialler, or says they called another way |
+| `expired` | "Nobody answered within 24 hours" | Nobody answered in time; the child is told to call or text a parent themselves |
+
+**For the parents.** A request shows on the phone's page (and on the overview) in the dashboard and the
+parent app, and arrives as an ordinary push (never urgent). It shows the saved number first, then a
+**Call** button that opens the normal dialler after an explicit tap; nothing dials by itself. When the
+button is tapped, the screen sends the number it showed, and the server only accepts it while it is still
+the saved one. If the number was **changed or cleared** since the request, the screen says so and points to
+the settings instead of dialling a stale number. **I will call from my own contacts** is always there, and
+records that the request was answered. An expired request has no call button.
+
+**The phone is the authority for what it has already done.** A report that carries the time of the tap is
+recorded even if the switch was turned off in the meantime, and the parents are told. A report older than 24
+hours is stored as `expired` without any alert, and an authenticated parent device that says it called (with
+the time it happened) is recorded even after the request expired, without alerting anyone. The phone always sends
+the time of the tap, so in practice the server never refuses it: a tap made before the phone has synced the
+switch is still delivered. Only a request without the time (another client) is refused with 403 while the
+switch is off, and the phone treats that as "the parents switched it off" and stops retrying.
+
+**"Call me" quick message.** While the switch is on, the dashboard no longer suggests the text-only starter
+**Call me**, so there is one action, not two. A quick message the parents wrote themselves is unaffected.
+
+API: `POST /device/callback-requests`, `GET /device/callback-requests/{id}` on the phone;
+`GET /phones/{pid}/callback-requests` and `POST /phones/{pid}/callback-requests/{id}/done` for the parents
+(see `server/openapi.yaml`). Self-hosting: update the server before the phone app; an older server answers
+the request with 404, which the phone retries until it would have expired.
+
 ## Set up recipients
 
 1. In the Child phone's **Contacts**, select **Use for SOS calls and SMS** on
    each approved parent contact. No existing contacts are selected automatically.
    The phone tries the selected parents in name order. The selected numbers
    remain available under the ordinary approved-contact rules.
-2. In the Child phone's **SOS history**, save the child's own phone number in
-   international format to make **Call back** available.
+2. Under **Ask for a callback** on the Child phone's page, save the child's own
+   phone number in international format and confirm that it is the phone's number.
+   That makes **Call back** available after an SOS, and is what the
+   [callback request](#asking-a-parent-to-call) needs.
 3. Enable browser push or **SOS notifications** on each parent's device. Every
    parent account in the household is included in SOS push and email when
    those services are configured.

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type FormEvent, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { acknowledgeSos, api } from "../lib/api";
 import { type SosTrigger, triggerLabel } from "../lib/sos-options";
 import { useLoad } from "./ui";
@@ -26,14 +27,8 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [name, setName] = useState("");
-  const [number, setNumber] = useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void reload();
-    }, 10_000);
-    return () => window.clearInterval(timer);
-  }, [reload]);
+  useLiveRefresh(["sos.created", "sos.updated"], pid, reload, 10_000);
 
   async function ack(id: string) {
     setBusy(true);
@@ -42,21 +37,6 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
       const seen = await acknowledgeSos<SosEvent>(pid, id, name);
       setData((data) => data && { ...data, events: data.events.map((event) => event.id === id ? seen : event) });
       await reload();
-    } catch {
-      setError(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(false);
-    try {
-      await api.put(path, { callbackNumber: number?.trim() || null });
-      await reload();
-      setNumber(null);
     } catch {
       setError(true);
     } finally {
@@ -115,12 +95,6 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
       {phoneName === undefined && <details>
         <summary>{t("sos.title")}</summary>
         {res.data.events.filter((event) => event.seenAt).map((event) => eventRow(event, false))}
-        <form onSubmit={(e) => void save(e)} className="stack">
-          <label htmlFor="sos-callback">{t("sos.callback")}</label>
-          <input id="sos-callback" type="tel" autoComplete="off" placeholder="+45"
-            value={number ?? res.data.callbackNumber ?? ""} onChange={(e) => setNumber(e.target.value)} />
-          <button className="btn btn-secondary" disabled={busy || number === null}>{t("app.save")}</button>
-        </form>
       </details>}
     </section>
   </>;

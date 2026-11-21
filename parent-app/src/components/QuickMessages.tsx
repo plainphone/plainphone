@@ -13,8 +13,9 @@ import {
   type QuickMessage,
   type QuickMessages as QuickMessageList,
   type SosSettings,
-  STARTER_MESSAGES,
+  starterMessages,
 } from "../shared/lib/sos-options";
+import { useLiveRefresh } from "../lib/live";
 import { Button, Card, Field, Row, Stack as VStack, Switch, Text, useLoad } from "./ui";
 
 function MessageForm({ initial, submitLabel, busy, onSubmit, onCancel, testID }: {
@@ -82,6 +83,8 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
     if (firstFocus.current) firstFocus.current = false;
     else void reload();
   }, [reload]));
+
+  useLiveRefresh(["inbox.message"], pid, res.reloadQuiet, 0);
 
   async function run(action: () => Promise<unknown>): Promise<boolean> {
     if (sending.current) return false;
@@ -173,7 +176,7 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
                 <VStack gap={8}>
                   <Text variant="small">{t("qm.emptyIntro")}</Text>
                   <Row>
-                    {STARTER_MESSAGES.map((key) => (
+                    {starterMessages(settings).map((key) => (
                       <Button key={key} testID={`qm-starter-${key}`} kind="secondary" title={t(key)} disabled={busy}
                         onPress={() => void add(t(key))} />
                     ))}
