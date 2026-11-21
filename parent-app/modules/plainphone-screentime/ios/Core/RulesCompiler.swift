@@ -39,6 +39,8 @@ public struct CompiledPlan: Codable, Sendable, Equatable {
 
   public var phoneId: String
   public var rulesRevision: Int
+  /// The phone's language from the dashboard (null: the phone's own), for the shield's words.
+  public var language: String?
   public var released: Bool
   public var base: Base
   public var activities: [Activity]
@@ -78,6 +80,7 @@ public enum RulesCompiler {
     return CompiledPlan(
       phoneId: doc.phoneId,
       rulesRevision: doc.rulesRevision,
+      language: doc.language,
       released: doc.release,
       base: .init(
         appShield: doc.iosApps.open ? .blockList : .allowList,
