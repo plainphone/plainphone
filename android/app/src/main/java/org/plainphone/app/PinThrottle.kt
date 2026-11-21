@@ -38,6 +38,30 @@ class PinThrottle(
         return (boot ?: (store.lockedUntil - now())).coerceIn(0, MAX_MS)
     }
 
+    /** The result of [attempt]: locked out (with the time left), or the PIN was checked. */
+    sealed interface Attempt {
+        data class Locked(val remainingMs: Long) : Attempt
+        data class Checked(val ok: Boolean) : Attempt
+        /** [attempt]'s `verify` made no real try (null): nothing was counted. */
+        data object Skipped : Attempt
+    }
+
+    /**
+     * The lockout check, the slow PIN check and the record of its result as one step. A process-wide
+     * lock keeps two screens (a rotated activity, split screen) from both passing the check before
+     * either failure is recorded, which gave extra guesses at each lockout boundary. [verify] returns
+     * null when it made no real try (nothing is counted).
+     */
+    fun attempt(verify: () -> Boolean?): Attempt = synchronized(LOCK) {
+        val left = remainingMs()
+        if (left > 0) return Attempt.Locked(left)
+        when (val ok = verify()) {
+            null -> Attempt.Skipped
+            true -> { onSuccess(); Attempt.Checked(true) }
+            false -> { onFailure(); Attempt.Checked(false) }
+        }
+    }
+
     fun onSuccess() {
         store.failures = 0
         store.lockedUntil = 0
@@ -55,6 +79,7 @@ class PinThrottle(
     }
 
     companion object {
+        private val LOCK = Any()
         const val FREE_ATTEMPTS = 5
         private const val BASE_MS = 60_000L
         private const val MAX_MS = 60 * 60_000L

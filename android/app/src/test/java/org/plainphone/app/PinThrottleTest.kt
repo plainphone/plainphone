@@ -38,6 +38,33 @@ class PinThrottleTest {
     }
 
     @Test
+    fun `two concurrent checks at a lockout boundary give one guess, not two`() {
+        val t = throttle()
+        repeat(4) { t.onFailure() }
+        val checks = java.util.concurrent.atomic.AtomicInteger()
+        val results = java.util.Collections.synchronizedList(mutableListOf<PinThrottle.Attempt>())
+        val start = java.util.concurrent.CountDownLatch(1)
+        val threads = List(2) {
+            Thread {
+                start.await()
+                results += t.attempt { checks.incrementAndGet(); Thread.sleep(100); false }
+            }.also { it.start() }
+        }
+        start.countDown()
+        threads.forEach { it.join() }
+        assertThat(checks.get()).isEqualTo(1)
+        assertThat(results.filterIsInstance<PinThrottle.Attempt.Locked>()).hasSize(1)
+        assertThat(t.remainingMs()).isEqualTo(60_000)
+    }
+
+    @Test
+    fun `an attempt without a real try is not counted`() {
+        val t = throttle()
+        repeat(10) { assertThat(t.attempt { null }).isEqualTo(PinThrottle.Attempt.Skipped) }
+        assertThat(t.remainingMs()).isEqualTo(0)
+    }
+
+    @Test
     fun `the right PIN resets the count`() {
         val t = throttle()
         repeat(5) { t.onFailure() }

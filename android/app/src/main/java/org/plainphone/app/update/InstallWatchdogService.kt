@@ -89,10 +89,10 @@ class InstallWatchdogService : Service() {
         return START_STICKY
     }
 
-    private fun onDeadline(deadline: Long, force: Boolean = false) {
+    private fun onDeadline(deadline: Long, force: Boolean = false, retryMs: Long = 1_000L) {
         val remaining = deadline - SystemClock.elapsedRealtime()
         if (remaining > 0) {
-            timer.postDelayed({ onDeadline(deadline, force) }, remaining)
+            timer.postDelayed({ onDeadline(deadline, force, retryMs) }, remaining)
             return
         }
         try {
@@ -100,7 +100,8 @@ class InstallWatchdogService : Service() {
             stopIfIdle()
         } catch (e: Exception) {
             Log.e("Plainphone", "install watchdog could not restore the restriction", e)
-            timer.postDelayed({ onDeadline(deadline, force) }, 1_000L)
+            // Backoff: 1 s, 2 s ... capped at 1 min, so a recovery that keeps failing does not spin until the wakelock cap.
+            timer.postDelayed({ onDeadline(deadline, force, (retryMs * 2).coerceAtMost(60_000L)) }, retryMs)
         }
     }
 

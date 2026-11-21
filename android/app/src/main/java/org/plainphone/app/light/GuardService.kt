@@ -15,6 +15,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.inputmethod.InputMethodManager
 import org.plainphone.app.Lock
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncScheduler
@@ -36,6 +37,10 @@ class GuardService : AccessibilityService() {
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
     private var lastTimeCheckPkg: String? = null
+    private var lastPipTimeCheck = 0L
+    private var pipPackages: List<String> = emptyList()
+    /** Picture-in-picture apps already stopped once; forgotten when their window is gone. */
+    private val pipStopped = mutableSetOf<String>()
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
@@ -57,12 +62,17 @@ class GuardService : AccessibilityService() {
             // The allow-list decides again too, not only the time limits: an emergency opening that just
             // ended, or a blocked app still in front after a missed block.
             foreground?.let { if (canGuardApps()) guard(it, force = true) }
+            if (canGuardApps()) guardPip()
             main.postDelayed(this, TICK_MS)
         }
     }
 
     /** A block dropped by the rate limit: look at the app in front again once the gap is over. */
-    private val reguard = Runnable { foreground?.let { if (canGuardApps()) guard(it, force = true) } }
+    private val reguard = Runnable {
+        if (!canGuardApps()) return@Runnable
+        foreground?.let { guard(it, force = true) }
+        guardPip()
+    }
 
     /** Limited emergency openings (Self phone, light mode only): one app, 15 minutes. */
     private val emergency by lazy { EmergencyOpenings.of(this) }
@@ -122,6 +132,8 @@ class GuardService : AccessibilityService() {
             if (changes == 0 || (changes and WINDOW_INVENTORY_CHANGES) != 0) {
                 updateWindowSubscription(focusChanges = if (maintenance) 0 else changes)
             }
+            // An app that enters picture-in-picture only shows up here, never as "in front".
+            if (!maintenance && canGuardApps()) guardPip()
             return
         }
 
@@ -242,6 +254,41 @@ class GuardService : AccessibilityService() {
     }
 
     /**
+     * Closes a blocked app that plays on in picture-in-picture (see [PipGuard]): tries to dismiss the
+     * window, then shows the stop screen, which also sends Home.
+     */
+    @Suppress("DEPRECATION")
+    private fun guardPip() {
+        val wins = ArrayList<PipGuard.Win>()
+        val roots = HashMap<String, AccessibilityNodeInfo>()
+        for (window in windows) {
+            try {
+                val inPip = window.isInPictureInPictureMode
+                val root = if (!inPip) null else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) window.getRoot(0) else window.root
+                val pkg = root?.packageName?.toString()
+                wins += PipGuard.Win(pkg, inPip)
+                if (root != null && pkg != null && !roots.containsKey(pkg)) roots[pkg] = root else root?.let(::recycle)
+            } finally {
+                if (Build.VERSION.SDK_INT < 33) window.recycle()
+            }
+        }
+        pipPackages = PipGuard.packages(wins, packageName)
+        pipStopped.retainAll(pipPackages.toSet())
+        // A call (112 included) is never pushed aside by the stop screen; the window is looked at again after it.
+        val inCall = getSystemService(android.media.AudioManager::class.java)?.mode == android.media.AudioManager.MODE_IN_CALL
+        val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, LightLock.plan(this), pipStopped, ::openedForNow)
+        for (t in targets) {
+            roots[t.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS)
+            // Once per window: if dismissing does not close it, Home and the stop screen must not repeat every tick.
+            if (block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)) pipStopped += t.pkg
+        }
+        roots.values.forEach(::recycle)
+        // Time may be up before the stored plan knows it: the live check covers picture-in-picture apps too.
+        val unchecked = pipPackages.filter { p -> p !in pipStopped && targets.none { it.pkg == p } && !isOverlay(p) }
+        if (!inCall && unchecked.isNotEmpty()) pipTimeCheck(unchecked)
+    }
+
+    /**
      * An emergency opening covers exactly this app right now. Only loosens an app block (never a
      * protection screen, never calls or texts). Makes sure the block comes back when the window ends.
      */
@@ -331,8 +378,29 @@ class GuardService : AccessibilityService() {
 
     }
 
-    private fun block(pkg: String, reason: BlockedActivity.Reason) {
+    /** The live time check for apps in picture-in-picture (they are not "in front"). Own 5 s rate limit. */
+    private fun pipTimeCheck(pkgs: List<String>) {
         if (LightRelease.isReleased(this)) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPipTimeCheck < 5_000L) return
+        lastPipTimeCheck = now
+        if (worker.isShutdown || Lock.isInMaintenanceWindow(this)) return
+        runCatching { worker.execute {
+            val snap = runCatching { TimeGuard.snapshot(this) }.getOrNull() ?: return@execute
+            val used = pkgs.filter { it in snap.blocked }
+            if (used.isEmpty()) return@execute
+            main.post {
+                val still = used.filter { it in pipPackages && it !in pipStopped && !openedForNow(it) }
+                if (still.isEmpty()) return@post
+                still.forEach { if (block(it, BlockedActivity.Reason.TIME_USED_UP)) pipStopped += it }
+                Lock.applyAsync(this, "time used up")
+            }
+        } }
+    }
+
+    /** True when the stop screen was started; false when the rate limit dropped it (it is retried). */
+    private fun block(pkg: String, reason: BlockedActivity.Reason): Boolean {
+        if (LightRelease.isReleased(this)) return false
         val now = SystemClock.elapsedRealtime()
         if (now - lastBlockAt < BLOCK_GAP_MS) {
             // Dropped for now, not forgotten: a quick switch back to the app would otherwise keep it open.
@@ -340,12 +408,13 @@ class GuardService : AccessibilityService() {
             // Settings watch: its next content event, scheduled re-check or VPN retry runs it again.
             main.removeCallbacks(reguard)
             main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))
-            return
+            return false
         }
         lastBlockAt = now
         if (reason != BlockedActivity.Reason.PROTECTION) performGlobalAction(GLOBAL_ACTION_HOME)
         runCatching { startActivity(BlockedActivity.intent(this, pkg, reason)) }
             .onFailure { Log.w(TAG, "could not show the blocked screen: ${it.message}") }
+        return true
     }
 
     private fun collect(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
@@ -366,7 +435,21 @@ class GuardService : AccessibilityService() {
     }
 
     /** The shade, the keyboard and the launcher are not "an app in front". */
-    private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg.contains("inputmethod")
+    private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg in keyboardPackages()
+
+    private var keyboards: Set<String> = emptySet()
+    private var keyboardsAt = 0L
+
+    /** Packages of the enabled keyboards, not any package with "inputmethod" in its name. Cached: it is a binder call. */
+    private fun keyboardPackages(): Set<String> {
+        val now = SystemClock.elapsedRealtime()
+        if (keyboardsAt == 0L || now - keyboardsAt > KEYBOARD_CACHE_MS) {
+            keyboards = runCatching { getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.map { it.packageName }?.toSet() }
+                .getOrNull().orEmpty() + "com.android.inputmethod.latin"
+            keyboardsAt = now
+        }
+        return keyboards
+    }
 
     private val privateDnsOptions by lazy {
         listOf("private_dns_mode_provider", "private_dns_mode_provider_hostname").mapNotNull(::settingsString)
@@ -433,6 +516,7 @@ class GuardService : AccessibilityService() {
             AccessibilityEvent.WINDOWS_CHANGE_ACTIVE
         private const val TICK_MS = 30_000L
         private const val BLOCK_GAP_MS = 700L
+        private const val KEYBOARD_CACHE_MS = 60_000L
 
         @Volatile var isConnected = false
             private set

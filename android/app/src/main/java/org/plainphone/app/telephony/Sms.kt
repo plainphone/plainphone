@@ -223,7 +223,8 @@ object SmsSender {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT,
                 )
             })
-            sms.sendMultipartTextMessage(number, null, parts, intents, null)
+            // The approved number is texted, not the typed one (the rule matched the normalised form).
+            sms.sendMultipartTextMessage(rules.contactFor(number)?.number?.takeIf { it.isNotBlank() } ?: number, null, parts, intents, null)
         } catch (e: Exception) {
             receipts.cancel(sendId)
             Log.e(TAG, "SMS send failed", e)
