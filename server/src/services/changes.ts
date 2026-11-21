@@ -86,7 +86,7 @@ export class ChangeError extends Error {
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
-type DbLike = Ctx["db"] | Tx;
+export type DbLike = Ctx["db"] | Tx;
 
 export type ChangeResult =
   | { status: "applied"; op: Op }

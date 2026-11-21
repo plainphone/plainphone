@@ -57,8 +57,12 @@ pass after start, for example
 `sweeper: applied=0 dnsSynced=0 dnsDeleted=0 deleted magicLinks=1 sessions=0 pairings=0 invites=0 changes=0`.
 It never logs ids, addresses or names, and a failed DNS delete is logged without its ClientID.
 
-Pay to unlock (D13) is not switched on. When it is, note that `unlock_payments` rows are
-deleted with their pending change after 30 days; bookkeeping needs its own copy before then.
+Billing is switched off ([billing.md](billing.md)). When it is on: a household's subscriptions
+(`billing_subscriptions`) are deleted with the household, and deleting an account that is the only
+member of a paying household cancels the subscription at Stripe or Google Play. Paid early unlocks
+(`early_unlocks`) are purchase records that bookkeeping law requires us to keep, so they stay after
+the phone, household or account is deleted, with those links set to null. They hold amounts, times
+and the provider's references, never a name, an address or card data.
 
 Database backups still hold deleted data until they rotate out (30 days on the hosted
 service).

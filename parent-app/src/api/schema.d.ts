@@ -3218,6 +3218,238 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/households/{hid}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The household's plan, limits, usage and prices
+         * @description Also answers while billing is off, with plan "unlimited" and no channels.
+         */
+        get: operations["getHouseholdPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/plan/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a Stripe Checkout for the paid plan (web dashboard only)
+         * @description Never used by store builds. The plan changes only when Stripe's signed webhook arrives.
+         */
+        post: operations["postHouseholdPlanCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/plan/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open Stripe's customer portal to change or cancel a card subscription */
+        post: operations["postHouseholdPlanPortal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changes/{cid}/early-unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The early unlock offer for a pending change */
+        get: operations["getChangeEarlyUnlock"];
+        put?: never;
+        /**
+         * Buy an early unlock by card (web dashboard only)
+         * @description Needs the express consent to start before the withdrawal period ends (`consent: true`,
+         *     never pre-ticked). A retry returns the same purchase and checkout. The change applies about
+         *     ten minutes after Stripe confirms payment.
+         */
+        post: operations["postChangeEarlyUnlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/early-unlocks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One early unlock purchase (the receipt) */
+        get: operations["getEarlyUnlock"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/early-unlocks/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw from the contract (Fortryd aftale)
+         * @description Before delivery only. Restores the original wait, refunds in full and mails a receipt. Works also after billing is switched off again.
+         */
+        post: operations["postEarlyUnlockWithdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/stripe/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stripe webhook (signed with STRIPE_WEBHOOK_SECRET)
+         * @description Idempotent per event id. Handles checkout.session.*, customer.subscription.* and charge.refunded.
+         */
+        post: operations["postStripeWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/play/rtdn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Google Play real-time developer notifications (Pub/Sub push, ?token=PLAY_RTDN_TOKEN)
+         * @description Idempotent per Pub/Sub message id. The state is always looked up at Google before it is stored.
+         */
+        post: operations["postPlayRtdn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The household plan and Play product ids, for Play builds (phone) */
+        get: operations["getDeviceBilling"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/billing/play": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a finished Google Play purchase (phone)
+         * @description The server looks the token up at Google, checks it belongs to this household, then acknowledges or consumes it.
+         */
+        post: operations["postDeviceBillingPlay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/early-unlocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Early unlock offers for this Myself phone's pending changes (phone) */
+        get: operations["getDeviceEarlyUnlocks"];
+        put?: never;
+        /**
+         * Start an early unlock through Google Play (phone, Play builds only)
+         * @description There is no card path from a phone. Returns the product id and the ids to put in the Play purchase.
+         */
+        post: operations["postDeviceEarlyUnlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/early-unlocks/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw from an early unlock bought on this phone (phone) */
+        post: operations["postDeviceEarlyUnlockWithdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4026,6 +4258,92 @@ export interface components {
                 currency?: string;
                 recipient?: string;
             };
+            /** @description Paid early unlock (docs/billing.md). Present only while billing is on, on a Myself phone with its own delay key and the switch on. */
+            earlyUnlock?: components["schemas"]["EarlyUnlockOffer"];
+        };
+        EarlyUnlockOffer: {
+            available: boolean;
+            /** @enum {string|null} */
+            reason: "savesNoTime" | "weeklyCap" | "inProgress" | null;
+            /** @description Minor units including VAT */
+            price: number;
+            currency: string;
+            /** @description The change applies about this long after payment. */
+            unlockMinutes: number;
+            /**
+             * Format: date-time
+             * @description With the weekly cap reached.
+             */
+            nextAvailableAt: string | null;
+            purchase: null | components["schemas"]["EarlyUnlockPurchase"];
+        };
+        EarlyUnlockPurchase: {
+            /**
+             * Format: uuid
+             * @description The contract number on the receipt.
+             */
+            id: string;
+            /** @enum {unknown} */
+            status: "created" | "scheduled" | "delivered" | "refund_due" | "refunded" | "expired";
+            /** @enum {unknown} */
+            channel: "stripe" | "play";
+            amount: number;
+            currency: string;
+            /** Format: date-time */
+            consentAt: string;
+            /** Format: date-time */
+            paidAt: string | null;
+            /** Format: date-time */
+            unlockAt: string | null;
+            /** Format: date-time */
+            deliveredAt: string | null;
+            /** Format: date-time */
+            withdrawnAt: string | null;
+            /** Format: date-time */
+            refundedAt: string | null;
+            /** @description Show the withdrawal control (Fortryd aftale) while true. */
+            canWithdraw: boolean;
+        };
+        Plan: {
+            /** @description False while BILLING_ENABLED is off; then plan is "unlimited". */
+            billing: boolean;
+            /** @enum {unknown} */
+            plan: "unlimited" | "grandfathered" | "free" | "plus";
+            /** @enum {string|null} */
+            source: "play" | "stripe" | "manual" | null;
+            /** Format: date-time */
+            until: string | null;
+            limits: {
+                /** @description Null means no limit. */
+                phones: number | null;
+                trusted: number | null;
+            };
+            usage: {
+                phones: number;
+                trusted: number;
+            };
+            prioritySupport: boolean;
+            prices: {
+                currency: string;
+                /** @description Per household per month */
+                plus: number;
+                earlyUnlock: number;
+            };
+            channels: {
+                /** @description Card checkout from the web dashboard. */
+                stripe: boolean;
+                /** @description Google Play Billing in Play builds. */
+                play: boolean;
+            };
+            /** @description A card subscription exists that the Stripe portal can manage. */
+            canManage: boolean;
+        };
+        PlanLimit: {
+            /** @constant */
+            error: "plan_limit";
+            /** @enum {unknown} */
+            limit: "phones" | "trusted";
+            max: number;
         };
         ChangePending: {
             /** @constant */
@@ -5011,6 +5329,15 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["ChangePending"];
+            };
+        };
+        /** @description Only with billing on, on the free plan, when adding beyond the plan's limit (docs/billing.md). */
+        PlanLimit: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PlanLimit"];
             };
         };
     };
@@ -7787,6 +8114,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            402: components["responses"]["PlanLimit"];
             409: components["responses"]["Error"];
         };
     };
@@ -9032,6 +9360,7 @@ export interface operations {
                     "application/json": components["schemas"]["PhoneSummary"];
                 };
             };
+            402: components["responses"]["PlanLimit"];
             /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`) */
             403: {
                 headers: {
@@ -9094,6 +9423,7 @@ export interface operations {
                     "application/json": components["schemas"]["Enrollment"];
                 };
             };
+            402: components["responses"]["PlanLimit"];
             /** @description Household not found */
             404: {
                 headers: {
@@ -11306,6 +11636,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            402: components["responses"]["PlanLimit"];
             409: components["responses"]["Error"];
         };
     };
@@ -11382,6 +11713,7 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+            402: components["responses"]["PlanLimit"];
         };
     };
     getPhonesEmergencyOpenings: {
@@ -11662,6 +11994,375 @@ export interface operations {
         responses: {
             409: components["responses"]["Error"];
             501: components["responses"]["Error"];
+        };
+    };
+    getHouseholdPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postHouseholdPlanCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where to send the browser */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    postHouseholdPlanPortal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where to send the browser */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    getChangeEarlyUnlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: components["parameters"]["changeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarlyUnlockOffer"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postChangeEarlyUnlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: components["parameters"]["changeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    consent: true;
+                    locale?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        purchase: components["schemas"]["EarlyUnlockPurchase"];
+                        /** Format: uri */
+                        checkoutUrl: string | null;
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    getEarlyUnlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The purchase */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarlyUnlockPurchase"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postEarlyUnlockWithdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    confirm: true;
+                    /** @description Only written into the receipt mail */
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Withdrawn */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarlyUnlockPurchase"];
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    postStripeWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Received */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    postPlayRtdn: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Received */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    getDeviceBilling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postDeviceBillingPlay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    kind: "plan" | "earlyUnlock";
+                    productId: string;
+                    purchaseToken: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    getDeviceEarlyUnlocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postDeviceEarlyUnlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    changeId: string;
+                    /** @constant */
+                    consent: true;
+                };
+            };
+        };
+        responses: {
+            /** @description Started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    postDeviceEarlyUnlockWithdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    confirm: true;
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Withdrawn */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
         };
     };
 }

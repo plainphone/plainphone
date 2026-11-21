@@ -156,6 +156,7 @@ class HomeActivity : ComponentActivity() {
             },
         ) {
             SelfApprovalAction()
+            org.plainphone.app.billing.EarlyUnlockSection()
             EmergencyStatusLine()
             if (light && LightSetup.isComplete(context)) {
                 FilledTonalButton(onClick = openSos) { Text(stringResource(R.string.sos_title)) }
@@ -288,6 +289,7 @@ class HomeActivity : ComponentActivity() {
         fun hasContent(context: Context): Boolean {
             val rules = SyncStore(context).rules() ?: return false
             if (org.plainphone.app.safety.SafetyStore(context).sharingAlways) return true
+            if (org.plainphone.app.billing.Stores.available && org.plainphone.app.billing.EarlyUnlockLogic.relevant(rules)) return true
             return rules.timeLimits != TimeLimits.NONE && !rules.timeLimits.isEmpty || rules.toInstall.isNotEmpty()
         }
     }

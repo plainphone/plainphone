@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { errorMessage, Field, LiveStatus, PageTitle, Switch } from "../components/ui";
+import { errorNotice, Field, LiveStatus, type Notice, PageTitle, Switch } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import { normaliseCode } from "../lib/format";
@@ -24,7 +24,7 @@ export function PairPage() {
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<Notice | null>(null);
 
   useEffect(() => {
     setHint(null);
@@ -65,14 +65,14 @@ export function PairPage() {
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else navigate(`/phones/${phone.id}`, { replace: true });
     } catch (err) {
-      if (err instanceof ApiError && err.data.code === IOS_PAIRING_NOT_YET) setFormError(t("platform.iphone.notYet"));
-      else if (err instanceof ApiError && err.status === 409) setFormError(t("pair.profileMismatch"));
+      if (err instanceof ApiError && err.data.code === IOS_PAIRING_NOT_YET) setFormError({ tone: "error", text: t("platform.iphone.notYet") });
+      else if (err instanceof ApiError && err.status === 409) setFormError({ tone: "error", text: t("pair.profileMismatch") });
       else if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
       else if (err instanceof ApiError && err.status === 400 && err.issues.length) {
         const f = err.fields();
         setErrors({ code: f.code ? t("pair.codeInvalid") : undefined, name: f.name ? t("pair.nameRequired") : undefined });
-        setFormError(t("error.form"));
-      } else setFormError(errorMessage(err, t));
+        setFormError({ tone: "error", text: t("error.form") });
+      } else setFormError(errorNotice(err, t));
     } finally {
       setBusy(false);
     }
@@ -124,7 +124,7 @@ export function PairPage() {
           <Switch label={t("filter.otherVpn")} checked={privateDns} onChange={setPrivateDns}
             description={privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />
         )}
-        <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+        <LiveStatus notice={formError} />
         <div>
           <button type="submit" className="btn btn-primary" disabled={busy || lookupPending}>
             {busy ? t("pair.adding") : t("pair.submit")}

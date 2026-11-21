@@ -4,6 +4,7 @@
 // Placeholders look like {name}. Never use em dashes in copy.
 
 import { ageEn } from "./age";
+import { billingEn } from "./billing";
 import { appUpdatesEn } from "./app-updates";
 import { platformEn } from "./platform";
 import { callbackEn } from "./callback";
@@ -20,6 +21,7 @@ export const en = {
   ...statusEn,
   ...appUpdatesEn,
   ...ageEn,
+  ...billingEn,
   ...platformEn,
   ...modesEn,
   ...extendedEn,
@@ -593,13 +595,6 @@ export const en = {
   "key.qrWaiting": "Waiting for your helper to scan the invite. Until they accept, changes wait {hours} hours.",
   "key.qrAccepted": "Your helper has accepted the invite and can approve changes.",
   "key.qrExpiredHint": "Invite codes expire after 15 minutes. Show a new one if it has run out. An invite is not an approval.",
-  "key.payTitle": "Pay to unlock",
-  "key.payNotYet": "Pay to unlock is not available yet.",
-  "key.payHelp": "Later you can choose to skip a delay by paying an amount you set. The money goes to the Plainphone project.",
-  "key.payEnabled": "Offer pay to unlock",
-  "key.payAmount": "Amount",
-  "key.payRecipient": "Money goes to",
-  "key.recipient.plainphone": "The Plainphone project",
   "key.looseningNote": "Changing the key is itself a loosening, except making the delay longer.",
 
   "house.title": "Household",

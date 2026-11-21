@@ -2,6 +2,7 @@
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
 import { ageDe } from "./age";
+import { billingDe } from "./billing";
 import { appUpdatesDe } from "./app-updates";
 import { platformDe } from "./platform";
 import { callbackDe } from "./callback";
@@ -13,6 +14,7 @@ export const de: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesDe,
   ...ageDe,
+  ...billingDe,
   ...platformDe,
   ...modesDe,
   ...extendedDe,
@@ -558,13 +560,6 @@ export const de: Messages = {
   "key.emailInvalid": "Geben Sie eine gültige E-Mail-Adresse einer anderen Person als Ihnen ein.",
   "key.accepted": "{email} hat sich angemeldet und kann Änderungen genehmigen.",
   "key.notAccepted": "{email} hat sich noch nicht angemeldet. Änderungen warten, bis sie geschehen.",
-  "key.payTitle": "Bezahlen Sie zum Entsperren",
-  "key.payNotYet": "„Bezahlen zum Entsperren“ ist noch nicht verfügbar.",
-  "key.payHelp": "Später können Sie eine Verzögerung überspringen, indem Sie einen von Ihnen festgelegten Betrag bezahlen. Das Geld geht an das Plainphone-Projekt.",
-  "key.payEnabled": "Bieten Sie „Bezahlen zum Entsperren“ an",
-  "key.payAmount": "Betrag",
-  "key.payRecipient": "Geld geht an",
-  "key.recipient.plainphone": "Das Plainphone-Projekt",
   "key.looseningNote": "Das Ändern der Tonart ist an sich schon eine Lockerung, außer dass die Verzögerung länger wird.",
 
   "house.title": "Haushalt",

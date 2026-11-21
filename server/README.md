@@ -47,8 +47,13 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
   or earlier when the phone polls), with the trusted-person key when that person approves.
   Tightening always applies at once. Schedule edits loosen if they free any minute of the old
   window or allow more apps. Changes to the key itself go through the key, except a longer delay.
-- **Pay to unlock (D13)** is a table (`unlock_payments`), a flag (`PAYMENTS_ENABLED`) and an
-  endpoint that answers 409/501. No payment provider is wired up.
+- **Billing (#97, #103)** is off unless `BILLING_ENABLED` is set ([docs/billing.md](../docs/billing.md)).
+  `services/billing.ts` is the one place that answers "is this allowed" (only adding phones and
+  trusted people is ever limited), `routes/billing.ts` has the signed, idempotent Stripe webhook and
+  Play real-time notifications, and `services/early-unlock.ts` the paid early unlock on Myself
+  phones with withdrawal and refunds. Providers (`providers/stripe.ts`, `providers/play-billing.ts`)
+  are plain fetch clients that tests replace with fakes. The older D13 table (`unlock_payments`),
+  flag (`PAYMENTS_ENABLED`) and `/changes/{cid}/pay-unlock` endpoint (409/501) are unused.
 - **Location (D7).** One row per phone; an older fix never overwrites a newer one; switching
   location off deletes it.
 - **Secrets at rest.** Magic links, sessions, invites, pairing codes and device tokens are stored

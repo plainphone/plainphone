@@ -75,6 +75,9 @@ import { parentMoreTimeRoutes } from "./more-time.js";
 import { locationRoutes, setLocationMode } from "./location.js";
 import { parentSosRoutes } from "./sos.js";
 import { parentAgeRoutes } from "./age-agreement.js";
+import { parentBillingRoutes } from "./billing.js";
+import { cancelSubscriptions, isAllowed, planLimitBody, subscriptionsOfSoleHouseholds } from "../services/billing.js";
+import { offerFor } from "../services/early-unlock.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -215,7 +218,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (input.confirmEmail !== user.email) {
       return c.json({ error: "type your own email address to confirm" }, 400);
     }
+    const subs = await subscriptionsOfSoleHouseholds(ctx, user.id);
     const r = await deleteAccount(ctx, user.id);
+    if (r.status === "deleted" && subs.length) await cancelSubscriptions(ctx, subs);
     if (r.status === "blocked") {
       return c.json(
         {
@@ -585,6 +590,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
+    // The plan only limits adding phones (docs/billing.md); existing phones are never touched.
+    // A soft limit: checked outside the transaction, so two enrolments at the same instant can
+    // both pass. That only ever errs towards the family, which is the safe side.
+    const allowed = await isAllowed(ctx, householdId, "phone.add");
+    if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
 
     const deviceToken = randomToken(DEVICE_PREFIX);
     // One transaction: a phone polling meanwhile sees either "waiting" or its token.
@@ -649,6 +659,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       return c.json({ error: "unknown time zone" }, 400);
     }
     if (input.template && input.profile !== "self") return c.json({ error: "only Self phones can copy rules" }, 400);
+    const allowed = await isAllowed(ctx, householdId, "phone.add");
+    if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
     const phone = await ctx.db.transaction(async (tx) => {
       const template = input.template ? await readSelfTemplate(tx, input.template, ctx.now()) : null;
       if (input.template && !template) return null;
@@ -957,6 +969,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   parentSosRoutes(app, ctx, requirePhone);
   parentAgeRoutes(app, ctx, requirePhone);
+  parentBillingRoutes(app, ctx, { requireMember, requirePhone });
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
@@ -1170,6 +1183,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (key.trustedEmail && key.trustedEmail === c.get("user").email) {
       return c.json({ error: "the trusted person must be someone else" }, 400);
     }
+    if (key.keyType === "trusted") {
+      const allowed = await isAllowed(ctx, phone.householdId, "trusted.add", { phoneId: phone.id, trusted: { email: key.trustedEmail } });
+      if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
+    }
     return change(c, phone, { type: "key.set", key });
   });
 
@@ -1184,6 +1201,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/phones/:pid/trusted-invite", async (c) => {
     const phone = await requirePhone(c);
+    const allowed = await isAllowed(ctx, phone.householdId, "trusted.add", { phoneId: phone.id });
+    if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
     const invite = await issueTrustedInvite(ctx, phone.id, { userId: c.get("user").id });
     if (!invite) return c.json({ error: "this phone cannot invite a helper right now" }, 409);
     c.header("Cache-Control", "no-store");
@@ -1389,6 +1408,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const state = await loadApprovalSummaries(ctx.db, [{ phoneId: phone.id, op }]);
     const now = ctx.now();
     const appliesAt = r.effectiveAt && r.effectiveAt > now ? r.effectiveAt : now;
+    const earlyUnlock = await offerFor(ctx, phone, key, r);
     return {
       id: r.id,
       op,
@@ -1402,6 +1422,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       payUnlock: payUnlockOffered(r, phone, key)
         ? { amount: key!.payUnlockAmount, currency: key!.payUnlockCurrency, recipient: key!.payUnlockRecipient }
         : null,
+      // Paid early unlock (docs/billing.md); left out entirely while billing is off.
+      ...(earlyUnlock ? { earlyUnlock } : {}),
     };
   }
 

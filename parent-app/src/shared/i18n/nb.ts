@@ -2,6 +2,7 @@
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
 import { ageNb } from "./age";
+import { billingNb } from "./billing";
 import { appUpdatesNb } from "./app-updates";
 import { platformNb } from "./platform";
 import { callbackNb } from "./callback";
@@ -13,6 +14,7 @@ export const nb: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesNb,
   ...ageNb,
+  ...billingNb,
   ...platformNb,
   ...modesNb,
   ...extendedNb,
@@ -558,13 +560,6 @@ export const nb: Messages = {
   "key.emailInvalid": "Skriv inn en gyldig e-postadresse til noen andre enn deg.",
   "key.accepted": "{email} har logget inn og kan godkjenne endringer.",
   "key.notAccepted": "{email} har ikke logget på ennå. Endringer venter til de gjør det.",
-  "key.payTitle": "Betal for å låse opp",
-  "key.payNotYet": "Betal for å låse opp er ikke tilgjengelig ennå.",
-  "key.payHelp": "Senere kan du velge å hoppe over en forsinkelse ved å betale et beløp du angir. Pengene går til Plainphone-prosjektet.",
-  "key.payEnabled": "Tilby lønn for å låse opp",
-  "key.payAmount": "Beløp",
-  "key.payRecipient": "Penger går til",
-  "key.recipient.plainphone": "Plainphone-prosjektet",
   "key.looseningNote": "Å bytte nøkkel er i seg selv en løsning, bortsett fra å gjøre forsinkelsen lengre.",
 
   "house.title": "Husstand",
