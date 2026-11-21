@@ -27,7 +27,6 @@ export default function InviteScreen() {
   const [outcome, setOutcome] = useState<{ token: string; result: "ok" | string } | null>(null);
   // The invitation was sent to another address than the signed-in one; the link is kept.
   const [otherAddress, setOtherAddress] = useState<string | null>(null);
-  const [signOutFailed, setSignOutFailed] = useState(false);
 
   // The token is in the link, or was kept from before the login.
   const token = linkToken ?? kept ?? null;
@@ -90,13 +89,8 @@ export default function InviteScreen() {
 
   const signOutAndContinue = async () => {
     if (!token) return;
-    setSignOutFailed(false);
-    try {
-      await logout();
-    } catch {
-      setSignOutFailed(true);
-      return;
-    }
+    // logout() signs out locally even when the server cannot be reached, so it does not throw.
+    await logout();
     // Signing out forgets the invitation so the next person does not inherit it; this one is kept on purpose.
     await savePendingInvite(token);
     setNext("/invite");
@@ -133,7 +127,6 @@ export default function InviteScreen() {
       ) : otherAddress === token ? (
         <>
           <Notice tone="error" text={t("invite.otherAddress")} />
-          {signOutFailed && <Notice tone="error" text={t("error.generic")} />}
           <Button testID="invite-signout" title={t("invite.signOutContinue")} onPress={() => void signOutAndContinue()} />
           <Button
             kind="secondary"
