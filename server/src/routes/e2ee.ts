@@ -122,7 +122,8 @@ export function e2eeRoutes(ctx: Ctx) {
   // --- Devices ------------------------------------------------------------------------------
 
   app.post("/devices", async (c) => {
-    const input = await body(c, z.strictObject({ householdId: z.uuid().optional(), mlsSignPub: b64(32) }));
+    // The client picks its random device ID first: the MLS credential carries it.
+    const input = await body(c, z.strictObject({ deviceId: z.uuid(), householdId: z.uuid().optional(), mlsSignPub: b64(32) }));
     if (decode(input.mlsSignPub, 32, "mlsSignPub").length !== 32) throw new HTTPException(400, { message: "mlsSignPub must be 32 bytes" });
     const caller = c.get("caller");
     const householdId = await householdOf(c, input.householdId);
@@ -133,13 +134,15 @@ export function e2eeRoutes(ctx: Ctx) {
       .where(and(own, eq(e2eeDevices.householdId, householdId), isNull(e2eeDevices.revokedAt))) as [{ n: number }];
     if (n >= E2EE_LIMITS.devicesPerCaller) throw new HTTPException(409, { message: "too many devices" });
     const [d] = await ctx.db.insert(e2eeDevices).values({
+      id: input.deviceId,
       householdId,
       userId: caller.kind === "user" ? caller.userId : null,
       phoneId: caller.kind === "phone" ? caller.phone.id : null,
       role: caller.kind === "phone" ? "child" : "admin",
       mlsSignPub: input.mlsSignPub,
-    }).returning();
-    return c.json({ deviceId: d!.id, role: d!.role }, 201);
+    }).onConflictDoNothing().returning();
+    if (!d) throw new HTTPException(409, { message: "device ID in use" });
+    return c.json({ deviceId: d.id, role: d.role }, 201);
   });
 
   app.get("/devices", async (c) => {

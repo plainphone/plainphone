@@ -3,7 +3,7 @@
 // E2EE phase 0 prototype: the delivery-service routes (docs/e2ee-prototype.md). The server
 // only reads the clear MLS framing, so these tests build that framing by hand; real MLS bytes
 // go through the same routes in scripts/e2ee-prototype-demo.sh and the parser's vectors.
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -41,7 +41,7 @@ async function household() {
   const dad = await signIn(h, "dad@example.org");
   await dad.post("/api/invites/accept", { token });
   const register = async (c: Client, householdId?: string) => {
-    const r = await c.post("/api/e2ee/devices", { householdId, mlsSignPub: b64(randomBytes(32)) });
+    const r = await c.post("/api/e2ee/devices", { deviceId: randomUUID(), householdId, mlsSignPub: b64(randomBytes(32)) });
     expect(r.status).toBe(201);
     return r.json.deviceId as string;
   };
@@ -103,8 +103,8 @@ describe("E2EE prototype delivery service", () => {
     const stranger = await signIn(h, "stranger@example.org");
     const hid = (await mum.get("/api/me")).json.households[0].id;
     expect((await stranger.get(`/api/e2ee/devices?householdId=${hid}`)).status).toBe(404);
-    expect((await stranger.post("/api/e2ee/devices", { householdId: hid, mlsSignPub: b64(randomBytes(32)) })).status).toBe(404);
-    expect((await mum.post("/api/e2ee/devices", { householdId: hid, mlsSignPub: "not+base64" })).status).toBe(400);
+    expect((await stranger.post("/api/e2ee/devices", { deviceId: randomUUID(), householdId: hid, mlsSignPub: b64(randomBytes(32)) })).status).toBe(404);
+    expect((await mum.post("/api/e2ee/devices", { deviceId: randomUUID(), householdId: hid, mlsSignPub: "not+base64" })).status).toBe(400);
   });
 
   it("hands out each key package once and keeps the last resort", async () => {

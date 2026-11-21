@@ -6547,8 +6547,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [mlsSignPub]
+              required: [deviceId, mlsSignPub]
               properties:
+                deviceId: { type: string, format: uuid, description: "A random UUIDv4 the client picks; its MLS credential carries it" }
                 householdId: { type: string, format: uuid, description: Required for parents }
                 mlsSignPub: { type: string, description: 32-byte Ed25519 MLS leaf key, base64url }
       responses:
@@ -6563,7 +6564,7 @@ paths:
                   deviceId: { type: string, format: uuid }
                   role: { enum: [admin, child] }
         "404": { description: Prototype off, or not the caller's household }
-        "409": { description: Too many devices for the caller }
+        "409": { description: Too many devices for the caller, or the device ID is in use }
     get:
       operationId: listE2eeDevices
       summary: The household's active MLS devices (prototype; clients trust the household log, not this list)
