@@ -21,6 +21,15 @@ come on top of Android's own list for the SIM, which can be empty without a SIM 
 They follow where the phone is (SIM, network, QR code country), not which language it speaks. When the
 phone cannot tell where it is, every local number counts. A country it knows but that is not listed (Finland, say) adds none: Android's own list decides.
 
+## When the rules cannot be read
+
+The parents' numbers also have a second copy that does not depend on the rules: a small file in
+device-protected storage (a plain file; nothing reads it before the first unlock, since the call and SMS components start after it), rewritten whenever the rules are put together (`ParentNumbers.kt`). If reading the
+rules ever fails, outgoing calls go only to 112, the emergency numbers and that file, and a parent's SMS is
+still delivered. Without the file (first boot, never synced) outgoing calls stay open. This is a failsafe, not
+a feature, so it has no switch. Details and the tests: [contacts.md](contacts.md#when-the-rules-cannot-be-read),
+`FailsafeTest`.
+
 ## The states
 
 Strong and light mode, Child and Myself phones, open mode, school time, bedtime (silent or not), [modes](modes.md) (a mode that opens no contact group and no app, quiet or not), the

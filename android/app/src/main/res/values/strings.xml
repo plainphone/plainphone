@@ -139,6 +139,12 @@
     <string name="blocked_title">Blocked (%1$d)</string>
     <string name="blocked_empty">Nothing blocked yet.</string>
     <string name="blocked_clear">Clear the blocked log</string>
+    <string name="call_paused_title">Call not placed</string>
+    <string name="call_paused_text">Plainphone cannot check this number right now. You can still call your parents and 112.</string>
+    <string name="held_title">Held for review (%1$d)</string>
+    <string name="held_intro">Plainphone could not check who sent these messages, so it kept them here. The child does not see them.</string>
+    <string name="held_delete">Delete the message from %1$s</string>
+    <string name="held_clear">Delete all held messages</string>
     <string name="blocked_call_in">Incoming call</string>
     <string name="blocked_call_out">Outgoing call</string>
     <string name="blocked_sms_in">Incoming message</string>
