@@ -38,6 +38,7 @@ import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 import { sosRulesExtras } from "./quick-messages.js";
 import { agreementRules } from "./age-review.js";
 import { inboxRules } from "./family-inbox.js";
+import { extendedRules, snapshotRules } from "./extended-family.js";
 import { effectiveGroup, loadModes, modesForRules } from "./modes.js";
 import { emergencyRules } from "./emergency-openings.js";
 import { startWake } from "./latency.js";
@@ -156,7 +157,7 @@ function hhmm(minute: number): string {
 }
 
 async function loadRulesInputs(ctx: Ctx, phone: Phone) {
-  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds, sosExtras, inbox, modeRows, emergency] = await Promise.all([
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds, sosExtras, inbox, modeRows, emergency, extended] = await Promise.all([
     ctx.db
       .select({
         packageName: phoneApps.packageName,
@@ -218,6 +219,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     inboxRules(ctx, phone),
     phone.modesEnabled && phone.profile === "child" ? loadModes(ctx.db, phone.id) : null,
     emergencyRules(ctx, phone),
+    extendedRules(ctx, phone),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {
@@ -282,6 +284,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     inbox,
     modeRows,
     emergency,
+    extended,
+    snapshot: phone.profile === "child" ? snapshotRules(phone) : undefined,
   };
 }
 
@@ -297,7 +301,7 @@ export function nextRulesRevision(dns = false) {
 }
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows, emergency }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined, iosSelection: IosSelectionMeta | null = null) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows, emergency, extended, snapshot }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined, iosSelection: IosSelectionMeta | null = null) {
   const apps = allApps.filter((a) => a.installed);
   // Open mode: everything is allowed except the block list (apps blocked one by one plus the
   // known apps of the blocked categories, also when they are not installed yet).
@@ -352,6 +356,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     ...(phone.profile === "child" ? { sos: { name: phone.name, parents: contactRows.filter((c) => c.sosParent).map(({ name, number }) => ({ name, number })), ...sosExtras } } : {}),
     // The family inbox (docs/family-inbox.md); left out while it is off.
     ...(inbox ? { inbox } : {}),
+    // Extended family contacts and location snapshots (docs/extended-family.md); left out while off.
+    ...(extended ? { extended } : {}),
+    ...(snapshot ? { locationSnapshot: snapshot } : {}),
     // The family agreement (docs/family-agreement.md); left out while it is off or empty.
     ...(phone.agreement ? { ageAgreement: phone.agreement } : {}),
     // Limited emergency openings, Self phones only (docs/emergency-openings.md). `used` is the

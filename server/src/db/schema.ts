@@ -331,6 +331,10 @@ export const phones = pgTable(
     /** The family inbox and its "I'm home" check-in (docs/family-inbox.md); off until a parent turns them on. */
     familyInboxEnabled: boolean("family_inbox_enabled").notNull().default(false),
     checkInsEnabled: boolean("check_ins_enabled").notNull().default(false),
+    /** Named, mutually approved family contacts (docs/extended-family.md); off until a parent turns it on. */
+    extendedFamilyEnabled: boolean("extended_family_enabled").notNull().default(false),
+    /** The child may share a one-time location snapshot in a conversation (docs/extended-family.md). */
+    locationSnapshotsEnabled: boolean("location_snapshots_enabled").notNull().default(false),
     /** The age preset the parents last applied (docs/age-presets.md); null = none, as for phones from before. */
     agePreset: text("age_preset", { enum: AGE_PRESET_IDS }),
     /** A calm "review the rules" reminder to the parents; off until a parent turns it on. */
@@ -966,7 +970,7 @@ export const familyMessages = pgTable("family_messages", {
   /** The phone's own id for what the child sent (a retry repeats it); the server's for a parent reply. */
   id: uuid("id").notNull(),
   sender: text("sender", { enum: ["child", "parent"] }).notNull(),
-  kind: text("kind", { enum: ["quick", "checkin", "reply"] }).notNull(),
+  kind: text("kind", { enum: ["quick", "checkin", "reply", "snapshot"] }).notNull(),
   text: text("text").notNull(),
   authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
   /** The name the child knows the parent by, as the parent typed it. */
@@ -983,6 +987,67 @@ export const familyMessages = pgTable("family_messages", {
   index("family_messages_phone_sent_idx").on(t.phoneId, t.sentAt),
   index("family_messages_created_idx").on(t.createdAt),
 ]);
+
+/**
+ * Extended family contacts (docs/extended-family.md): a named person a parent invited with a
+ * single-use link, whom the child approved and who accepted. No account and no caregiver rights:
+ * the contact's session only reaches its own conversation with the child.
+ */
+export const extendedContacts = pgTable("extended_contacts", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  /** The name the child knows the person by, as the parent typed it. */
+  name: text("name").notNull(),
+  /** Modes: the contact group the parent put the person in (docs/modes.md). Others until a parent moves them. */
+  contactGroup: text("contact_group", { enum: ["family", "friends", "others"] }).notNull().default("others"),
+  invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
+  /** The single-use invitation; cleared when the person accepts or declines. */
+  inviteTokenHash: text("invite_token_hash").unique(),
+  inviteExpiresAt: timestamp("invite_expires_at", { withTimezone: true }),
+  childApprovedAt: timestamp("child_approved_at", { withTimezone: true }),
+  childDeclinedAt: timestamp("child_declined_at", { withTimezone: true }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  contactDeclinedAt: timestamp("contact_declined_at", { withTimezone: true }),
+  /** The person's browser session; cleared on a new link, a block or a removal. */
+  sessionTokenHash: text("session_token_hash").unique(),
+  blockedAt: timestamp("blocked_at", { withTimezone: true }),
+  /** Advances with every change the child's phone should fetch (a reply, a receipt). */
+  rev: integer("rev").notNull().default(0),
+  createdAt: createdAt(),
+}, (t) => [index("extended_contacts_phone_idx").on(t.phoneId)]);
+
+/** The conversation between a child and one extended contact. Bounded to 50 per contact and 30 days. */
+export const extendedMessages = pgTable("extended_messages", {
+  contactId: uuid("contact_id").notNull().references(() => extendedContacts.id, { onDelete: "cascade" }),
+  /** The phone's own id for what the child sent (a retry repeats it); the server's for a reply. */
+  id: uuid("id").notNull(),
+  sender: text("sender", { enum: ["child", "contact"] }).notNull(),
+  kind: text("kind", { enum: ["quick", "reply", "snapshot"] }).notNull(),
+  text: text("text").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+  /** When the other side's device fetched it (the device receipt). */
+  receivedAt: timestamp("received_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.contactId, t.id] }),
+  index("extended_messages_created_idx").on(t.createdAt),
+]);
+
+/**
+ * The newest location snapshot a child shared in a conversation: one per phone, replaced by the next
+ * and deleted when it expires. `contactId` null means the parents (the family inbox).
+ */
+export const locationSnapshots = pgTable("location_snapshots", {
+  phoneId: uuid("phone_id").primaryKey().references(() => phones.id, { onDelete: "cascade" }),
+  messageId: uuid("message_id").notNull(),
+  contactId: uuid("contact_id").references(() => extendedContacts.id, { onDelete: "cascade" }),
+  lat: doublePrecision("lat").notNull(),
+  lon: doublePrecision("lon").notNull(),
+  accuracyM: doublePrecision("accuracy_m"),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("location_snapshots_expires_idx").on(t.expiresAt)]);
 
 /** Transfer signing identity. The private key stays on the server. */
 export const moveIdentity = pgTable("move_identity", {

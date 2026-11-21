@@ -103,6 +103,8 @@ data class Route(
     val threadKind: SmsThreadKind? = null,
     /** Open the family inbox (from its notification). */
     val family: Boolean = false,
+    /** Open the conversation with this extended family contact (from its notification). */
+    val contact: String? = null,
 )
 
 /**
@@ -139,6 +141,7 @@ class PhoneActivity : ComponentActivity() {
         val body = intent?.getStringExtra("sms_body") ?: intent?.getStringExtra(Intent.EXTRA_TEXT)
         return when {
             intent?.getBooleanExtra(EXTRA_FAMILY, false) == true -> Route(Tab.MESSAGES, family = true)
+            intent?.getStringExtra(EXTRA_EXTENDED) != null -> Route(Tab.MESSAGES, contact = intent.getStringExtra(EXTRA_EXTENDED))
             intent?.getStringExtra(EXTRA_CONVERSATION) != null ->
                 Route(
                     Tab.MESSAGES, intent.getStringExtra(EXTRA_CONVERSATION),
@@ -157,6 +160,7 @@ class PhoneActivity : ComponentActivity() {
         const val EXTRA_CONVERSATION = "org.plainphone.app.CONVERSATION"
         private const val EXTRA_THREAD_KIND = "org.plainphone.app.THREAD_KIND"
         private const val EXTRA_FAMILY = "org.plainphone.app.FAMILY_INBOX"
+        private const val EXTRA_EXTENDED = "org.plainphone.app.EXTENDED_CONTACT"
         private const val MESSAGES_ALIAS = ".MessagesLauncher"
 
         fun favouritesIntent(context: Context): Intent = Intent(context, PhoneActivity::class.java)
@@ -165,6 +169,11 @@ class PhoneActivity : ComponentActivity() {
             Intent(context, PhoneActivity::class.java)
                 .putExtra(EXTRA_CONVERSATION, thread.number)
                 .putExtra(EXTRA_THREAD_KIND, thread.kind.name)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        fun extendedIntent(context: Context, contactId: String): Intent =
+            Intent(context, PhoneActivity::class.java)
+                .putExtra(EXTRA_EXTENDED, contactId)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
         fun familyIntent(context: Context): Intent =
@@ -210,6 +219,7 @@ internal fun PhoneApp(route: Route, resumed: Int) {
     // The tab the keypad goes back to; null when the keypad was opened from outside (DIAL).
     var keypadFrom by remember(route) { mutableStateOf(if (route.tab == Tab.KEYPAD) null else Tab.CONTACTS) }
     var familyOpen by remember(route) { mutableStateOf(route.family) }
+    var contactOpen by remember(route) { mutableStateOf(route.contact) }
     val threadListState = rememberLazyListState()
     var conversationWith by remember(route) {
         mutableStateOf(
@@ -267,6 +277,11 @@ internal fun PhoneApp(route: Route, resumed: Int) {
     if (familyOpen && family != null) {
         BackHandler { familyOpen = false }
         FamilyThreadScreen(onBack = { familyOpen = false })
+        return
+    }
+    contactOpen?.let { id ->
+        BackHandler { contactOpen = null }
+        org.plainphone.app.extended.ExtendedConversationScreen(id, onBack = { contactOpen = null })
         return
     }
     if (open != null) {
@@ -349,7 +364,7 @@ internal fun PhoneApp(route: Route, resumed: Int) {
                     },
                     onOpen = { conversationWith = it },
                     parents = parentKeys,
-                    header = { MessagesHeader(family) { familyOpen = true } },
+                    header = { MessagesHeader(family, onOpenContact = { contactOpen = it }) { familyOpen = true } },
                 )
                 Tab.KEYPAD -> Unit
             }
@@ -402,7 +417,7 @@ private fun familyPreview(context: Context): FamilyPreview? {
  * before, when the parents set some up.
  */
 @Composable
-internal fun MessagesHeader(family: FamilyPreview?, onOpenFamily: () -> Unit) {
+internal fun MessagesHeader(family: FamilyPreview?, onOpenContact: (String) -> Unit = {}, onOpenFamily: () -> Unit) {
     val context = LocalContext.current
     if (family != null) {
         Sheet(Modifier.padding(bottom = 12.dp)) {
@@ -415,8 +430,12 @@ internal fun MessagesHeader(family: FamilyPreview?, onOpenFamily: () -> Unit) {
                 lines = { Secondary(family.last ?: stringResource(R.string.inbox_row_hint)) },
             )
         }
+        // The people the parents invited, below the family conversation (docs/extended-family.md).
+        org.plainphone.app.extended.FamilyContactsSection(onOpenContact)
         return
     }
+    // With the inbox off, extended family is paused: the people on the roster still show, so the child can block.
+    org.plainphone.app.extended.FamilyContactsSection(onOpenContact)
     if (org.plainphone.app.sos.childQuickMessages(context, withSuggest = false) == null) return
     Sheet(Modifier.padding(bottom = 12.dp)) {
         org.plainphone.app.sos.ChildQuickMessages(withSuggest = false, modifier = Modifier.padding(16.dp))

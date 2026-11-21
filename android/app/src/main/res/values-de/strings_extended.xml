@@ -1,0 +1,53 @@
+<resources>
+    <string name="ext_section_title">Familienkontakte</string>
+    <string name="ext_paused">Deine Eltern haben Nachrichten mit Familienkontakten pausiert. Du kannst trotzdem jemanden blockieren.</string>
+    <string name="ext_invited_question">Deine Eltern haben %1$s eingeladen. Möchtest du mit %1$s Nachrichten austauschen?</string>
+    <string name="ext_yes">Ja</string>
+    <string name="ext_no_thanks">Nein danke</string>
+    <string name="ext_waiting_for">Warten auf %1$s</string>
+    <string name="ext_blocked">Blockiert</string>
+    <string name="ext_row_hint">Schnellnachrichten mit %1$s austauschen</string>
+    <string name="ext_changes_title">Was sich geändert hat</string>
+    <string name="ext_change_invited">Deine Eltern haben %1$s eingeladen</string>
+    <string name="ext_change_joined">%1$s ist dabei</string>
+    <string name="ext_change_new_link">%1$s hat von deinen Eltern einen neuen Link bekommen. Sag noch einmal Ja, wenn du Nachrichten austauschen möchtest.</string>
+    <string name="ext_change_removed">%1$s steht nicht mehr auf deiner Liste</string>
+    <string name="ext_change_blocked">Du hast %1$s blockiert</string>
+    <string name="ext_only_you_and">Nur du und %1$s. Der Plainphone-Server kann sie auch lesen.</string>
+    <string name="ext_who_reads">Nur du und %1$s könnt diese Unterhaltung lesen. Der Plainphone-Server kann sie auch lesen und löscht sie nach 30 Tagen.</string>
+    <string name="ext_empty_title">Noch nichts da</string>
+    <string name="ext_empty">Schick %1$s eine Schnellnachricht. Die Antworten erscheinen hier.</string>
+    <string name="ext_gone_title">Nicht auf deiner Liste</string>
+    <string name="ext_gone">Diese Person steht nicht mehr auf deiner Liste.</string>
+    <string name="ext_state_not_delivered">Nicht zugestellt</string>
+    <string name="ext_shared_location">Du hast deinen Standort geteilt</string>
+    <string name="ext_not_during">Nicht während %1$s</string>
+    <string name="ext_sent_now">Unterwegs</string>
+    <string name="ext_not_active">Du kannst %1$s schreiben, wenn ihr beide Ja gesagt habt.</string>
+    <string name="ext_blocked_note">Du hast %1$s blockiert. Nichts von %1$s erreicht dich.</string>
+    <string name="ext_block">%1$s blockieren</string>
+    <string name="ext_block_title">%1$s blockieren?</string>
+    <string name="ext_block_text">%1$s kann dir nichts mehr schicken. Nur deine Eltern können das rückgängig machen, indem sie %1$s noch einmal einladen. Dann entscheidest du wieder.</string>
+    <string name="ext_block_confirm">Blockieren</string>
+    <string name="ext_notification_from">Nachricht von %1$s</string>
+    <string name="ext_share">Meinen Standort teilen</string>
+    <string name="ext_share_working">Suche deinen Standort …</string>
+    <string name="ext_share_title">Deinen Standort teilen?</string>
+    <string name="ext_share_text">%1$s kann sehen, wo du gerade bist, %2$s. Es ist ein Standort, einmal geteilt.</string>
+    <string name="ext_share_confirm">Teilen</string>
+    <string name="ext_share_sent">Geteilt. Du siehst es in der Unterhaltung.</string>
+    <string name="ext_your_parents">deine Eltern</string>
+    <string name="ext_location_off">Der Standort ist auf diesem Telefon aus</string>
+    <string name="ext_no_fix">Dein Standort wurde nicht gefunden. Versuche es draußen noch einmal.</string>
+    <string name="sharing_extended">Familienkontakte sind an. Personen, die deine Eltern einladen, können dir Schnellnachrichten schicken, aber nur wenn du Ja sagst. Du kannst jeden blockieren.</string>
+    <string name="sharing_snapshots">Du kannst einmal in einer Unterhaltung teilen, wo du bist. Du wählst zuerst, wer es bekommt, und sie sehen es %1$s.</string>
+    <string name="sharing_snapshot_log">Du hast deinen Standort mit %1$s um %2$s geteilt, bis %3$s</string>
+    <plurals name="ext_for_hours">
+        <item quantity="one">für 1 Stunde</item>
+        <item quantity="other">für %d Stunden</item>
+    </plurals>
+    <plurals name="ext_for_minutes">
+        <item quantity="one">für 1 Minute</item>
+        <item quantity="other">für %d Minuten</item>
+    </plurals>
+</resources>

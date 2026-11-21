@@ -42,6 +42,12 @@ Plainphone does not share a position silently:
 - **"Are you okay?"** says on the screen that the position is sent once if nobody answers before
   the deadline (when the mode sends one).
 
+**Location snapshots** are a second, child-started path: the child confirms sharing one position
+once, with the family inbox or one extended contact, for one hour. They follow the same policy (one
+position, an expiry, only the newest kept) and show in the same "What can my parents see?" log, but
+are stored apart and never change Find or the location page. See
+[extended-family.md](extended-family.md#location-snapshots).
+
 A silent Find was considered and left out: a child who cannot tell when they are located is the
 kind of tracking the privacy policy promises not to do, and the parent still gets the position.
 

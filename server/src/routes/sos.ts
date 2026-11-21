@@ -11,6 +11,7 @@ import { publishLive } from "../services/live-events.js";
 import { callbackEnabled } from "../services/callback-requests.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
 import { elapsedHeader, recordUpload } from "../services/latency.js";
+import { clearContactSnapshots, clearSnapshot } from "../services/extended-family.js";
 import { wakePhone } from "../services/phones.js";
 import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
 import { deviceCallbackRoutes, parentCallbackRoutes } from "./callback-requests.js";
@@ -45,6 +46,8 @@ const sosSettingsInput = z.strictObject({
   quickSuggestionsEnabled: z.boolean().optional(),
   familyInbox: z.boolean().optional(),
   checkIns: z.boolean().optional(),
+  extendedFamily: z.boolean().optional(),
+  locationSnapshots: z.boolean().optional(),
 });
 
 export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: Hono<E>, ctx: Ctx) {
@@ -147,8 +150,14 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
       ...(input.quickSuggestionsEnabled !== undefined ? { quickSuggestionsEnabled: input.quickSuggestionsEnabled } : {}),
       ...(input.familyInbox !== undefined ? { familyInboxEnabled: input.familyInbox } : {}),
       ...(input.checkIns !== undefined ? { checkInsEnabled: input.checkIns } : {}),
+      ...(input.extendedFamily !== undefined ? { extendedFamilyEnabled: input.extendedFamily } : {}),
+      ...(input.locationSnapshots !== undefined ? { locationSnapshotsEnabled: input.locationSnapshots } : {}),
     };
     if (Object.keys(set).length) await ctx.db.update(phones).set(set).where(eq(phones.id, phone.id));
+    // Switching snapshots or the inbox off deletes a stored snapshot, as switching location off does.
+    if (input.locationSnapshots === false || input.familyInbox === false) await clearSnapshot(ctx, phone.id);
+    // Pausing extended family deletes what was shared with contacts, so a paused page shows no position.
+    else if (input.extendedFamily === false) await clearContactSnapshots(ctx, phone.id);
     // The number itself is not in the rules; everything else is (the sos and inbox blocks).
     if (Object.keys(set).some((k) => k !== "sosCallbackNumber" && k !== "sosCallbackSetAt")
       || callbackEnabled({ ...phone, ...set }) !== callbackEnabled(phone)) await wakePhone(ctx, phone.id, "rules");

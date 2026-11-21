@@ -29,6 +29,7 @@ describe("hidden SOS settings", () => {
     expect((await parent.get(path)).json.settings).toEqual({
       hiddenPower: false, hiddenPresses: 4, hiddenClock: false, hiddenFeedback: "vibrate",
       quickMessagesEnabled: false, quickSuggestionsEnabled: true, familyInbox: false, checkIns: false, callbackRequests: false, callbackConfirmed: false,
+      extendedFamily: false, locationSnapshots: false,
     });
     expect((await device.get("/api/device/rules")).json.sos).toMatchObject({
       hidden: { power: false, presses: 4, clock: false, feedback: "vibrate" },
