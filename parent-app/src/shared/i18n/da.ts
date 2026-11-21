@@ -1027,7 +1027,7 @@ export const da: Messages = {
   "phone.pushUnified": "Bruger UnifiedPush",
   "phone.pushWaiting": "Venter på status fra telefonen",
   "phone.pushAlerts": "Beskeder om denne telefon",
-  "phone.pushAlertsHelp": "Få beskeder om telefonen på dine tilmeldte enheder.",
+  "phone.pushAlertsHelp": "Få beskeder om telefonen på dine tilmeldte enheder. Slået fra gør også påmindelser om gennemgang og barnets hurtige beskeder stille (de lander stadig i indbakken). SOS kommer altid igennem.",
   "phone.manage": "Denne telefon",
   "phone.name": "Navn",
   "phone.rename": "Omdøb",

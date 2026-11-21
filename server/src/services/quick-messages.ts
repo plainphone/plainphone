@@ -4,7 +4,7 @@ import { and, asc, count, eq, gt, lt } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, quickMessageSends, quickMessages } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import { callbackEnabled } from "./callback-requests.js";
-import { markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
+import { inboxSwitches, markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
 import { publishLive } from "./live-events.js";
 import { notifyUsers } from "./notifications.js";
 
@@ -162,8 +162,9 @@ export async function sendQuickMessage(
       ? { type: "checkIn", id: input.id, phoneId: phone.id, phoneName: phone.name }
       : { type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text },
     ).catch(() => 0);
-    // With every parent muted the thread has it: the phone must not send an SMS on top.
-    notified = loud.length === 0 ? muted : pushed;
+    // With every parent muted and the inbox visible the thread has it: the phone must not send an SMS
+    // on top. With the inbox off nobody would ever see it, so the phone falls back to SMS.
+    notified = loud.length === 0 && inboxSwitches(phone).familyInbox ? muted : pushed;
   }
   await ctx.db.update(quickMessageSends).set({ notified }).where(row);
   if (inThread && notified !== NOTIFY_LIMITED) {

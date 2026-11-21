@@ -71,7 +71,10 @@ the push, or the phone is offline, it goes as an ordinary SMS to the SOS parents
 More than ten quick messages in ten minutes are recorded but quiet: no push and no
 SMS. A parent who muted the phone ([notifications](parent-app.md#push-notifications)) gets no push
 for an ordinary quick message, a check-in or a suggestion, but the message still lands in the
-family inbox, and the phone counts it as delivered (no SMS to someone who asked for quiet). A code
+family inbox, and the phone counts it as delivered (no SMS to someone who asked for quiet). That
+needs the family inbox to be on for the phone; with it off nobody could see the message, so the phone
+sends the SMS anyway. If one parent muted and the push to another fails, the SMS goes to all SOS
+parents, the muted one too: a message that reaches nobody is worse. A code
 word is SOS and is never muted. The child sees "Sent to your parents" at once; if the message turns out not to
 reach anyone (no push, and no SMS could be sent), that changes to "The message could not be sent".
 

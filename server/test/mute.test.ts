@@ -10,12 +10,12 @@ import { pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
-async function setup(muted: boolean) {
+async function setup(muted: boolean, familyInbox = true) {
   const parent = await signIn(h, "parent@example.org");
   const paired = await pairPhone(h, parent, { profile: "child", name: "Sam" });
   const { user } = (await parent.get("/api/me")).json;
   await h.ctx.db.insert(pushSubscriptions).values({ userId: user.id, platform: "web", endpoint: "https://example.test/parent" });
-  await parent.put(`/api/phones/${paired.phoneId}/sos`, { familyInbox: true, quickMessagesEnabled: true, checkIns: true });
+  await parent.put(`/api/phones/${paired.phoneId}/sos`, { familyInbox, quickMessagesEnabled: true, checkIns: true });
   if (muted) expect((await parent.put(`/api/phones/${paired.phoneId}/notifications`, { enabled: false })).status).toBe(204);
   return { parent, ...paired };
 }
@@ -41,6 +41,13 @@ describe("quick messages and a mute", () => {
       expect(await thread(parent, phoneId)).toMatchObject([{ text: "I'm home" }]);
     });
   }
+
+  it("lets the phone fall back to SMS when every parent muted and the family inbox is off", async () => {
+    const { device } = await setup(true, false);
+    const answer = await device.post("/api/device/quick-messages/send", message({ inbox: false }));
+    expect(answer.json).toEqual({ notified: 0 });
+    expect(h.parentPush.sent).toHaveLength(0);
+  });
 
   it("still records a muted message the phone sent without the inbox", async () => {
     const { parent, phoneId, device } = await setup(true);

@@ -37,11 +37,11 @@ const BATCH_LIMIT = 10;
 const BATCH_BUDGET_MS = 10_000;
 const CLAIM_MS = 15 * 60_000;
 /** A notice that still fails after this long is dropped: the cause is not going away (docs/sync-api.md). */
-export const MAX_LIFETIME_MS = 24 * 3_600_000;
+const MAX_LIFETIME_MS = 24 * 3_600_000;
 const RETRY_MAX_MS = 3_600_000;
 
 /** One minute after the first failure, doubling, at most an hour. */
-export function retryDelayMs(attempts: number): number {
+function retryDelayMs(attempts: number): number {
   return Math.min(60_000 * 2 ** Math.min(attempts, 12), RETRY_MAX_MS);
 }
 
