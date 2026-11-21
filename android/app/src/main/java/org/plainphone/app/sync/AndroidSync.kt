@@ -174,6 +174,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun onSafetyRules(rules: ServerRules) = org.plainphone.app.safety.Safety.onRules(context, rules)
     override fun refreshFamilyInbox(token: String, rules: ServerRules) =
         org.plainphone.app.inbox.FamilyInbox.refresh(context, org.plainphone.app.sos.SosDelivery.api(context), token, rules)
+    override fun refreshExtendedFamily(token: String, rules: ServerRules) =
+        org.plainphone.app.extended.ExtendedFamily.refresh(context, org.plainphone.app.sos.SosDelivery.api(context), token, rules)
     override fun pendingSafetyEvents() = org.plainphone.app.safety.SafetyStore(context).pending()
     override fun safetyEventDone(event: SafetyEvent) = org.plainphone.app.safety.SafetyStore(context).done(event)
     override fun checkInAnswered(id: String) = org.plainphone.app.safety.SafetyStore(context).checkInAnswered(id)

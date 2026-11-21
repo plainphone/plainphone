@@ -43,6 +43,8 @@ tags:
     description: Daily time limits (docs/time-limits.md).
   - name: catalog
     description: App catalog per country (docs/app-catalog.md).
+  - name: family-contact
+    description: An extended family contact's own page (docs/extended-family.md). No account and no parent rights.
 
 components:
   securitySchemes:
@@ -54,6 +56,10 @@ components:
       type: http
       scheme: bearer
       description: Session token `pp_s_…` from `/auth/verify` (native apps).
+    familyContact:
+      type: http
+      scheme: bearer
+      description: An extended contact's session `pp_fc_…` from `POST /family-contact/accept`. Only the /family-contact routes take it.
     cookie:
       type: apiKey
       in: cookie
@@ -92,6 +98,7 @@ components:
     phoneId: { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
     changeId: { name: cid, in: path, required: true, schema: { type: string, format: uuid } }
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
+    contactId: { name: cid, in: path, required: true, schema: { type: string, format: uuid }, description: An extended contact }
 
   schemas:
     SummarySettings:
@@ -218,7 +225,7 @@ components:
     SosSettings:
       type: object
       description: Per-phone switches for hidden SOS and quick messages (docs/sos.md).
-      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled, familyInbox, checkIns, callbackRequests, callbackConfirmed]
+      required: [hiddenPower, hiddenPresses, hiddenClock, hiddenFeedback, quickMessagesEnabled, quickSuggestionsEnabled, familyInbox, checkIns, callbackRequests, callbackConfirmed, extendedFamily, locationSnapshots]
       properties:
         callbackRequests: { type: boolean, default: false, description: "The child may ask a parent to call back from the SOS screen. True only with a confirmed number (docs/sos.md#asking-a-parent-to-call)" }
         callbackConfirmed: { type: boolean, description: A parent has entered and confirmed the number in `callbackNumber` }
@@ -230,6 +237,59 @@ components:
         quickSuggestionsEnabled: { type: boolean, default: true, description: The child may suggest new quick messages }
         familyInbox: { type: boolean, default: false, description: One short thread between the child and the parents (docs/family-inbox.md) }
         checkIns: { type: boolean, default: false, description: "\"I'm home\" in the family inbox, without a position" }
+        extendedFamily: { type: boolean, default: false, description: "Named, mutually approved family contacts (docs/extended-family.md). Needs the inbox" }
+        locationSnapshots: { type: boolean, default: false, description: "The child may share a one-time location snapshot in a conversation. Needs the inbox" }
+    LocationSnapshot:
+      type: object
+      description: A position the child chose to share once (docs/extended-family.md). Only while it has not expired.
+      required: [lat, lon, accuracyM, recordedAt, expiresAt]
+      properties:
+        lat: { type: number }
+        lon: { type: number }
+        accuracyM: { type: [number, "null"] }
+        recordedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ExtendedContact:
+      type: object
+      description: A named person on a Child phone's extended family roster (docs/extended-family.md).
+      required: [id, name, group, status, childApproved, contactAccepted, linkExpiresAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 40, description: The name the child knows the person by }
+        group: { enum: [family, friends, others], description: The contact group the person counts as in modes }
+        status: { enum: [waitingForChild, waitingForContact, active, blocked, declinedByChild, declinedByContact, expired] }
+        childApproved: { type: boolean }
+        contactAccepted: { type: boolean }
+        linkExpiresAt: { type: [string, "null"], format: date-time, description: While the invitation is open }
+        createdAt: { type: string, format: date-time }
+    ExtendedRoster:
+      type: object
+      required: [enabled, locationSnapshots, contacts]
+      properties:
+        enabled: { type: boolean }
+        locationSnapshots: { type: boolean }
+        contacts: { type: array, items: { $ref: "#/components/schemas/ExtendedContact" } }
+    ExtendedInvite:
+      type: object
+      required: [contact, link, expiresAt]
+      properties:
+        contact: { $ref: "#/components/schemas/ExtendedContact" }
+        link: { type: string, description: The single-use link. Shown once; only its hash is kept }
+        expiresAt: { type: string, format: date-time }
+    ExtendedMessage:
+      type: object
+      description: One line of a conversation between a child and an extended contact.
+      required: [id, from, kind, text, sentAt, receivedAt]
+      properties:
+        id: { type: string, format: uuid }
+        from: { enum: [child, contact] }
+        kind: { enum: [quick, reply, snapshot] }
+        text: { type: string, maxLength: 60 }
+        sentAt: { type: string, format: date-time }
+        receivedAt: { type: [string, "null"], format: date-time, description: When the other side's device got it }
+        location:
+          oneOf: [{ $ref: "#/components/schemas/LocationSnapshot" }, { type: "null" }]
+          description: Snapshots only, while live
     FamilyMessage:
       type: object
       description: One message of the family inbox (docs/family-inbox.md). Code words never appear here.
@@ -237,12 +297,20 @@ components:
       properties:
         id: { type: string, format: uuid }
         from: { enum: [child, parent] }
-        kind: { enum: [quick, checkin, reply] }
+        kind: { enum: [quick, checkin, reply, snapshot] }
         text: { type: string, maxLength: 60 }
         sentAt: { type: string, format: date-time, description: "When it was sent; for the child, the phone's time, never later than the server's" }
         delivered: { type: [integer, "null"], description: "Child messages: parent devices that got a push; 0 means the phone sent an SMS" }
         author: { type: [string, "null"], description: "Parent replies: the name the parent signed with" }
         receivedAt: { type: [string, "null"], format: date-time, description: "Parent replies: when the child's phone got it (the device receipt)" }
+        location:
+          oneOf: [{ $ref: "#/components/schemas/LocationSnapshot" }, { type: "null" }]
+          description: "Snapshots only: the position while it is live; null after it expired or was replaced"
+    FamilyInviteToken:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, description: "`pp_fi_…` from the link's fragment" }
     FamilyInbox:
       type: object
       required: [familyInbox, quickMessages, checkIns, recipients, messages]
@@ -867,6 +935,31 @@ components:
             quickMessages: { type: boolean, description: The quick messages in sos.quickMessages can be sent from the inbox }
             checkIns: { type: boolean, description: "The child can send \"I'm home\"" }
             latest: { type: [string, "null"], format: uuid, description: The newest parent reply; when it changes, the phone fetches GET /device/inbox }
+        extended:
+          type: object
+          description: "Extended family contacts (docs/extended-family.md). While paused, `enabled` is false and the roster is still sent, so the child can see it and block; left out while off with nobody on it."
+          required: [enabled, quickMessages, contacts]
+          properties:
+            enabled: { type: boolean, description: "False while paused: no messages either way" }
+            quickMessages: { type: boolean, description: The child can send the quick messages to an active contact }
+            contacts:
+              type: array
+              items:
+                type: object
+                required: [id, name, status, group, rev]
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  status: { enum: [waitingForChild, waitingForContact, active, blocked] }
+                  group: { enum: [family, friends, others] }
+                  rev: { type: integer, description: "When it changes, the phone fetches GET /device/extended/{cid}" }
+        locationSnapshot:
+          type: object
+          description: The child may share a one-time location snapshot. Left out while off.
+          required: [enabled, minutes]
+          properties:
+            enabled: { type: boolean, enum: [true] }
+            minutes: { type: integer, description: How long the recipients can see it }
         ageAgreement:
           type: object
           description: The family agreement of a Child phone (docs/family-agreement.md), in the family's own words. Left out while it is off or empty; old phones ignore it.
@@ -1890,6 +1983,149 @@ paths:
                 ids: { type: array, maxItems: 50, items: { type: string, format: uuid } }
       responses:
         "204": { description: Recorded }
+  /device/extended/{cid}:
+    parameters: [{ $ref: "#/components/parameters/contactId" }]
+    get:
+      operationId: deviceExtendedThread
+      summary: The conversation with one extended contact
+      tags: [device]
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: The contact and the newest 30 lines
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contact, messages]
+                properties:
+                  contact:
+                    type: object
+                    required: [id, name, status, rev]
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      status: { type: string }
+                      rev: { type: integer }
+                  messages: { type: array, items: { $ref: "#/components/schemas/ExtendedMessage" } }
+        "404": { description: Not on this phone's roster }
+  /device/extended/{cid}/answer:
+    parameters: [{ $ref: "#/components/parameters/contactId" }]
+    post:
+      operationId: deviceExtendedAnswer
+      summary: The child says yes or no to an invitation
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [allow]
+              properties:
+                allow: { type: boolean }
+      responses:
+        "204": { description: Recorded; repeating the same answer changes nothing }
+        "404": { description: Not on this phone's roster }
+        "409": { description: The invitation is not waiting for the child }
+  /device/extended/{cid}/block:
+    parameters: [{ $ref: "#/components/parameters/contactId" }]
+    post:
+      operationId: deviceExtendedBlock
+      summary: The child blocks a person
+      description: Their link and session stop working at once. Possible also while the feature is off.
+      tags: [device]
+      security: [{ device: [] }]
+      responses:
+        "204": { description: Blocked }
+        "404": { description: Not on this phone's roster }
+  /device/extended/{cid}/messages:
+    parameters: [{ $ref: "#/components/parameters/contactId" }]
+    post:
+      operationId: deviceExtendedSend
+      summary: A quick message the child sent to an extended contact
+      description: Recorded while the person is a member; a repeated id keeps the first. `gone` when the person was removed, blocked or never joined.
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, text]
+              properties:
+                id: { type: string, format: uuid }
+                text: { type: string, minLength: 1, maxLength: 60 }
+                sentAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Recorded, or gone
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stored]
+                properties:
+                  stored: { type: boolean }
+                  gone: { type: boolean }
+  /device/extended/{cid}/received:
+    parameters: [{ $ref: "#/components/parameters/contactId" }]
+    post:
+      operationId: deviceExtendedReceived
+      summary: The device receipt for a contact's replies
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+      responses:
+        "204": { description: Recorded }
+  /device/location-snapshot:
+    post:
+      operationId: deviceLocationSnapshot
+      summary: A location snapshot the child confirmed
+      description: >-
+        The line is always recorded in the recipient's conversation. The position is kept for one hour,
+        for that recipient only, while snapshots are switched on; a newer snapshot replaces it.
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, to, lat, lon, recordedAt]
+              properties:
+                id: { type: string, format: uuid }
+                to: { type: string, description: "`parents`, or the id of an active extended contact" }
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lon: { type: number, minimum: -180, maximum: 180 }
+                accuracyM: { type: [number, "null"] }
+                recordedAt: { type: string, format: date-time }
+                sentAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: What happened to it
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stored, kept]
+                properties:
+                  stored: { type: boolean }
+                  kept: { type: boolean, description: The position is visible to the recipient }
+                  gone: { type: boolean, description: The contact is no longer a member }
+                  expiresAt: { type: string, format: date-time }
+                  notified: { type: integer, description: Parent devices that got a push }
   /device/sos/{id}:
     get:
       operationId: getDeviceSos
@@ -2097,6 +2333,207 @@ paths:
               schema: { $ref: "#/components/schemas/FamilyMessage" }
         "403": { description: The family inbox is off for this phone }
         "404": { description: Not a Child phone }
+  /phones/{pid}/extended:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getExtendedRoster
+      summary: The extended family roster of a Child phone
+      description: Who is on it and their state. Parents do not read the conversations (docs/extended-family.md).
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The roster
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtendedRoster" }
+        "404": { description: Not a Child phone }
+    post:
+      operationId: inviteExtendedContact
+      summary: Invite a named person with a single-use link
+      description: The person joins only after the child says yes on the phone and the person accepts the link.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        "201":
+          description: Invited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtendedInvite" }
+        "403": { description: Extended family contacts are off for this phone }
+        "404": { description: Not a Child phone }
+        "409": { description: The phone has ten contacts already }
+  /phones/{pid}/extended/{cid}:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }, { $ref: "#/components/parameters/contactId" }]
+    patch:
+      operationId: updateExtendedContact
+      summary: Put the person in a contact group for modes
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group]
+              properties:
+                group: { enum: [family, friends, others] }
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtendedContact" }
+        "404": { description: Not found }
+    delete:
+      operationId: removeExtendedContact
+      summary: Remove the person, with their session and conversation
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "204": { description: Removed }
+        "404": { description: Not found }
+  /phones/{pid}/extended/{cid}/link:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }, { $ref: "#/components/parameters/contactId" }]
+    post:
+      operationId: renewExtendedLink
+      summary: A new single-use link for the same person
+      description: Ends the old session and conversation, and the child has to say yes again.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The new link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtendedInvite" }
+        "403": { description: Extended family contacts are off for this phone }
+        "404": { description: Not found }
+        "409": { description: The child declined or blocked this person }
+  /family-contact/invite:
+    post:
+      operationId: previewFamilyInvite
+      summary: What an invitation link is for, without using it up
+      tags: [family-contact]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FamilyInviteToken" }
+      responses:
+        "200":
+          description: The invitation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [childName, contactName, childApproved, expiresAt]
+                properties:
+                  childName: { type: string }
+                  contactName: { type: string }
+                  childApproved: { type: boolean }
+                  expiresAt: { type: string, format: date-time }
+        "404": { description: Unknown or used link }
+        "410": { description: Expired }
+  /family-contact/accept:
+    post:
+      operationId: acceptFamilyInvite
+      summary: Accept the invitation; the link is used up
+      tags: [family-contact]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FamilyInviteToken" }
+      responses:
+        "200":
+          description: The session for this browser
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session]
+                properties:
+                  session: { type: string, description: "`pp_fc_…`" }
+        "404": { description: Unknown or used link }
+        "410": { description: Expired }
+  /family-contact/decline:
+    post:
+      operationId: declineFamilyInvite
+      summary: Say no to the invitation
+      tags: [family-contact]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FamilyInviteToken" }
+      responses:
+        "204": { description: Declined }
+        "404": { description: Unknown or used link }
+        "410": { description: Expired }
+  /family-contact/me:
+    get:
+      operationId: familyContactView
+      summary: The contact's conversation with the child
+      description: Marks the child's messages as received on this device.
+      tags: [family-contact]
+      security: [{ familyContact: [] }]
+      responses:
+        "200":
+          description: The conversation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [childName, name, status, paused, canReply, messages]
+                properties:
+                  childName: { type: string }
+                  name: { type: string }
+                  status: { type: string }
+                  paused: { type: boolean, description: The parents switched the feature off }
+                  canReply: { type: boolean }
+                  messages: { type: array, items: { $ref: "#/components/schemas/ExtendedMessage" } }
+        "401": { description: The session no longer works (blocked, removed or a new link was sent) }
+    delete:
+      operationId: familyContactLeave
+      summary: Leave the child's roster
+      tags: [family-contact]
+      security: [{ familyContact: [] }]
+      responses:
+        "204": { description: Left }
+        "401": { description: The session no longer works }
+  /family-contact/me/messages:
+    post:
+      operationId: familyContactReply
+      summary: A short reply to the child
+      tags: [family-contact]
+      security: [{ familyContact: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtendedMessage" }
+        "401": { description: The session no longer works }
+        "403": { description: Not active yet, or paused by the parents }
+        "429": { description: Too many replies this hour }
   /age-presets:
     get:
       operationId: listAgePresets

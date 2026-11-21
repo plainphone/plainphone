@@ -362,6 +362,15 @@ const checkIn = {
   de: (e) => ({ title: `${e.phoneName}: Ich bin zu Hause`, body: "Check-in aus dem Familienpostfach." }),
 } satisfies Record<Locale, (e: { phoneName: string }) => Words>;
 
+/** A location snapshot the child chose to share in the family inbox (docs/extended-family.md). */
+const locationSnapshot = {
+  en: (e) => ({ title: `${e.phoneName} shared their location`, body: "You can see it for one hour." }),
+  da: (e) => ({ title: `${e.phoneName} har delt sin placering`, body: "Du kan se den i en time." }),
+  sv: (e) => ({ title: `${e.phoneName} har delat sin plats`, body: "Du kan se den i en timme." }),
+  nb: (e) => ({ title: `${e.phoneName} har delt posisjonen sin`, body: "Du kan se den i én time." }),
+  de: (e) => ({ title: `${e.phoneName} hat den Standort geteilt`, body: "Sie können ihn eine Stunde lang sehen." }),
+} satisfies Record<Locale, (e: { phoneName: string }) => Words>;
+
 /** The Self phone opened a blocked app for a short while; the trusted person is told, not asked. */
 const emergencyOpening = {
   en: (e) => ({ title: `${e.phoneName}: emergency opening`, body: `${e.appName ?? "An app"} was opened for ${e.minutes} minutes. ${e.used} of ${e.allowance} used this month.` }),
@@ -380,7 +389,7 @@ const test = {
 } satisfies Record<Locale, Words>;
 
 /** Every push message, one table each. The completeness test walks this. */
-export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, callbackRequest, checkIn, emergencyOpening, test };
+export const pushTables = { protection, offline, neverConnected, approval, request, requestOnPhone, moreTime, safety, sos, sosTrigger, quickMessage, quickSuggestion, callbackRequest, checkIn, locationSnapshot, emergencyOpening, test };
 
 export const pushWords = {
   protection: (e: PushFacts["protection"], l: Locale): Words => protection[l](e),
@@ -395,6 +404,7 @@ export const pushWords = {
   quickSuggestion: (e: PushFacts["quickMessage"], l: Locale): Words => quickSuggestion[l](e),
   callbackRequest: (e: { phoneName: string }, l: Locale): Words => callbackRequest[l](e),
   checkIn: (e: { phoneName: string }, l: Locale): Words => checkIn[l](e),
+  locationSnapshot: (e: { phoneName: string }, l: Locale): Words => locationSnapshot[l](e),
   emergencyOpening: (e: PushFacts["emergencyOpening"], l: Locale): Words => emergencyOpening[l](e),
   test: (l: Locale): Words => test[l],
   moreTime: (e: { phoneName: string; what: string | null; reason: string | null }, l: Locale): Words => {
