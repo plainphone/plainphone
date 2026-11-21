@@ -112,10 +112,33 @@ const verify = await app.request("/api/auth/verify", {
 if (verify.status !== 200) throw new Error(`verify failed: ${verify.status}`);
 const { sessionToken } = (await verify.json()) as { sessionToken: string };
 
-const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, async () => {
-  await writeFile(out, JSON.stringify({ url: publicUrl, parentToken: sessionToken }), { mode: 0o600 });
-  console.log(`phone sync e2e server on ${publicUrl}`);
+// Opt-in gateway fault for the emulator. The real quick-message endpoint can
+// return a successful, quiet rate-limit response, which must not fall back.
+const injectQuickMessage429 = process.env.PLAINPHONE_EMULATOR_E2E === "1";
+let quickMessageRequests = 0;
+const server = serve({
+  hostname: "127.0.0.1",
+  port,
+  fetch: (request) => {
+    if (injectQuickMessage429) {
+      const path = new URL(request.url).pathname;
+      if (request.method === "POST" && path === "/api/device/quick-messages/send") {
+        quickMessageRequests++;
+        return new Response(null, { status: 429 });
+      }
+      if (path === "/e2e/quick-message-requests" &&
+          request.headers.get("authorization") === `Bearer ${sessionToken}`) {
+        return Response.json({ count: quickMessageRequests });
+      }
+    }
+    return app.fetch(request);
+  },
 });
+await once(server, "listening");
+const address = server.address();
+if (!address || typeof address === "string") throw new Error("test server has no TCP address");
+await writeFile(out, JSON.stringify({ url: `http://127.0.0.1:${address.port}`, parentToken: sessionToken }), { mode: 0o600 });
+console.log(`phone sync e2e server on port ${address.port}`);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

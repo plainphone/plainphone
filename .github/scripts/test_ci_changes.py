@@ -10,31 +10,33 @@ from pathlib import Path
 from unittest.mock import patch
 
 DETECTOR = Path(__file__).with_name("ci-changes.py")
-CHECKS = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
+CHECKS = {"android", "e2e", "emulator", "server", "parent", "dns", "site", "backup"}
 
 
 class ChangeDetectionTests(unittest.TestCase):
     def test_changed_paths(self):
         cases = {
-            "packages/crypto/index.ts": {"android", "server", "e2e"},
-            "packages/crypto-vectors/vectors.ts": {"android", "server", "e2e"},
-            "packages/other/index.ts": {"server", "e2e"},
+            "packages/crypto/index.ts": {"android", "server", "e2e", "emulator"},
+            "packages/crypto-vectors/vectors.ts": {"android", "server", "e2e", "emulator"},
+            "packages/other/index.ts": {"server", "e2e", "emulator"},
             "docs/encryption-test-vectors/primitives.json": {"android", "server"},
             "docs/encryption-test-vectors/protocol.json": {"android", "server"},
-            "pnpm-lock.yaml": {"server", "e2e"},
-            "server/openapi.yaml": {"server", "e2e", "parent"},
+            "pnpm-lock.yaml": {"server", "e2e", "emulator"},
+            "server/openapi.yaml": {"server", "e2e", "emulator", "parent"},
             "web/src/lib/settings.ts": {"server", "parent"},
             "web/src/lib/failedPolicies.ts": {"server", "parent"},
             "web/test-fixtures/light-setup-intent.txt": {"android", "server"},
-            "server/catalog/dk.json": {"server", "e2e", "site"},
-            "server/catalog/helplines/dk.json": {"android", "server", "e2e", "dns"},
+            "server/catalog/dk.json": {"server", "e2e", "emulator", "site"},
+            "server/catalog/helplines/dk.json": {"android", "server", "e2e", "emulator", "dns"},
             "dns/ppdns/profiles.py": {"dns"},
-            "server/src/db/schema.ts": {"server", "e2e", "dns"},
-            "server/src/lib/validation.ts": {"server", "e2e", "dns"},
-            "android/app/build.gradle.kts": {"android", "e2e"},
+            "server/src/db/schema.ts": {"server", "e2e", "emulator", "dns"},
+            "server/src/lib/validation.ts": {"server", "e2e", "emulator", "dns"},
+            "android/app/build.gradle.kts": {"android", "e2e", "emulator"},
             "deploy/backup.Dockerfile": {"backup"},
             "scripts/backup-test/storage.py": {"backup"},
             "compose.yaml": {"backup"},
+            "scripts/e2e-android-emulator.py": {"emulator"},
+            ".github/workflows/ci.yml": CHECKS,
             "README.md": set(),
             ".github/scripts/ci-changes.py": CHECKS,
         }

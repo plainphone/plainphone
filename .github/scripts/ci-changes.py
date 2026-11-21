@@ -20,6 +20,7 @@ ANDROID = (
 FILTERS = {
     "android": ANDROID + CRYPTO_VECTORS + ("packages/crypto*", "web/test-fixtures/*"),
     "e2e": ANDROID + WORKSPACE + ("server/*", "scripts/e2e-phone-sync.sh"),
+    "emulator": WORKSPACE + ("android/*", "server/*", "scripts/e2e-android-emulator.py"),
     "server": WORKSPACE + CRYPTO_VECTORS + (
         "server/*", "web/*", "Dockerfile", ".dockerignore",
     ),
