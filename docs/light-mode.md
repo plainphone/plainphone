@@ -124,7 +124,10 @@ deadline of a catalog install window.
   clock. The boot clock keeps running while the phone sleeps and the user cannot change it. The
   phone's own clock is ignored, so moving it forward or back changes nothing.
 - **After a restart without a sync** the phone only knows a lower bound: the last moment it knew
-  before the restart (kept up to date while it ran) plus the time since the restart. The real
+  before the restart plus the time since the restart. That moment is updated (at most once a
+  minute) whenever the phone checks the time: screen on, an app coming to the front, a window or
+  midnight alarm, a sync. A phone left untouched and offline only remembers the last check, so
+  the lower bound can lag behind. The real
   time lies between that and the phone's clock, but at least 12 hours above the lower bound,
   because the phone may have been off and its clock may be set back. **Any window that may be on
   somewhere in that range counts as on**, and with several windows only what all of them allow
@@ -141,7 +144,10 @@ deadline of a catalog install window.
 When the phone's clock is more than 10 minutes from the server's time, the parents see a calm
 note once on the phone's page ("The phone's clock shows the wrong time. School time, bedtime and
 limits still follow the real time."). It is told again only after the clock has been right for a
-while (within 2 minutes) and moves again. It never loosens anything.
+while (within 2 minutes) and moves again. It never loosens anything. The note has no switch of
+its own: like the "automatic date and time" check it is a protection signal, not a feature. It
+changes nothing on the phone and comes once per move, so a family that sets the clock by hand
+on purpose sees it once, not on every check.
 
 There is no switch for the trusted time: it is how the parent's own windows and limits are kept,
 and each of those can be turned off. Android stamps usage events with the phone's clock, so for

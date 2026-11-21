@@ -359,7 +359,7 @@ object Lock {
     }
 
     /** School time and bedtime start and end on time even if nothing else wakes the app. */
-    private fun scheduleNextWindowChange(context: Context) {
+    internal fun scheduleNextWindowChange(context: Context) {
         val am = context.getSystemService(AlarmManager::class.java)
         val rules = SyncStore(context).rules()
         // On the trusted time, not the phone's clock (docs/light-mode.md, "The phone's clock").
