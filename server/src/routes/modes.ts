@@ -8,7 +8,7 @@ import type { Context, Env, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, eq } from "drizzle-orm";
 import { contacts, phones } from "../db/schema.js";
-import { body } from "../lib/http.js";
+import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import {
   contactGroupInput,
@@ -44,11 +44,7 @@ export function modeRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requirePhone
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
     return phone;
   };
-  const id = (c: Context<E>, name: string) => {
-    const value = c.req.param(name) ?? "";
-    if (!/^[0-9a-f-]{36}$/i.test(value)) throw new HTTPException(404, { message: "not found" });
-    return value;
-  };
+  const id = (c: Context<E>, name: string) => param(c, name);
 
   app.get("/phones/:pid/modes", async (c) => {
     const phone = await childPhone(c);

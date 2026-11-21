@@ -112,6 +112,7 @@ export async function redeemEnrollment(
       const retry =
         e.installIdHash !== null &&
         safeEqualHex(e.installIdHash, installHash) &&
+        phone.lastSeenAt === null &&
         now.getTime() - e.usedAt.getTime() <= ENROLLMENT_RETRY_MINUTES * 60_000;
       if (!retry) return { status: 410, error: "this setup code was already used" };
       await tx.update(phones).set({ deviceTokenHash: sha256(deviceToken) }).where(eq(phones.id, phone.id));

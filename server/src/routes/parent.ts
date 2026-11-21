@@ -12,6 +12,7 @@ import { z } from "zod";
 import {
   contacts,
   dnsSettings,
+  frpAccounts,
   householdInvites,
   householdMembers,
   households,
@@ -107,6 +108,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const claimLimit = new RateLimiter(20, 15 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
+  // "Update now" wakes the child's phone: a script must not wake it every second.
+  const wakeLimit = new RateLimiter(30, 60 * 60_000);
   const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
   const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
 
@@ -489,6 +492,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         .delete(householdMembers)
         .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, uid)))
         .returning();
+      // Their reset-protection Google account leaves with them; it must not come back if they are invited again.
+      if (removed) await tx.delete(frpAccounts).where(and(eq(frpAccounts.householdId, hid), eq(frpAccounts.userId, uid)));
       if (removed?.role !== "owner") return true;
       // The household always keeps an owner: the longest-standing parent takes over.
       const [next] = await tx
@@ -517,6 +522,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .from(householdMembers)
       .where(eq(householdMembers.userId, userId));
     return rows.map((r) => r.id);
+  }
+
+  /** A parent in several households must say which one; guessing could put a child's phone in a stranger's household. */
+  function chooseHousehold(hids: string[], asked: string | undefined) {
+    if (asked) return asked;
+    if (hids.length > 1) throw new HTTPException(400, { message: "householdId is required when you are in more than one household" });
+    return hids[0];
   }
 
   async function requirePhone(c: Context<ParentEnv>): Promise<Phone> {
@@ -580,7 +592,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
-    const householdId = input.householdId ?? hids[0];
+    const householdId = chooseHousehold(hids, input.householdId);
     if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
     if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
@@ -643,7 +655,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
-    const householdId = input.householdId ?? hids[0];
+    const householdId = chooseHousehold(hids, input.householdId);
     if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
     if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
@@ -1102,6 +1114,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/phones/:pid/update", async (c) => {
     const phone = await requirePhone(c);
+    if (!wakeLimit.take(`update:${phone.id}`)) throw new HTTPException(429, { message: "too many update requests; wait a few minutes" });
     const requestedAt = ctx.now();
     await ctx.db.update(phones).set({ updateRequestedAt: requestedAt }).where(eq(phones.id, phone.id));
     updateWake.notify(phone.id, requestedAt.getTime());
@@ -1113,6 +1126,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.post("/phones/:pid/app-updates", async (c) => {
     const phone = await requirePhone(c);
     if (phone.mode !== "strong") return c.json({ error: "app update windows are only needed in strong mode" }, 409);
+    if (!wakeLimit.take(`apps:${phone.id}`)) throw new HTTPException(429, { message: "too many update requests; wait a few minutes" });
     await ctx.db.update(phones).set({ appUpdatesRequestedAt: ctx.now() }).where(eq(phones.id, phone.id));
     await wakePhone(ctx, phone.id, "rules");
     return c.body(null, 202);

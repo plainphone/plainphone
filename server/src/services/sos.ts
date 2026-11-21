@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { householdMembers, phones, sosDeliveries, sosEvents, users } from "../db/schema.js";
+import { withTimeout } from "../lib/http.js";
 import { toLocale } from "../lib/locale.js";
 import { sosMail } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
@@ -30,12 +31,6 @@ export const SOS_GIVE_UP_MS = 6 * 3_600_000;
 function readyForDelivery(now: Date) {
   return and(isNull(sosEvents.notificationClaimedAt),
     or(isNull(sosEvents.notificationLeaseUntil), lte(sosEvents.notificationLeaseUntil, now)));
-}
-
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: NodeJS.Timeout;
-  const limit = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("timeout")), ms); });
-  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
 }
 
 export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { sendTimeoutMs?: number } = {}) {

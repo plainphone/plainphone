@@ -20,6 +20,14 @@ const GOOGLE_ISSUERS = new Set(["https://accounts.google.com", "accounts.google.
 export const FRP_DELAY_MS = 72 * 60 * 60_000;
 const STATE_TTL_MS = 10 * 60_000;
 const MAX_PENDING = 1000;
+const MAX_PER_USER = 3;
+
+/** Too many sign-ins are in progress on this server; try again in a few minutes (the route answers 503). */
+export class PendingLoginsFull extends Error {
+  constructor() {
+    super("too many logins in progress");
+  }
+}
 
 export function resetProtectionAvailable(ctx: Ctx): boolean {
   return Boolean(ctx.cfg.GOOGLE_OAUTH_CLIENT_ID && ctx.cfg.GOOGLE_OAUTH_CLIENT_SECRET);
@@ -46,7 +54,11 @@ export class PendingLogins {
 
   start(userId: string, householdId: string, now: number, native = false) {
     for (const [k, v] of this.map) if (v.expiresAt <= now) this.map.delete(k);
-    if (this.map.size >= MAX_PENDING) throw new Error("too many logins in progress");
+    // A parent's own earlier starts (a closed tab) give way to the new one, so a few throwaway
+    // accounts cannot fill the table for everyone: each account holds at most MAX_PER_USER places.
+    const mine = [...this.map].filter(([, v]) => v.userId === userId);
+    for (const [k] of mine.slice(0, Math.max(0, mine.length - MAX_PER_USER + 1))) this.map.delete(k);
+    if (this.map.size >= MAX_PENDING) throw new PendingLoginsFull();
     const state = randomBytes(24).toString("base64url");
     const verifier = randomBytes(32).toString("base64url");
     this.map.set(state, { userId, householdId, verifier, native, expiresAt: now + STATE_TTL_MS });

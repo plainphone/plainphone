@@ -7,10 +7,15 @@ import { phoneNumber } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 import { nextRulesRevision, wakePhone } from "./phones.js";
 
+// The phone itself sends at most this many (SyncRunner.readContactSuggestions, docs/privacy.md).
+const SUGGESTED_CONTACTS_MAX = 2000;
+const SUGGESTED_NUMBERS_MAX = 100_000;
 const contactName = z.string().trim().min(1).max(60);
 export const selfFavouriteInput = z.strictObject({ name: contactName, number: phoneNumber, favourite: z.boolean() });
 export const suggestedContactsInput = z.strictObject({
-  contacts: z.array(z.strictObject({ name: contactName, numbers: z.array(phoneNumber).min(1) })),
+  contacts: z.array(z.strictObject({ name: contactName, numbers: z.array(phoneNumber).min(1) }))
+    .max(SUGGESTED_CONTACTS_MAX)
+    .refine((list) => list.reduce((n, c) => n + c.numbers.length, 0) <= SUGGESTED_NUMBERS_MAX, "too many numbers"),
 });
 
 export const reviewContactSuggestionsInput = z.discriminatedUnion("action", [

@@ -157,6 +157,8 @@ export async function setModesEnabled(ctx: Ctx, phone: Phone, enabled: boolean) 
 
 export async function createMode(ctx: Ctx, phone: Phone, input: ModeInput) {
   return ctx.db.transaction(async (tx) => {
+    // Two requests at once must not both see 19 modes: take the phone row first, as setSchedule does.
+    await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(modes).where(eq(modes.phoneId, phone.id)) as [{ n: number }];
     if (n >= 20) throw new ModeError(400, "too many modes");
     const [row] = await tx.insert(modes).values({ ...input, phoneId: phone.id, createdAt: ctx.now() }).returning();
