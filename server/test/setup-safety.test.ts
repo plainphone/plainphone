@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { pendingChanges, setupUndoNotices } from "../src/db/schema.js";
 import { deliverSetupUndoNotices } from "../src/services/setup-undo-notices.js";
+import { metricsText } from "../src/services/latency-metrics.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, signIn, useHarness } from "./harness.js";
 
@@ -246,6 +247,8 @@ describe("onboarding safety", () => {
       await deliverSetupUndoNotices(h.ctx);
       expect(send).toHaveBeenCalledTimes(20);
       expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+      // The operator's failure counter sees this alert path too.
+      expect(await metricsText(h.ctx)).toContain('plainphone_push_failures_total{provider="webpush"} 20');
     } finally {
       send.mockRestore();
       log.mockRestore();

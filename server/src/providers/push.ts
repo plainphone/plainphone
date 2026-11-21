@@ -17,7 +17,7 @@ export interface PushProvider {
   readonly unifiedPushAvailable?: boolean;
   acceptsEndpoint?(endpoint: string): boolean;
   validateFcmToken?(token: string): ReturnType<Fcm["send"]>;
-  wake(token: string, reason: WakeReason, transport?: WakeTransport): Promise<void | "gone">;
+  wake(token: string, reason: WakeReason, transport?: WakeTransport): Promise<void | "gone" | "failed">;
 }
 
 /** Bump the version when validation semantics change. The project ID is public Firebase metadata. */
@@ -45,15 +45,16 @@ export class PhonePushProvider implements PushProvider {
   validateFcmToken(token: string) {
     return this.fcm?.send({ token, data: { wake: "rules" } }, true) ?? Promise.resolve("unsupported" as const);
   }
-  async wake(token: string, reason: WakeReason, transport: WakeTransport = "fcm"): Promise<void | "gone"> {
+  async wake(token: string, reason: WakeReason, transport: WakeTransport = "fcm"): Promise<void | "gone" | "failed"> {
     // Every wake is a high-priority data message: it runs the app's sync even in Doze. One collapse key,
     // because any wake fetches everything, so a burst of rule changes is one wake-up, not a queue.
     const ttl = WAKE_TTL_SECONDS[reason];
     const wake = reason === "ring" ? "rules" : reason;
     if (transport === "fcm" && this.fcmAvailable) {
-      if (await this.fcm!.send({
+      const outcome = await this.fcm!.send({
         token, data: { wake }, android: { priority: "HIGH", ttl: `${ttl}s`, collapse_key: "plainphone-sync" },
-      }) === "gone") return "gone";
+      });
+      if (outcome === "gone" || outcome === "failed") return outcome;
     }
     if (transport === "unifiedpush" && this.acceptsEndpoint(token)) {
       const response = await this.http(token, {
@@ -63,6 +64,7 @@ export class PhonePushProvider implements PushProvider {
       });
       await response.body?.cancel();
       if (response.status === 404 || response.status === 410) return "gone";
+      if (!response.ok) return "failed";
     }
   }
 }

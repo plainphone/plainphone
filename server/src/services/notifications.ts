@@ -19,6 +19,7 @@ import { summaryWords } from "../lib/summary-text.js";
 import { pushClass } from "../lib/push-priority.js";
 import { parentPushEnabled, type PushMessage } from "../providers/parent-push.js";
 import { parentSample } from "./latency.js";
+import { countPushFailure } from "./latency-metrics.js";
 import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
@@ -200,7 +201,7 @@ export async function notifyUsers(
             .where(sameRegistration);
           return 1;
         }
-        if (outcome === "failed") opts.onFailure?.();
+        if (outcome === "failed") { countPushFailure(ctx, sub.platform); opts.onFailure?.(); }
         // A retried alert must not use up a subscription's allowance: only a permanent error deletes it.
         if (outcome === "failed" && opts.keepOnTransientFailure) return 0;
         if (outcome === "gone") await discardGonePushSubscription(ctx, sub);
