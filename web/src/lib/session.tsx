@@ -39,7 +39,52 @@ export function clearNextIf(path: string) {
   }
 }
 
-type State = { status: "loading" } | { status: "anon"; error?: unknown } | { status: "in"; me: Me };
+/** Set when this browser asks for a login link, so a link opened here soon after is used without a question. */
+export const LINK_ASKED_KEY = "pp.linkAsked";
+/** How long a login link works (the server's magic-link lifetime). */
+const LINK_LIFETIME_MS = 15 * 60 * 1000;
+
+export function noteLinkAsked() {
+  try {
+    localStorage.setItem(LINK_ASKED_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
+
+/** Whether this browser asked for a login link that can still be valid. */
+export function linkAskedHere(): boolean {
+  try {
+    const at = Number(localStorage.getItem(LINK_ASKED_KEY));
+    const age = Date.now() - at;
+    return at > 0 && age >= 0 && age < LINK_LIFETIME_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** The inbox signature name (components/FamilyInbox.tsx); a display name, not a credential. */
+export const INBOX_NAME_KEY = "pp.inboxName";
+
+/** Forgets what this browser kept for the account that signs out, so the next person does not inherit it. */
+export function clearAccountState() {
+  const kept: [() => Storage, string[]][] = [
+    [() => sessionStorage, [NEXT_KEY, INVITE_KEY]],
+    [() => localStorage, [INBOX_NAME_KEY, LINK_ASKED_KEY, PUSH_ID_KEY]],
+  ];
+  for (const [storage, keys] of kept) {
+    for (const key of keys) {
+      try {
+        storage().removeItem(key);
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+/** `signedOut`: the user logged out here, so the page they were on is no place to return to. */
+type State = { status: "loading" } | { status: "anon"; error?: unknown; signedOut?: boolean } | { status: "in"; me: Me };
 
 interface SessionValue {
   state: State;
@@ -73,15 +118,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const logout = useCallback(async () => {
-    // A signed-out browser (a shared tablet) must stop getting this parent's notifications.
-    // Unsubscribe the browser even if the id was lost; the server row then goes as gone.
-    await disablePush(localStorage.getItem(PUSH_ID_KEY)).catch(() => undefined);
-    localStorage.removeItem(PUSH_ID_KEY);
+    // Only the server can end the HttpOnly session cookie. If the call fails, this browser is still
+    // signed in, so the caller says so instead of showing the login page (a shared tablet), and
+    // notifications stay on: a parent who stays signed in here must still hear an SOS.
     try {
       await api.post("/auth/logout");
-    } finally {
-      setState({ status: "anon" });
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 401)) throw err;
     }
+    // A signed-out browser (a shared tablet) must stop getting this parent's notifications.
+    // The session is gone, so only the browser unsubscribes; the server drops the row as gone
+    // the next time it sends to it.
+    await disablePush(null).catch(() => undefined);
+    localStorage.removeItem(PUSH_ID_KEY);
+    clearAccountState();
+    setState({ status: "anon", signedOut: true });
   }, []);
 
   const saveLocale = useCallback(
@@ -103,6 +154,16 @@ export function useSession(): SessionValue {
   const v = useContext(SessionContext);
   if (!v) throw new Error("useSession outside SessionProvider");
   return v;
+}
+
+/**
+ * The household a new phone goes into: the first one, the same the Household page shows.
+ * Without it the server picks any of the parent's households, which after an accepted
+ * invitation can be someone else's.
+ */
+export function useHouseholdId(): string | undefined {
+  const v = useContext(SessionContext);
+  return v?.state.status === "in" ? v.state.me.households[0]?.id : undefined;
 }
 
 /** The signed-in user. Only use below <RequireAuth>. */

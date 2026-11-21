@@ -7,7 +7,7 @@ import type { InviteResult, Members } from "../api/models";
 import { ItemRow } from "../components/parts";
 import { RequireAuth } from "../components/RequireAuth";
 import { ResetProtection } from "../components/ResetProtection";
-import { Button, Card, errorMessage, Field, LiveStatus, LoadGate, Notice, type NoticeValue, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
+import { Button, Card, errorMessage, Field, LiveStatus, LoadGate, Notice, type NoticeValue, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useMe, useSession } from "../lib/session";
 import { space } from "../lib/theme";
@@ -31,6 +31,8 @@ function Household() {
   const [emailError, setEmailError] = useState<string | undefined>();
   const [sending, setSending] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Removing a parent (or leaving) cuts them off the phones and their SOS alerts, so it asks first.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
   const [link, setLink] = useState<{ url: string; email: string } | null>(null);
 
@@ -91,6 +93,7 @@ function Household() {
         router.replace("/");
         return;
       }
+      setConfirmingId(null);
       setNotice({ tone: "success", text: t("house.removed") });
       await res.reload();
     } catch (err) {
@@ -135,13 +138,26 @@ function Household() {
                         title={self ? `${m.email} (${t("house.you")})` : m.email}
                         meta={t(m.role === "owner" ? "house.owner" : "house.parent")}
                       >
-                        {canRemove ? (
+                        {canRemove && confirmingId === m.id ? (
+                          <VStack>
+                            <Text>{self ? t("house.leaveQuestion") : t("house.removeQuestion", { email: m.email })}</Text>
+                            <Row>
+                              <Button
+                                testID={`member-remove-confirm-${m.id}`}
+                                kind="danger"
+                                title={self ? t("house.leaveYes") : t("house.removeYes")}
+                                busy={busyId === m.id}
+                                onPress={() => void removeMember(m.id)}
+                              />
+                              <Button kind="secondary" title={t("app.cancel")} disabled={busyId === m.id} onPress={() => setConfirmingId(null)} />
+                            </Row>
+                          </VStack>
+                        ) : canRemove ? (
                           <Button
                             kind="secondary"
                             title={self ? t("house.leave") : t("app.remove")}
                             accessibilityLabel={self ? undefined : t("house.removeLabel", { email: m.email })}
-                            busy={busyId === m.id}
-                            onPress={() => void removeMember(m.id)}
+                            onPress={() => setConfirmingId(m.id)}
                           />
                         ) : null}
                       </ItemRow>

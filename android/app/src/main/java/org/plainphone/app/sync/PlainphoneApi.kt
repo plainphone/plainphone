@@ -167,6 +167,7 @@ data class DeviceStatus(
     val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
     val appUpdates: org.plainphone.app.update.AppUpdateLog.Report? = null,
+    val liftedPolicies: List<LiftedPolicy> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -199,6 +200,9 @@ data class DeviceStatus(
                 put("parallelAppsRemovedId", it)
             }
             lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
+            if (liftedPolicies.isNotEmpty()) put("liftedPolicies", JSONArray(liftedPolicies.take(10).map {
+                JSONObject().put("name", it.name.take(200)).put("until", iso(it.untilMs))
+            }))
             installOverrunSequence?.let { put("installOverrunSequence", it) }
             pushProvider?.let { put("pushProvider", it) }
             appVersionCode?.let { put("appVersionCode", it) }
@@ -501,8 +505,7 @@ class PlainphoneApi private constructor(
         // Older servers return 404 for the missing route even when the phone is still paired.
         return when {
             r.status == 204 -> true
-            r.status == 401 &&
-                runCatching { JSONObject(r.body).optString("error") }.getOrNull() == "unknown device; pair again" -> true
+            isUnknownDevice(r.status, r.body) -> true
             r.status == 409 -> false
             else -> throw HttpError(r.status, r.body)
         }
@@ -556,10 +559,15 @@ class PlainphoneApi private constructor(
         return when (r.status) {
             200 -> RulesResult.Changed(r.etag ?: "", r.body)
             304 -> RulesResult.Unchanged
-            401 -> RulesResult.Unpaired
-            else -> throw HttpError(r.status, r.body)
+            // Only the server's own answer unpairs: a 401 from a proxy in front of a self-hosted
+            // server would otherwise stop every phone from syncing for good.
+            else -> if (isUnknownDevice(r.status, r.body)) RulesResult.Unpaired else throw HttpError(r.status, r.body)
         }
     }
+
+    /** The server no longer knows this phone's token: it was removed in the dashboard. */
+    private fun isUnknownDevice(status: Int, body: String): Boolean =
+        status == 401 && runCatching { JSONObject(body).optString("error") }.getOrNull() == "unknown device; pair again"
 
     fun setFavourite(token: String, contact: ApprovedContact, favourite: Boolean): Boolean {
         val request = JSONObject().put("name", contact.name).put("number", contact.number).put("favourite", favourite)

@@ -21,7 +21,8 @@ import { Button, Card, Choice, errorMessage, Field, LinkRow, LoadGate, Notice, P
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
-import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, formatTimeOfDay, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { liftedNotice } from "../../../shared/lib/liftedPolicies";
 import { phoneStateText } from "../../../lib/phoneStateText";
 import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
@@ -532,6 +533,7 @@ function Overview() {
 
   const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
   const technicalSteps = failedPolicies.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
+  const lifted = liftedNotice(phone.status, now);
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
@@ -559,6 +561,7 @@ function Overview() {
       ) : filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" && !isIphone(phone) ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
+      {lifted ? <Notice tone={lifted.overdue ? "warn" : "info"} text={t(lifted.overdue ? "phone.liftedOverdue" : "phone.liftedOpen", { time: formatTimeOfDay(lifted.until, locale) })} /> : null}
       {!showHealth && phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
       {technicalSteps.length > 0 ? (

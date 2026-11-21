@@ -31,8 +31,10 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.catalog.ApprovedAccounts
 import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.sync.LiftedPolicy
 import org.plainphone.app.sync.StatusNotices
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.rulesJson
@@ -162,7 +164,7 @@ class MaintenanceInstallTest {
     fun `removing an account during fallback relocks and warns`() {
         val manager = AccountManager.get(context)
         val existing = Account("parent", "com.google")
-        shadowOf(manager).addAccount(existing)
+        preexisting(existing)
         startFallback()
 
         assertThat(manager.removeAccountExplicitly(existing)).isTrue()
@@ -188,7 +190,7 @@ class MaintenanceInstallTest {
     fun `authenticator completion detects a removal before the restriction returns`() {
         val manager = AccountManager.get(context)
         val existing = Account("parent", "com.google")
-        shadowOf(manager).addAccount(existing)
+        preexisting(existing)
         startFallback()
         val markers = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
         val (id, encoded) = markers.all.entries.single()
@@ -219,7 +221,7 @@ class MaintenanceInstallTest {
     fun `expired fallback does not warn for a subsequent maintenance account removal`() {
         val manager = AccountManager.get(context)
         val existing = Account("parent", "com.google")
-        shadowOf(manager).addAccount(existing)
+        preexisting(existing)
         startFallback()
         ShadowSystemClock.advanceBy(Duration.ofMinutes(3))
         InstallLease.android(context).recover()
@@ -656,17 +658,105 @@ class MaintenanceInstallTest {
     }
 
     @Test
-    fun `a stale catalog sign-in cannot flag a later account`() {
+    fun `a login left open past its marker is still reported`() {
         val activity = installPrompt()
         submit(activity, pin, expectAccountRequest = true)
         ShadowSystemClock.advanceBy(Duration.ofDays(1))
         InstallLease.android(context).recover()
 
-        assertThat(AccountManager.get(context).addAccountExplicitly(Account("unrelated", "com.google"), null, null)).isTrue()
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+        // The marker has expired, but the account is outside the approved set (#75).
         assertThat(context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE).all).isEmpty()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `an account outside the approved set is reported once`() {
+        val manager = AccountManager.get(context)
+        assertThat(manager.addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+        val notices = StatusNotices(context)
+        val first = checkNotNull(notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT))
+        notices.acknowledge(StatusNotices.LATE_GOOGLE_ACCOUNT, first)
+
+        // Another account change does not report the same account again.
+        assertThat(manager.addAccountExplicitly(Account("app", "org.example"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `the approved set keeps only salted fingerprints on the phone`() {
+        preexisting(Account("parent@example.org", "com.google"))
+
+        val stored = context.getSharedPreferences("plainphone_approved_accounts", Context.MODE_PRIVATE).all
+        assertThat(stored.toString()).doesNotContain("parent@example.org")
+        assertThat(stored["approved"] as Set<*>).hasSize(1)
+        val account = Account("parent@example.org", "com.google")
+        assertThat(ApprovedAccounts.fingerprint(ByteArray(32) { 1 }, account))
+            .isNotEqualTo(ApprovedAccounts.fingerprint(ByteArray(32) { 2 }, account))
+    }
+
+    @Test
+    fun `the lock reports accounts as lifted until the fallback deadline, not as intact`() {
+        val before = System.currentTimeMillis()
+        startFallback()
+
+        val lifted = Lock.lockState(context).liftedPolicies.single()
+        assertThat(lifted.name).isEqualTo(LiftedPolicy.ACCOUNTS)
+        assertThat(lifted.untilMs).isIn(com.google.common.collect.Range.closed(before, System.currentTimeMillis() + CatalogAccounts.FALLBACK_MS))
+        val step = Lock.applyNow(context, "lifted status").single { it.name == LiftedPolicy.ACCOUNTS }
+        assertThat(step.detail).isEqualTo("lifted for an approved sign-in")
+        assertThat(accountsBlocked()).isFalse()
+
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(3))
+        InstallLease.android(context).recover()
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(Lock.lockState(context).liftedPolicies).isEmpty()
+    }
+
+    @Test
+    fun `closing the window cancels the pending sign-in request`() {
+        submit(installPrompt(), pin, expectAccountRequest = true)
+        val leaseId = checkNotNull(InstallLease.android(context).catalogId())
+        val open = FakeFuture()
+        CatalogAccounts.trackSignIn(context, CatalogAccounts.Request("open", leaseId, pkg, emptySet(), false), open)
+        val stale = FakeFuture()
+        CatalogAccounts.trackSignIn(context, CatalogAccounts.Request("stale", "closed", pkg, emptySet(), false), stale)
+        assertThat(open.isCancelled).isFalse()
+        assertThat(stale.isCancelled).isTrue()
+
+        InstallWindow.close(context, "test window end", pkg)
+        pumpUntil { open.isCancelled }
+
+        assertThat(open.isCancelled).isTrue()
+    }
+
+    private class FakeFuture : android.accounts.AccountManagerFuture<android.os.Bundle> {
+        @Volatile private var cancelled = false
+        override fun cancel(mayInterruptIfRunning: Boolean): Boolean { cancelled = true; return true }
+        override fun isCancelled() = cancelled
+        override fun isDone() = cancelled
+        override fun getResult(): android.os.Bundle = throw android.accounts.OperationCanceledException()
+        override fun getResult(timeout: Long, unit: TimeUnit?): android.os.Bundle = getResult()
+    }
+
+    /** An account that was on the phone before the lock: part of the approved set. */
+    private fun preexisting(account: Account) {
+        val manager = AccountManager.get(context)
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        listeners.clear()
+        try {
+            shadowOf(manager).addAccount(account)
+        } finally {
+            listeners.putAll(registered)
+        }
+        ApprovedAccounts.approveCurrent(context)
     }
 
     @Test

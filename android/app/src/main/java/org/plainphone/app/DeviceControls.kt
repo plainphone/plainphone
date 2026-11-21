@@ -99,25 +99,34 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
     override fun corePackages() = corePackages(dynamicCorePackages())
 
     internal fun corePackages(dynamicCore: Set<String>): Set<String> {
-        val intents = listOf(
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        // Any app can declare these filters. Only the phone's own apps count, or a sideloaded app with a
+        // camera filter would never be hidden, closed by the guard or time-limited.
+        val systemOnly = listOf(
             Intent(Intent.ACTION_DIAL),
-            // The SOS screen opens this; it must stay reachable under every restriction.
-            Intent(org.plainphone.app.sos.EMERGENCY_DIALER_ACTION),
             Intent(MediaStore.ACTION_IMAGE_CAPTURE),
             Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA),
             Intent(AlarmClock.ACTION_SHOW_ALARMS),
             Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI),
             Intent(Settings.ACTION_SETTINGS),
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+            home,
         )
         val found = mutableSetOf<String>()
-        for (intent in intents) {
+        for (intent in systemOnly) {
             Compat.queryActivities(pm, intent, PackageManager.MATCH_DEFAULT_ONLY)
-                .mapTo(found) { it.activityInfo.packageName }
+                .map { it.activityInfo.packageName }.filterTo(found, ::isSystemApp)
         }
+        // The SOS screen opens this; it must stay reachable under every restriction.
+        Compat.queryActivities(pm, Intent(org.plainphone.app.sos.EMERGENCY_DIALER_ACTION), PackageManager.MATCH_DEFAULT_ONLY)
+            .mapTo(found) { it.activityInfo.packageName }
+        // The chosen phone app and home screen stay, also when the family installed them (light mode).
+        context.getSystemService(TelecomManager::class.java)?.defaultDialerPackage?.let(found::add)
+        defaultHome(home)?.let(found::add)
+        found += context.packageName
         // Messages: apps that can really be the SMS app (the default may not be set yet during setup).
-        // Not every `smsto:` handler, which would keep WhatsApp and other messengers visible.
-        found += smsDeliverReceivers()
+        // Not every `smsto:` handler, which would keep WhatsApp and other messengers visible. Only the
+        // phone's own: an SMS app from Play must stay hideable (telephonyApps() still lists it).
+        smsDeliverReceivers().filterTo(found, ::isSystemApp)
         found += dynamicCore
         return found
     }
@@ -210,10 +219,24 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         )
     }
 
-    /** Packages that can be the default SMS app. Unlike `smsto:` handlers, this excludes WhatsApp and friends. */
+    /**
+     * Packages that can be the default SMS app, wherever they came from. Unlike `smsto:` handlers, this
+     * excludes WhatsApp and friends. Not narrowed to system apps: telephonyApps() hides every one of them.
+     */
     private fun smsDeliverReceivers(): Set<String> =
         Compat.queryReceivers(pm, Intent(Telephony.Sms.Intents.SMS_DELIVER_ACTION), 0)
             .map { it.activityInfo.packageName }.toSet()
+
+    private fun defaultHome(home: Intent): String? = runCatching {
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            pm.resolveActivity(home, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()))
+        } else {
+            @Suppress("DEPRECATION") // The int overload is the only one before Android 13.
+            pm.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
+        }
+        // With no default set this is Android's chooser ("android"), which is a system app anyway.
+        info?.activityInfo?.packageName
+    }.getOrNull()
 
     private fun isSystemApp(pkg: String): Boolean = runCatching {
         (Compat.applicationInfo(pm, pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0
