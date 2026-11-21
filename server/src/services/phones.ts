@@ -131,7 +131,7 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
     const transport = p.endpoint ? "unifiedpush" : "fcm";
     const outcome = registration && usable ? await ctx.push.wake(registration, reason, transport) : undefined;
     if (outcome === "failed") countPushFailure(ctx, transport);
-    if (outcome === "gone") {
+    if (registration && outcome === "gone") {
       const sameValidation = p.validationKey === null ? isNull(phones.fcmValidationKey)
         : eq(phones.fcmValidationKey, p.validationKey);
       await ctx.db.update(phones).set(p.endpoint ? { unifiedPushEndpoint: null } : { fcmToken: null, fcmValidationKey: null })
