@@ -201,6 +201,12 @@ class DeviceOwnerFlow : EmulatorFlow() {
         }
         assertEquals(SendState.SMS, QuickMessageDelivery.state(context, key))
         assertEquals(1, request("GET", "/e2e/quick-message-requests", 200).getInt("count"))
+        await("approved parent's injected SMS in Android inbox") {
+            context.contentResolver.query(
+                Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS),
+                "${Telephony.Sms.BODY} = ?", arrayOf(REPLY), null,
+            )?.use { it.moveToFirst() && it.getString(0).removePrefix("+") == PARENT_NUMBER.removePrefix("+") } == true
+        }
     }
 }
 
@@ -271,16 +277,5 @@ class LightModeFlow : EmulatorFlow() {
         val date = DateTimeFormatter.ofPattern("MMddHHmmyyyy.ss", java.util.Locale.ROOT)
             .withZone(ZoneOffset.UTC).format(instant)
         device.executeShellCommand("su 0 date -u $date")
-    }
-}
-
-class IncomingSmsFlow : EmulatorFlow() {
-    @Test fun approvedParentReplyReachesTheChildInbox() {
-        await("approved parent's injected SMS in Android inbox") {
-            context.contentResolver.query(
-                Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS),
-                "${Telephony.Sms.BODY} = ?", arrayOf(REPLY), null,
-            )?.use { it.moveToFirst() && it.getString(0) == PARENT_NUMBER } == true
-        }
     }
 }

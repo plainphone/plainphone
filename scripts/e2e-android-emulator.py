@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Run the emulator suite against a disposable Plainphone test server."""
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,9 @@ import shlex
 import socket
 import subprocess
 import tempfile
+from threading import Event
 import time
+from urllib.request import Request, urlopen
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,7 +60,7 @@ def serial_shell(console, *args, timeout=30):
     raise RuntimeError("Emulator serial console disconnected")
 
 
-def instrument(flow, port, token, console=None):
+def instrument(flow, port, token, console=None, command_prefix=()):
     command = (
         "am", "instrument", "-w", "-r", "-e", "class",
         f"{PACKAGE}.e2e.{flow}", "-e", "port", str(port), "-e", "parentToken",
@@ -67,12 +70,7 @@ def instrument(flow, port, token, console=None):
         result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
                      stderr=subprocess.STDOUT, timeout=240).stdout
     else:
-        # The boot console starts before Android switches to the APEX mount
-        # namespace. am instrument needs the libraries from the running system.
-        result = serial_shell(
-            console, "sh", "-c", 'exec su 0 nsenter -t "$(pidof system_server)" -m -- "$@"',
-            "sh", *command, timeout=240,
-        )
+        result = serial_shell(console, *command_prefix, *command, timeout=240)
     (ARTIFACTS / f"{flow}.txt").write_text(result, encoding="utf-8")
     print(result, flush=True)
     # am instrument can exit zero even when a test fails or never ran.
@@ -91,17 +89,25 @@ def capture(console, label):
                 out.seek(0)
                 out.truncate()
             if label.endswith(".png"):
-                result = serial_shell(console, "sh", "-c", "screencap -p | base64", timeout=15)
-                out.write(base64.b64decode(result))
+                result = serial_shell(console, "sh", "-c", "screencap -p | base64", timeout=20)
+                # A kernel message can appear on the serial console between encoded lines.
+                encoded = "".join(line for line in result.splitlines()
+                                  if re.fullmatch(r"[A-Za-z0-9+/]+={0,2}", line))
+                out.write(base64.b64decode(encoded, validate=True))
             else:
-                out.write(serial_shell(console, "logcat", "-d", "-v", "threadtime", timeout=15).encode())
-    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+                out.write(serial_shell(console, "logcat", "-d", "-v", "threadtime", "-t", "5000", timeout=20).encode())
+    except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Unable to collect {label}: {exc}", flush=True)
 
 
 def run_flows(port, token, console):
     if shell("getprop", "ro.kernel.qemu").strip() != "1":
         raise RuntimeError("Select a disposable Android emulator")
+    if shell("getprop", "init.svc.console").strip() != "running":
+        # Android 10 labels the emulator UART as a generic serial device; init
+        # needs the console label to open it. Keep SELinux enforcing.
+        shell("su", "0", "chcon", "u:object_r:console_device:s0", "/dev/ttyS0")
+        shell("su", "0", "start", "console")
     android = ROOT / "android"
     adb("install", "-g", str(android / "app/build/outputs/apk/debug/app-debug.apk"))
     adb("install", str(android / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"))
@@ -122,15 +128,52 @@ def run_flows(port, token, console):
     # Grant roles on the fresh test phone before Device Owner applies the restrictions.
     shell("cmd", "role", "add-role-holder", "android.app.role.SMS", PACKAGE)
     shell("cmd", "role", "add-role-holder", "android.app.role.DIALER", PACKAGE)
-    serial_shell(console, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
-    instrument("DeviceOwnerFlow", port, token, console)
+    system_pid = shell("su", "0", "pidof", "system_server").strip()
+    if not re.fullmatch(r"[1-9][0-9]*", system_pid):
+        raise RuntimeError("Could not locate Android's running system process")
+    # The serial console starts before Android loads the ART classpaths and
+    # switches mount namespaces. Match the runtime environment of the adb shell.
+    classpaths = "/data/local/tmp/plainphone-art.env"
+    with tempfile.NamedTemporaryFile(mode="w") as environment:
+        for name in ("BOOTCLASSPATH", "DEX2OATBOOTCLASSPATH"):
+            try:
+                value = shell("printenv", name).strip()
+            except subprocess.CalledProcessError:
+                continue
+            environment.write(f"export {name}={shlex.quote(value)}\n")
+        environment.flush()
+        adb("push", environment.name, classpaths)
+    android_runtime = (
+        "su", "0", "nsenter", f"--mount=/proc/{system_pid}/ns/mnt", "--",
+        "sh", "-c", f'. {classpaths}; exec "$@"', "sh",
+    )
+    serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
+    stop = Event()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        reply = executor.submit(inject_parent_sms, port, token, stop)
+        try:
+            instrument("DeviceOwnerFlow", port, token, console, android_runtime)
+            if not reply.result(timeout=5):
+                raise RuntimeError("SMS injection stopped before delivery")
+        finally:
+            stop.set()
 
-    serial = os.environ.get("ANDROID_SERIAL", "emulator-5554")
-    response = adb("-s", serial, "emu", "sms", "send", PARENT_NUMBER, REPLY,
-                   text=True, stdout=subprocess.PIPE).stdout
-    if response.strip() != "OK":
-        raise RuntimeError(f"Emulator rejected the incoming SMS: {response}")
-    instrument("IncomingSmsFlow", port, token, console)
+
+def inject_parent_sms(port, token, stop):
+    # Wait for the 429 request, when the approved contact has already synced and
+    # the instrumentation process is still running.
+    request = Request(f"http://127.0.0.1:{port}/e2e/quick-message-requests",
+                      headers={"Authorization": f"Bearer {token}"})
+    while not stop.wait(0.25):
+        with urlopen(request, timeout=5) as reply:
+            if json.load(reply)["count"] > 0:
+                serial = os.environ.get("ANDROID_SERIAL", "emulator-5554")
+                response = adb("-s", serial, "emu", "sms", "send", PARENT_NUMBER, REPLY,
+                               text=True, stdout=subprocess.PIPE).stdout
+                if response.strip() != "OK":
+                    raise RuntimeError(f"Emulator rejected the incoming SMS: {response}")
+                return True
+    return False
 
 
 def main():
