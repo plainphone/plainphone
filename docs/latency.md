@@ -4,7 +4,8 @@ An SOS is only as good as the time it takes to reach a parent. This page lists e
 message takes, what decides its delay, what we expect, and what the server measures so the
 expectation can be checked against real phones. The server's numbers are public at
 [`GET /api/latency`](../server/openapi.yaml) and the dashboard shows one line of them in a child
-phone's health card: "Alerts usually arrive within N s".
+phone's health card: "Alerts usually arrive within N s". Operators can scrape the full picture
+(p50 and p95 per path and provider, failures) from [`/api/metrics`](#operator-metrics).
 
 The expected times below come from the platforms' documentation and from how our code schedules
 work. They are not measurements. Replace them with the p50/p95 from `/api/latency` once real
@@ -116,6 +117,39 @@ exist. The parent app can only confirm an FCM or APNs alert that arrives while i
 and iOS show a background alert without waking the app), so `parent-device` for `fcm` and `apns`
 leans on foreground deliveries and may read a little faster than a phone in a pocket. Web Push
 receipts come from the service worker and cover the background too.
+
+## Operator metrics
+
+`/api/latency` is public and leaves out thin paths. An operator who wants to see whether "live" is
+actually fast reads `GET /api/metrics` instead: Prometheus text, behind `Authorization: Bearer
+<METRICS_TOKEN>`. Without `METRICS_TOKEN` the endpoint answers 404 as if it did not exist; a wrong
+token gets 401 (and 429 after ten wrong guesses a minute from one IP). Scraping and the ready
+Grafana dashboard ([`deploy/grafana/plainphone-latency.json`](../deploy/grafana/plainphone-latency.json))
+are in [self-hosting.md](self-hosting.md#watching-delivery-speed).
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `plainphone_latency_ms` | `path`, `provider`, `kind`, `window`, `quantile` (`0.5`, `0.95`) | Delivery time in milliseconds. Paths as above: `phone-server` (with `kind` `sos`, `quick`, `callback`), `server-parent`, `parent-device`, `server-child`. |
+| `plainphone_latency_samples` | `path`, `provider`, `kind`, `window` | How many timings the numbers rest on. |
+| `plainphone_push_failures_total` | `provider` | Pushes to parents that failed since the server started (counter). |
+
+`provider` is `fcm`, `apns`, `webpush`, `unifiedpush` or `poll`; `window` is `1h` or `24h`. Samples
+are stored by clock hour, so a window reaches back to the start of the hour it begins in: `1h` is the
+current and the previous clock hour, `24h` the current and the previous 24. Unlike `/api/latency`,
+thin groups are shown, with their sample count next to them; read the count before the number.
+
+Aggregates only: the labels above are all there is, so no household, phone, user, endpoint or
+receipt id can be told apart, and nothing grows with the number of families. `LATENCY_STATS=off`
+leaves the page without timings and counts no failures.
+
+What it does not cover:
+
+- **SMS fallback.** The child phone sends the SMS itself, and an SOS already sent that way is not
+  timed (see path 1), so the server has nothing to measure or count. Only the report that follows
+  online is timed.
+- **Push failures** are counted in the server's memory, so the counter starts at 0 after a restart
+  (use `increase()`, as the dashboard does), and a failed push that is retried counts once per
+  attempt. A subscription the push service has removed is not a failure.
 
 ## Test on real phones
 

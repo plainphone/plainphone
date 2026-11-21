@@ -2952,6 +2952,21 @@ paths:
                         kind: { type: [string, "null"] }
                         p50Ms: { type: integer }
                         p95Ms: { type: integer }
+  /metrics:
+    get:
+      operationId: getMetrics
+      security: []
+      summary: Delivery speed for the operator, as Prometheus text
+      description: 'Operator only (docs/latency.md). Needs `Authorization: Bearer <METRICS_TOKEN>`; answers 404 while `METRICS_TOKEN` is unset and 401 for a wrong token (10 wrong guesses a minute per IP). p50 and p95 in milliseconds (`plainphone_latency_ms`) and sample counts (`plainphone_latency_samples`) per `path`, `provider` (`fcm`, `apns`, `webpush`, `unifiedpush`, `poll`), `kind` and `window` (`1h`, `24h`), and failed parent pushes since start-up per provider (`plainphone_push_failures_total`). Aggregates only: no household, phone or user. Not cached.'
+      responses:
+        "200":
+          description: Prometheus text exposition format 0.0.4
+          content:
+            text/plain:
+              schema: { type: string }
+        "401": { description: Missing or wrong token }
+        "404": { description: METRICS_TOKEN is not set }
+        "429": { description: Too many wrong tokens from this IP }
   /push-receipt:
     post:
       operationId: postPushReceipt
