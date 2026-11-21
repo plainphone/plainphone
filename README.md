@@ -26,7 +26,10 @@ See the [family communication research](docs/research/family-comms.md) and [phas
 **iPhone:** planned, not available yet. Plainphone for iPhone will use Apple's Family Controls, and
 some things stay Apple's to decide (who can call, who rings at bedtime). The dashboard already says
 so per rule for an iPhone. The server, dashboard and parent app are ready for iPhone pairing
-behind `IOS_PAIRING_ENABLED`, which stays off until the iPhone app is out. See the [architecture and phase plan](docs/ios/architecture.md), the
+behind `IOS_PAIRING_ENABLED`, which stays off until the iPhone app is out. The first Swift code is
+in the repo: a Swift module and extension targets ([`ios/`](ios), built and unit tested by CI on
+macOS) and a Child role in the parent app with a guided setup, which only an iPhone build made with
+`PLAINPHONE_IOS_CHILD=1` offers. It has not run on a real iPhone yet. See the [architecture and phase plan](docs/ios/architecture.md), the
 [Apple entitlement requests](docs/ios/apple-applications.md) and the [real-device spikes](docs/ios/spikes.md).
 
 Plainphone is built on a short list of [design principles](docs/design-principles.md), each tied to research, regulation or official guidance. The [evidence review](docs/evidence.md) lists the sources per feature and says where the evidence is weak. In short:
@@ -167,6 +170,7 @@ See [support tools and release troubleshooting](docs/support.md).
 | [`server/`](server) | The API (Hono, PostgreSQL). [docs/sync-api.md](docs/sync-api.md) is the phone's side of it |
 | [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) and [cross-surface UX research](docs/research/ux-premium.md). Look and feel: [brand and design guide](docs/brand/README.md) (direction C, Switch) |
 | [`parent-app/`](parent-app) | The native parent app for iOS (`org.plainphone.app`) and Android (`org.plainphone.parent`), see [docs/parent-app.md](docs/parent-app.md) |
+| [`ios/`](ios) | The iPhone's Swift code on its own: an xcodegen project with the Family Controls module, the extensions and their unit tests, see [ios/README.md](ios/README.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
 | [`packages/`](packages) | Shared encryption test vectors |

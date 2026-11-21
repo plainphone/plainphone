@@ -19,6 +19,10 @@ issue #163, and delete the code. The answers decide details of phases 1-5 in
 - A throw-away Xcode project per spike (SwiftUI app plus the extension it needs), not the Expo app.
   A local Plainphone server (`pnpm dev:server`) reachable from the phones, for (a) and (d).
 
+The phase 1 skeleton marks the code that waits for each answer with `TODO(spike a)` to
+`TODO(spike e)` (table in [ios/README.md](../../ios/README.md)). Its dev host app (`PlainphoneDev`)
+runs the real Swift module on a test iPhone, which helps once a spike has answered its question.
+
 Write down for every run: device model, iOS version, date, and what you saw. Screenshots go into the
 issue, not the repo.
 

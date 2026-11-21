@@ -92,7 +92,7 @@ export const appSv: AppMessages = {
   "iphone.apple.body": "På en iPhone bestämmer Apple vem som kan ringa och skriva, och när telefonen vilar på natten. Ställ in det på förälderns iPhone:",
   "iphone.apple.step1": "Öppna Inställningar, sedan Skärmtid, och välj det här barnet.",
   "iphone.apple.step2": "Kommunikationsgränser: välj Endast kontakter.",
-  "iphone.apple.step3": "Vilotid: välj när telefonen vilar på natten.",
+  "iphone.apple.step3": "Nedtid: välj när telefonen vilar på natten.",
   "iphone.apple.note": "Plainphone kan inte kontrollera de här inställningarna ännu.",
   "iphone.apple.done": "Klart",
   "iphone.apple.later": "Senare",
