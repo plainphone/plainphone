@@ -55,6 +55,9 @@ it("keeps every never-gated path open with billing on and the free plan exceeded
     },
     "SOS, safety rings and check-ins, 112 and emergency numbers": async () => {
       ok(await child.device.post("/api/device/sos", { id: randomUUID(), kind: "urgent", smsSubmitted: true }), "sos");
+      // "Ask a parent to call me" (#197) is a safety request too.
+      ok(await parent.put(`/api/phones/${child.phoneId}/sos`, { callbackNumber: "+4500000001", callbackConfirmed: true, callbackRequests: true }), "callback switch");
+      ok(await child.device.post("/api/device/callback-requests", { id: randomUUID() }), "callback request");
       ok(await parent.post(`/api/phones/${child.phoneId}/ring`, {}), "ring");
       ok(await parent.post(`/api/phones/${child.phoneId}/checkin`, { minutes: 15 }), "checkin");
       // 112 is dialled by the phone itself; the rules it needs are served above. Its SOS block is intact.
