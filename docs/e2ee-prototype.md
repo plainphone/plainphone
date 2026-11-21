@@ -33,7 +33,7 @@ Storage is one additive migration, `server/drizzle/0058_e2ee_prototype.sql`
 ## Run it
 
 ```sh
-# Core: 13 scenarios, the vectors, the error mapping (needs Rust 1.99)
+# Core: 14 scenarios, the vectors, the error mapping (needs Rust 1.99)
 (cd e2ee/mls-core && cargo test --locked --release)
 
 # Demo: two parents, a child phone and a tablet against the real server
@@ -138,6 +138,7 @@ server.
 |---|---|---|
 | Server reads texts | Only ciphertext reaches it; padding to 64 bytes | `e2ee-demo.ts` step 10; `padding_hides_length_within_64_byte_steps` |
 | Server substitutes a key package or adds its own device | Refused by the adder and by every joiner | `substituted_key_package_is_refused`, `joiner_refuses_a_welcome_with_an_unlisted_member`, `forged_binding_and_roster_rollback_are_refused` |
+| A sender with a key the roster no longer lists (re-enrolled device) | Its texts are refused | `a_sender_whose_key_the_roster_no_longer_lists_is_refused` |
 | Removed device keeps reading | One removal commit; the removed device deletes its state; later texts are unreadable even when forwarded | `add_then_remove_a_member`; demo step 7 |
 | Server withholds the removal (stale roster) | Senders refuse while the roster lists fewer members than the group; the server refuses texts for an old epoch | `add_then_remove_a_member` (`stale_members`); `accepts one commit per epoch …` in `server/test/e2ee.test.ts`; demo steps 7 and 9 |
 | Concurrent commits fork the group | One accepted commit per epoch, 409 for the other | `concurrent_commits_resolve_to_one`; demo step 9 |

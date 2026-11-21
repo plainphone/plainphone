@@ -16,7 +16,7 @@ base64url. Every binding is a thin wrapper around it.
 | `src/error.rs` | Error codes that never carry keys or plaintext |
 | `src/jni.rs` | `Java_org_plainphone_app_e2ee_MlsCore_call` (feature `jni`) |
 | `src/bin/pp-mls.rs` | Line-delimited JSON over stdin/stdout, for the demo |
-| `tests/scenarios.rs` | 13 scenarios through `call` |
+| `tests/scenarios.rs` | 14 scenarios through `call` |
 | `tests/vectors.rs` | Checks (and with `PLAINPHONE_WRITE_VECTORS=1` rewrites) `docs/encryption-test-vectors/mls-prototype.json` |
 | `scripts/build-android.sh` | arm64-v8a `.so` for the debug APK |
 

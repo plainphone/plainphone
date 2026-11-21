@@ -305,3 +305,15 @@ fn an_offline_child_joins_two_conversations_from_one_last_resort_key_package() {
         assert_eq!(c.process(&m)["text"], "SYNTH via last resort");
     }
 }
+
+#[test]
+fn a_sender_whose_key_the_roster_no_longer_lists_is_refused() {
+    let (a, b, c, gid) = household();
+    // The log re-enrolled the child under a new MLS key; the old leaf is still in the group.
+    let new_child = Dev::new("child-phone", Role::Child, 3);
+    a.roster(2, &[&a, &b, &new_child]);
+    let m = c.send(&gid, "m-13", CANARY);
+    let r = a.try_process(&m);
+    assert_eq!(r["error"], "roster_key_mismatch");
+    assert!(!r.to_string().contains(CANARY));
+}

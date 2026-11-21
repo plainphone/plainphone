@@ -263,7 +263,8 @@ the repository root; `core` is `e2ee/mls-core`.
       Tests: `substituted_key_package_is_refused`,
       `joiner_refuses_a_welcome_with_an_unlisted_member`,
       `forged_binding_and_roster_rollback_are_refused`,
-      `receivers_refuse_an_add_by_the_child`. Vectors:
+      `receivers_refuse_an_add_by_the_child`,
+      `a_sender_whose_key_the_roster_no_longer_lists_is_refused`. Vectors:
       `docs/encryption-test-vectors/mls-prototype.json` (`binding`,
       `bindingRejections`). Gap: the log itself is not implemented (gap 1 in
       the prototype doc).

@@ -501,19 +501,20 @@ impl Client {
             return Err(Error::new("group_untrusted", "this conversation is not usable"));
         }
         let processed = conv.group.process_message(&self.provider, p).map_err(mls)?;
-        let sender_credential = processed.credential().clone();
         let epoch = processed.epoch().as_u64();
-        let sender = match processed.sender() {
-            Sender::Member(_) => device_of(&sender_credential),
+        let leaf = match processed.sender() {
+            Sender::Member(leaf) => *leaf,
             _ => return Err(Error::new("bad_message", "only members send")),
         };
-        let sender_role = self.roster.get(&sender).map(|e| e.role);
+        // The sender's leaf (credential and signature key) as the current tree has it, checked
+        // against the roster. A device the roster removed is refused even before the removal
+        // commit lands.
+        let member = conv.group.member_at(leaf).ok_or_else(|| Error::new("bad_message", "sender leaf is empty"))?;
+        let sender = device_of(&member.credential);
+        let sender_role = self.roster.check_leaf(member.credential.serialized_content(), &member.signature_key).map(|(_, r)| r);
         let event = match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(a) => {
-                // A device the roster removed is refused even before the removal commit lands.
-                if sender_role.is_none() {
-                    return Err(Error::new("roster_unknown_device", format!("{sender} is not in the roster")));
-                }
+                sender_role?;
                 let pt: Plaintext = serde_json::from_slice(&a.into_bytes())
                     .map_err(|_| Error::new("bad_message", "plaintext is not a Plainphone message"))?;
                 if pt.v != 1 {
@@ -568,10 +569,10 @@ impl Client {
         &self,
         id: &[u8],
         sender: &str,
-        sender_role: Option<Role>,
+        sender_role: Result<Role, Error>,
         sc: &StagedCommit,
     ) -> Result<(Vec<String>, Vec<String>), Error> {
-        let role = sender_role.ok_or_else(|| Error::new("roster_unknown_device", format!("{sender} is not in the roster")))?;
+        let role = sender_role?;
         let group = &self.groups[id].group;
         let mut added = vec![];
         let mut removed = vec![];
