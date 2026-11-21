@@ -12,7 +12,7 @@ type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
 export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phones.$inferSelect, reportedLate: boolean) {
   const recipients = await phoneAlertRecipients(tx, phone.id, phone.householdId);
-  const notice = { householdId: phone.householdId, phoneId: phone.id, phoneName: phone.name, reportedLate, nextAttemptAt: ctx.now() };
+  const notice = { householdId: phone.householdId, phoneId: phone.id, phoneName: phone.name, reportedLate, nextAttemptAt: ctx.now(), createdAt: ctx.now() };
   const deliveries: (typeof setupUndoNotices.$inferInsert)[] = [];
   // Protection removed is not something a mute may hide, and an undo has no time bound: every
   // household member gets the mail. Push still follows the parent's mute for the phone.
@@ -36,6 +36,14 @@ export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phon
 const BATCH_LIMIT = 10;
 const BATCH_BUDGET_MS = 10_000;
 const CLAIM_MS = 15 * 60_000;
+/** A notice that still fails after this long is dropped: the cause is not going away (docs/sync-api.md). */
+export const MAX_LIFETIME_MS = 24 * 3_600_000;
+const RETRY_MAX_MS = 3_600_000;
+
+/** One minute after the first failure, doubling, at most an hour. */
+export function retryDelayMs(attempts: number): number {
+  return Math.min(60_000 * 2 ** Math.min(attempts, 12), RETRY_MAX_MS);
+}
 
 /** Deliver each destination independently so one failing endpoint cannot make the others repeat. */
 export async function deliverSetupUndoNotices(ctx: Ctx) {
@@ -109,8 +117,16 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
         }
       }
     } catch {
+      const now = ctx.now();
+      if (now.getTime() - notice.createdAt.getTime() >= MAX_LIFETIME_MS) {
+        console.error(`setup undo notice dropped after ${notice.attempts + 1} failed attempts`);
+        await ctx.db.delete(setupUndoNotices).where(claim);
+        continue;
+      }
       console.error("setup undo notice delivery failed; will retry");
-      await ctx.db.update(setupUndoNotices).set({ nextAttemptAt: new Date(ctx.now().getTime() + 60_000) }).where(claim);
+      await ctx.db.update(setupUndoNotices)
+        .set({ attempts: notice.attempts + 1, nextAttemptAt: new Date(now.getTime() + retryDelayMs(notice.attempts)) })
+        .where(claim);
       continue;
     }
     await ctx.db.delete(setupUndoNotices).where(claim);

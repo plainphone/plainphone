@@ -47,7 +47,10 @@ The paths are listed twice, in `parent-app/app.config.ts` and in `APP_LINK_PATHS
 
 The app registers directly with the Plainphone server for APNs on iOS or FCM on Android. Enable permission under **Settings → Notifications**. The app sends a granted token on sign-in and refresh, and registers a replacement when the OS rotates it. Android uses the **Notifications** and **Urgent SOS** channels. Tapping an alert can open a phone, its location, approvals or settings.
 
-Per-phone alert preferences are shared with the web dashboard. See [push setup](push-setup.md) for the Firebase and Apple configuration.
+Per-phone alert preferences are shared with the web dashboard. **Mute** for a phone quiets the push
+and the mail for quick messages, check-ins, suggestions from the child, requests and the "review the
+rules" reminder; each still appears in the inbox or on the dashboard. SOS, code words and "protection
+removed" alerts always come through. See [push setup](push-setup.md) for the Firebase and Apple configuration.
 
 SOS alerts use the same registration. An urgent SOS is sent as a high-priority alert on the
 **Urgent SOS** channel (Android) or as a time-sensitive notification (iOS), and both SOS kinds
