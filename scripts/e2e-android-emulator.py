@@ -19,7 +19,6 @@ from uuid import uuid4
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = Path(os.environ.get("E2E_ARTIFACTS", ROOT / "android/build/emulator-e2e"))
 PACKAGE = "org.plainphone.app"
-PARENT_NUMBER = "+12025550123"
 REPLY = "Emulator parent reply"
 
 
@@ -60,12 +59,15 @@ def serial_shell(console, *args, timeout=30):
     raise RuntimeError("Emulator serial console disconnected")
 
 
-def instrument(flow, port, token, console=None, command_prefix=()):
+def instrument(flow, port, token, console=None, command_prefix=(), *, parent_number=None):
     command = (
         "am", "instrument", "-w", "-r", "-e", "class",
         f"{PACKAGE}.e2e.{flow}", "-e", "port", str(port), "-e", "parentToken",
-        token, f"{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner",
+        token,
     )
+    if parent_number is not None:
+        command += ("-e", "parentNumber", parent_number)
+    command += (f"{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner",)
     if console is None:
         result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
                      stderr=subprocess.STDOUT, timeout=240).stdout
@@ -103,6 +105,12 @@ def capture(console, label):
 def run_flows(port, token, console):
     if shell("getprop", "ro.kernel.qemu").strip() != "1":
         raise RuntimeError("Select a disposable Android emulator")
+    serial = adb("get-serialno", text=True, stdout=subprocess.PIPE).stdout.strip()
+    match = re.fullmatch(r"emulator-(5[0-9]{3})", serial)
+    if not match:
+        raise RuntimeError("Select an emulator by its console-port serial")
+    # AOSP derives the virtual modem's phone number from the emulator console port.
+    parent_number = f"+1555521{match[1]}"
     if shell("getprop", "init.svc.console").strip() != "running":
         # Android 10 labels the emulator UART as a generic serial device; init
         # needs the console label to open it. Keep SELinux enforcing.
@@ -150,25 +158,23 @@ def run_flows(port, token, console):
     serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
     stop = Event()
     with ThreadPoolExecutor(max_workers=1) as executor:
-        reply = executor.submit(inject_parent_sms, port, token, stop)
+        reply = executor.submit(inject_parent_sms, port, token, stop, serial, parent_number)
         try:
-            instrument("DeviceOwnerFlow", port, token, console, android_runtime)
+            instrument("DeviceOwnerFlow", port, token, console, android_runtime, parent_number=parent_number)
             if not reply.result(timeout=5):
                 raise RuntimeError("SMS injection stopped before delivery")
         finally:
             stop.set()
 
 
-def inject_parent_sms(port, token, stop):
-    # Wait for the 429 request, when the approved contact has already synced and
-    # the instrumentation process is still running.
+def inject_parent_sms(port, token, stop, serial, parent_number):
+    # Inject a separate reply only once the child has observed the modem loopback.
     request = Request(f"http://127.0.0.1:{port}/e2e/quick-message-requests",
                       headers={"Authorization": f"Bearer {token}"})
     while not stop.wait(0.25):
         with urlopen(request, timeout=5) as reply:
-            if json.load(reply)["count"] > 0:
-                serial = os.environ.get("ANDROID_SERIAL", "emulator-5554")
-                response = adb("-s", serial, "emu", "sms", "send", PARENT_NUMBER, REPLY,
+            if json.load(reply)["smsObserved"]:
+                response = adb("-s", serial, "emu", "sms", "send", parent_number, REPLY,
                                text=True, stdout=subprocess.PIPE).stdout
                 if response.strip() != "OK":
                     raise RuntimeError(f"Emulator rejected the incoming SMS: {response}")

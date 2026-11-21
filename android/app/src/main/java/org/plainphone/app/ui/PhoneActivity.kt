@@ -184,7 +184,9 @@ class PhoneActivity : ComponentActivity() {
 }
 
 /** Starts a call if the contacts rule allows it. Returns null on success, else a message for the user. */
-fun placeCall(context: Context, number: String): String? {
+fun placeCall(context: Context, number: String): String? = placeCall(context, number, null)
+
+internal fun placeCall(context: Context, number: String, submitToTelecom: ((Uri) -> Unit)?): String? {
     val rules = if (EmergencyNumbers.forContext(context).isEmergency(number)) null
         else ContactPolicySources.get(context).rules()
     if (rules != null) {
@@ -202,7 +204,12 @@ fun placeCall(context: Context, number: String): String? {
     return runCatching {
         // The approved number is dialled, not the typed one: the rule matched the normalised form (12345678 for +4512345678).
         val dial = rules?.contactFor(number)?.number?.takeIf { it.isNotBlank() } ?: number
-        context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", dial, null), Bundle())
+        val address = Uri.fromParts("tel", dial, null)
+        if (submitToTelecom == null) {
+            context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
+        } else {
+            submitToTelecom(address)
+        }
         rules?.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }

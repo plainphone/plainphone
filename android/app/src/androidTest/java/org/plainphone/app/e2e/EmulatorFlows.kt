@@ -3,6 +3,7 @@ package org.plainphone.app.e2e
 
 import android.app.UiAutomation
 import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import android.provider.Telephony
 import androidx.test.platform.app.InstrumentationRegistry
@@ -19,33 +20,28 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.R
-import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
-import org.plainphone.app.contacts.Direction
-import org.plainphone.app.contacts.contactPolicy
 import org.plainphone.app.home.HomeActivity
 import org.plainphone.app.light.GuardService
 import org.plainphone.app.light.LightLock
+import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.light.Mode
-import org.plainphone.app.sos.QuickMessageDelivery
-import org.plainphone.app.sos.SendState
-import org.plainphone.app.sync.EnrollResult
-import org.plainphone.app.sync.PairingController
-import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncRunner
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.time.TrustedClock
+import org.plainphone.app.ui.PairingActivity
+import org.plainphone.app.ui.placeCall
 
 private const val PLAYER = "org.plainphone.fixture"
 private const val PLAYER_ACTIVITY = "$PLAYER/.PlayerActivity"
-private const val PARENT_NUMBER = "+12025550123"
 private const val MESSAGE = "I am at the test stop"
 private const val REPLY = "Emulator parent reply"
 
@@ -59,6 +55,7 @@ abstract class EmulatorFlow {
     protected val store = SyncStore(context)
     private val arguments = InstrumentationRegistry.getArguments()
     private val server = "http://10.0.2.2:${checkNotNull(arguments.getString("port"))}"
+    protected val parentNumber get() = checkNotNull(arguments.getString("parentNumber"))
     protected lateinit var phone: String
 
     protected fun enroll(mode: String) {
@@ -70,14 +67,24 @@ abstract class EmulatorFlow {
             .put("timezone", "UTC").put("language", "en").put("filterMethod", "privateDns"))
         val id = response.getJSONObject("phone").getString("id")
         phone = "/phones/$id"
+        // Begin at the setup screen's existing pending-QR entry point. The fixture uses HTTP
+        // on the emulator loopback, whereas the public setup link parser requires HTTPS.
         store.saveEnrollToken(response.getJSONObject("enrollment").getString("token"))
-        val pairing = PairingController(store, PlainphoneApi(server, context), mapOf("model" to "Emulator"), mode)
-        assertTrue("enrollment did not return a device token", pairing.enroll() is EnrollResult.Paired)
-        sync()
-        assertEquals(id, store.rules()?.phoneId)
-        val summary = parent("GET", phone, 200)
-        assertFalse("parent must see the enrollment", summary.isNull("pairedAt"))
-        assertFalse("parent must see the first status upload", summary.isNull("status"))
+        val setup = if (mode == Mode.LIGHT) LightSetupActivity.intent(context) else PairingActivity.setupIntent(context)
+        context.startActivity(setup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        if (mode == Mode.LIGHT) {
+            text(context.getString(R.string.setup_child)).click()
+            text(context.getString(R.string.setup_continue)).click()
+            val fields = checkNotNull(device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 15_000))
+            assertEquals("The enrollment confirmation needs two PIN fields", 2, fields.size)
+            fields.forEach { it.text = "924681" }
+            text(context.getString(R.string.light_confirm_link_action)).click()
+        }
+        await("setup uploading the first status to the parent API") {
+            val summary = parent("GET", phone, 200)
+            !summary.isNull("pairedAt") && !summary.isNull("status")
+        }
+        await("setup saving the first rules") { store.rules()?.phoneId == id }
     }
 
     protected fun sync() {
@@ -138,15 +145,31 @@ abstract class EmulatorFlow {
         assertTrue("Could not start player: $result", "Status: ok" in result)
     }
 
-    protected fun assertEmergencyPolicy() {
-        val rules = ContactPolicySources.get(context).rules()
-        assertTrue("the phone's call rules must be enforced", rules.enforced)
-        val policy = context.contactPolicy()
-        for (number in listOf("112", "911", "114")) {
-            assertTrue("$number must pass the call policy", policy.decide(rules, Channel.CALL, Direction.OUTGOING, number).allowed)
+    protected fun assertEmergencyDialing() {
+        assertTrue("the phone's call rules must be enforced", ContactPolicySources.get(context).rules().enforced)
+        val handedToTelecom = mutableListOf<Uri>()
+        val emergencyNumbers = listOf("112", "911", "114")
+        // Always supply an interceptor: this test must never place an emergency call.
+        for (number in emergencyNumbers) {
+            assertNull("$number must reach the Telecom boundary", placeCall(context, number) { handedToTelecom.add(it) })
         }
-        assertFalse(policy.decide(rules, Channel.CALL, Direction.OUTGOING, "+12025550199").allowed)
+        assertEquals(
+            context.getString(R.string.call_not_allowed),
+            placeCall(context, "+12025550199") { handedToTelecom.add(it) },
+        )
+        assertEquals(emergencyNumbers.map { Uri.fromParts("tel", it, null) }, handedToTelecom)
     }
+
+    protected fun inboxContains(body: String, sender: String): Boolean =
+        context.contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS),
+            "${Telephony.Sms.BODY} = ?", arrayOf(body), null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(0).removePrefix("+") == sender.removePrefix("+")) return true
+            }
+            false
+        } == true
 }
 
 class DeviceOwnerFlow : EmulatorFlow() {
@@ -160,7 +183,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
         text("Enter picture-in-picture")
         allowPlayer(false)
         assertTrue("revoked app must be hidden again", controls.isHidden(PLAYER))
-        assertEmergencyPolicy()
+        assertEmergencyDialing()
 
         context.startActivity(Intent(context, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         if (store.enrollmentAccount() != null) {
@@ -186,27 +209,31 @@ class DeviceOwnerFlow : EmulatorFlow() {
         }
         device.pressBack()
 
-        parent("POST", "$phone/contacts", 200, JSONObject().put("name", "Test parent").put("number", PARENT_NUMBER))
+        parent("POST", "$phone/contacts", 200, JSONObject().put("name", "Test parent").put("number", parentNumber))
         val contactId = parent("GET", "$phone/contacts", 200).getJSONArray("contacts")
             .getJSONObject(0).getString("id")
         parent("PUT", "$phone/contacts/$contactId/sos-parent", 204, JSONObject().put("enabled", true))
         parent("PUT", "$phone/sos", 204, JSONObject().put("quickMessagesEnabled", true))
         parent("POST", "$phone/quick-messages", 201, JSONObject().put("text", MESSAGE))
         sync()
-        val message = checkNotNull(store.rules()?.sos).quickMessages.items.single { it.text == MESSAGE }
         assertEquals(0, request("GET", "/e2e/quick-message-requests", 200).getInt("count"))
-        val key = checkNotNull(QuickMessageDelivery.send(context, message))
-        await("quick message submitted to Android SMS") {
-            QuickMessageDelivery.state(context, key) in listOf(SendState.SMS, SendState.FAILED, SendState.DELIVERED)
+        assertFalse("fixture SMS must not already be in the inbox", inboxContains(MESSAGE, parentNumber))
+        assertFalse("fixture reply must not already be in the inbox", inboxContains(REPLY, parentNumber))
+        // Reopen SOS to load the new rules, then scroll to the child's message button.
+        text(context.getString(R.string.sos_back)).click()
+        text(context.getString(R.string.sos_title)).click()
+        val message = device.wait(Until.findObject(By.text(MESSAGE)), 1_000) ?: run {
+            val width = device.displayWidth
+            val height = device.displayHeight
+            device.swipe(width / 2, height * 3 / 4, width / 2, height / 4, 20)
+            text(MESSAGE)
         }
-        assertEquals(SendState.SMS, QuickMessageDelivery.state(context, key))
+        message.click()
+        // The emulator modem loops SMS addressed to its own number back into Android.
+        await("outbound quick message received via the emulator modem") { inboxContains(MESSAGE, parentNumber) }
         assertEquals(1, request("GET", "/e2e/quick-message-requests", 200).getInt("count"))
-        await("approved parent's injected SMS in Android inbox") {
-            context.contentResolver.query(
-                Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS),
-                "${Telephony.Sms.BODY} = ?", arrayOf(REPLY), null,
-            )?.use { it.moveToFirst() && it.getString(0).removePrefix("+") == PARENT_NUMBER.removePrefix("+") } == true
-        }
+        request("POST", "/e2e/sms-observed", 204)
+        await("approved parent's injected SMS in Android inbox") { inboxContains(REPLY, parentNumber) }
     }
 }
 
@@ -266,11 +293,11 @@ class LightModeFlow : EmulatorFlow() {
     }
 
     private fun isPlayerInPip(): Boolean {
-        // Do not let instrumentation suspend the accessibility service under test.
-        val automation = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
-        return automation.windows.any { window ->
-            window.isInPictureInPictureMode && window.root?.packageName == PLAYER
-        }
+        val stacks = device.executeShellCommand("am stack list")
+        check("mWindowingMode=" in stacks) { "Android did not return task stacks: $stacks" }
+        // Each root task's configuration and the activities that belong to it are one block.
+        return stacks.split(Regex("(?m)(?=^Stack id=|^RootTask id=)"))
+            .any { "mWindowingMode=pinned" in it && ": $PLAYER/" in it }
     }
 
     private fun setWallClock(instant: Instant) {

@@ -7,7 +7,7 @@
 // embedded PostgreSQL 18 in a temporary directory. Stops on SIGTERM/SIGINT.
 
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
@@ -116,6 +116,7 @@ const { sessionToken } = (await verify.json()) as { sessionToken: string };
 // return a successful, quiet rate-limit response, which must not fall back.
 const injectQuickMessage429 = process.env.PLAINPHONE_EMULATOR_E2E === "1";
 let quickMessageRequests = 0;
+let smsObserved = false;
 const server = serve({
   hostname: "127.0.0.1",
   port,
@@ -126,9 +127,14 @@ const server = serve({
         quickMessageRequests++;
         return new Response(null, { status: 429 });
       }
-      if (path === "/e2e/quick-message-requests" &&
-          request.headers.get("authorization") === `Bearer ${sessionToken}`) {
-        return Response.json({ count: quickMessageRequests });
+      if (request.headers.get("authorization") === `Bearer ${sessionToken}`) {
+        if (path === "/e2e/quick-message-requests" && request.method === "GET") {
+          return Response.json({ count: quickMessageRequests, smsObserved });
+        }
+        if (path === "/e2e/sms-observed" && request.method === "POST" && quickMessageRequests === 1) {
+          smsObserved = true;
+          return new Response(null, { status: 204 });
+        }
       }
     }
     return app.fetch(request);
@@ -137,7 +143,9 @@ const server = serve({
 await once(server, "listening");
 const address = server.address();
 if (!address || typeof address === "string") throw new Error("test server has no TCP address");
-await writeFile(out, JSON.stringify({ url: `http://127.0.0.1:${address.port}`, parentToken: sessionToken }), { mode: 0o600 });
+const pendingFixture = `${out}.tmp`;
+await writeFile(pendingFixture, JSON.stringify({ url: `http://127.0.0.1:${address.port}`, parentToken: sessionToken }), { mode: 0o600 });
+await rename(pendingFixture, out);
 console.log(`phone sync e2e server on port ${address.port}`);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

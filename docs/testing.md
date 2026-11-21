@@ -21,7 +21,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;36.1.0' platform-tools emulator
   'system-images;android-34;default;x86_64'
 avdmanager create avd -n plainphone-e2e-34 -k 'system-images;android-34;default;x86_64' -d pixel
 emulator -avd plainphone-e2e-34 -wipe-data -no-snapshot \
-  -shell-serial tcp:127.0.0.1:5557,server,nowait
+  -feature ModemSimulator -shell-serial tcp:127.0.0.1:5557,server,nowait
 ```
 
 Leave the emulator running, unlock it, and complete any Android welcome
@@ -50,10 +50,10 @@ delivery result is bounded and does not repeat the action under test.
 
 | Flow | What the emulator checks |
 | --- | --- |
-| Setup and rules | Real enrollment and first status upload, plus Android hiding, revealing and hiding a test APK again as the parent changes its rules. The test supplies the QR enrollment token directly. |
-| SOS and emergency access | Holding the child’s SOS button creates an incident in the parent API and a parent can mark it seen. The emergency keypad opens, and the enforced contact policy allows 112, 911 and 114. The test does not place emergency calls. |
-| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes the test window. School time still blocks the app after the AOSP clock moves forward by 12 hours. |
-| Quick messages | A test gateway returns one HTTP 429 for the send request and the app submits the fallback through Android’s SMS API. The emulator console injects an approved parent reply and the child’s inbox receives it. |
+| Setup and rules | The Light setup screens confirm the child profile and PIN, and the Device Owner pairing activity redeems its pending token. Both flows must upload their first status before the test requests another sync. The fixture stages the pending QR token for the loopback server. Device Owner rules hide, reveal and hide the test APK again. |
+| SOS and emergency access | Holding the child’s SOS button creates an incident in the parent API and a parent can mark it seen. The SOS emergency keypad opens. Plainphone's call path hands the exact 112, 911 and 114 addresses to a test interceptor at the Telecom boundary and rejects an unapproved ordinary number. The interceptor places no calls. |
+| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. School time still blocks the app after the AOSP clock moves forward by 12 hours. |
+| Quick messages | The child taps a quick message and the test gateway answers HTTP 429. The virtual modem loops the outgoing message back only when addressed to its virtual phone number. The test checks the exact body and number in the inbox before the emulator console injects a separate parent reply. |
 
 The emulator covers the AOSP paths listed above. Hardware QR provisioning,
 vendor restrictions, Play services, carrier delivery, real calls, PiP

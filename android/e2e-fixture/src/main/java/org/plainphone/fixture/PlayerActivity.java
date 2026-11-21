@@ -4,7 +4,6 @@ package org.plainphone.fixture;
 import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.graphics.Rect;
-import android.os.Build;
 import android.os.Bundle;
 import android.widget.Button;
 
@@ -18,12 +17,9 @@ public final class PlayerActivity extends Activity {
         button.setOnClickListener(view -> {
             Rect source = new Rect();
             view.getGlobalVisibleRect(source);
-            PictureInPictureParams.Builder params = new PictureInPictureParams.Builder()
-                    .setSourceRectHint(source);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                params.setAutoEnterEnabled(true);
-            }
-            enterPictureInPictureMode(params.build());
+            enterPictureInPictureMode(new PictureInPictureParams.Builder()
+                    .setSourceRectHint(source)
+                    .build());
         });
         setContentView(button);
     }
