@@ -83,7 +83,7 @@ describe("native push", () => {
     expect(await wake.wake(parentTarget.endpoint, "locate")).toBe("gone");
     expect(JSON.parse(String(http.mock.calls[2]![1]?.body))).toEqual({
       message: { token: parentTarget.endpoint, data: { wake: "locate" },
-        android: { priority: "HIGH", ttl: "60s", collapse_key: "plainphone-sync" } },
+        android: { priority: "HIGH", ttl: "120s", collapse_key: "plainphone-sync" } },
     });
     expect(await send()).toBe("failed");
     expect(await send()).toBe("gone");

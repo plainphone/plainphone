@@ -50,16 +50,20 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
   const claim = and(key, eq(sosEvents.notificationLeaseUntil, lease));
   const close = (extra: Partial<typeof sosEvents.$inferInsert> = {}) =>
     ctx.db.update(sosEvents).set({ notificationClaimedAt: ctx.now(), notificationLeaseUntil: null, ...extra }).where(claim);
-  const [phone] = await ctx.db.select().from(phones).where(eq(phones.id, phoneId));
+  // One round trip for everything the fan-out needs, instead of three in a row.
+  const [[phone], members, sent] = await Promise.all([
+    ctx.db.select().from(phones).where(eq(phones.id, phoneId)),
+    ctx.db.select({ id: users.id, locale: users.locale, email: users.email })
+      .from(householdMembers).innerJoin(users, eq(users.id, householdMembers.userId))
+      .innerJoin(phones, eq(phones.householdId, householdMembers.householdId))
+      .where(eq(phones.id, phoneId)),
+    ctx.db.select().from(sosDeliveries)
+      .where(and(eq(sosDeliveries.phoneId, phoneId), eq(sosDeliveries.eventId, id))),
+  ]);
   if (!phone || phone.releaseRequestedAt || row.seenAt) {
     await close();
     return;
   }
-  const members = await ctx.db.select({ id: users.id, locale: users.locale, email: users.email })
-    .from(householdMembers).innerJoin(users, eq(users.id, householdMembers.userId))
-    .where(eq(householdMembers.householdId, phone.householdId));
-  const sent = await ctx.db.select().from(sosDeliveries)
-    .where(and(eq(sosDeliveries.phoneId, phoneId), eq(sosDeliveries.eventId, id)));
   const state = new Map(sent.map((delivery) => [delivery.userId, delivery]));
   const event = { type: "sos", id, phoneId, phoneName: phone.name, kind: row.kind, trigger: row.trigger, message: row.message } as const;
   let pushedNow = 0;
@@ -77,7 +81,7 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
     await Promise.all([
       pushedAt ? undefined : (async () => {
         const sentCount = await withTimeout(notifyUsers(ctx, [member.id], event, {
-          keepOnTransientFailure: true, onFailure: () => { failed = true; },
+          keepOnTransientFailure: true, onFailure: () => { failed = true; }, originAt: row.receivedAt,
         }), sendTimeout).catch(() => { failed = true; return 0; });
         if (sentCount > 0) { pushedAt = ctx.now(); pushedNow += sentCount; await record({ pushedAt }); }
       })(),

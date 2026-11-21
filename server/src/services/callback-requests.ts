@@ -5,6 +5,7 @@ import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import { callbackRequests, householdMembers, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import { notifyUsers } from "./notifications.js";
+import { recordUpload } from "./latency.js";
 
 type Phone = typeof phones.$inferSelect;
 type Row = typeof callbackRequests.$inferSelect;
@@ -86,7 +87,7 @@ async function pushToParents(ctx: Ctx, phone: Phone, row: Row): Promise<boolean>
  * recorded even if the switch was turned off since, and one that is older than 24 hours is stored
  * as expired without any alert.
  */
-export async function requestCallback(ctx: Ctx, phoneId: string, input: { id: string; sentAt?: Date }) {
+export async function requestCallback(ctx: Ctx, phoneId: string, input: { id: string; sentAt?: Date; elapsedMs?: number }) {
   const now = ctx.now();
   const { phone, row, fresh } = await ctx.db.transaction(async (tx) => {
     const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
@@ -107,6 +108,8 @@ export async function requestCallback(ctx: Ctx, phoneId: string, input: { id: st
   });
   // Stale (already expired when it arrived): recorded, no alert.
   if (fresh && row.expiresAt > now) {
+    // Only the first arrival counts (docs/latency.md).
+    recordUpload(ctx, "callback", input.elapsedMs, input.sentAt);
     const pushed = await pushToParents(ctx, phone, row);
     return callbackDeviceJson({ ...row, pushedAt: pushed ? ctx.now() : null }, ctx.now());
   }

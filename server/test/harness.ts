@@ -47,7 +47,17 @@ export function useHarness(): Harness {
       sql`select tablename from pg_tables where schemaname = 'public'`,
     );
     const names = tables.map((t) => `"${t.tablename}"`).join(", ");
-    if (names) await h.ctx.db.execute(sql.raw(`truncate ${names} cascade`));
+    // The previous test's detached work (an SOS dispatch, delivery timings) may still be writing:
+    // Postgres can pick the truncate as the deadlock victim, so try again once that work is done.
+    for (let attempt = 1; names; attempt++) {
+      try {
+        await h.ctx.db.execute(sql.raw(`truncate ${names} cascade`));
+        break;
+      } catch (err) {
+        const code = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code;
+        if (code !== "40P01" || attempt >= 5) throw err;
+      }
+    }
 
     h.mail = new MemoryMailProvider();
     h.dns = new MockDnsProvider();
