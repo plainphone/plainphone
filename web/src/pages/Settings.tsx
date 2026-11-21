@@ -5,6 +5,7 @@ import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../comp
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone } from "../lib/api";
 import { clearAccountState, useMe, useSession } from "../lib/session";
+import { LiveSettings } from "../components/LiveSettings";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { NotificationsSection } from "./Notifications";
 import { planNowKey } from "../lib/billing";
@@ -18,6 +19,7 @@ export function SettingsPage() {
     <>
       <PageTitle>{t("settings.title")}</PageTitle>
       <NotificationsSection />
+      <LiveSettings />
       <WeeklySummarySettings />
       {now ? (
         // Only while the server has billing on: the plan replaces the old "free for now" promise.

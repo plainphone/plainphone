@@ -6,6 +6,7 @@ import { useState } from "react";
 import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "../shared/lib/sos-options";
+import { CallbackSettings } from "./CallbackSettings";
 import { FamilyInbox } from "./FamilyInbox";
 import { QuickMessages } from "./QuickMessages";
 import { Button, Card, Segmented, Stack as VStack, Switch, Text, useLoad } from "./ui";
@@ -13,12 +14,26 @@ import { Button, Card, Segmented, Stack as VStack, Switch, Text, useLoad } from 
 export function SosOptions({ pid }: { pid: string }) {
   const { t } = useI18n();
   const params = { path: { pid } };
-  const res = useLoad(() => unwrap<{ settings?: Partial<SosSettings> }>(client.GET("/phones/{pid}/sos", { params })), [pid]);
-  const { setData } = res;
+  const res = useLoad(() => unwrap<{ settings?: Partial<SosSettings>; callbackNumber?: string | null }>(client.GET("/phones/{pid}/sos", { params })), [pid]);
+  const { setData, reload } = res;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const settings: SosSettings = { ...DEFAULT_SOS_SETTINGS, ...res.data?.settings };
+
+  /** The number goes with its confirmation; the server then decides what is on, so the screen asks again. */
+  async function saveNumber(callbackNumber: string | null, callbackConfirmed: boolean) {
+    setSaving(true);
+    setError(false);
+    try {
+      await unwrap(client.PUT("/phones/{pid}/sos", { params, body: { callbackNumber, callbackConfirmed } }));
+      await reload();
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save(patch: Partial<SosSettings>) {
     setSaving(true);
@@ -26,6 +41,7 @@ export function SosOptions({ pid }: { pid: string }) {
     try {
       await unwrap(client.PUT("/phones/{pid}/sos", { params, body: patch }));
       setData((d) => d && { ...d, settings: { ...settings, ...patch } });
+      if ("callbackRequests" in patch) await reload();
     } catch {
       setError(true);
     } finally {
@@ -68,6 +84,9 @@ export function SosOptions({ pid }: { pid: string }) {
       </Card>
       <QuickMessages pid={pid} settings={settings} saving={saving} onSetting={(patch) => void save(patch)} />
       <FamilyInbox pid={pid} settings={settings} saving={saving} onSetting={(patch) => void save(patch)} />
+      <CallbackSettings number={res.data.callbackNumber ?? null} confirmed={settings.callbackConfirmed}
+        enabled={settings.callbackRequests} saving={saving} error={error}
+        onSave={saveNumber} onSwitch={(on) => void save({ callbackRequests: on })} />
     </>
   );
 }

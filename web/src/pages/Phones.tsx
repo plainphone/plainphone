@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+import { CallbackRequests } from "../components/CallbackRequests";
 import { SosPanel } from "../components/SosPanel";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { PhoneStateTitle } from "../components/PhoneState";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
+import { useLiveRefresh } from "../lib/live";
 import { helpUrl, releaseState } from "../lib/phoneSupport";
 import { isIphone } from "../lib/platform";
 
@@ -40,6 +42,8 @@ export function PhonesPage() {
       }),
     );
   }, []);
+  // The list never polled; now it also follows events.
+  useLiveRefresh(["phone.status", "sos.created", "sos.updated", "request.created", "request.answered"], undefined, res.reload, null);
 
   return (
     <>
@@ -52,7 +56,10 @@ export function PhonesPage() {
         )}
       </div>
       {res.data?.filter(({ phone }) => phone.profile === "child" && phone.pairedAt).map(({ phone }) => (
-        <SosPanel key={phone.id} pid={phone.id} phoneName={phone.name} />
+        <Fragment key={phone.id}>
+          <SosPanel pid={phone.id} phoneName={phone.name} />
+          <CallbackRequests pid={phone.id} phoneName={phone.name} />
+        </Fragment>
       ))}
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>

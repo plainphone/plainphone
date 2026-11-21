@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Linking } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { triggerLabel } from "../shared/lib/sos-options";
 import { Button, Card, Field, Notice, Text, useLoad } from "./ui";
 
@@ -15,17 +15,14 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   const { locale, t } = useI18n();
   const params = { path: { pid } };
   const res = useLoad(() => unwrap<History>(client.GET("/phones/{pid}/sos", { params: { ...params, query: phoneName === undefined ? undefined : { unseen: "1" } } })), [pid, phoneName]);
-  const { reload, setData } = res;
+  const { reload, reloadQuiet, setData } = res;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [name, setName] = useState("");
   const [history, setHistory] = useState(false);
-  const [number, setNumber] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    const timer = setInterval(() => void reload(), 10_000);
-    return () => clearInterval(timer);
-  }, [reload]));
+  // Live: at once. Not live: the 10 s poll it always had.
+  useLiveRefresh(["sos.created", "sos.updated"], pid, reloadQuiet, 10_000);
 
   // A new alert that arrives while the screen is open is read out by screen readers. The alerts
   // the screen opened with are already on it; only later ones are news.
@@ -100,14 +97,6 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
       {phoneName === undefined && <Button kind="plain" title={t("sos.title")} onPress={() => setHistory(!history)} />}
       {history && <>
         {res.data.events.filter((event) => event.seenAt).map(row)}
-        <Card>
-          <Field label={t("sos.callback")} value={number ?? res.data.callbackNumber ?? ""}
-            onChangeText={setNumber} keyboardType="phone-pad" autoComplete="off" />
-          <Button title={t("app.save")} busy={busy} disabled={number === null} onPress={() => void save(async () => {
-            await unwrap(client.PUT("/phones/{pid}/sos", { params, body: { callbackNumber: number?.trim() || null } }));
-            setNumber(null);
-          })} />
-        </Card>
       </>}
     </>
   );

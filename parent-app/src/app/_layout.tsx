@@ -4,6 +4,8 @@ import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { I18nProvider, useI18n } from "../i18n/I18n";
+import { SosAlert } from "../components/SosAlert";
+import { LiveProvider } from "../lib/live";
 import { useNotificationRouting } from "../lib/notifications";
 import { SessionProvider, useSession } from "../lib/session";
 import { useStackOptions } from "../lib/stackOptions";
@@ -31,6 +33,7 @@ function AppStack() {
         <Stack.Screen name="settings" options={{ title: t("native.settings") }} />
         <Stack.Screen name="phones/[pid]" options={{ headerShown: false }} />
       </Stack>
+      <SosAlert />
     </>
   );
 }
@@ -40,7 +43,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <I18nProvider>
         <SessionProvider>
-          <AppStack />
+          <LiveProvider>
+            <AppStack />
+          </LiveProvider>
         </SessionProvider>
       </I18nProvider>
     </SafeAreaProvider>

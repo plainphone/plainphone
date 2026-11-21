@@ -49,6 +49,8 @@ The orchestrator can file these in order and replace draft numbers with issue li
 
 **Tests** Cross-platform encrypt/decrypt, substituted endpoint and stale roster, revoke then send, lost device, retry/reordering and ciphertext-only server/push inspection.
 
+**Status** Synthetic experiment done: the [recommendation](e2ee-recommendation.md) proposes OpenMLS with a Matrix SDK fallback and lists the gaps. The independent review is still open.
+
 ### 4. Add private caregiver text and lightweight reactions
 
 **Size** L, 10–16 days. **Dependencies** Drafts 2 and 3, approved deployment privacy review. Notification delivery uses existing push paths and any native push that has landed.

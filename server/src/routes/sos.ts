@@ -7,9 +7,12 @@ import { contacts, phones, sosEvents } from "../db/schema.js";
 import { phoneNumber } from "../lib/validation.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
+import { publishLive } from "../services/live-events.js";
+import { callbackEnabled } from "../services/callback-requests.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
 import { wakePhone } from "../services/phones.js";
 import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
+import { deviceCallbackRoutes, parentCallbackRoutes } from "./callback-requests.js";
 import { deviceQuickMessageRoutes, parentQuickMessageRoutes } from "./quick-messages.js";
 
 const report = z.strictObject({
@@ -30,6 +33,9 @@ type Phone = typeof phones.$inferSelect;
 /** Every field is optional: the dashboard saves one switch at a time. */
 const sosSettingsInput = z.strictObject({
   callbackNumber: phoneNumber.nullable().optional(),
+  /** The parent says this is the phone's own number; it is what lets the callback switch go on. */
+  callbackConfirmed: z.boolean().optional(),
+  callbackRequests: z.boolean().optional(),
   hiddenPower: z.boolean().optional(),
   hiddenPresses: z.number().int().refine((n) => (HIDDEN_PRESSES as readonly number[]).includes(n), "3 to 6 presses").optional(),
   hiddenClock: z.boolean().optional(),
@@ -47,7 +53,7 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
     const now = ctx.now();
     const at = input.sentAt ? new Date(input.sentAt) : now;
     if (at < sosCutoff(now)) throw new HTTPException(410, { message: "SOS expired" });
-    const { event, fresh } = await ctx.db.transaction(async (tx) => {
+    const { event, fresh, change } = await ctx.db.transaction(async (tx) => {
       const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
       if (!phone) throw new HTTPException(404, { message: "phone not found" });
       // The phone is the authority for what it has already done: an SMS that was sent is always
@@ -60,9 +66,9 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
       if (existing) {
         if (input.smsSubmitted && existing.deliveredVia == null) {
           const [updated] = await tx.update(sosEvents).set({ deliveredVia: "sms" }).where(key).returning();
-          return { event: updated!, fresh: false };
+          return { event: updated!, fresh: false, change: "sos.updated" as const };
         }
-        return { event: existing, fresh: false };
+        return { event: existing, fresh: false, change: null };
       }
       const [recent] = await tx.select({ total: count() }).from(sosEvents).where(and(
         eq(sosEvents.phoneId, phoneId),
@@ -77,8 +83,10 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
         deliveredVia: input.smsSubmitted ? "sms" : null, trigger: input.trigger, message: input.message,
         notificationClaimedAt: limited ? now : null,
       }).returning();
-      return { event: row!, fresh: !limited };
+      return { event: row!, fresh: !limited, change: "sos.created" as const };
     });
+    // The open dashboards first: they show it at once, the push follows.
+    if (change) publishLive(ctx, { type: change, householdId: c.get("phone").householdId, phoneId, id: event.id });
     if (fresh) void deliverSos(ctx, event.id, phoneId).catch(() => console.error("SOS notification dispatch failed"));
     return c.json(sosJson(event));
   });
@@ -93,6 +101,7 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
   });
 
   deviceQuickMessageRoutes(app, ctx);
+  deviceCallbackRoutes(app, ctx);
 }
 
 export function parentSosRoutes<E extends { Variables: { user: { id: string } } }>(
@@ -111,8 +120,22 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
     const phone = await requirePhone(c);
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
     const input = await body(c, sosSettingsInput);
+    const number = input.callbackNumber !== undefined ? input.callbackNumber : phone.sosCallbackNumber;
+    const changed = number !== phone.sosCallbackNumber;
+    // Confirmed when the parent says so; a different number is unconfirmed until they do. Confirming
+    // the number again, without changing it, keeps the date: older requests were made against it.
+    const setAt = number === null ? null
+      : input.callbackConfirmed === true ? (changed || phone.sosCallbackSetAt === null ? ctx.now() : phone.sosCallbackSetAt)
+        : changed ? null : phone.sosCallbackSetAt;
+    if (input.callbackRequests === true && (number === null || setAt === null)) {
+      throw new HTTPException(409, { message: "enter and confirm the phone's number first" });
+    }
+    // Clearing or changing the number without confirming it turns the feature off.
+    const callbackOn = number === null || setAt === null ? false : input.callbackRequests ?? phone.callbackRequestsEnabled;
+    const numberTouched = changed || setAt?.getTime() !== phone.sosCallbackSetAt?.getTime();
     const set = {
-      ...(input.callbackNumber !== undefined ? { sosCallbackNumber: input.callbackNumber } : {}),
+      ...(numberTouched ? { sosCallbackNumber: number, sosCallbackSetAt: setAt } : {}),
+      ...(callbackOn !== phone.callbackRequestsEnabled ? { callbackRequestsEnabled: callbackOn } : {}),
       ...(input.hiddenPower !== undefined ? { hiddenSosPower: input.hiddenPower } : {}),
       ...(input.hiddenPresses !== undefined ? { hiddenSosPresses: input.hiddenPresses } : {}),
       ...(input.hiddenClock !== undefined ? { hiddenSosClock: input.hiddenClock } : {}),
@@ -123,12 +146,14 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
       ...(input.checkIns !== undefined ? { checkInsEnabled: input.checkIns } : {}),
     };
     if (Object.keys(set).length) await ctx.db.update(phones).set(set).where(eq(phones.id, phone.id));
-    // Everything but the callback number is in the rules (the sos and inbox blocks).
-    if (Object.keys(set).some((k) => k !== "sosCallbackNumber")) await wakePhone(ctx, phone.id, "rules");
+    // The number itself is not in the rules; everything else is (the sos and inbox blocks).
+    if (Object.keys(set).some((k) => k !== "sosCallbackNumber" && k !== "sosCallbackSetAt")
+      || callbackEnabled({ ...phone, ...set }) !== callbackEnabled(phone)) await wakePhone(ctx, phone.id, "rules");
     return c.body(null, 204);
   });
 
   parentQuickMessageRoutes(app, ctx, requirePhone);
+  parentCallbackRoutes(app, ctx, requirePhone);
 
   app.post("/phones/:pid/sos/:id/seen", async (c) => {
     const phone = await requirePhone(c);
@@ -139,7 +164,10 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
       : {};
     const [changed] = await ctx.db.update(sosEvents).set({ seenBy: c.get("user").id, seenByName: name, seenAt: ctx.now() })
       .where(and(key, isNull(sosEvents.seenAt))).returning();
-    if (changed) return c.json(sosJson(changed));
+    if (changed) {
+      publishLive(ctx, { type: "sos.updated", householdId: phone.householdId, phoneId: phone.id, id: changed.id });
+      return c.json(sosJson(changed));
+    }
     const [event] = await ctx.db.select().from(sosEvents).where(key);
     if (!event) throw new HTTPException(404, { message: "SOS not found" });
     return c.json(sosJson(event));

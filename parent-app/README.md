@@ -13,6 +13,7 @@ The native parent app for iOS and Android. It does the same as the parent web ap
 - the phone's last position on a map, with Find, "Drive there", ringing the phone, "Are you okay?" and when the phone may send its position
 - the Self profile's key, changes waiting for the key, and approvals for a trusted person
 - household: other parents and invitations
+- live updates while the app is open: an SOS, requests, positions and inbox messages show at once ([docs/live-updates.md](../docs/live-updates.md))
 
 English and Danish, light and dark mode, screen readers and large text. No analytics, crash reporting or other tracking SDKs.
 

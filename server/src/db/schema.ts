@@ -319,6 +319,13 @@ export const phones = pgTable(
     /** A calm notice five minutes before an app or the daily cap runs out. */
     limitWarningEnabled: boolean("limit_warning_enabled").notNull().default(true),
     sosCallbackNumber: text("sos_callback_number"),
+    /**
+     * When a parent last entered and confirmed the number above (null: never, or an older number
+     * nobody confirmed). A request made before this moment was made against another number.
+     */
+    sosCallbackSetAt: timestamp("sos_callback_set_at", { withTimezone: true }),
+    /** "Ask for a callback" on the SOS screen (docs/sos.md#asking-a-parent-to-call). Needs a confirmed number. */
+    callbackRequestsEnabled: boolean("callback_requests_enabled").notNull().default(false),
     /** Hidden SOS and quick messages (docs/sos.md); sent in the rules' `sos` block. */
     hiddenSosPower: boolean("hidden_sos_power").notNull().default(false),
     hiddenSosPresses: smallint("hidden_sos_presses").notNull().default(4),
@@ -932,6 +939,26 @@ export const quickMessageSends = pgTable("quick_message_sends", {
   notified: integer("notified").notNull().default(0),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.phoneId, t.id] }), index("quick_message_sends_created_idx").on(t.createdAt)]);
+
+/**
+ * "Please call me": the child asks a parent to call back (docs/sos.md#asking-a-parent-to-call).
+ * It carries no number. Open for 24 hours, then `expired`; a parent's tap on "called" or
+ * "handled" sets `doneAt`. The phone's id makes a retry harmless.
+ */
+export const callbackRequests = pgTable("callback_requests", {
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  id: uuid("id").notNull(),
+  /** When the child pressed the button (never later than `receivedAt`). */
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  /** When a parent device got the push; null while the request only waits in the dashboard. */
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  doneBy: uuid("done_by").references(() => users.id, { onDelete: "set null" }),
+  /** `number`: the parent opened the dialer with the saved number; `other`: they called another way. */
+  doneVia: text("done_via", { enum: ["number", "other"] }),
+}, (t) => [primaryKey({ columns: [t.phoneId, t.id] }), index("callback_requests_expires_idx").on(t.expiresAt)]);
 
 /**
  * The family inbox (docs/family-inbox.md): one short thread between a Child phone and its parents.

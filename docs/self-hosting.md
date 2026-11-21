@@ -22,6 +22,14 @@ see each client's own address. The API reads request bodies up to 1 MB; only con
 and server moves accept more. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
 pairing QR code.
 
+Live updates (`GET /api/events`, [live-updates.md](live-updates.md#reverse-proxy-settings)) are a
+long-lived server-sent events stream. The proxy must not buffer or compress `text/event-stream`
+and must allow 25 seconds between bytes. Traefik and Caddy work as they are. With nginx, set
+`proxy_buffering off;` and `proxy_read_timeout 1h;` for `/api/events`. Serve HTTP/2 to browsers if
+you can: over HTTP/1.1 each open dashboard tab takes one of the browser's six connections to the
+host. If the stream cannot get through, the dashboard and the app fall back to checking for news
+on a timer.
+
 ## Connect the apps
 
 In the native parent app, select **Use your own server** at sign-in or in Settings.

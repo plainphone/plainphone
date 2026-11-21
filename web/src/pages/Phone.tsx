@@ -4,11 +4,13 @@ import { createContext, type FormEvent, useCallback, useContext, useEffect, useM
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { ErrorState, errorMessage, errorNotice, Field, Loading, type Notice, NoticeText, PageTitle, Switch, useLoad, useNow } from "../components/ui";
 import { EarlyUnlock } from "../components/EarlyUnlock";
+import { CallbackRequests } from "../components/CallbackRequests";
 import { SosOptions } from "../components/SosOptions";
 import { SosPanel } from "../components/SosPanel";
 import { PhoneSwitch } from "../components/BedtimeSettings";
 import { type Decision, outcomeKey, outcomeOf } from "../lib/approval-state";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import type { MessageKey, T } from "../i18n/translate";
 import {
   api,
@@ -99,24 +101,16 @@ export function PhoneLayout() {
   const releasedText = t("support.phoneUnavailable");
   const atOverview = loc.pathname.replace(/\/$/, "") === `/phones/${pid}`;
   // The overview refreshes itself; the other pages poll here so the rule receipt stays current.
-  useEffect(() => {
-    if (atOverview) return;
-    let active = true;
-    const refresh = () => {
-      void api.get<Phone>(`/phones/${pid}`).then((phone) => {
-        if (active) setPhoneData(() => phone);
-      }).catch((err) => {
-        if (active && err instanceof ApiError && err.status === 404) {
-          navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
-        }
-      });
-    };
-    const timer = window.setInterval(refresh, 30_000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [pid, atOverview, releasing, releasedText, navigate, setPhoneData]);
+  const refreshLayoutPhone = useCallback((active: () => boolean) => {
+    void api.get<Phone>(`/phones/${pid}`).then((phone) => {
+      if (active()) setPhoneData(() => phone);
+    }).catch((err) => {
+      if (active() && err instanceof ApiError && err.status === 404) {
+        navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
+      }
+    });
+  }, [pid, releasing, releasedText, navigate, setPhoneData]);
+  useLiveRefresh(["phone.status"], pid, refreshLayoutPhone, 30_000, { enabled: !atOverview });
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -210,6 +204,7 @@ export function PhoneLayout() {
       </p>
       {!atOverview && <RuleReceipt phone={value.phone} />}
       {atOverview && value.phone.profile === "child" && <SosPanel key={value.phone.id} pid={value.phone.id} />}
+      {atOverview && value.phone.profile === "child" && <CallbackRequests key={`callbacks-${value.phone.id}`} pid={value.phone.id} />}
       {atOverview && value.phone.profile === "child" && <SosOptions key={`sos-options-${value.phone.id}`} pid={value.phone.id} />}
       <Outlet />
       <ChangeBar
@@ -513,26 +508,26 @@ export function PhoneOverview() {
   setPhoneRef.current = setPhone;
   const releasing = Boolean(phone.releaseRequestedAt);
   const unavailableText = t("support.phoneUnavailable");
+  const refreshOverview = useCallback((active: () => boolean) =>
+    api
+      .get<Phone>(`/phones/${phone.id}`)
+      .then((p) => {
+        if (active()) setPhoneRef.current(p);
+      })
+      .catch((err) => {
+        if (active() && err instanceof ApiError && err.status === 404) {
+          navigate("/", { replace: true, state: releasing ? { notice: unavailableText } : null });
+        }
+      }), [phone.id, releasing, unavailableText, navigate]);
   useEffect(() => {
-    let active = true;
-    const refresh = () =>
-      api
-        .get<Phone>(`/phones/${phone.id}`)
-        .then((p) => {
-          if (active) setPhoneRef.current(p);
-        })
-        .catch((err) => {
-          if (active && err instanceof ApiError && err.status === 404) {
-            navigate("/", { replace: true, state: releasing ? { notice: unavailableText } : null });
-          }
-        });
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 60_000);
+    let on = true;
+    void refreshOverview(() => on);
     return () => {
-      active = false;
-      window.clearInterval(id);
+      on = false;
     };
-  }, [phone.id, releasing, unavailableText, navigate]);
+  }, [refreshOverview]);
+  // The open request count is on the phone: a new or answered request reloads the list below.
+  useLiveRefresh(["phone.status", "request.created", "request.answered"], phone.id, refreshOverview, 60_000);
   const groups = [
     {
       title: t("phone.rulesPeople"),

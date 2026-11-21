@@ -8,6 +8,7 @@ import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { localDate } from "./limits.js";
 import { type LocationMode, locations, phones, safetyRequests } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+import { publishForPhone } from "./live-events.js";
 import { notifyHousehold, type SafetyNews } from "./notifications.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -209,8 +210,10 @@ export async function deleteOldSafetyRequests(ctx: Ctx): Promise<number> {
   return rows.count;
 }
 
-/** Tells the household what happened. Push only; never fails the caller. */
+/** Tells the household what happened: open dashboards first, then the push. Never fails the caller. */
 export async function notifySafety(ctx: Ctx, phone: Pick<Phone, "id" | "name">, what: SafetyNews) {
+  await publishForPhone(ctx, phone.id, "safety.updated");
+  if (what === "located") await publishForPhone(ctx, phone.id, "location.updated");
   try {
     await notifyHousehold(ctx, phone.id, { type: "safety", phoneId: phone.id, phoneName: phone.name, what });
   } catch (err) {

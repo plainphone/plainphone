@@ -1,0 +1,31 @@
+[package]
+name = "matrix-sdk-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "matrix-sdk-crypto probe for Plainphone #120. Not part of the app."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Versions match what matrix-sdk-crypto 0.19.1 already resolves to, so the
+# probe adds no crates of its own.
+[dependencies]
+matrix-sdk-crypto = { version = "=0.19.1", default-features = false }
+ruma = { version = "=0.17.2", features = ["client-api-c"] }
+serde_json = "=1.0.154"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "=1.54.1", default-features = false, features = ["rt", "time"] }
+
+# Size-only wasm build, with the SDK's own browser switch.
+[target.'cfg(target_family = "wasm")'.dependencies]
+matrix-sdk-crypto = { version = "=0.19.1", default-features = false, features = ["js"] }
+futures-executor = "=0.3.34"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

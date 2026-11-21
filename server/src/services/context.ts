@@ -8,6 +8,7 @@ import type { PushProvider } from "../providers/push.js";
 import type { PlayApi } from "../providers/play-billing.js";
 import type { StripeApi } from "../providers/stripe.js";
 import type { RevocationList } from "./attestation.js";
+import type { EventBus } from "./live-events.js";
 
 export interface Ctx {
   db: Db;
@@ -17,6 +18,8 @@ export interface Ctx {
   push: PushProvider;
   /** Notifications to parents (Web Push, FCM and APNs). */
   parentPush: ParentPushProvider;
+  /** Live updates to open dashboards (docs/live-updates.md). createApp sets a local bus when none is given. */
+  events?: EventBus;
   /** Optional integrations switched off at startup because their settings were invalid (reasons only). */
   degraded?: { push: string[]; other: string[] };
   now: () => Date;

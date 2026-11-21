@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Linking } from "react-native";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
+import { Button, Card, Choice, Notice, Screen, Switch, Text } from "../components/ui";
+import { useLive } from "../lib/live";
 import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
 import { ServerChoice } from "../components/ServerChoice";
@@ -19,6 +20,7 @@ function Settings() {
   const { t, locale } = useI18n();
   const { saveLocale, logout } = useSession();
   const me = useMe();
+  const live = useLive();
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -65,6 +67,12 @@ function Settings() {
           )}
         </Card>
       ) : null}
+      <Card>
+        <Switch label={t("live.title")} help={t("native.liveHelp")} value={live.settings.enabled}
+          onValueChange={(on) => live.setSetting("enabled", on)} testID="live-updates" />
+        <Switch label={t("native.liveSosTitle")} help={t("native.liveSosHelp")} value={live.settings.sosAlert}
+          onValueChange={(on) => live.setSetting("sosAlert", on)} testID="sos-alert-setting" />
+      </Card>
       <WeeklySummarySettings />
       <Card>
         <Text variant="heading">{t("native.server")}</Text>

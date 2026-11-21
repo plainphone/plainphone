@@ -53,6 +53,8 @@ export interface Loaded<D> {
   error: unknown;
   loading: boolean;
   reload: () => Promise<void>;
+  /** Like reload, but without the loading flag, so a live refresh does not flash the pull-to-refresh spinner. */
+  reloadQuiet: () => Promise<void>;
   setData: (fn: (d: D | undefined) => D | undefined) => void;
 }
 
@@ -68,9 +70,10 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
   // Only the newest request may set the state. An older one (for the previous phone, or a poll
   // that started before a change) can finish last and would show stale data.
   const latest = useRef(0);
-  const reload = useCallback(async () => {
+  // A quiet load (a live update) does not show the spinner.
+  const load = useCallback(async (quiet: boolean) => {
     const id = ++latest.current;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     try {
       const d = await fnRef.current();
       if (latest.current === id) {
@@ -83,6 +86,8 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
       if (latest.current === id) setLoading(false);
     }
   }, []);
+  const reload = useCallback(() => load(false), [load]);
+  const reloadQuiet = useCallback(() => load(true), [load]);
   useEffect(() => {
     // Loading data is what this effect is for; the spinner state is part of it.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -95,7 +100,7 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   const setData = useCallback((f: (d: D | undefined) => D | undefined) => setDataState(f), []);
-  return { data, error, loading, reload, setData };
+  return { data, error, loading, reload, reloadQuiet, setData };
 }
 
 /** Re-renders every `ms` so countdowns stay current. */

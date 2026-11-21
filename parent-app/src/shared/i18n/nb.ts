@@ -5,6 +5,7 @@ import { ageNb } from "./age";
 import { billingNb } from "./billing";
 import { appUpdatesNb } from "./app-updates";
 import { platformNb } from "./platform";
+import { callbackNb } from "./callback";
 import { modesNb } from "./modes";
 import { statusEn } from "./status";
 
@@ -15,6 +16,7 @@ export const nb: Messages = {
   ...billingNb,
   ...platformNb,
   ...modesNb,
+  ...callbackNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",
   "status.stale.title": "Sist online {when}",
@@ -1047,6 +1049,18 @@ export const nb: Messages = {
   "notif.hours": "{n} timer",
   "notif.never": "Aldri",
   "notif.mailToo": "Du kan også få en e-post når en nødvendig innstilling er slått av eller en telefon slutter å sjekke inn.",
+  "live.title": "Direkteoppdateringer",
+  "live.intro": "Se nyheter med en gang de kommer, uten å laste siden på nytt.",
+  "live.switch": "Direkteoppdateringer på denne enheten",
+  "live.switchHelp": "SOS, svar og posisjoner vises med en gang. Når det er slått av, sjekker siden etter nyheter med jevne mellomrom.",
+  "live.sound": "Lyd ved SOS",
+  "live.soundHelp": "Spill en kort alarmtone på denne enheten når det kommer en SOS mens siden er åpen.",
+  "live.on": "Direkte",
+  "live.connecting": "Kobler til",
+  "live.fallback": "Ikke direkte",
+  "live.fallbackHint": "Direkteoppdateringer er ikke tilgjengelige akkurat nå. Siden sjekker etter nyheter med jevne mellomrom.",
+  "live.sosOpen": "Åpne telefonen",
+  "live.sosDismiss": "Lukk",
 
   "requests.title": "{name} ber om",
   "requests.app": "Ønsker å bruke denne appen",

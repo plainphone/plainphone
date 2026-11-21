@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useRef } from "react";
+import { Fragment, useCallback, useMemo, useRef } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { PendingChange, Phone } from "../api/models";
+import { CallbackRequests } from "../components/CallbackRequests";
 import { SosPanel } from "../components/SosPanel";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, LinkRow, LiveStatus, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
+import { LiveIndicator } from "../components/LiveIndicator";
+import { useLiveRefresh } from "../lib/live";
 import { phoneStateText } from "../lib/phoneStateText";
 import { space } from "../lib/theme";
 import { isIphone } from "../shared/lib/platform";
@@ -47,7 +50,8 @@ function PhonesList() {
 
   // Back from adding, renaming or removing a phone: show the current list.
   const firstFocus = useRef(true);
-  const { reload } = res;
+  const { reload, reloadQuiet } = res;
+  useLiveRefresh(["phone.status", "request.created", "request.answered", "safety.updated"], undefined, reloadQuiet, 0);
   useFocusEffect(
     useCallback(() => {
       if (firstFocus.current) firstFocus.current = false; // useLoad already loads on mount
@@ -65,9 +69,13 @@ function PhonesList() {
         }}
       />
       <PageTitle>{t("phones.title")}</PageTitle>
+      <LiveIndicator />
       <LiveStatus notice={feedback} onClose={() => router.setParams({ notice: undefined })} />
       {res.data?.filter(({ phone }) => phone.profile === "child" && phone.pairedAt).map(({ phone }) => (
-        <SosPanel key={phone.id} pid={phone.id} phoneName={phone.name} />
+        <Fragment key={phone.id}>
+          <SosPanel pid={phone.id} phoneName={phone.name} />
+          <CallbackRequests pid={phone.id} phoneName={phone.name} />
+        </Fragment>
       ))}
       <LoadGate res={res}>
         {(rows) =>

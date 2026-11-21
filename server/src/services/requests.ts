@@ -8,6 +8,7 @@ import { and, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { contacts, pendingChanges, phoneApps, phoneRequests, phones } from "../db/schema.js";
 import { type ChangeResult, type Op, submitChange } from "./changes.js";
 import type { Ctx } from "./context.js";
+import { type LiveEventType, publishLive } from "./live-events.js";
 import { notifyHousehold } from "./notifications.js";
 import { wakePhone } from "./phones.js";
 
@@ -95,6 +96,7 @@ export async function createRequest(ctx: Ctx, phone: Phone, input: NewRequest): 
     return { request: row!, created: true };
   });
   if (out.created) {
+    live(ctx, phone, "request.created", out.request);
     await notifyHousehold(ctx, phone.id, {
       type: "request",
       phoneId: phone.id,
@@ -207,6 +209,7 @@ export async function approveRequest(
     if (result.status === "pending") {
       await ctx.db.update(phoneRequests).set({ changeId: result.change.id }).where(eq(phoneRequests.id, claimed.id));
     }
+    live(ctx, phone, "request.answered", claimed);
     return result;
   } catch (err) {
     await ctx.db
@@ -266,6 +269,7 @@ export async function approveRequestOnPhone(
       .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, claimed.packageName!)));
     what = app?.label ?? what;
   }
+  live(ctx, phone, "request.answered", claimed);
   await notifyHousehold(ctx, phone.id, { type: "request-on-phone", phoneId: phone.id, phoneName: phone.name, kind: claimed.kind, what });
   return { request: claimed, won: true };
 }
@@ -277,6 +281,12 @@ export async function rejectRequest(ctx: Ctx, phone: Phone, requestId: string, u
     .where(and(eq(phoneRequests.id, requestId), eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")))
     .returning();
   if (!row) throw await alreadyAnswered(ctx, phone.id, requestId, userId);
+  live(ctx, phone, "request.answered", row);
   // The phone shows the answer; let it know now.
   await wakePhone(ctx, phone.id, "rules");
+}
+
+/** Tells the household's open dashboards (docs/live-updates.md). */
+function live(ctx: Ctx, phone: Phone, type: LiveEventType, r: Pick<Request, "id" | "kind">) {
+  publishLive(ctx, { type, householdId: phone.householdId, phoneId: phone.id, id: r.id, kind: r.kind });
 }
