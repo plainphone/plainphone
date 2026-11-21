@@ -252,7 +252,7 @@ it("keeps device notices and app updates available with the health board off", (
     status: { ...phone.status, appVersionCode: 11, lateGoogleAccount: true, clockMoved: true, callRoleActionNeeded: true },
   });
   expect(html).toContain(t("phone.lateGoogleAccount"));
-  expect(html).toContain(t("phone.clockMoved"));
+  expect(html).toContain(t("phone.clockMoved").replaceAll("'", "&#x27;"));
   expect(html).toContain(t("phone.callRoleActionNeeded"));
   expect(html).toContain(t("phone.updateNow"));
   expect(html).not.toContain(t("health.lastSeen"));
