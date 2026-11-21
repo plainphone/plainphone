@@ -17,9 +17,9 @@ export const METRIC_WINDOWS = [{ label: "1h", hours: 1 }, { label: "24h", hours:
 const providerName = (p: string | null) => (p === "web" ? "webpush" : p);
 
 const failures = new WeakMap<Ctx, Map<string, number>>();
-const PUSH_PROVIDERS = ["fcm", "apns", "webpush"];
+const PUSH_PROVIDERS = ["fcm", "apns", "unifiedpush", "webpush"];
 
-/** Counts one failed push to a parent (not a gone subscription). A counter since start-up: Prometheus copes with the reset. */
+/** Counts one failed push, to a parent or a wake-up to a child phone (not a gone subscription). A counter since start-up: Prometheus copes with the reset. */
 export function countPushFailure(ctx: Ctx, platform: string) {
   if (!latencyOn(ctx)) return;
   const counts = failures.get(ctx) ?? new Map<string, number>();

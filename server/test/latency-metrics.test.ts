@@ -111,7 +111,7 @@ describe("the numbers", () => {
   it("shows nothing for an empty server but the failure counters at 0", async () => {
     const text = (await anon().get("/api/metrics", auth())).json as string;
     expect(metric(text, "plainphone_latency_ms").size).toBe(0);
-    expect([...metric(text, "plainphone_push_failures_total")]).toEqual([['provider="apns"', 0], ['provider="fcm"', 0], ['provider="webpush"', 0]]);
+    expect([...metric(text, "plainphone_push_failures_total")]).toEqual([['provider="apns"', 0], ['provider="fcm"', 0], ['provider="unifiedpush"', 0], ['provider="webpush"', 0]]);
   });
 
   it("counts failed pushes per provider", async () => {
@@ -119,15 +119,52 @@ describe("the numbers", () => {
     const { device } = await pairPhone(h, parent, { profile: "child" });
     const me = (await parent.get("/api/me")).json.user.id;
     const { pushSubscriptions } = await import("../src/db/schema.js");
-    await h.ctx.db.insert(pushSubscriptions).values({ userId: me, platform: "web", endpoint: "https://example.test/one" });
-    vi.spyOn(h.parentPush, "send").mockResolvedValue("failed");
+    const { sessions } = await import("../src/db/schema.js");
+    const [session] = await h.ctx.db.select().from(sessions);
+    await h.ctx.db.insert(pushSubscriptions).values([
+      { userId: me, platform: "web", endpoint: "https://example.test/one" },
+      { userId: me, platform: "fcm", endpoint: "fcm-token-one", sessionId: session!.id },
+    ]);
+    h.ctx.parentPush = { name: "native-test", webPublicKey: "k", enabled: () => true, send: async () => "failed" };
     await device.post("/api/device/sos", { id: randomUUID(), kind: "help" });
     await vi.waitFor(async () => {
       const text = (await anon().get("/api/metrics", auth())).json as string;
       expect(metric(text, "plainphone_push_failures_total").get('provider="webpush"')).toBe(1);
     });
     const text = (await anon().get("/api/metrics", auth())).json as string;
-    expect(metric(text, "plainphone_push_failures_total").get('provider="fcm"')).toBe(0);
+    expect(metric(text, "plainphone_push_failures_total").get('provider="fcm"')).toBe(1);
+    expect(metric(text, "plainphone_push_failures_total").get('provider="apns"')).toBe(0);
+    expect(metric(text, "plainphone_push_failures_total").get('provider="unifiedpush"')).toBe(0);
+  });
+
+  it("counts a failed wake-up of the child phone under the transport it used", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent, { profile: "child" });
+    const { phones } = await import("../src/db/schema.js");
+    const { wakePhone } = await import("../src/services/phones.js");
+    const { eq } = await import("drizzle-orm");
+    const wake = vi.fn<(...a: unknown[]) => Promise<void | "gone" | "failed">>();
+    h.ctx.push = { ...h.push, name: "fcm", fcmAvailable: true, validateFcmToken: async () => "sent", wake: wake as never };
+    const failures = async () => metric((await anon().get("/api/metrics", auth())).json as string, "plainphone_push_failures_total");
+
+    await h.ctx.db.update(phones).set({ pushWakeups: true, unifiedPushEndpoint: "https://push.example.org/one" }).where(eq(phones.id, phoneId));
+    wake.mockResolvedValue("failed");
+    await wakePhone(h.ctx, phoneId, "rules");
+    expect((await failures()).get('provider="unifiedpush"')).toBe(1);
+    // A thrown error (a timeout, say) is a failure too; a gone endpoint is not.
+    wake.mockRejectedValue(new Error("timeout"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await wakePhone(h.ctx, phoneId, "rules");
+    expect((await failures()).get('provider="unifiedpush"')).toBe(2);
+    wake.mockResolvedValue("gone");
+    await wakePhone(h.ctx, phoneId, "rules");
+    expect((await failures()).get('provider="unifiedpush"')).toBe(2);
+    expect((await failures()).get('provider="fcm"')).toBe(0);
+
+    await h.ctx.db.update(phones).set({ unifiedPushEndpoint: null, fcmToken: "token", fcmValidationKey: "v1:" }).where(eq(phones.id, phoneId));
+    wake.mockResolvedValue("failed");
+    await wakePhone(h.ctx, phoneId, "rules");
+    expect((await failures()).get('provider="fcm"')).toBe(1);
   });
 });
 
@@ -159,10 +196,13 @@ describe("what it leaves out", () => {
 
   it("is empty of timings, and counts no failures, when the server has LATENCY_STATS=off", async () => {
     await add("phone-server", null, "sos", 0, 1000);
+    const { countPushFailure } = await import("../src/services/latency-metrics.js");
     h.ctx.cfg.LATENCY_STATS = "off";
     try {
+      countPushFailure(h.ctx, "fcm");
       const text = (await anon().get("/api/metrics", auth())).json as string;
       expect(metric(text, "plainphone_latency_ms").size).toBe(0);
+      expect(metric(text, "plainphone_push_failures_total").get('provider="fcm"')).toBe(0);
     } finally {
       h.ctx.cfg.LATENCY_STATS = "on";
     }

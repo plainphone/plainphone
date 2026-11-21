@@ -4,6 +4,7 @@ import { householdMembers, phones, pushSubscriptions, setupUndoNotices, users } 
 import { toLocale } from "../lib/locale.js";
 import { phoneAlertMail } from "../lib/mail-templates.js";
 import { parentPushEnabled } from "../providers/parent-push.js";
+import { countPushFailure } from "./latency-metrics.js";
 import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";
 import { phoneAlertRecipients, pushMessage } from "./notifications.js";
@@ -108,6 +109,7 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
           if (result === "gone") await discardGonePushSubscription(ctx, recipient.sub);
           if (result === "failed") {
             // Counted like any other push, so a Web Push endpoint that keeps failing is dropped and the notice with it.
+            countPushFailure(ctx, recipient.sub.platform);
             await recordFailedPush(ctx, recipient.sub);
             throw new Error("push delivery failed");
           }

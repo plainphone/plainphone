@@ -131,7 +131,7 @@ are in [self-hosting.md](self-hosting.md#watching-delivery-speed).
 |---|---|---|
 | `plainphone_latency_ms` | `path`, `provider`, `kind`, `window`, `quantile` (`0.5`, `0.95`) | Delivery time in milliseconds. Paths as above: `phone-server` (with `kind` `sos`, `quick`, `callback`), `server-parent`, `parent-device`, `server-child`. |
 | `plainphone_latency_samples` | `path`, `provider`, `kind`, `window` | How many timings the numbers rest on. |
-| `plainphone_push_failures_total` | `provider` | Pushes to parents that failed since the server started (counter). |
+| `plainphone_push_failures_total` | `provider` | Pushes that failed since the server started (counter): alerts to parents, and wake-ups of child phones (`fcm`, `unifiedpush`). |
 
 `provider` is `fcm`, `apns`, `webpush`, `unifiedpush` or `poll`; `window` is `1h` or `24h`. Samples
 are stored by clock hour, so a window reaches back to the start of the hour it begins in: `1h` is the
@@ -147,6 +147,9 @@ What it does not cover:
 - **SMS fallback.** The child phone sends the SMS itself, and an SOS already sent that way is not
   timed (see path 1), so the server has nothing to measure or count. Only the report that follows
   online is timed.
+- **Wake-up failures** are counted only when the server sees them: an FCM error, a UnifiedPush
+  answer other than success, or a timeout. A push the provider accepted and never delivered is
+  invisible here; the `server-child` timings thin out instead.
 - **Push failures** are counted in the server's memory, so the counter starts at 0 after a restart
   (use `increase()`, as the dashboard does), and a failed push that is retried counts once per
   attempt. A subscription the push service has removed is not a failure.
