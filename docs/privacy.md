@@ -71,6 +71,11 @@ sees only the endpoint, the time and the size. Alerts about removed protection
 and quiet phones also go out by email to every household member who has not
 muted the phone.
 
+While the dashboard or the parent app is open, it keeps a live connection to our server
+([live-updates.md](live-updates.md)). The events on it hold only ids (which phone, which SOS,
+request or message), never names, texts or positions, and they are not logged or stored; the
+last few minutes of them sit in memory so a dropped connection can catch up.
+
 IP addresses are only held in memory, for rate limits. The full rules for deletion,
 including what happens to a household with two parents, are in
 [account-deletion.md](account-deletion.md).

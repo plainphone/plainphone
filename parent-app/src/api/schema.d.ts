@@ -1449,6 +1449,32 @@ export interface paths {
         patch: operations["patchMe"];
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live updates (server-sent events)
+         * @description A `text/event-stream` that stays open while the dashboard or the parent app is open
+         *     (docs/live-updates.md). Only events of your own households. Each event carries ids only
+         *     (`{"type","phoneId","id"?,"kind"?}`); refetch through the normal API. Event names:
+         *     `sos.created`, `sos.updated`, `request.created`, `request.answered`, `location.updated`,
+         *     `safety.updated`, `inbox.message`, `phone.status`. Control events: `ready` (connected;
+         *     `{"resumed":bool}`), `refetch` (the gap since `Last-Event-ID` is unknown: reload everything),
+         *     `ping` (every 25 s) and `bye` (signed out; the stream ends).
+         */
+        get: operations["getEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications": {
         parameters: {
             query?: never;
@@ -8200,6 +8226,53 @@ export interface operations {
         responses: {
             /** @description Saved */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getEvents: {
+        parameters: {
+            query?: {
+                /** @description Same as the header, for clients that cannot set it */
+                lastEventId?: string;
+            };
+            header?: {
+                /** @description The last event id seen; missed events are replayed when still known */
+                "Last-Event-ID"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Sign in first */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many live connections for this account; fall back to polling and retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server has too many live connections; fall back to polling and retry later */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

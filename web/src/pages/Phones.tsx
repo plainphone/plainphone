@@ -7,6 +7,7 @@ import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from ".
 import { PhoneStateTitle } from "../components/PhoneState";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
+import { useLiveRefresh } from "../lib/live";
 import { helpUrl, releaseState } from "../lib/phoneSupport";
 import { isIphone } from "../lib/platform";
 
@@ -41,6 +42,8 @@ export function PhonesPage() {
       }),
     );
   }, []);
+  // The list never polled; now it also follows events.
+  useLiveRefresh(["phone.status", "sos.created", "sos.updated", "request.created", "request.answered"], undefined, res.reload, null);
 
   return (
     <>

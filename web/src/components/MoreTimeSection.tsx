@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { api, type Phone } from "../lib/api";
 import { merge, type MoreTimeAnswer, type MoreTimeAnswerResult, type MoreTimeRequest } from "../lib/more-time";
 import { MoreTimeRequests } from "./MoreTimeRequests";
@@ -21,17 +22,7 @@ export function MoreTimeSection({ phone, setPhone, notify }: {
   const sending = useRef(false);
   const { reload, setData } = res;
 
-  useEffect(() => {
-    const id = window.setInterval(() => void reload(), 30_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void reload();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [reload]);
+  useLiveRefresh(["request.created", "request.answered"], phone.id, reload, 30_000);
 
   async function answer(r: MoreTimeRequest, a: MoreTimeAnswer) {
     // One answer at a time: a double tap must not send it twice.

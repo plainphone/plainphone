@@ -8,6 +8,7 @@ import { View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { Phone } from "../api/models";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { answerMoreTime } from "../lib/moreTime";
 import { radius, space, useColors } from "../lib/theme";
 import { formatDateTime } from "../shared/lib/format";
@@ -138,6 +139,8 @@ export function MoreTimeRequests() {
     if (firstFocus.current) firstFocus.current = false; // useLoad already loads on mount
     else void reload();
   }, [reload]));
+
+  useLiveRefresh(["request.created", "request.answered"], phone.id, res.reloadQuiet, 0);
 
   async function answer(r: MoreTimeRequest, a: MoreTimeAnswer) {
     setBusy(r.id);

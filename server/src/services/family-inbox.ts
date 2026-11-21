@@ -106,13 +106,14 @@ export async function addParentReply(ctx: Ctx, phoneId: string, input: { userId:
   return row!;
 }
 
-/** The child's phone has the parent replies [ids]: the device receipt. Only the first time counts. */
-export async function markReceived(ctx: Ctx, phoneId: string, ids: string[]) {
-  if (ids.length === 0) return;
-  await ctx.db.update(familyMessages).set({ receivedAt: ctx.now() }).where(and(
+/** The child's phone has the parent replies [ids]: the device receipt. Only the first time counts. Returns how many were new. */
+export async function markReceived(ctx: Ctx, phoneId: string, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const marked = await ctx.db.update(familyMessages).set({ receivedAt: ctx.now() }).where(and(
     eq(familyMessages.phoneId, phoneId), inArray(familyMessages.id, ids),
     eq(familyMessages.sender, "parent"), isNull(familyMessages.receivedAt),
-  ));
+  )).returning({ id: familyMessages.id });
+  return marked.length;
 }
 
 /** Keeps the newest [INBOX_KEEP] of one phone's thread. */
