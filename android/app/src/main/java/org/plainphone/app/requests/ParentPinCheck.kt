@@ -26,12 +26,12 @@ sealed interface PinResult {
  */
 object ParentPinCheck {
     fun check(entered: String, config: PolicyConfig, throttle: PinThrottle): PinResult {
-        val waitSeconds = ((throttle.remainingMs() + 999) / 1000).toInt()
-        if (waitSeconds > 0) return PinResult.Wait(waitSeconds)
-        if (config.usesDefaultPin) return PinResult.NoPin
-        val ok = MaintenancePin.verify(entered, config)
-        if (ok) throttle.onSuccess() else throttle.onFailure()
-        return if (ok) PinResult.Correct else PinResult.Wrong
+        // Check, verify and record in one locked step: see PinThrottle.attempt.
+        return when (val attempt = throttle.attempt { if (config.usesDefaultPin) null else MaintenancePin.verify(entered, config) }) {
+            is PinThrottle.Attempt.Locked -> PinResult.Wait(((attempt.remainingMs + 999) / 1000).toInt())
+            PinThrottle.Attempt.Skipped -> PinResult.NoPin
+            is PinThrottle.Attempt.Checked -> if (attempt.ok) PinResult.Correct else PinResult.Wrong
+        }
     }
 
     fun check(context: Context, entered: String): PinResult =

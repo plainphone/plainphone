@@ -30,18 +30,21 @@ enum class SendState { SENDING, SENT, DELIVERED, SMS, FAILED }
 
 /**
  * The contract (docs/sos.md): no parent device got a push ([QuickSendAnswer.notified] 0), the server
- * could not be reached, or it failed (5xx, or 404 from a server without the endpoint): send the text
+ * could not be reached, or it failed (5xx, 404 from a server without the endpoint, or 408/429 from a proxy): send the text
  * by SMS. Over the server's limit it is recorded but quiet, so no SMS either; while the first send
  * with the same id is still notifying, ask again. Another client error means the message cannot be
  * delivered online; then it is not sent at all.
  */
+/** 404 (a server without the endpoint), 408 (timeout) and 429 (rate limit, often from a proxy) are not the message's fault. */
+private val RETRYABLE_CLIENT_STATUSES = setOf(404, 408, 429)
+
 internal fun quickMessageFallback(answer: QuickSendAnswer?, error: Throwable?): QuickFallback = when {
     answer != null -> when {
         answer.limited || answer.notified > 0 -> QuickFallback.DONE
         answer.pending -> QuickFallback.RETRY
         else -> QuickFallback.SMS
     }
-    error is HttpError -> if (error.status >= 500 || error.status == 404) QuickFallback.SMS else QuickFallback.GIVE_UP
+    error is HttpError -> if (error.status >= 500 || error.status in RETRYABLE_CLIENT_STATUSES) QuickFallback.SMS else QuickFallback.GIVE_UP
     error is IOException -> QuickFallback.SMS
     else -> QuickFallback.GIVE_UP
 }

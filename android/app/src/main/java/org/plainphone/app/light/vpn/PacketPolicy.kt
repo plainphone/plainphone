@@ -69,7 +69,7 @@ class PacketForwarder(
     /** A query that waited this long in the queue is dropped: the app has asked again or given up. */
     private val staleAfterMs: Long = 5_000,
     private val mtu: Int = VpnNetwork.MTU,
-    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val nowMs: () -> Long = android.os.SystemClock::elapsedRealtime, // boot clock: a clock change must not age queries or keep idle sockets
 ) : Closeable {
     val forwarded = AtomicLong()
     val servfails = AtomicLong()

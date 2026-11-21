@@ -200,7 +200,9 @@ fun placeCall(context: Context, number: String): String? {
         return context.getString(R.string.call_no_permission)
     }
     return runCatching {
-        context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", number, null), Bundle())
+        // The approved number is dialled, not the typed one: the rule matched the normalised form (12345678 for +4512345678).
+        val dial = rules?.contactFor(number)?.number?.takeIf { it.isNotBlank() } ?: number
+        context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", dial, null), Bundle())
         rules?.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }

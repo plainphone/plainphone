@@ -111,11 +111,18 @@ class MaintenanceActivity : Activity() {
             // PBKDF2 takes a moment on slow phones: keep it off the UI thread.
             Thread {
                 val config = ConfigStore(this).load()
-                val ok = (installPackage == null || !config.usesDefaultPin) && MaintenancePin.verify(entered, config)
-                if (ok) throttle.onSuccess() else throttle.onFailure()
+                // Lockout check, verify and record in one locked step, so a second screen cannot slip in a guess.
+                val attempt = throttle.attempt { (installPackage == null || !config.usesDefaultPin) && MaintenancePin.verify(entered, config) }
+                val ok = (attempt as? PinThrottle.Attempt.Checked)?.ok == true
                 runOnUiThread {
                     button.isEnabled = true
                     if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (attempt is PinThrottle.Attempt.Locked) {
+                        val seconds = ((attempt.remainingMs + 999) / 1000).toInt()
+                        style.tone(message, error = false)
+                        message.text = resources.getQuantityString(R.plurals.maintenance_wait, seconds, seconds)
+                        return@runOnUiThread
+                    }
                     val pkg = installPackage
                     if (ok && pkg != null) {
                         val app = applicationContext

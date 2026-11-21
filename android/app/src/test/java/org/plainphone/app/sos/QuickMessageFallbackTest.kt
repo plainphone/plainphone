@@ -43,6 +43,12 @@ class QuickMessageFallbackTest {
     }
 
     @Test
+    fun `a proxy's timeout or rate limit sends an SMS too, not give up`() {
+        assertThat(quickMessageFallback(null, HttpError(408, ""))).isEqualTo(QuickFallback.SMS)
+        assertThat(quickMessageFallback(null, HttpError(429, ""))).isEqualTo(QuickFallback.SMS)
+    }
+
+    @Test
     fun `over the server's limit it stays quiet, and a send still in progress is asked again`() {
         assertThat(quickMessageFallback(QuickSendAnswer(0, limited = true), null)).isEqualTo(QuickFallback.DONE)
         assertThat(quickMessageFallback(QuickSendAnswer(0, pending = true), null)).isEqualTo(QuickFallback.RETRY)

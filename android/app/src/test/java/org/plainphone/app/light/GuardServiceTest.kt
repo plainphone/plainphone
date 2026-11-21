@@ -393,7 +393,9 @@ class GuardServiceTest {
         var rootNode: AccessibilityNodeInfo? = null
         var focused = false
         var windowId = 1
+        var pip = false
 
+        @Implementation fun isInPictureInPictureMode(): Boolean = pip
         @Implementation fun getRoot(): AccessibilityNodeInfo? = rootNode
         @Implementation(minSdk = 33) fun getRoot(prefetchingStrategy: Int): AccessibilityNodeInfo? = rootNode
         @Implementation fun isFocused(): Boolean = focused
