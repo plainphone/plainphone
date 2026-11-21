@@ -37,6 +37,11 @@ FILTERS = {
     ),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*", "server/catalog/??.json"),
+    # E2EE phase 0 prototype: the Rust core, its Android binding and the demo against the server.
+    "e2ee": WORKSPACE + CRYPTO_VECTORS + (
+        "e2ee/*", "server/*", "scripts/e2ee-prototype-demo.sh", "android/app/build.gradle.kts",
+        "android/app/src/debug/java/org/plainphone/app/e2ee/*", "android/app/src/testDebug/*",
+    ),
     "backup": (
         "compose.yaml", "deploy/dokploy-compose.yaml", "deploy/backup.Dockerfile*",
         "scripts/backup*.sh", "scripts/restore-backup.sh", "scripts/restore-service.py",

@@ -24,6 +24,7 @@ jobs:
       dns: ${{ steps.filter.outputs.dns }}
       site: ${{ steps.filter.outputs.site }}
       backup: ${{ steps.filter.outputs.backup }}
+      e2ee: ${{ steps.filter.outputs.e2ee }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,13 +55,13 @@ jobs:
           import os
           from pathlib import Path
 
-          keys = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
+          keys = {"android", "e2e", "server", "parent", "dns", "site", "backup", "e2ee"}
           lines = Path(os.environ["GITHUB_OUTPUT"]).read_text(encoding="utf-8").splitlines()
           outputs = dict(line.split("=", 1) for line in lines)
           if len(lines) != len(keys) or outputs.keys() != keys or any(
               value not in {"true", "false"} for value in outputs.values()
           ):
-              raise SystemExit("::error::Expected one boolean output for each of the seven CI checks.")
+              raise SystemExit("::error::Expected one boolean output for each of the eight CI checks.")
           PYTHON
 
   android:
@@ -262,6 +263,110 @@ jobs:
       - name: Require successful typecheck and tests
         if: ${{ !cancelled() && (steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure') }}
         run: exit 1
+
+  # E2EE phase 0 prototype (docs/e2ee-prototype.md): the OpenMLS core, the scripted demo
+  # against the real server, the Kotlin -> JNI -> Rust test on the host JVM, and proof that
+  # the arm64 library lands in debug APKs only.
+  e2ee-prototype:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      RUSTUP_TOOLCHAIN: "1.99.1"
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.e2ee == 'false'
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.e2ee == 'true'
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        if: needs.changes.outputs.e2ee == 'true'
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component clippy,rustfmt --target aarch64-linux-android
+          cargo --version
+      - name: Cache crates and build output
+        if: needs.changes.outputs.e2ee == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            e2ee/mls-core/target
+          key: e2ee-cargo-${{ runner.os }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('e2ee/mls-core/Cargo.lock') }}
+      - name: Core format, lint and tests (scenarios, vectors)
+        if: needs.changes.outputs.e2ee == 'true'
+        working-directory: e2ee/mls-core
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --release --all-targets --features jni -- -D warnings
+          cargo test --locked --release
+      - uses: pnpm/action-setup@v6
+        if: needs.changes.outputs.e2ee == 'true'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.e2ee == 'true'
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: pnpm --filter @plainphone/server install --frozen-lockfile
+        if: needs.changes.outputs.e2ee == 'true'
+      - name: Demo against the real server (two parents, a child, add, remove, rotate, texts)
+        if: needs.changes.outputs.e2ee == 'true'
+        run: scripts/e2ee-prototype-demo.sh
+      - name: Build the core for the host JVM and for arm64 Android
+        if: needs.changes.outputs.e2ee == 'true'
+        run: |
+          (cd e2ee/mls-core && cargo build --locked --release --lib --features jni)
+          e2ee/mls-core/scripts/build-android.sh
+      - uses: actions/setup-java@v6
+        if: needs.changes.outputs.e2ee == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Check preinstalled Android SDK packages
+        id: sdk
+        if: needs.changes.outputs.e2ee == 'true'
+        run: |
+          echo "path=${ANDROID_HOME:?Android SDK missing from runner}" >> "$GITHUB_OUTPUT"
+          if [[ ! -f "$ANDROID_HOME/platforms/android-37.0/source.properties" ||
+                ! -f "$ANDROID_HOME/build-tools/36.1.0/source.properties" ]]; then
+            echo "cache-needed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache Android SDK packages
+        if: steps.sdk.outputs.cache-needed == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ${{ steps.sdk.outputs.path }}/platforms/android-37.0
+            ${{ steps.sdk.outputs.path }}/build-tools/36.1.0
+          key: android-sdk-${{ runner.os }}-${{ runner.arch }}-platform-37.0-build-tools-36.1.0
+      - uses: android-actions/setup-android@v4
+        if: needs.changes.outputs.e2ee == 'true'
+        with:
+          packages: "platforms;android-37.0 build-tools;36.1.0"
+      - uses: gradle/actions/setup-gradle@v6
+        if: needs.changes.outputs.e2ee == 'true'
+      - name: Kotlin binding over JNI, and the library in debug APKs only
+        if: needs.changes.outputs.e2ee == 'true'
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon testDebugUnitTest --tests 'org.plainphone.app.e2ee.*' assembleDebug assembleRelease \
+            -PplainphoneE2eePrototype=true -PplainphoneMlsHostLib="$GITHUB_WORKSPACE/e2ee/mls-core/target/release/libplainphone_mls.so"
+          grep -q 'tests="3" skipped="0" failures="0" errors="0"' \
+            app/build/test-results/testDebugUnitTest/TEST-org.plainphone.app.e2ee.MlsCoreJniTest.xml
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/arm64-v8a/libplainphone_mls.so'
+          if unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'libplainphone_mls'; then
+            echo "::error::The release APK contains the E2EE prototype library."
+            exit 1
+          fi
+          echo "debug APK has the prototype library, release APK does not"
 
   offsite-backup:
     needs: changes

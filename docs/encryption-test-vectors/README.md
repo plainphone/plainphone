@@ -39,6 +39,16 @@ Use `generate` only for deliberate changes to fixtures, then review the JSON dif
   revision, wrong scope or role, wrong Self base, retired epoch and replay. The file also covers enrollment and pairing MACs, a nonzero paper
   recovery code and its derived keys, dedupe derivation and the DNS HPKE copy.
   The rule and Self operation bodies are illustrative at F0.
+- `mls-prototype.json` belongs to the [E2EE phase 0 prototype](../e2ee-prototype.md), not to
+  the v1 protocol. `binding` gives the deterministic `D("mls-leaf",{deviceId,mlsSignPub})`
+  sign input and the household-log signature over it for three synthetic devices, with
+  `bindingRejections` (other device ID, other MLS key, other log key, small-order log key).
+  `wire` holds recorded OpenMLS 0.9.2 output (suite 0x0001, `PURE_CIPHERTEXT`, padding 64)
+  with the clear header fields the delivery service reads: commits, a Welcome and texts.
+  `keyPackages` are a normal and a last-resort key package, and `wireRejections` are framings
+  the server must refuse. `e2ee/mls-core/tests/vectors.rs` checks the file against OpenMLS
+  (`cargo test --test vectors`; `PLAINPHONE_WRITE_VECTORS=1` records new wire cases), and
+  `server/test/e2ee.test.ts` against the server's parser.
 
 All byte strings are unpadded base64url, including empty bytes (`""`). Numeric
 values are JSON integers. `signInput` is the exact pre-signature byte string.

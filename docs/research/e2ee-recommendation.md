@@ -6,6 +6,8 @@ Status: **recommendation for independent review** (issue #120, part of the
 Nothing here selects or ships an implementation. Free text on a family device
 stays off until an independent security and privacy review has recorded an
 outcome (see the [checklist](#checklist-for-the-independent-review)).
+A phase 0 prototype of the recommended design, for that review and with test
+data only, is described in [e2ee-prototype.md](../e2ee-prototype.md).
 
 ## Outcome
 
@@ -238,32 +240,86 @@ bindings on Android and Expo, 2–3 for API ordering and key-package endpoints,
 ## Checklist for the independent review
 
 The reviewer should record an outcome (approve, approve with changes, reject)
-for each item before free text is enabled:
+for each item before free text is enabled. The phase 0 prototype
+([docs/e2ee-prototype.md](../e2ee-prototype.md)) builds the design above, and
+each item points at the code and tests to start from. Paths are relative to
+the repository root; `core` is `e2ee/mls-core`.
 
 - [ ] Threat model: a malicious or compromised server that withholds, reorders
       or forks, combined with a stolen device that keeps old state. Is the
       residual stale-epoch exposure acceptable?
+      Start: [threat model and residual risks](../e2ee-prototype.md#threat-model).
+      Tests: `core/tests/scenarios.rs` `add_then_remove_a_member` (stale roster,
+      `stale_members`), `concurrent_commits_resolve_to_one`;
+      `server/test/e2ee.test.ts` "accepts one commit per epoch and refuses
+      texts for any other epoch"; demo steps 7 and 9
+      (`server/test/e2e/e2ee-demo.ts`).
 - [ ] Binding of MLS leaf keys to the household log (`mlsSignPub` design,
       domain separation from the log's Ed25519 key, key-package validation on
       add and on join).
+      Code: `core/src/roster.rs` `binding_input` (`D("mls-leaf", …)`),
+      `verify_entry` (strict Ed25519), `Roster::check_leaf`;
+      `core/src/client.rs` `add_members`, `join`, `check_commit`, `check_tree`.
+      Tests: `substituted_key_package_is_refused`,
+      `joiner_refuses_a_welcome_with_an_unlisted_member`,
+      `forged_binding_and_roster_rollback_are_refused`,
+      `receivers_refuse_an_add_by_the_child`. Vectors:
+      `docs/encryption-test-vectors/mls-prototype.json` (`binding`,
+      `bindingRejections`). Gap: the log itself is not implemented (gap 1 in
+      the prototype doc).
 - [ ] Ciphersuite choice versus the spec's AES-256-GCM.
+      Code: `core/src/client.rs` `CIPHERSUITE` (0x0001); the server accepts
+      only suite 1 (`server/src/lib/mls-wire.ts` `CIPHERSUITE`, `isKeyPackage`).
 - [ ] Server ordering rules (one commit per epoch, stale-epoch refusal) and
       what clients do on 409 and on forks.
+      Code: `server/src/routes/e2ee.ts` `POST /groups/:gid/commits` and
+      `/messages` (row lock, 409), `fanOut`; client side `clear_pending` and
+      the pending-commit handling in `client.rs` `process_protocol`. Tests:
+      `server/test/e2ee.test.ts`, `concurrent_commits_resolve_to_one`, demo
+      step 9. Header parsing: `parseMlsHeader` with the `wire` and
+      `wireRejections` vectors.
 - [ ] `max_past_epochs` and sender-ratchet tolerance versus forward secrecy.
+      Code: `client.rs` `MAX_PAST_EPOCHS` (0), `create_config`, `join_config`
+      (default sender ratchet). Test:
+      `key_rotation_by_the_child_and_forward_secrecy_across_epochs`.
 - [ ] Local storage: encryption at rest, backup exclusion, rollback handling,
       deletion on removal.
+      Code: `client.rs` `export_state` / `import_state` (keys in clear: not
+      built, gap 2), deletion on removal in `process_protocol`
+      (`Event::Removed`). Tests: `state_survives_export_and_import`,
+      `add_then_remove_a_member` (`group_unknown` after removal).
 - [ ] Recovery: no history after loss, and how this is explained to families.
+      Not built in the prototype: re-enrollment is remove + add
+      (`remove_members`, `add_members`), and a new device reads nothing older.
 - [ ] Metadata: padding size, clear header fields, key-package exposure,
       push payloads, retention.
+      Code: `client.rs` `PADDING`; `server/src/db/e2ee-schema.ts` (no sender
+      column); `POST /inbox/ack` deletes delivered items. Tests:
+      `padding_hides_length_within_64_byte_steps`, demo step 10. Gaps: no
+      push, no retention sweeper (gaps 4 and 5).
 - [ ] Binding layer review (UniFFI or JNI, Expo native module, wasm-bindgen if
       a browser inbox follows): panics, error mapping, zeroisation.
+      Code: `core/src/api.rs` `call` (`catch_unwind`), `core/src/error.rs`
+      `mls`, `core/src/jni.rs` (the only unsafe code),
+      `android/app/src/debug/java/org/plainphone/app/e2ee/MlsCore.kt`. Tests:
+      `android/app/src/testDebug/java/org/plainphone/app/e2ee/MlsCoreJniTest.kt`
+      (host JVM), `malformed_requests_are_errors_not_panics`,
+      `error::tests::keeps_variant_names_only`. No Expo or wasm binding yet
+      (gap 3).
 - [ ] Licences and NOTICE for the exact crate set (MIT, Apache-2.0, MPL-2.0,
       BSD-3-Clause, Unicode-3.0).
+      `e2ee/mls-core/Cargo.lock`; the only crate beyond the harness tree is
+      `jni-sys` 0.3.0 (gap 10).
 - [ ] Upstream status: OpenMLS audit fixes present in the pinned version, and
       advisories since.
+      `e2ee/mls-core/Cargo.toml` pins OpenMLS 0.9.2, openmls_rust_crypto 0.6.0.
 - [ ] Real-device gate: Android 10 phone, physical iPhone and Android parent
       phones on custom Expo builds, each running the shared self-test and
       the scenario set from this report.
+      The shared self-test is `selftest` (`core/src/lib.rs`, op `selftest`,
+      `pp-mls selftest`). The arm64 build is
+      `e2ee/mls-core/scripts/build-android.sh` plus
+      `assembleDebug -PplainphoneE2eePrototype=true`. Not run on any device.
 - [ ] If the review rejects OpenMLS: the same list for matrix-sdk-crypto with
       `OnlyTrustedDevices`, log-driven local trust and key backup off.
 

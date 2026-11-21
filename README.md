@@ -21,7 +21,7 @@ Plainphone is free today. Running it on your own server and keeping one fully pr
 
 ## Why
 
-See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work. The [endpoint encryption recommendation](docs/research/e2ee-recommendation.md) compares OpenMLS with a Matrix SDK on synthetic data ([harnesses](research/e2ee/README.md)).
+See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work. The [endpoint encryption recommendation](docs/research/e2ee-recommendation.md) compares OpenMLS with a Matrix SDK on synthetic data ([harnesses](research/e2ee/README.md)). A [phase 0 prototype](docs/e2ee-prototype.md) of the recommended design runs on test data only; its switches are off in release builds and production.
 
 **iPhone:** planned, not available yet. Plainphone for iPhone will use Apple's Family Controls, and
 some things stay Apple's to decide (who can call, who rings at bedtime). The dashboard already says
@@ -170,7 +170,8 @@ See [support tools and release troubleshooting](docs/support.md).
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
 | [`packages/`](packages) | Shared encryption test vectors |
-| [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and an end-to-end test of the phone sync |
+| [`e2ee/`](e2ee/mls-core/README.md) | E2EE phase 0 prototype: the OpenMLS core for family texts, test data only ([docs/e2ee-prototype.md](docs/e2ee-prototype.md)) |
+| [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test, an end-to-end test of the phone sync and the E2EE prototype demo |
 | [`docs/`](docs) | Design, evidence, policies and how-tos |
 
 ## Build the Android app

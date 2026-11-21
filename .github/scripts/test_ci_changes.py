@@ -10,28 +10,32 @@ from pathlib import Path
 from unittest.mock import patch
 
 DETECTOR = Path(__file__).with_name("ci-changes.py")
-CHECKS = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
+CHECKS = {"android", "e2e", "server", "parent", "dns", "site", "backup", "e2ee"}
 
 
 class ChangeDetectionTests(unittest.TestCase):
     def test_changed_paths(self):
         cases = {
-            "packages/crypto/index.ts": {"android", "server", "e2e"},
-            "packages/crypto-vectors/vectors.ts": {"android", "server", "e2e"},
-            "packages/other/index.ts": {"server", "e2e"},
-            "docs/encryption-test-vectors/primitives.json": {"android", "server"},
-            "docs/encryption-test-vectors/protocol.json": {"android", "server"},
-            "pnpm-lock.yaml": {"server", "e2e"},
-            "server/openapi.yaml": {"server", "e2e", "parent"},
+            "packages/crypto/index.ts": {"android", "server", "e2e", "e2ee"},
+            "packages/crypto-vectors/vectors.ts": {"android", "server", "e2e", "e2ee"},
+            "packages/other/index.ts": {"server", "e2e", "e2ee"},
+            "docs/encryption-test-vectors/primitives.json": {"android", "server", "e2ee"},
+            "docs/encryption-test-vectors/protocol.json": {"android", "server", "e2ee"},
+            "docs/encryption-test-vectors/mls-prototype.json": {"android", "server", "e2ee"},
+            "pnpm-lock.yaml": {"server", "e2e", "e2ee"},
+            "server/openapi.yaml": {"server", "e2e", "parent", "e2ee"},
             "web/src/lib/settings.ts": {"server", "parent"},
             "web/src/lib/failedPolicies.ts": {"server", "parent"},
             "web/test-fixtures/light-setup-intent.txt": {"android", "server"},
-            "server/catalog/dk.json": {"server", "e2e", "site"},
-            "server/catalog/helplines/dk.json": {"android", "server", "e2e", "dns"},
+            "server/catalog/dk.json": {"server", "e2e", "site", "e2ee"},
+            "server/catalog/helplines/dk.json": {"android", "server", "e2e", "dns", "e2ee"},
             "dns/ppdns/profiles.py": {"dns"},
-            "server/src/db/schema.ts": {"server", "e2e", "dns"},
-            "server/src/lib/validation.ts": {"server", "e2e", "dns"},
-            "android/app/build.gradle.kts": {"android", "e2e"},
+            "server/src/db/schema.ts": {"server", "e2e", "dns", "e2ee"},
+            "server/src/lib/validation.ts": {"server", "e2e", "dns", "e2ee"},
+            "android/app/build.gradle.kts": {"android", "e2e", "e2ee"},
+            "android/app/src/debug/java/org/plainphone/app/e2ee/MlsCore.kt": {"android", "e2e", "e2ee"},
+            "e2ee/mls-core/src/client.rs": {"e2ee"},
+            "scripts/e2ee-prototype-demo.sh": {"e2ee"},
             "deploy/backup.Dockerfile": {"backup"},
             "scripts/backup-test/storage.py": {"backup"},
             "compose.yaml": {"backup"},
