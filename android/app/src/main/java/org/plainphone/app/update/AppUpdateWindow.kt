@@ -104,6 +104,11 @@ object AppUpdateWindow {
 
     private val guard = Executors.newSingleThreadExecutor()
 
+    /** Waits for the guard's queued work; tests only. */
+    internal fun awaitGuardForTests() {
+        guard.submit {}.get(10, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
     /**
      * The guard, for every package Android reports as added while the app runs. An update of an
      * installed app is counted; a new app is hidden at once and held back until the server has it.

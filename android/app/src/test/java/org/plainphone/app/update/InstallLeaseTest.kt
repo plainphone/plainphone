@@ -23,7 +23,8 @@ class InstallLeaseTest {
         var failWrites = false
         var relock = { restricted = true }
         var guarded = false
-        override fun load() = saved
+        var loading = {}
+        override fun load() = saved.also { loading() }
         override fun save(leases: Map<String, InstallLease.Lease>) {
             check(!failWrites) { "Storage unavailable" }
             saved = leases
@@ -263,5 +264,43 @@ class InstallLeaseTest {
         assertEquals(listOf(5L), f.reports)
         assertTrue(f.restricted)
         assertTrue(f.lease().isOpen(CATALOG))
+    }
+
+    /** Issue #229: Lock's apply holds its lock and then asks for the lease lock, so recovery must not do the reverse. */
+    @Test fun recoveryNeverWaitsForTheApplyLockWhileHoldingTheLeaseLock() {
+        val f = Fixture()
+        val applyLock = Any()
+        val lease = InstallLease(f, f) { _, _ -> synchronized(applyLock) { f.restricted = true } }
+        lease.begin(SELF_UPDATE, 1_000)
+        f.restricted = false
+        f.now += 2_000
+        val applyHolds = CountDownLatch(1)
+        val recoveryHolds = CountDownLatch(1)
+        f.loading = {
+            f.loading = {}
+            recoveryHolds.countDown()
+            applyHolds.await()
+        }
+        val pool = Executors.newFixedThreadPool(2) { Thread(it).apply { isDaemon = true } }
+        try {
+            val recovery = pool.submit { lease.recover("install window deadline") }
+            // As Lock.applyNow: the apply lock, then PolicyApplier asks the lease whether installs are allowed.
+            val apply = pool.submit<Boolean> {
+                synchronized(applyLock) {
+                    recoveryHolds.await()
+                    applyHolds.countDown()
+                    lease.allowsInstall(catalogApproved = false)
+                }
+            }
+            try {
+                recovery.get(10, SECONDS)
+                assertFalse(apply.get(10, SECONDS))
+            } catch (e: java.util.concurrent.TimeoutException) {
+                fail("Deadlock (#229): recovery waits for the apply lock while it holds the lease lock")
+            }
+            assertTrue(f.restricted)
+        } finally {
+            pool.shutdownNow()
+        }
     }
 }
