@@ -4,8 +4,9 @@ The `android-e2e` CI job runs on GitHub-hosted Linux with KVM and AOSP
 x86_64 system images for API 34 and API 29 (Android 10). It runs on main
 pushes, on pull requests that change the Android app, server, workflow,
 or emulator test inputs, and on demand (Actions → CI → Run workflow, which
-runs every check on the chosen branch). Each leg has a 30-minute limit and restores a
-pre-test emulator snapshot. The test run does not write back to that snapshot.
+runs every check on the chosen branch). Each leg has a 30-minute limit
+and restores a pre-test emulator snapshot. The test run does not write
+back to that snapshot.
 
 ## Run locally
 

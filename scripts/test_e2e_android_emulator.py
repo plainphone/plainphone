@@ -77,6 +77,12 @@ class SerialShellTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "adb is connected to the serial console"):
             self.run_command(FakeConsole(reply), "su", "0", "true")
 
+    def test_accepts_cnxn_inside_command_output(self):
+        # A base64 screenshot or an adbd logcat line can contain "CNXN" by chance.
+        output = b"iVBORw0KGgoCNXNAAAA\r\nadbd: CNXN from host"
+        self.assertEqual(self.run_command(FakeConsole(answer(output)), "logcat", "-d"),
+                         "iVBORw0KGgoCNXNAAAA\nadbd: CNXN from host\n")
+
     def test_rejects_non_numeric_status(self):
         with self.assertRaisesRegex(RuntimeError, "Unexpected data"):
             self.run_command(FakeConsole(answer(b"", b"0push_mkdir")), "true")

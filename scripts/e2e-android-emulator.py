@@ -82,13 +82,16 @@ def serial_shell(console, *args, timeout=30):
     started = False
     with console.makefile("rb") as stream:
         for line in stream:
-            if b"CNXN" in line:
+            content = line.rstrip(b"\r\n")
+            # Only the shell's own lines can carry adb's handshake. The command's
+            # output (base64 screenshots, logcat) may contain "CNXN" by chance.
+            at_end = started and content.startswith(end)
+            if (not started or at_end) and b"CNXN" in line:
                 raise RuntimeError("adb is connected to the serial console socket; "
                                    "move -shell-serial outside adb's emulator ports")
-            content = line.rstrip(b"\r\n")
             if content == start:
                 started = True
-            elif started and content.startswith(end):
+            elif at_end:
                 result = output.decode(errors="replace").replace("\r\n", "\n")
                 status = content[len(end):].decode(errors="replace")
                 if not status.isdigit():
