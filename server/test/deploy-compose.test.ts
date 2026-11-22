@@ -22,7 +22,7 @@ function appEnvironment(compose: string): string[] {
   const envStart = service.findIndex((l) => /^ {4}environment:\s*$/.test(l));
   if (envStart < 0) return [];
   const envEnd = service.findIndex((l, i) => i > envStart && /^ {0,4}\S/.test(l));
-  return service.slice(envStart + 1, envEnd < 0 ? undefined : envEnd).filter((l) => /^ {6}[A-Z_]+:/.test(l));
+  return service.slice(envStart + 1, envEnd < 0 ? undefined : envEnd).filter((l) => /^ {6}[A-Z][A-Z0-9_]*:/.test(l));
 }
 
 describe.each(["../../deploy/dokploy-compose.yaml", "../../compose.yaml"])("%s", (path) => {
