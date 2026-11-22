@@ -197,6 +197,22 @@ stopped self-test also alerts. Treat the push URL as a secret.
 Alerts from Kuma go through the notify relay to the operator. Self-hosters can
 use any Kuma notification channel.
 
+## Server settings on the hosted service
+
+`deploy/dokploy-compose.yaml` lists the app's environment one variable at a time, so a variable
+set in Dokploy reaches the server only if that file passes it. `server/test/env-wiring.test.ts`
+fails CI when a setting the server reads is missing there without a stated reason, and when a
+default in the file would change what an unset variable means. The settings are described in
+[self-hosting.md](self-hosting.md#configuration) and, for billing, [billing.md](billing.md#configuration).
+
+Change a setting the same way as the [daily cap](#change-it-on-the-hosted-service): set only that
+variable in Dokploy, redeploy, and check `GET /api/health`.
+
+Since the file started passing `LATENCY_STATS`, `METRICS_TOKEN`, `MIGRATE_ON_START`, the `APK_*`
+settings, `PROVISIONING_DNS_HOST` and the billing settings, a value already set for one of them in
+Dokploy takes effect at the next deploy. Before that deploy, check that Dokploy holds none of them,
+or only values you want.
+
 ## Daily cap on new households
 
 `SIGNUP_DAILY_CAP` limits how many new households the server takes per UTC day. It is
