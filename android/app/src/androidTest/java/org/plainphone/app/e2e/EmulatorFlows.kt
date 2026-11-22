@@ -426,14 +426,19 @@ class DeviceOwnerFlow : EmulatorFlow() {
             @Suppress("DEPRECATION")
             assertTrue("automatic time must be required", dpm.autoTimeRequired)
         }
-        // Android lets a privileged shell write the raw settings (a child has no shell: adb is off).
-        // Plainphone's lock check, which runs at least every 15 minutes, sets them back.
-        device.executeShellCommand("settings put global auto_time 0")
-        if (Build.VERSION.SDK_INT >= 30) device.executeShellCommand("settings put global auto_time_zone 0")
+        // A privileged shell writes the raw settings (a child has no shell: adb is off). Android may refuse
+        // the write under DISALLOW_CONFIG_DATE_TIME or take it; the value right after it says which, and
+        // either way Plainphone's lock check, which runs at least every 15 minutes, must leave them forced.
+        val rawWrites = listOfNotNull(Settings.Global.AUTO_TIME, Settings.Global.AUTO_TIME_ZONE.takeIf { Build.VERSION.SDK_INT >= 30 })
+        for (key in rawWrites) {
+            val reply = device.executeShellCommand("settings put global $key 0").trim()
+            val after = Settings.Global.getInt(resolver, key, -1)
+            Log.i("PlainphoneE2E", "raw write $key=0 ${if (after == 0) "accepted" else "refused, still $after"} $reply")
+        }
         Lock.applyNow(context, "emulator time check")
-        assertEquals("the lock check must restore automatic time", 1, Settings.Global.getInt(resolver, Settings.Global.AUTO_TIME))
+        assertEquals("automatic time must stay forced", 1, Settings.Global.getInt(resolver, Settings.Global.AUTO_TIME))
         if (Build.VERSION.SDK_INT >= 30) {
-            assertEquals("the lock check must restore automatic time zone", 1, Settings.Global.getInt(resolver, Settings.Global.AUTO_TIME_ZONE))
+            assertEquals("automatic time zone must stay forced", 1, Settings.Global.getInt(resolver, Settings.Global.AUTO_TIME_ZONE))
         }
     }
 
@@ -470,7 +475,11 @@ class DeviceOwnerFlow : EmulatorFlow() {
             isBlocked(Channel.CALL, Direction.OUTGOING, DIALLED_STRANGER)
         }
         await("the Call not allowed notification") {
-            notifications().any { it.title() == context.getString(R.string.call_blocked_title) }
+            notifications().any {
+                // For this call: the text names the number, which Telecom may hand over formatted.
+                it.title() == context.getString(R.string.call_blocked_title) &&
+                    it.text().orEmpty().filter(Char::isDigit).contains(DIALLED_STRANGER.filter(Char::isDigit))
+            }
         }
         await("no call left in Telecom") { CallManager.state.value.isEmpty() && !telecom.isInCall }
     }
@@ -507,9 +516,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
         val telecom = context.getSystemService(TelecomManager::class.java)
         // Plainphone, not Android, must be what lets 114 through here: no emergency call is placed.
         @Suppress("MissingPermission")
-        val androidEmergency = runCatching {
-            context.getSystemService(TelephonyManager::class.java).isEmergencyNumber("114")
-        }.getOrDefault(false)
+        val androidEmergency = context.getSystemService(TelephonyManager::class.java).isEmergencyNumber("114")
         assertFalse("Android treats 114 as an emergency number on this emulator", androidEmergency)
         assertNull("114 must reach Telecom", placeCall(context, "114"))
         await("the 114 call in Plainphone's call service") { CallManager.state.value.any { it.number == "114" } }
@@ -626,7 +633,7 @@ class LightModeFlow : EmulatorFlow() {
      * midnight in each of [zones], so nothing counted per day or month starts over mid-test.
      */
     private fun awaitClearOfMidnight(vararg zones: ZoneId) {
-        val margin = Duration.ofMinutes(6)
+        val margin = Duration.ofMinutes(10)
         fun clear(): Boolean {
             val now = TrustedClock.of(context).now().instant
             return zones.all { zone ->

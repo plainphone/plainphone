@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 from threading import Event
 import time
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -305,9 +306,16 @@ def serve_console(port, token, stop, serial, poll=0.25):
             # The device asserts on the output, so it fails with this message.
             output = f"harness error: {error}"
         body = json.dumps({"output": output}).encode()
-        with urlopen(Request(f"{base}/{command['id']}", data=body, method="POST",
-                             headers={**headers, "Content-Type": "application/json"}), timeout=5):
-            pass
+        try:
+            with urlopen(Request(f"{base}/{command['id']}", data=body, method="POST",
+                                 headers={**headers, "Content-Type": "application/json"}), timeout=5):
+                pass
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            # The device stopped waiting (its request already got a 504); keep serving the next ones.
+            print(f"console command {command['id']} {command['args'][:2]} finished after the device gave up",
+                  flush=True)
 
 
 def main():

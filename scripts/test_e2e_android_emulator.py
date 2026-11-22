@@ -183,7 +183,7 @@ class ConsoleCommandTest(unittest.TestCase):
 
 
 class ServeConsoleTest(unittest.TestCase):
-    def start_server(self, queue):
+    def start_server(self, queue, gone=()):
         results = {}
         stop = threading.Event()
 
@@ -206,7 +206,7 @@ class ServeConsoleTest(unittest.TestCase):
             def do_POST(self):
                 length = int(self.headers["Content-Length"])
                 results[self.path] = json.loads(self.rfile.read(length))["output"]
-                self.send_response(204)
+                self.send_response(404 if self.path in gone else 204)
                 self.end_headers()
                 if len(results) == 2:
                     stop.set()
@@ -230,6 +230,17 @@ class ServeConsoleTest(unittest.TestCase):
         self.assertEqual(results["/e2e/console/1"], "OK\n")
         # Refused on the host as well: the device sees why and fails.
         self.assertIn("harness error", results["/e2e/console/2"])
+
+    def test_keeps_serving_after_the_device_gave_up_on_a_command(self):
+        port, stop, results = self.start_server([
+            {"id": 1, "args": ["sms", "send", "+15555215554", "late"]},
+            {"id": 2, "args": ["gsm", "call", "2025550177"]},
+        ], gone={"/e2e/console/1"})
+        done = subprocess.CompletedProcess(("adb",), 0, stdout="OK\n")
+        with mock.patch.object(harness, "adb", return_value=done) as adb:
+            harness.serve_console(port, "token", stop, "emulator-5554", poll=0.01)
+        self.assertEqual(adb.call_count, 2)
+        self.assertEqual(results["/e2e/console/2"], "OK\n")
 
 
 if __name__ == "__main__":
