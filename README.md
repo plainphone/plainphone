@@ -199,7 +199,7 @@ Requirements: JDK 21 and the Android SDK (command-line tools are enough; Android
 ```sh
 cd android
 echo "sdk.dir=$ANDROID_HOME" > local.properties
-./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew testGithubDebugUnitTest lintGithubDebug assembleGithubDebug
 ```
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -230,7 +230,7 @@ keyPassword=...
 ```
 
 ```sh
-PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleRelease
+PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleGithubRelease
 ```
 
 Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:

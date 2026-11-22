@@ -10,13 +10,15 @@ plugins {
 
 // Release signing is read from a properties file OUTSIDE the repository.
 // Point PLAINPHONE_SIGNING at it (see README "Signing"). Without it, the
-// release build falls back to the local debug key so CI can still build.
+// github release falls back to the local debug key so CI can still build,
+// and the play release stays unsigned.
 val signingProps: Properties? = System.getenv("PLAINPHONE_SIGNING")
     ?.let { file(it) }
     ?.takeIf { it.isFile }
     ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
-// The Play upload key, also outside the repository (docs/play/play-edition.md). Only bundlePlayRelease uses it.
+// The Play upload key, also outside the repository (docs/play/play-edition.md). Only the play
+// release (bundlePlayRelease, assemblePlayRelease) uses it.
 val playUploadProps: Properties? = System.getenv("PLAINPHONE_PLAY_UPLOAD")
     ?.let { file(it) }
     ?.takeIf { it.isFile }
@@ -82,12 +84,25 @@ android {
     // profile, no self-updater; its differences live in src/play (Distribution.kt, the manifest).
     flavorDimensions += "distribution"
     productFlavors {
+        // Release signing is set per flavor; debug builds always use the debug key.
         create("github") {
             dimension = "distribution"
             isDefault = true
+            signingConfig = if (signingProps != null) {
+                signingConfigs.getByName("plainphone")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
+        // Signed with the Play upload key (or the release key); with neither, the release stays
+        // unsigned, so a debug-signed build can never be uploaded. Play re-signs with the app signing key.
         create("play") {
             dimension = "distribution"
+            signingConfig = when {
+                playUploadProps != null -> signingConfigs.getByName("playUpload")
+                signingProps != null -> signingConfigs.getByName("plainphone")
+                else -> null
+            }
         }
     }
 
@@ -97,11 +112,6 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (signingProps != null) {
-                signingConfigs.getByName("plainphone")
-            } else {
-                signingConfigs.getByName("debug")
-            }
         }
     }
 
@@ -161,14 +171,6 @@ android {
         disable += "UseKtx"
         // androidx.lifecycle ships lint checks built against an older lint API; nothing to fix on our side.
         disable += "ObsoleteLintCustomCheck"
-    }
-}
-
-androidComponents {
-    // The Play bundle is signed with the upload key when PLAINPHONE_PLAY_UPLOAD is set, otherwise like
-    // every release. Google Play re-signs it with the app signing key (docs/play/play-edition.md).
-    onVariants(selector().withFlavor("distribution" to "play").withBuildType("release")) { variant ->
-        if (playUploadProps != null) variant.signingConfig.setConfig(android.signingConfigs.getByName("playUpload"))
     }
 }
 

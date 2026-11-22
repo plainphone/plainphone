@@ -302,8 +302,8 @@ def run_flows(port, token, console, check_server=lambda: None):
         shell("su", "0", "start", "console")
     probe_console(console)
     android = ROOT / "android"
-    adb("install", "-g", str(android / "app/build/outputs/apk/debug/app-debug.apk"))
-    adb("install", str(android / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"))
+    adb("install", "-g", str(android / "app/build/outputs/apk/github/debug/app-github-debug.apk"))
+    adb("install", str(android / "app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk"))
     adb("install", str(android / "e2e-fixture/build/outputs/apk/debug/e2e-fixture-debug.apk"))
     shell("input", "keyevent", "KEYCODE_WAKEUP")
     shell("wm", "dismiss-keyguard")

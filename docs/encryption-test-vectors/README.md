@@ -8,7 +8,7 @@ Run from the repository root with Node 24 and the pinned pnpm version.
 ```sh
 pnpm --filter @plainphone/crypto-vectors test
 pnpm --filter @plainphone/crypto test
-(cd android && ./gradlew --no-daemon testDebugUnitTest)
+(cd android && ./gradlew --no-daemon testGithubDebugUnitTest)
 pnpm --filter @plainphone/crypto-vectors generate
 ```
 

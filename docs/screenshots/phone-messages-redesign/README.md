@@ -10,7 +10,7 @@ renders the whole app with synced rules and a fixture SMS and call log, and writ
 `android/app/build/screenshots/phone-messages/`:
 
 ```sh
-cd android && ./gradlew --no-daemon testDebugUnitTest --tests 'org.plainphone.app.ui.PhoneMessagesScreenshotTest'
+cd android && ./gradlew --no-daemon testGithubDebugUnitTest --tests 'org.plainphone.app.ui.PhoneMessagesScreenshotTest'
 ```
 
 Names are `android-<screen>-<variant>-<before|after>.png`.

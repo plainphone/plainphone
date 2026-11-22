@@ -59,12 +59,12 @@ pnpm --filter @plainphone/server exec vitest run test/e2ee.test.ts
 
 # Kotlin -> JNI -> Rust on the host JVM
 (cd e2ee/mls-core && cargo build --locked --release --lib --features jni)
-(cd android && ./gradlew --no-daemon testDebugUnitTest --tests 'org.plainphone.app.e2ee.*' \
+(cd android && ./gradlew --no-daemon testGithubDebugUnitTest --tests 'org.plainphone.app.e2ee.*' \
   -PplainphoneMlsHostLib="$PWD/../e2ee/mls-core/target/release/libplainphone_mls.so")
 
 # Debug APK with the arm64 library (needs the Android NDK)
 e2ee/mls-core/scripts/build-android.sh
-(cd android && ./gradlew --no-daemon assembleDebug -PplainphoneE2eePrototype=true)
+(cd android && ./gradlew --no-daemon assembleGithubDebug -PplainphoneE2eePrototype=true)
 ```
 
 The demo prints step names and counts, never texts, keys or sizes. It fails

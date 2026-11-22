@@ -49,7 +49,7 @@ The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `
 
 | Part | Requirements | Check before a PR |
 |---|---|---|
-| `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testDebugUnitTest lintDebug assembleDebug` |
+| `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testGithubDebugUnitTest lintGithubDebug assembleGithubDebug` |
 | `server/` | PostgreSQL 18, `DATABASE_URL` pointing at a test database | `pnpm --filter @plainphone/server typecheck` and `test` |
 | `web/` | | `pnpm --filter @plainphone/web typecheck` and `test` |
 | `parent-app/` | See [docs/parent-app.md](docs/parent-app.md) | `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm check:api` and `pnpm check:shared` in `parent-app/` |

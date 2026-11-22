@@ -3,7 +3,7 @@
 Synthetic fixtures only (UX package 3, #134). Rendered by the Robolectric screenshot tests on JDK 17+:
 
 ```
-cd android && ./gradlew --no-daemon testDebugUnitTest \
+cd android && ./gradlew --no-daemon testGithubDebugUnitTest \
   --tests '*ChildNextActionScreenshotTest' --tests '*HomeScreenshotTest' \
   --tests '*SafetyScreenshotTest' --tests '*LightSetupAudienceUiTest' --tests '*PhoneHistoryScreenshotTest'
 # PNGs: android/app/build/screenshots/
