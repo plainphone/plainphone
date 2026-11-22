@@ -22,14 +22,19 @@ const SELF_HOSTING_GUIDE = "https://github.com/plainphone/plainphone/blob/main/d
 export default function LoginScreen() {
   const { t, locale } = useI18n();
   const colors = useColors();
-  const { state, next, takeNext, serverUrl, serverChanging, changeServer } = useSession();
+  const { state, next, takeNext, serverUrl, serverChanging, changeServer, signInWithCode } = useSession();
   const router = useRouter();
   const [email, setEmail] = useState("");
+  // The store review address (docs/store-review.md) gets a code field instead of a mail.
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const [action, setAction] = useState<"login" | "switch" | null>(null);
   const pending = useRef(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | null>(null);
+  /** The hosted service has taken today's new households (SIGNUP_DAILY_CAP). */
+  const [capped, setCapped] = useState(false);
   const [mail, setMail] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -64,6 +69,7 @@ export default function LoginScreen() {
       await changeServer(value);
       if (previous !== SERVER_URL) {
         setSentTo(null);
+        setCodeFor(null);
         setMail(null);
         setFieldError(undefined);
         setFormError(null);
@@ -78,6 +84,7 @@ export default function LoginScreen() {
     if (pending.current || serverChanging) return;
     setFieldError(undefined);
     setFormError(null);
+    setCapped(false);
     const value = email.trim();
     if (!EMAIL_RE.test(value)) {
       setFieldError(t("login.invalidEmail"));
@@ -86,15 +93,39 @@ export default function LoginScreen() {
     pending.current = true;
     setAction("login");
     try {
-      const r = await unwrap<{ mailEnabled?: boolean } | undefined>(
+      const r = await unwrap<{ mailEnabled?: boolean; codeSignIn?: boolean } | undefined>(
         client.POST("/auth/request", { body: { email: value, locale, client: "native" } }),
       );
+      if (r?.codeSignIn) {
+        setCode("");
+        setCodeFor(value);
+        return;
+      }
       // The link this app asked for is used without a question (app/auth/app.tsx).
       await noteLinkAsked();
       if (r && typeof r.mailEnabled === "boolean") setMail(r.mailEnabled);
       setSentTo(r?.mailEnabled === false ? null : value);
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.fields().email) setFieldError(t("login.invalidEmail"));
+      else if (err instanceof ApiError && err.data.code === "signup_cap_reached") setCapped(true);
+      else setFormError(errorMessage(err, t));
+    } finally {
+      pending.current = false;
+      setAction(null);
+    }
+  }
+
+  async function submitCode() {
+    if (pending.current || serverChanging || !codeFor) return;
+    setFieldError(undefined);
+    setFormError(null);
+    pending.current = true;
+    setAction("login");
+    try {
+      // Signed in: the session turns "in" and the focus effect above moves on.
+      await signInWithCode(codeFor, code.trim());
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 400)) setFieldError(t("login.codeWrong"));
       else setFormError(errorMessage(err, t));
     } finally {
       pending.current = false;
@@ -113,7 +144,34 @@ export default function LoginScreen() {
           <Text variant="heading">{t("app.name")}</Text>
         </View>
         <ServerChoice disabled={action === "login" || serverChanging} onSelect={selectServer} />
-        {sentTo && mail !== false ? (
+        {codeFor ? (
+          <>
+            <PageTitle sub={t("login.codeIntro")}>{t("login.codeTitle")}</PageTitle>
+            <Field
+              testID="login-code"
+              label={t("login.code")}
+              error={fieldError}
+              value={code}
+              onChangeText={setCode}
+              secureTextEntry
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="go"
+              onSubmitEditing={() => void submitCode()}
+            />
+            <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+            <Button
+              testID="login-code-submit"
+              title={action === "login" ? t("login.codeSending") : t("login.codeSubmit")}
+              busy={action === "login"}
+              disabled={action === "switch" || serverChanging}
+              onPress={() => void submitCode()}
+            />
+            <Button kind="secondary" title={t("login.again")} onPress={() => { setCodeFor(null); setFieldError(undefined); }} />
+          </>
+        ) : sentTo && mail !== false ? (
           <>
             <PageTitle>{t("login.sentTitle")}</PageTitle>
             <Text>{t("native.sentBody", { email: sentTo })}</Text>
@@ -152,6 +210,21 @@ export default function LoginScreen() {
               returnKeyType="send"
               onSubmitEditing={() => void submit()}
             />
+            {capped ? (
+              <View testID="signup-capped">
+                <Notice tone="info" text={t("signupCap.title")}>
+                  <Text>{t("signupCap.body")}</Text>
+                  <Text>{t("signupCap.selfHost")}</Text>
+                  <Pressable
+                    onPress={() => void Linking.openURL(SELF_HOSTING_GUIDE).catch(() => undefined)}
+                    accessibilityRole="link"
+                    style={{ minHeight: touch, justifyContent: "center" }}
+                  >
+                    <Text style={{ color: colors.accent, textDecorationLine: "underline" }}>{t("login.selfHostGuide")}</Text>
+                  </Pressable>
+                </Notice>
+              </View>
+            ) : null}
             <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
             <Button
               testID="login-submit"

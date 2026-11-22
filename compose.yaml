@@ -49,6 +49,11 @@ services:
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: ${DNS_HOST_SUFFIX:-dns.plainphone.org}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      # New households per UTC day; 0 = no cap, the self-hosting default (docs/self-hosting.md).
+      SIGNUP_DAILY_CAP: ${SIGNUP_DAILY_CAP:-0}
+      # App store review sign-in (docs/store-review.md). Unset = the path does not exist.
+      REVIEW_LOGIN_EMAIL: ${REVIEW_LOGIN_EMAIL:-}
+      REVIEW_LOGIN_CODE: ${REVIEW_LOGIN_CODE:-}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       # Setup QR codes (docs/self-hosting.md): leave empty for the project's own app releases.

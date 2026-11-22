@@ -5,6 +5,7 @@ import { randomToken, sha256 } from "../lib/crypto.js";
 import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
+import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
 export const MAGIC_LINK_MINUTES = 15;
 export const SESSION_DAYS = 60;
@@ -21,10 +22,15 @@ export async function requestMagicLink(
   client: "web" | "native" = "web",
 ): Promise<void> {
   const token = randomToken("pp_m_");
-  await ctx.db.insert(magicLinks).values({
-    email,
-    tokenHash: sha256(token),
-    expiresAt: new Date(ctx.now().getTime() + MAGIC_LINK_MINUTES * 60_000),
+  // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
+  await withSignupPlace(ctx, email, async (tx) => {
+    const now = ctx.now();
+    await tx.insert(magicLinks).values({
+      email,
+      tokenHash: sha256(token),
+      expiresAt: new Date(now.getTime() + MAGIC_LINK_MINUTES * 60_000),
+      createdAt: now,
+    });
   });
   // The link opens a page that POSTs the token, so mail scanners that follow
   // links cannot use it up. Native apps get /auth/app, which the app claims as a
@@ -38,7 +44,10 @@ export async function requestMagicLink(
   await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES));
 }
 
-/** Exchanges a magic-link token for a session. Creates the user and a household on first login. */
+/**
+ * Exchanges a magic-link token for a session. Creates the user and a household on first login.
+ * Throws SignupCapError (the link stays unused) when that household would go over today's cap.
+ */
 export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
   const now = ctx.now();
   return ctx.db.transaction(async (tx) => {
@@ -48,31 +57,50 @@ export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
       .where(and(eq(magicLinks.tokenHash, sha256(token)), isNull(magicLinks.usedAt), gt(magicLinks.expiresAt, now)))
       .returning();
     if (!link) return null;
-
-    let [user] = await tx.select().from(users).where(eq(users.email, link.email));
-    if (!user) {
-      // Two login links opened at once (two tabs): the loser of the insert uses the winner's user.
-      [user] = await tx.insert(users).values({ email: link.email, locale }).onConflictDoNothing().returning();
-      if (user) {
-        const [household] = await tx.insert(households).values({ name: "Home", summarySince: now }).returning();
-        await tx.insert(householdMembers).values({ householdId: household!.id, userId: user.id, role: "owner" });
-      } else {
-        [user] = await tx.select().from(users).where(eq(users.email, link.email));
-      }
-    }
-    // A trusted person chosen by email before they had an account.
-    await tx
-      .update(selfKeys)
-      .set({ trustedUserId: user!.id })
-      .where(and(eq(selfKeys.trustedEmail, user!.email), isNull(selfKeys.trustedUserId)));
-
-    const sessionToken = randomToken(SESSION_PREFIX);
-    const expiresAt = new Date(now.getTime() + SESSION_DAYS * 86_400_000);
-    await tx.insert(sessions).values({ userId: user!.id, tokenHash: sha256(sessionToken), expiresAt });
+    // A link sent before the cap filled holds its place; this only stops a race between processes.
+    const out = await startSession(tx, link.email, locale, now, () => assertHouseholdPlace(ctx, tx, link.email, now));
     // Housekeeping: old links are useless.
     await tx.delete(magicLinks).where(lt(magicLinks.expiresAt, new Date(now.getTime() - 86_400_000)));
-    return { user: user!, sessionToken, expiresAt };
+    return out;
   });
+}
+
+type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
+
+/**
+ * Opens a session for an address whose owner has proven it (a login link, or the review code in
+ * services/review-login.ts). Creates the user and a household on first login.
+ */
+export async function startSession(
+  tx: Tx,
+  email: string,
+  locale: string,
+  now: Date,
+  /** Runs before a new user and household are made, and throws to stop it (the signup cap). */
+  beforeNewHousehold?: () => Promise<void>,
+) {
+  let [user] = await tx.select().from(users).where(eq(users.email, email));
+  if (!user) {
+    await beforeNewHousehold?.();
+    // Two login links opened at once (two tabs): the loser of the insert uses the winner's user.
+    [user] = await tx.insert(users).values({ email, locale }).onConflictDoNothing().returning();
+    if (user) {
+      const [household] = await tx.insert(households).values({ name: "Home", summarySince: now, createdAt: now }).returning();
+      await tx.insert(householdMembers).values({ householdId: household!.id, userId: user.id, role: "owner" });
+    } else {
+      [user] = await tx.select().from(users).where(eq(users.email, email));
+    }
+  }
+  // A trusted person chosen by email before they had an account.
+  await tx
+    .update(selfKeys)
+    .set({ trustedUserId: user!.id })
+    .where(and(eq(selfKeys.trustedEmail, user!.email), isNull(selfKeys.trustedUserId)));
+
+  const sessionToken = randomToken(SESSION_PREFIX);
+  const expiresAt = new Date(now.getTime() + SESSION_DAYS * 86_400_000);
+  await tx.insert(sessions).values({ userId: user!.id, tokenHash: sha256(sessionToken), expiresAt });
+  return { user: user!, sessionToken, expiresAt };
 }
 
 export async function resolveSession(ctx: Ctx, token: string) {

@@ -10,6 +10,7 @@ import { platformEn } from "./platform";
 import { callbackEn } from "./callback";
 import { modesEn } from "./modes";
 import { extendedEn } from "./extended";
+import { signupCapEn } from "./signup-cap";
 import { statusEn } from "./status";
 
 const filterSummary = "The web filter makes it less likely that the phone shows websites in the categories you choose, but some can still get through.";
@@ -25,6 +26,7 @@ export const en = {
   ...platformEn,
   ...modesEn,
   ...extendedEn,
+  ...signupCapEn,
   ...callbackEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
@@ -51,6 +53,7 @@ export const en = {
   "nav.logoutFailed": "You are still logged in. Check your connection and try again.",
   "nav.language": "Language",
   "nav.privacy": "Privacy",
+  "nav.terms": "Terms",
   "nav.status": "Status",
 
   "error.generic": "Something went wrong. Please try again.",
@@ -73,9 +76,17 @@ export const en = {
   "login.selfHost": "Do you run your own server?",
   "login.selfHostHelp": "Set MAIL_PROVIDER and SMTP_URL as described in the guide.",
   "login.selfHostGuide": "Self-hosting guide",
+  "login.testService": "Plainphone is in alpha. The test service is free and provided as is.",
+  "login.terms": "Terms of the test service",
   "login.invalidEmail": "Enter a valid email address, like name@example.com.",
   "login.inviteNote": "Log in to accept the invitation to a household.",
   "login.pairNote": "Log in to add the phone. Your code is saved until you are back.",
+  "login.codeTitle": "Log in with a code",
+  "login.codeIntro": "This address logs in with a code instead of a link. No mail is sent.",
+  "login.code": "Code",
+  "login.codeSubmit": "Log in",
+  "login.codeSending": "Logging in…",
+  "login.codeWrong": "The code doesn’t match this address. Check it and try again.",
 
   "callback.title": "Logging you in",
   "callback.working": "One moment…",

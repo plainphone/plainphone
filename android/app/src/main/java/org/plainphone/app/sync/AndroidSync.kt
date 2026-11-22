@@ -520,7 +520,8 @@ internal fun isInteractive(context: Context) = context.getSystemService(PowerMan
  */
 object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
-    private const val NOW = "plainphone-sync-now"
+    /** The immediate sync slot. Internal for the emulator flows, which check that it drains. */
+    internal const val NOW = "plainphone-sync-now"
     private const val VPN_READY = "plainphone-sync-vpn-ready"
     private const val SOON = "plainphone-sync-soon"
     private const val LOCAL_UNDO = "plainphone-local-setup-undo"

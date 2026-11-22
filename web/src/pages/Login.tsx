@@ -5,6 +5,9 @@ import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, serverHasMail } from "../lib/api";
 import { INVITE_KEY, NEXT_KEY, noteLinkAsked, takeNext, useSession } from "../lib/session";
+import { isHostedService, privacyUrl, termsUrl } from "../lib/site-links";
+
+const SELF_HOSTING_GUIDE = "https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md";
 
 function pendingReason(): "invite" | "pair" | null {
   try {
@@ -26,8 +29,13 @@ export function LoginPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | null>(null);
+  /** The hosted service has taken today's new households (SIGNUP_DAILY_CAP). */
+  const [capped, setCapped] = useState(false);
   const [mail, setMail] = useState<boolean | null>(null);
   const [reason] = useState(pendingReason);
+  // The store review address (docs/store-review.md) gets a code field instead of a mail.
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     void serverHasMail().then(setMail);
@@ -50,6 +58,7 @@ export function LoginPage() {
     e.preventDefault();
     setFieldError(undefined);
     setFormError(null);
+    setCapped(false);
     const value = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       setFieldError(t("login.invalidEmail"));
@@ -57,13 +66,37 @@ export function LoginPage() {
     }
     setBusy(true);
     try {
-      const r = await api.post<{ ok: boolean; mailEnabled: boolean }>("/auth/request", { email: value, locale });
+      const r = await api.post<{ ok: boolean; mailEnabled: boolean; codeSignIn?: boolean }>("/auth/request", { email: value, locale });
+      if (r.codeSignIn) {
+        setCode("");
+        setCodeFor(value);
+        return;
+      }
       // A link this browser asked for is used without a question (pages/AuthCallback.tsx).
       noteLinkAsked();
       setMail(r.mailEnabled);
       setSentTo(value);
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.fields().email) setFieldError(t("login.invalidEmail"));
+      else if (err instanceof ApiError && err.data.code === "signup_cap_reached") setCapped(true);
+      else setFormError(errorMessage(err, t));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitCode(e: FormEvent) {
+    e.preventDefault();
+    if (!codeFor) return;
+    setFieldError(undefined);
+    setFormError(null);
+    setBusy(true);
+    try {
+      await api.post("/auth/review", { email: codeFor, code: code.trim(), locale });
+      const me = await refresh();
+      if (me) navigate(takeNext(), { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 400)) setFieldError(t("login.codeWrong"));
       else setFormError(errorMessage(err, t));
     } finally {
       setBusy(false);
@@ -72,7 +105,37 @@ export function LoginPage() {
 
   return (
     <div className="narrow">
-      {sentTo && mail !== false ? (
+      {codeFor ? (
+        <>
+          <PageTitle sub={t("login.codeIntro")}>{t("login.codeTitle")}</PageTitle>
+          <form onSubmit={submitCode} noValidate className="stack">
+            <Field label={t("login.code")} error={fieldError}>
+              {(p) => (
+                <input
+                  {...p}
+                  type="password"
+                  name="code"
+                  autoComplete="one-time-code"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              )}
+            </Field>
+            <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+            <div className="actions">
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                {busy ? t("login.codeSending") : t("login.codeSubmit")}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setCodeFor(null); setFieldError(undefined); }}>
+                {t("login.again")}
+              </button>
+            </div>
+          </form>
+        </>
+      ) : sentTo && mail !== false ? (
         <>
           <PageTitle>{t("login.sentTitle")}</PageTitle>
           <p>{t("login.sentBody", { email: sentTo })}</p>
@@ -94,7 +157,7 @@ export function LoginPage() {
               <details className="details details-lead">
                 <summary>{t("login.selfHost")}</summary>
                 <p>{t("login.selfHostHelp")}{" "}
-                  <a href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md">{t("login.selfHostGuide")}</a>
+                  <a href={SELF_HOSTING_GUIDE}>{t("login.selfHostGuide")}</a>
                 </p>
               </details>
             </div>
@@ -114,6 +177,13 @@ export function LoginPage() {
                 />
               )}
             </Field>
+            {capped && (
+              <div className="notice notice-info stack-sm" role="status" data-testid="signup-capped">
+                <p><strong>{t("signupCap.title")}</strong></p>
+                <p>{t("signupCap.body")}</p>
+                <p>{t("signupCap.selfHost")} <a href={SELF_HOSTING_GUIDE}>{t("login.selfHostGuide")}</a></p>
+              </div>
+            )}
             <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
             <div>
               <button type="submit" className="btn btn-primary" disabled={busy}>
@@ -121,6 +191,14 @@ export function LoginPage() {
               </button>
             </div>
           </form>
+          {isHostedService(window.location.origin) && (
+            <p className="muted">
+              {t("login.testService")}{" "}
+              <a href={termsUrl(locale)} target="_blank" rel="noopener noreferrer">{t("login.terms")}</a>
+              {" · "}
+              <a href={privacyUrl(locale)} target="_blank" rel="noopener noreferrer">{t("nav.privacy")}</a>
+            </p>
+          )}
         </>
       )}
     </div>

@@ -17,6 +17,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # The JS checks run through Turborepo (turbo.json) with its local cache only, kept between
+  # runs by actions/cache: no remote cache and no telemetry.
+  TURBO_TELEMETRY_DISABLED: "1"
+  # A manual run checks everything again instead of trusting cached task results.
+  TURBO_FORCE: ${{ github.event_name == 'workflow_dispatch' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -234,25 +241,56 @@ jobs:
         if: needs.changes.outputs.server == 'true'
       - run: pnpm --filter @plainphone/server install --frozen-lockfile
         if: needs.changes.outputs.server == 'false' && needs.changes.outputs.e2e == 'true'
+      # Turborepo reruns a task only when its inputs in turbo.json changed; the rest come from
+      # this cache. Each run saves a new entry, and a run restores the newest one for its Node.
+      - name: Turborepo cache key
+        id: turbo
+        if: needs.changes.outputs.server == 'true'
+        run: echo "prefix=turbo-server-${RUNNER_OS}-${RUNNER_ARCH}-node-$(node --version)-" >> "$GITHUB_OUTPUT"
+      # The server tests' cache hash includes the PostgreSQL image and its exact version
+      # (turbo.json env), so a new service image or tag minor reruns them.
+      - name: PostgreSQL version for the Turborepo hash
+        if: needs.changes.outputs.server == 'true'
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          image=$(docker inspect --format '{{.Config.Image}}' "$PG_CONTAINER")
+          version=$(docker exec "$PG_CONTAINER" postgres --version)
+          echo "PLAINPHONE_TEST_PG=${image} ${version}" >> "$GITHUB_ENV"
+          echo "PostgreSQL for the tests: ${image} ${version}"
+      - name: Restore the Turborepo cache
+        if: needs.changes.outputs.server == 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .turbo/cache
+          key: ${{ steps.turbo.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.turbo.outputs.prefix }}
       - name: Typecheck
         id: typecheck
         continue-on-error: true
         if: needs.changes.outputs.server == 'true'
-        run: pnpm -r --filter '!@plainphone/parent-app' typecheck
+        run: pnpm exec turbo run typecheck --filter='!@plainphone/parent-app' --continue
       - name: Tests (server, web, shared packages and encryption vectors)
         id: tests
         continue-on-error: true
         if: needs.changes.outputs.server == 'true'
         env:
           DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_test
-        run: pnpm -r --filter '!@plainphone/parent-app' test
+        run: pnpm exec turbo run test --filter='!@plainphone/parent-app' --continue
       # Both apps type their API calls from packages/api-client/src/schema.d.ts. After a change
       # to server/openapi.yaml, run `pnpm --filter @plainphone/api-client generate`.
       - name: API types match server/openapi.yaml
         id: api-types
         continue-on-error: true
         if: needs.changes.outputs.server == 'true'
-        run: pnpm --filter @plainphone/api-client check
+        run: pnpm exec turbo run check --filter=@plainphone/api-client
+      # Turborepo stores only tasks that passed, so a failed run can still save its cache.
+      - name: Save the Turborepo cache
+        if: ${{ !cancelled() && needs.changes.outputs.server == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .turbo/cache
+          key: ${{ steps.turbo.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/setup-java@v6
         if: needs.changes.outputs.e2e == 'true'
         with:
@@ -668,18 +706,36 @@ jobs:
         if: needs.changes.outputs.parent == 'true'
         working-directory: .
         run: pnpm install --frozen-lockfile --filter '@plainphone/parent-app...'
+      # Same scheme as the server job: unchanged tasks come from Turborepo's cache.
+      - name: Turborepo cache key
+        id: turbo
+        if: needs.changes.outputs.parent == 'true'
+        run: echo "prefix=turbo-parent-${RUNNER_OS}-${RUNNER_ARCH}-node-$(node --version)-" >> "$GITHUB_OUTPUT"
+      - name: Restore the Turborepo cache
+        if: needs.changes.outputs.parent == 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .turbo/cache
+          key: ${{ steps.turbo.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.turbo.outputs.prefix }}
       - name: Typecheck
         if: needs.changes.outputs.parent == 'true'
-        run: pnpm typecheck
+        run: pnpm exec turbo run typecheck --filter=@plainphone/parent-app
       - name: Lint
         if: needs.changes.outputs.parent == 'true'
-        run: pnpm lint
+        run: pnpm exec turbo run lint --filter=@plainphone/parent-app
       - name: Tests (Jest + React Native Testing Library)
         if: needs.changes.outputs.parent == 'true'
-        run: pnpm test --ci
+        run: pnpm exec turbo run test --filter=@plainphone/parent-app -- --ci
       - name: Export the JS bundles (iOS, Android, web)
         if: needs.changes.outputs.parent == 'true'
-        run: pnpm exec expo export --platform all --output-dir dist
+        run: pnpm exec turbo run export --filter=@plainphone/parent-app
+      - name: Save the Turborepo cache
+        if: ${{ !cancelled() && needs.changes.outputs.parent == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .turbo/cache
+          key: ${{ steps.turbo.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
 
   # The iPhone's Swift code (docs/ios/architecture.md): generate the Xcode project with xcodegen,
   # build the dev host and its extensions for the simulator, and run the unit tests. Unsigned.

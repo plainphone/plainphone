@@ -83,13 +83,15 @@ For whoever owns the developer account. The phone app follows the same steps aft
 5. **App content** (Policy → App content):
    - Privacy policy: `https://plainphone.org/privacy/`.
    - Ads: no ads.
-   - App access: "All or some functionality is restricted", with the review sign-in (it does not
-     exist yet, see [policy-review.md](policy-review.md#reviewer-access)).
+   - App access: "All or some functionality is restricted", with the review sign-in: username
+     `REVIEW_LOGIN_EMAIL`, password `REVIEW_LOGIN_CODE` and the note in
+     [store-review.md](../store-review.md#google-play-console-app-access).
    - Content rating: fill in the IARC questionnaire (no violence, no user-to-user chat with
      strangers; messages only with people the parents added).
    - Target audience: 18 and over. Not designed for children.
    - Data safety: from [data-safety.md](data-safety.md), parent app section.
-   - Data deletion: in-app path Settings → Delete my account, and the web link.
+   - Data deletion: in-app path Settings → Delete my account, and the web link
+     `https://plainphone.org/delete-account/`.
    - Government app: no. Financial features: none. Health: none. News: no.
 6. **Testing:** Testing → Closed testing → create a track, upload the AAB built from
    `parent-app` by the maintainer (automated jobs do not run `eas build`), add testers by email list, and fill in

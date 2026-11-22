@@ -47,6 +47,13 @@ To pair a phone or an emulator with this server, see [Your own phone app](docs/s
 
 The JavaScript parts are one pnpm workspace with one lockfile: `server/`, `web/`, `parent-app/` and `packages/*` (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root. `pnpm lint` there runs each package's `lint`: the TypeScript typecheck, and ESLint in the parent app. The web app and the parent app import shared copy, logic and API types from `packages/` (`@plainphone/i18n`, `@plainphone/shared`, `@plainphone/api-client`); change them there, never in a copy.
 
+The root scripts `pnpm build`, `pnpm typecheck`, `pnpm lint` and `pnpm test` run through [Turborepo](https://turborepo.dev). `turbo.json` declares each task's dependencies, inputs and outputs. Turborepo runs independent packages in parallel and replays a task from its local cache (`.turbo/cache`, not committed) when none of its inputs changed. It has no remote cache and needs no account.
+
+- One package through the cache: `pnpm turbo run test --filter=@plainphone/web`. A package and everything that depends on it: `--filter=...@plainphone/shared`.
+- Without the cache: `pnpm --filter <package> <script>` runs the script directly. To run every task again, add `--force` to `pnpm turbo run`.
+- When a task starts reading a file outside its own package (as the server tests read `ios/Tests/Fixtures/` and `docs/encryption-test-vectors/`), add the file to that task's `inputs` in `turbo.json`. When a build starts depending on an environment variable, add it to the task's `env`. Otherwise the cache can replay a result from before the change.
+- Regenerate the API types with `pnpm turbo run generate --filter=@plainphone/api-client`, or `pnpm --filter @plainphone/api-client generate`.
+
 | Part | Requirements | Check before a PR |
 |---|---|---|
 | `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testGithubDebugUnitTest lintGithubDebug assembleGithubDebug` |
@@ -59,7 +66,7 @@ The JavaScript parts are one pnpm workspace with one lockfile: `server/`, `web/`
 | `site/` | Node only, no dependencies | `node build.mjs` and `npm run check` in `site/` |
 | `scripts/` | Python 3 | `python3 -m unittest scripts/test_provisioning_qr.py` |
 
-CI selects which checks to run based on the files changed in each pull request. Checks for unaffected areas report success after skipping their build and test steps. See [CI and builds](docs/ci-build.md) for the workflow details.
+CI selects which checks to run based on the files changed in each pull request. Checks for unaffected areas report success after skipping their build and test steps. In the server and parent app jobs, Turborepo replays the tasks whose inputs did not change from a cache that CI keeps between runs. See [CI and builds](docs/ci-build.md) for the workflow details.
 
 To run the server and the web app locally, see [Run it locally](#run-it-locally) above, or use Docker Compose as in [docs/self-hosting.md](docs/self-hosting.md).
 

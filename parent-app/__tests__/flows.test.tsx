@@ -43,6 +43,59 @@ describe("logging in", () => {
     expect(req.body).toEqual({ email: "parent@example.org", locale: "en", client: "native" });
   });
 
+  it("lets only the store review address log in with a code", async () => {
+    const api = fakeApi({
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "POST /auth/request": { status: 202, body: { ok: true, mailEnabled: true, codeSignIn: true } },
+      "POST /auth/review": (c) => ((c.body as { code: string }).code === "the-review-code"
+        ? { body: { user: ME.user, sessionToken: "pp_s_review" } }
+        : { status: 401, body: { error: "wrong address or code" } }),
+      "GET /me": (c) => (c.auth === "Bearer pp_s_review" ? { body: ME } : { status: 401, body: { error: "sign in first" } }),
+      "GET /phones": { body: { phones: [PHONE] } },
+    });
+    await renderRouter(routes, { initialUrl: "/login" });
+    expect(screen.queryByTestId("login-code")).toBeNull();
+    await fireEvent.changeText(await screen.findByLabelText("Email address"), "review@example.org");
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("Log in with a code")).toBeTruthy();
+    expect(screen.queryByText("Check your mail")).toBeNull();
+
+    await fireEvent.changeText(screen.getByLabelText("Code"), "wrong");
+    await fireEvent.press(screen.getByTestId("login-code-submit"));
+    expect(await screen.findByText("The code doesn’t match this address. Check it and try again.")).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByLabelText("Code"), " the-review-code ");
+    await fireEvent.press(screen.getByTestId("login-code-submit"));
+    expect(await screen.findByText("Alma")).toBeTruthy();
+    expect(api.calls.filter((c) => c.path === "/auth/review").at(-1)!.body).toEqual({
+      email: "review@example.org", code: "the-review-code", locale: "en", client: "native",
+    });
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.session", "pp_s_review");
+  });
+
+  it("explains calmly when the hosted service has taken today's new families", async () => {
+    const open = jest.spyOn(RNLinking, "openURL").mockResolvedValue(undefined);
+    try {
+      fakeApi({
+        "GET /health": { body: { ok: true, mail: "smtp" } },
+        "POST /auth/request": {
+          status: 429,
+          body: { error: "capped", code: "signup_cap_reached", retryAt: "2026-11-23T00:00:00.000Z" },
+        },
+      });
+      await renderRouter(routes, { initialUrl: "/login" });
+      await fireEvent.changeText(await screen.findByLabelText("Email address"), "new@example.org");
+      await fireEvent.press(screen.getByTestId("login-submit"));
+      expect(await screen.findByText("Full for today")).toBeTruthy();
+      expect(screen.getByText(/limited number of new families each day/)).toBeTruthy();
+      expect(screen.queryByText("Check your mail")).toBeNull();
+      await fireEvent.press(screen.getByRole("link", { name: /self-hosting/i }));
+      expect(open).toHaveBeenCalledWith("https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md");
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it("uses the selected server for sign-in and can return to the hosted service", async () => {
     const custom = "https://plainphone.example.org";
     const api = fakeApi({
@@ -359,6 +412,47 @@ describe("signed in", () => {
     await waitFor(() => expect(screen).toHavePathname("/login"));
     expect(api.calls.find((c) => c.path === "/auth/logout")!.auth).toBe("Bearer pp_s_saved");
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
+  });
+
+  it("deletes the account from settings after the address is typed", async () => {
+    let deleted = false;
+    const api = fakeApi({
+      "GET /me": () => (deleted ? { status: 401, body: { error: "sign in first" } } : { body: ME }),
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "DELETE /me": () => {
+        deleted = true;
+        return { body: { status: "deleted", householdsDeleted: 1, phonesRemoved: 1 } };
+      },
+      "POST /auth/logout": { status: 401, body: { error: "sign in first" } },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    await fireEvent.press(await screen.findByTestId("delete-account"));
+    expect(screen.getByText("Your account is deleted immediately and can’t be recovered.")).toBeTruthy();
+    // Nothing happens until the own address is typed.
+    await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+    expect(api.calls.some((c) => c.method === "DELETE" && c.path === "/me")).toBe(false);
+    await fireEvent.changeText(screen.getByLabelText("Type your email address to confirm"), ` ${ME.user.email.toUpperCase()} `);
+    await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+    expect(api.calls.find((c) => c.method === "DELETE" && c.path === "/me")!.body).toEqual({ confirmEmail: ME.user.email.toUpperCase() });
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
+  });
+
+  it("names the phones that must be removed before the account can go", async () => {
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "GET /phones": { body: { phones: [{ ...PHONE, id: "self-1", name: "My phone" }] } },
+      "DELETE /me": { status: 409, body: { error: "remove the Self phones first", selfPhoneIds: ["self-1"] } },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    await fireEvent.press(await screen.findByTestId("delete-account"));
+    await fireEvent.changeText(screen.getByLabelText("Type your email address to confirm"), ME.user.email);
+    await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+    expect(await screen.findByText("First remove these phones. They have a key, so removing them waits for it. Then you can delete the account.")).toBeTruthy();
+    expect(screen.getByText("My phone")).toBeTruthy();
+    expect(screen).toHavePathname("/settings");
+    expect(api.calls.filter((c) => c.path === "/auth/logout")).toHaveLength(0);
   });
 
   it("keeps login disabled when a switch from settings is still being saved", async () => {
