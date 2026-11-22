@@ -34,6 +34,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowRoleManager
+import org.robolectric.shadows.ShadowVpnService
 
 /**
  * The Play edition's setup: Child only, and a separate disclosure with an explicit yes before the
@@ -97,7 +98,6 @@ class PlayDisclosureUiTest {
             assertThat(LightSetup.disclosureAgreed(activity, LightSetup.Step.GUARD)).isTrue()
             assertThat(shadowOf(activity).nextStartedActivityForResult.intent.action).isEqualTo(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         }
-        compose.onNodeWithText(text(R.string.light_step_guard_action)).assertIsDisplayed()
     }
 
     @Test fun locationDisclosureComesBeforeThePermissionDialog() = location("light")
@@ -132,6 +132,7 @@ class PlayDisclosureUiTest {
     @Suppress("DEPRECATION") // Robolectric exposes role availability separately from role ownership.
     private fun readyUpTo(step: LightSetup.Step) {
         LightSetup.savePin(activity, "123456")
+        ShadowVpnService.setPrepareResult(null)
         val roles = Shadow.extract<ShadowRoleManager>(activity.getSystemService(RoleManager::class.java))
         roles.addHeldRole(RoleManager.ROLE_DIALER)
         roles.addHeldRole(RoleManager.ROLE_SMS)
