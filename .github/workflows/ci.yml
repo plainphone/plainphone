@@ -9,6 +9,15 @@ on:
     - cron: "17 2 * * *"
   # Runs every check, including both emulator legs, on the chosen branch.
   workflow_dispatch:
+    inputs:
+      dpc_probe:
+        description: Also run the Play Protect DPC provisioning probe (issue #255)
+        type: boolean
+        default: false
+      dpc_probe_api:
+        description: Google Play image API level for the probe (36, 35 or 37.0)
+        type: string
+        default: "36"
 
 permissions:
   contents: read
@@ -530,6 +539,13 @@ jobs:
           name: android-e2e-api-${{ matrix.api }}
           path: android/build/emulator-e2e/
           retention-days: 14
+
+  # Manual only, not a required check: does Play Protect block QR setup? (docs/testing.md)
+  dpc-provisioning-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.dpc_probe
+    uses: ./.github/workflows/dpc-provisioning-probe.yml
+    with:
+      api: ${{ inputs.dpc_probe_api }}
 
   offsite-backup:
     needs: changes
