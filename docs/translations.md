@@ -36,6 +36,11 @@ New for Google Play review (November 2026), written without a native speaker: th
 deletion page (`site/content/delete-account.mjs`) and the "Sign in with a code" texts
 (`login.code*` in `packages/i18n`).
 
+New with the bot and spam protection (22 November 2026), also without a native speaker: the
+security check, throwaway address and invitation cap texts (`packages/i18n/src/anti-abuse.ts`)
+and the new sentences about rate limits, the security check and throwaway addresses in the
+technical logs paragraph of the privacy policy (`site/content/{sv,nb,de}.mjs`).
+
 Website copy lives in `site/content/`. See the [site README](../site/README.md)
 for build and check commands.
 

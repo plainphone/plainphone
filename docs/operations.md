@@ -226,9 +226,9 @@ How it counts:
   for a known one, so it tells whether an address has an account on that day only.
 
 Sign-in links also have a limit per address: 5 per hour, counted in the database. The
-check is not locked, so many requests at the very same moment can send a few more; the
-limit per IP address (20 per hour) stays in memory in each process, because IP addresses
-are not stored ([privacy.md](privacy.md)).
+check is not locked, so many requests at the very same moment can send a few more. The
+limit per IP address (20 per hour) is in the database too, as a keyed hash that changes
+every day, never the address itself ([Bot and spam protection](#bot-and-spam-protection)).
 
 ### Change it on the hosted service
 
@@ -262,3 +262,94 @@ Set `0` to switch the cap off again.
 - **The mail server**: its queue and the provider's hourly and daily send limits. If mail
   is slow, lower the cap rather than raise it.
 - **App health** in Uptime Kuma and memory against the container limit.
+
+## Bot and spam protection
+
+Every path where someone without an account, or with a brand-new one, can make the server send
+mail or create something has its own protection. Each one can be switched off per server.
+
+| Endpoint | What it does | Protection |
+|---|---|---|
+| `POST /api/auth/request` | Mails a sign-in link; a new address becomes a new household | IP limit 20/hour (database), address limit 5/hour (database), honeypot, bot challenge, throwaway-address check for new households, daily cap on new households |
+| `POST /api/auth/verify` | Turns a link into a session; makes the household on first sign-in | IP limit 30/15 min (database), daily cap on new households |
+| `POST /api/households/{hid}/invites` | Mails an invitation to a second parent (signed in) | Invitation cap per household, 3 invitations per address and household per day (database), 20 per inviting user per day (memory) |
+| Trusted person by mail (`key.set` in the dashboard or the app, or chosen on the phone at setup) | Mails the trusted person an invitation | Invitation cap per household: over it, the key is still set and only the mail is skipped |
+| `POST /api/device/pairings` | A phone starts pairing and gets a code (no mail) | IP limit 10/hour (database) |
+| `POST /api/family-contact/invite`, `/accept`, `/decline` | An extended-family link is looked at, accepted or declined (no mail) | IP limit 30/15 min (database) |
+| `POST /api/auth/review` | Store review sign-in, only with `REVIEW_LOGIN_EMAIL` set (no mail) | Its own limit ([store-review.md](store-review.md)) |
+
+There is no contact or support form on the server or on plainphone.org: support goes by mail
+to support@plainphone.org ([support.md](support.md)). Other mails (alerts, SOS, weekly summary,
+approval requests) only go to people who are already in a household, triggered by its own
+phones or parents.
+
+### The switches
+
+| Variable | Default | What it does |
+|---|---|---|
+| `BOT_CHALLENGE` | `off` | `altcha`: the dashboard and the parent app solve a short proof-of-work puzzle before a sign-in link is mailed. A misspelt value counts as `altcha` and is reported in `/api/health` |
+| `BOT_CHALLENGE_DIFFICULTY` | `100000` | The largest number in the puzzle. The average work is half of it, SHA-256 hashes: about a tenth of a second in a browser, one or two seconds on a phone |
+| `BOT_CHALLENGE_HMAC_KEY` | made by the server | Signs the puzzles. Unset, the server makes one on first use and keeps it in `server_secrets`. At least 32 characters; never logged |
+| `SPAM_HONEYPOT` | `on` | A hidden field on the dashboard's sign-in form. Filled in, the answer is the normal "check your mail", nothing is sent, and the metrics count it |
+| `BLOCK_DISPOSABLE_EMAIL` | `on` | A new household cannot start with a throwaway address. Accounts that exist, invited parents and trusted persons are never refused |
+| `INVITES_PER_HOUSEHOLD_DAILY` | `20` | Invitation mails per household in any 24 hours, counted in the database. `0` switches it off |
+| `SIGNUP_DAILY_CAP` | `0` | New households per UTC day ([above](#daily-cap-on-new-households)) |
+
+The rate limits themselves have no switch: they only stop floods, and they were there before.
+
+### The bot challenge
+
+It is [ALTCHA](https://altcha.org) (protocol v1), implemented in the repository without a
+package, a third party, cookies or tracking:
+
+1. `GET /api/auth/challenge` hands out a random salt with an expiry 10 minutes ahead, and the
+   SHA-256 of the salt plus a secret number up to `BOT_CHALLENGE_DIFFICULTY`, signed with HMAC.
+   Nothing is stored.
+2. The client tries every number until the hash matches (`packages/shared/src/altcha.ts`).
+   The dashboard starts as soon as the sign-in page opens, so the answer is usually ready
+   before the address is typed. The parent app solves it when the button is pressed, in small
+   slices so the screen stays responsive, and shows "Doing a quick security check".
+3. `POST /api/auth/request` checks the hash, the signature and the expiry, and stores the
+   signature in `bot_challenges_spent` so the same answer is accepted once. The sweeper
+   deletes spent signatures after their challenge has expired.
+
+`/api/health` says `botChallenge: "altcha"` or `"off"` and `honeypot: true|false`, so clients
+know what to send. An app version from before the challenge gets `403` with
+`code: "bot_challenge_required"` and a message that asks to update the app; the current app
+also solves the puzzle and asks once more if the server switched it on after the app read
+`/api/health`. A wrong, expired or reused answer is `403 bot_challenge_failed`.
+
+What it does and does not do: it makes each sign-in mail cost the sender a little CPU time,
+which is nothing for a person and adds up for a script that wants thousands. It does not stop
+a determined attacker with many machines; the database limits and the daily cap are the
+backstop.
+
+### Throwaway addresses
+
+The list is [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains)
+(CC0), vendored in `server/catalog/disposable-email/` and read once at start. No lookup
+happens over the network. A subdomain of a listed domain counts too; `allow.txt` lists
+forwarding services people use as their lasting address and wins over the list. Refresh it
+with `node server/scripts/update-disposable-domains.mjs`, read the diff and commit it.
+
+A refused address gets `422` with `code: "disposable_email"`, and the form asks for an address
+the person will keep, so they can still sign in later.
+
+### Rate limits in the database
+
+The limits in the table above are counted in `rate_limit_hits`, so they survive restarts and
+hold across processes. A row holds the limit's name, the window and a count. The client is a
+keyed hash: HMAC-SHA-256 of the address with a key derived from a server secret and the UTC
+date, so the key changes every day and yesterday's rows cannot be matched with today's. IPv6
+addresses are cut to their /64 first. The raw address is never stored, and rows are deleted
+once their window has ended (at most a day). The other, high-frequency limits (phone polling,
+receipts) stay in each process's memory.
+
+### What to watch
+
+- `/api/metrics` (with `METRICS_TOKEN`) has `plainphone_abuse_blocked_total{reason=…}` for
+  `honeypot`, `bot_challenge`, `disposable_email`, `invite_cap` and `rate_limit`, counted since
+  start-up. A sudden rise in `bot_challenge` or `honeypot` is a bot finding the form.
+- The `403`, `422` and `429` rates on `/api/auth/request` in the Traefik numbers in Grafana.
+- If real people report "the security check did not work", look for a clock that is far off
+  on the server (the expiry is checked against it) or a proxy that caches `/api/auth/challenge`.
