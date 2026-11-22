@@ -16,7 +16,7 @@ import { useLoad } from "./ui";
  */
 export function CallbackRequests({ pid, phoneName }: { pid: string; phoneName?: string }) {
   const { locale, t } = useI18n();
-  const path = `/phones/${pid}/callback-requests`;
+  const path = `/phones/${pid}/callback-requests` as const;
   const res = useLoad(() => api.get<CallbackList>(path), [path]);
   const { reload } = res;
   const [busy, setBusy] = useState(false);

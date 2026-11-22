@@ -263,7 +263,7 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
     setBusy(null);
   }
 
-  const path = (pkg: string) => `/phones/${phone.id}/time-limits/apps/${encodeURIComponent(pkg)}`;
+  const path = (pkg: string) => `/phones/${phone.id}/time-limits/apps/${encodeURIComponent(pkg)}` as const;
 
   return (
     <section className="section" aria-labelledby="apps-h">

@@ -59,7 +59,7 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
   onSetting: (patch: Partial<SosSettings>) => void;
 }) {
   const { t } = useI18n();
-  const path = `/phones/${pid}/quick-messages`;
+  const path = `/phones/${pid}/quick-messages` as const;
   const res = useLoad(() => api.get<QuickMessageList>(path), [path]);
   const { reload, data } = res;
   const [busy, setBusy] = useState(false);

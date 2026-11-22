@@ -193,6 +193,18 @@ importers:
 
   .: {}
 
+  packages/api-client:
+    devDependencies:
+      openapi-typescript:
+        specifier: 7.13.0
+        version: 7.13.0(typescript@6.0.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(happy-dom@21.0.4)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(terser@5.51.2)(tsx@4.23.15))
+
   packages/crypto:
     dependencies:
       '@hpke/core':
@@ -254,6 +266,9 @@ importers:
 
   parent-app:
     dependencies:
+      '@plainphone/api-client':
+        specifier: workspace:*
+        version: link:../packages/api-client
       '@plainphone/i18n':
         specifier: workspace:*
         version: link:../packages/i18n
@@ -351,9 +366,6 @@ importers:
       jest-expo:
         specifier: ~58.0.14
         version: 58.0.14(@babel/core@7.29.13(supports-color@10.2.2))(@react-native/jest-preset@0.88.1(@babel/core@7.29.13(supports-color@10.2.2))(react@19.3.0)(supports-color@10.2.2))(@types/react@19.3.0)(expo@58.0.25)(jest@30.5.2(@types/node@26.6.6)(supports-color@10.2.2))(react-native@0.88.1(@babel/core@7.29.13(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.13(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)(supports-color@10.2.2)
-      openapi-typescript:
-        specifier: ^7.13.0
-        version: 7.13.0(typescript@6.0.3)
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -406,6 +418,9 @@ importers:
 
   web:
     dependencies:
+      '@plainphone/api-client':
+        specifier: workspace:*
+        version: link:../packages/api-client
       '@plainphone/i18n':
         specifier: workspace:*
         version: link:../packages/i18n

@@ -49,7 +49,7 @@ export function FamilyInbox({ pid, settings, saving, onSetting }: {
 
 function Thread({ pid }: { pid: string }) {
   const { t, locale } = useI18n();
-  const path = `/phones/${pid}/inbox`;
+  const path = `/phones/${pid}/inbox` as const;
   const res = useLoad(() => api.get<FamilyInboxThread>(path), [path]);
   const { reload, data } = res;
   const [text, setText] = useState("");

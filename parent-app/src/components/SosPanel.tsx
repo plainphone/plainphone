@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Linking } from "react-native";
 import { client, unwrap } from "../api/client";
-import type { components } from "../api/schema";
+import type { components } from "@plainphone/api-client/schema";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { triggerLabel } from "@plainphone/shared/sos-options";

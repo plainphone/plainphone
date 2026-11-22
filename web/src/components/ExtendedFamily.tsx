@@ -19,7 +19,7 @@ import { Field, useLoad } from "./ui";
  */
 export function ExtendedFamily({ pid, paused = false }: { pid: string; paused?: boolean }) {
   const { t } = useI18n();
-  const path = `/phones/${pid}/extended`;
+  const path = `/phones/${pid}/extended` as const;
   const res = useLoad(() => api.get<ExtendedRoster>(path), [path]);
   const { reload, data } = res;
   const [name, setName] = useState("");

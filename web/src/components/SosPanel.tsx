@@ -21,7 +21,7 @@ interface SosEvent {
 
 export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }) {
   const { locale, t } = useI18n();
-  const path = `/phones/${pid}/sos`;
+  const path = `/phones/${pid}/sos` as const;
   const res = useLoad(() => api.get<{ events: SosEvent[]; callbackNumber: string | null }>(phoneName === undefined ? path : `${path}?unseen=1`), [path, phoneName]);
   const { reload, setData } = res;
   const [busy, setBusy] = useState(false);

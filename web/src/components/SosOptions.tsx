@@ -11,7 +11,7 @@ import { PickGroup, Switch, useLoad } from "./ui";
 /** Hidden SOS and quick messages for one Child phone. Every option is a switch with one line of explanation. */
 export function SosOptions({ pid }: { pid: string }) {
   const { t } = useI18n();
-  const path = `/phones/${pid}/sos`;
+  const path = `/phones/${pid}/sos` as const;
   const res = useLoad(() => api.get<{ settings?: Partial<SosSettings>; callbackNumber?: string | null }>(path), [path]);
   const { setData, reload } = res;
   const [saving, setSaving] = useState(false);

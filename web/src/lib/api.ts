@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Thin client for the parent API. The session lives in an HttpOnly cookie (path /api),
-// so the app never sees or stores a token.
+// so the app never sees or stores a token. Paths are checked against server/openapi.yaml
+// (@plainphone/api-client).
 
 import type { AgePreset, AgePresetId, AgeState, Agreement } from "@plainphone/shared/age";
 import type { EarlyUnlockOffer } from "@plainphone/shared/billing";
+import { createClient } from "@plainphone/api-client";
 import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
 import type { DnsCategory, FilterMethod, Home, KeyInput, Limit, Op, OpenCategory, PhoneSetting, ScheduleInput, SettingKey } from "@plainphone/shared/models";
 
@@ -443,28 +445,7 @@ export interface InviteResult {
   url?: string;
 }
 
-export interface Issue {
-  path: string;
-  message: string;
-}
-
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly issues: Issue[] = [],
-    /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
-    readonly data: { selfPhoneIds?: string[]; outcome?: string; code?: string; error?: string; limit?: string; max?: number } = {},
-  ) {
-    super(message);
-  }
-  /** Field errors keyed by path, e.g. { number: "use international format..." }. */
-  fields(): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const i of this.issues) out[i.path] ??= i.message;
-    return out;
-  }
-}
+export { ApiError, type Issue } from "@plainphone/api-client";
 
 /** Called when any request comes back 401, so the app can show the login page. */
 let onUnauthorized: (() => void) | null = null;
@@ -472,50 +453,13 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
-export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`/api${path}`, {
-      method,
-      credentials: "same-origin",
-      headers: {
-        accept: "application/json",
-        // The server refuses writes without this (415), even with an empty body.
-        ...(method !== "GET" ? { "content-type": "application/json" } : {}),
-      },
-      body: method !== "GET" ? JSON.stringify(body ?? {}) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, "network");
-  }
-  const text = await res.text();
-  let json: unknown = null;
-  if (text) {
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = null;
-    }
-  }
-  if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string; code?: string; limit?: string; max?: number };
-    if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
-    throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
-  }
-  if (res.status === 202 || res.status === 200 || res.status === 201) {
-    // Change endpoints answer 200 {status:"applied"} or 202 {status:"pending"}.
-    return json as T;
-  }
-  return undefined as T;
-}
+const client = createClient({ baseUrl: "/api", credentials: "same-origin", onUnauthorized: () => onUnauthorized?.() });
 
-export const api = {
-  get: <T>(p: string) => request<T>("GET", p),
-  post: <T>(p: string, b?: unknown) => request<T>("POST", p, b),
-  put: <T>(p: string, b?: unknown) => request<T>("PUT", p, b),
-  patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
-  del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
-};
+/** Any path. Only for a route server/openapi.yaml does not describe; everything else uses `api`. */
+export const request = client.request;
+
+/** Each method takes only the paths server/openapi.yaml describes for it (@plainphone/api-client). */
+export const api = client.api;
 
 export const acknowledgeSos = <T>(pid: string, id: string, name: string) =>
   api.post<T>(`/phones/${pid}/sos/${id}/seen`, { name: name.trim() || undefined });

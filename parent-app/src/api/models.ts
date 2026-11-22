@@ -2,10 +2,10 @@
 //
 // Domain types, the same shapes as web/src/lib/api.ts; the ones the shared lib files need
 // come from @plainphone/shared/models. Request and response types for
-// each endpoint come from the generated src/api/schema.d.ts (pnpm gen:api); these are
+// each endpoint come from @plainphone/api-client (generated from server/openapi.yaml); these are
 // the narrower shapes the screens work with.
 
-import type { components } from "./schema";
+import type { components } from "@plainphone/api-client/schema";
 
 import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
 import type { EarlyUnlockOffer } from "@plainphone/shared/billing";

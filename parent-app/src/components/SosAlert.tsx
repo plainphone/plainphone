@@ -10,7 +10,7 @@ import { Pressable, Vibration, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { client, unwrap } from "../api/client";
 import type { Phone } from "../api/models";
-import type { components } from "../api/schema";
+import type { components } from "@plainphone/api-client/schema";
 import { useI18n } from "../i18n/I18n";
 import { useLive, useLiveEvent } from "../lib/live";
 import { radius, space, useColors } from "../lib/theme";

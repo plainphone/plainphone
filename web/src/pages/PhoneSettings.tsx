@@ -229,7 +229,7 @@ function SetupUndoSetting() {
   const { t } = useI18n();
   const { phone, run } = usePhone();
   const id = useId();
-  const path = `/phones/${phone.id}/setup-undo`;
+  const path = `/phones/${phone.id}/setup-undo` as const;
   const res = useLoad(() => api.get<{ minutes: number; editable: boolean; undoUntil: string | null }>(path), [path]);
   const [saving, setSaving] = useState(false);
   const { data, loading, reload } = res;
