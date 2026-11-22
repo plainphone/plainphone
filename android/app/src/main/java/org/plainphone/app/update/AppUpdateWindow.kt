@@ -104,6 +104,11 @@ object AppUpdateWindow {
 
     private val guard = Executors.newSingleThreadExecutor()
 
+    /** Waits for the guard's queued work; tests only. */
+    internal fun awaitGuardForTests() {
+        guard.submit {}.get(10, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
     /**
      * The guard, for every package Android reports as added while the app runs. An update of an
      * installed app is counted; a new app is hidden at once and held back until the server has it.
@@ -195,6 +200,16 @@ object AppUpdateWindow {
      * From the install lease when a catalog or app update window closed: the parents see the end
      * of an app update window right away, not at the next periodic sync. Once per window.
      */
+    fun onLeaseClosedAsync(context: Context) {
+        val app = context.applicationContext
+        // On the guard's thread: the lease can close under Lock's apply lock, and this takes
+        // AppUpdateWindow's monitor, which open() holds while it waits for that lock (#229).
+        guard.execute {
+            runCatching { onLeaseClosed(app) }.onFailure { Log.w(TAG, "could not handle the closed lease", it) }
+        }
+    }
+
+    /** What [onLeaseClosedAsync] runs. Never call while holding Lock's apply lock or the lease lock. */
     fun onLeaseClosed(context: Context) {
         val app = context.applicationContext
         val id = log(app).current()?.takeIf { it.openedAtMs != null }?.id ?: return
