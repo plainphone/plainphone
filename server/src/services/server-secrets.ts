@@ -10,7 +10,7 @@ import type { Ctx } from "./context.js";
 
 export type SecretName = "bot-challenge-hmac" | "rate-limit-hmac";
 
-const cache = new WeakMap<Ctx["db"], Map<SecretName, Promise<string>>>();
+const cache = new WeakMap<Ctx, Map<SecretName, Promise<string>>>();
 
 async function load(db: Ctx["db"], name: SecretName): Promise<string> {
   let [row] = await db.select({ value: serverSecrets.value }).from(serverSecrets).where(eq(serverSecrets.name, name));
@@ -23,8 +23,8 @@ async function load(db: Ctx["db"], name: SecretName): Promise<string> {
 }
 
 export function serverSecret(ctx: Ctx, name: SecretName): Promise<string> {
-  const byName = cache.get(ctx.db) ?? new Map<SecretName, Promise<string>>();
-  cache.set(ctx.db, byName);
+  const byName = cache.get(ctx) ?? new Map<SecretName, Promise<string>>();
+  cache.set(ctx, byName);
   let secret = byName.get(name);
   if (!secret) {
     secret = load(ctx.db, name);
