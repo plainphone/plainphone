@@ -109,13 +109,16 @@ abstract class EmulatorFlow {
      * (PairingController.allowedWithoutPin). `dpm set-device-owner` starts that lock through
      * the admin-enabled broadcast, but `am instrument` force-stops the app before it finishes.
      * Replay that broadcast, as a provisioned phone runs it, and wait for the lock it applies.
+     * If the original broadcast won the race and already applied the lock, the window is open
+     * and there is nothing to replay.
      */
     private fun awaitFirstDeviceOwnerLock() {
-        assertNull("a fresh test phone has no lock yet", Lock.firstAppliedAtMs(context))
-        // Android 10 and 11 hold the first lock until the unlocked-bootloader warning is confirmed.
-        BootloaderWarning.acknowledge(context)
-        PlainphoneAdminReceiver().onEnabled(context, Intent(DeviceAdminReceiver.ACTION_DEVICE_ADMIN_ENABLED))
-        await("the first Device Owner lock, which opens the setup window") { Lock.firstAppliedAtMs(context) != null }
+        if (Lock.firstAppliedAtMs(context) == null) {
+            // Android 10 and 11 hold the first lock until the unlocked-bootloader warning is confirmed.
+            BootloaderWarning.acknowledge(context)
+            PlainphoneAdminReceiver().onEnabled(context, Intent(DeviceAdminReceiver.ACTION_DEVICE_ADMIN_ENABLED))
+            await("the first Device Owner lock, which opens the setup window") { Lock.firstAppliedAtMs(context) != null }
+        }
         assertTrue("the setup must be able to pair without the PIN", PairingActivity.canPairWithoutPin(context))
     }
 
