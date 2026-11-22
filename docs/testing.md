@@ -124,8 +124,8 @@ The emulator covers the AOSP paths listed above. Hardware QR provisioning,
 vendor restrictions, Play services, carrier delivery, real calls, PiP
 audio, and the timing and hardware variants in the
 [bypass checklist](bypass-checklist.md) still need physical devices (the
-[DPC provisioning probe](#dpc-provisioning-probe) below gives a first answer
-for QR setup on a Google Play image). The
+[DPC provisioning probe](#dpc-provisioning-probe) below explains why the
+emulator cannot test QR setup on a Google Play image). The
 parent side of the suite uses the authenticated API. To test the phone sync
 protocol without booting an emulator, run `scripts/e2e-phone-sync.sh`.
 
@@ -138,16 +138,25 @@ The guidance also says that sideloaded apps asking for SMS, notification
 listener or accessibility access are blocked during enrollment, and Plainphone
 asks for SMS and accessibility. The suite above cannot answer whether this hits
 Plainphone: it uses AOSP images without Play Protect, and `dpm set-device-owner`
-skips the setup wizard. The probe (issue #255) gives a first answer from an
-emulator before anyone tries it on a real phone.
+skips the setup wizard. The probe (issue #255) was meant to give a first
+answer from an emulator before anyone tries it on a real phone.
+
+**Status: no SDK emulator image can run the QR path.** The six-tap QR reader
+is part of Google's setup wizard (`com.google.android.setupwizard`), and none
+of the SDK's Google Play images has it (see
+[Why the emulator has no QR path](#why-the-emulator-has-no-qr-path)). The probe
+now checks for the wizard right after boot and stops without a conclusion if
+it is missing, so a run on a new image tells at once whether that image is any
+different. The question has to be answered on a real phone.
 
 It is manual only, not run on pushes or pull requests and not a required check.
 Start it from Actions → **DPC provisioning probe** → Run workflow (API level
-36, 35 or 37.0, and optionally a release tag), or with
-`gh workflow run dpc-provisioning-probe.yml -f api=36`. GitHub only offers
-that once the workflow is on main. To run it from a branch, dispatch CI with
-the probe switched on, which also runs every other check:
-`gh workflow run ci.yml --ref <branch> -f dpc_probe=true`.
+36, 35, 34, 36.1 or 37.0; image tag `google_apis_playstore`, or
+`google_apis_playstore_ps16k` from API 35; optionally a release tag), or with
+`gh workflow run dpc-provisioning-probe.yml -f api=36 -f image_tag=google_apis_playstore`.
+GitHub only offers that once the workflow is on main. To run it from a branch,
+dispatch CI with the probe switched on, which also runs every other check:
+`gh workflow run ci.yml --ref <branch> -f dpc_probe=true -f dpc_probe_api=36 -f dpc_probe_image_tag=google_apis_playstore`.
 
 What the job does (`scripts/dpc-provisioning-probe.py`):
 
@@ -160,9 +169,12 @@ What the job does (`scripts/dpc-provisioning-probe.py`):
    phone never pairs with a real server. The QR code is drawn on a 4:3 white
    camera frame, and the job checks with `zbarimg` that the frame decodes to
    exactly the payload.
-3. Boots a fresh, wiped `google_apis_playstore` x86_64 image with the back
-   camera showing that frame (`-camera-back imagefile:`). It stops without a
-   conclusion if the image skips the setup wizard.
+3. Boots a fresh, wiped Google Play x86_64 image (the chosen API level and
+   tag) with the back camera showing that frame (`-camera-back imagefile:`).
+   It lists the packages (`pm list packages -u`) and stops without a
+   conclusion if Google's setup wizard is not installed, if setup was already
+   marked complete (`user_setup_complete=1`), or if Plainphone is already
+   Device Owner. It never changes settings to get past this.
 4. Waits for the welcome screen, taps an empty spot six times (one shell
    command, so the taps are quick), and checks that the screen changed.
 5. Records every new screen (screenshot and `uiautomator` dump) and presses
@@ -179,7 +191,7 @@ What the job does (`scripts/dpc-provisioning-probe.py`):
    `adb_state`); if adb comes back, it carries on. It then keeps taking screenshots through the emulator console
    (`adb emu screenrecord screenshot`) for a minute.
 
-The artifact `dpc-provisioning-probe-api-<level>` holds `result.json`,
+The artifact `dpc-provisioning-probe-api-<level>-<image tag>` holds `result.json`,
 `screens/` (every wizard screen as PNG, plus the XML dump where one could be
 read), `logcat.txt` (until adb went off), `logcat-highlights.txt` (Play Store,
 package verification, managed provisioning and Plainphone lines),
@@ -193,8 +205,10 @@ the camera frame.
 from `dpm list-owners`, or `"inferred"` when adb went off for at least 30
 seconds after Plainphone was installed and before dpm could be read; only the
 Device Owner lock keeps adb off), the release, the image with its Play Store and Play
-services versions, and a timeline. The job fails on `inconclusive`: the image
-had no setup wizard, six taps did not open QR setup, setup stopped on an error
+services versions, `setup_wizard` (whether `com.google.android.setupwizard` is
+installed, and every setup package found), and a timeline. The job fails on
+`inconclusive`: the image has no Google setup wizard or had already finished
+setup, six taps did not open QR setup, setup stopped on an error
 screen without a Play Protect screen, a screen stayed unchanged for 150
 seconds, or there was no answer within 15 minutes. A block passes the job, with
 a warning annotation, because the probe did answer the question.
@@ -203,7 +217,7 @@ a warning annotation, because the probe did answer the question.
 
 | Step | Same as a real phone | Different |
 | --- | --- | --- |
-| Setup wizard | Google's setup wizard on a Google Play image, with Play Store, Play services and Play Protect | An emulator image, not a certified phone from a maker. Its Play Store and Play services versions are the image's own (recorded in `result.json`) and may be older than a phone's |
+| Setup wizard | Google's setup wizard on a Google Play image, with Play Store, Play services and Play Protect | **Not met by any SDK image so far:** they ship the emulator's setup stub instead of Google's wizard (see below). If an image ever has the wizard: an emulator image, not a certified phone from a maker, and its Play Store and Play services versions are the image's own (recorded in `result.json`) and may be older than a phone's. The probe changes no settings to reach the wizard, so a run that gets past this step starts from the same state as a factory-new phone |
 | Opening QR setup | Six taps on the welcome screen | `input tap` instead of a finger |
 | Scanning | The wizard's own QR reader reads the camera | The camera shows an image file: no lens, focus, glare or second screen |
 | QR payload | Built by `scripts/provisioning-qr.py` in the same format as the dashboard | No enrollment token, the server is `https://probe.invalid`, and the APK comes from the GitHub release URL instead of `app.plainphone.org/download/android` |
@@ -221,6 +235,37 @@ under test: `dpm set-device-owner` skips the wizard and Play Protect, an
 `am start` of `PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE` needs a signature
 permission the shell does not have, `PROVISION_MANAGED_DEVICE` must come from
 an already installed DPC, and the emulator has no NFC.
+
+### Why the emulator has no QR path
+
+The first CI run (API 36, `google_apis_playstore`) stopped with
+`user_setup_complete=1` and "Device provisioned: true". To find a way to the
+wizard, the images themselves were taken apart (November 2026: each
+`super` partition unpacked and its app folders listed with `dump.erofs`, or
+`debugfs` for API 34). Every Google Play x86_64 image checked has the same
+setup apps: API 34 (r14), 35 (r09), 36 (r07), 36 `ps16k` (r07) and 37.0 (r08).
+None has `SetupWizardPrebuilt`. Their only setup-wizard app is
+`GoogleSdkSetup` (`com.google.android.googlesdksetup`, a Home activity in the
+`SETUP_WIZARD` category). It wraps the emulator's
+[`ProvisionActivity`](https://android.googlesource.com/device/generic/goldfish/+/refs/heads/main/provision/EmulatorProvisonLib/src/com/android/sdksetup/ProvisionActivity.java),
+which sets `user_setup_complete` and `device_provisioned` to 1 at first boot
+and then disables itself. It has no QR reader. The images also carry
+`ro.test_harness=1`, and API 34 sets `ro.setupwizard.mode=DISABLED`. The list
+of images is in the SDK's
+[repository manifest](https://dl.google.com/android/repository/sys-img/google_apis_playstore/sys-img2-4.xml).
+
+| Candidate | Verdict | Why |
+| --- | --- | --- |
+| Put `device_provisioned` and `user_setup_complete` back to 0 and start `com.google.android.setupwizard` | Rejected | The package is not on the image, so there is nothing to start. Even on an image with the wizard it would not work: [`DevicePolicyManagerService`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java) keeps its own copy of "setup complete". `updateUserSetupCompleteAndPaired()` only ever sets it to true, and `checkDeviceOwnerProvisioningPreConditionLocked()` then answers `STATUS_USER_SETUP_COMPLETED` to managed provisioning. Only the test API `forceUpdateUserSetupComplete()` (permission `MANAGE_PROFILE_AND_DEVICE_OWNERS`) resets that copy, and that is no longer a factory-new phone |
+| `ro.setupwizard.mode`, an emulator `-prop`, or a `config.ini` setting | Rejected | The property only tells an installed Google wizard how to behave, and there is none. `ro.*` properties are read-only, and the Play images are `user` builds without `adb root` |
+| Another image tag or API level (`google_apis_playstore_ps16k`, API 34, 35, 36.1, 37.0) | Rejected after checking | Same setup apps on every image checked. The `api` and `image_tag` inputs stay, so a future image can be tried with one run; the probe reports `setup_wizard` straight after boot |
+| Installing Google's setup wizard APK | Rejected | It is a privileged system app. A `user` build without root cannot add privileged apps, and the APK may not be redistributed |
+| Re-enabling a disabled setup component with `pm enable` | Rejected | [Reported](https://stackoverflow.com/questions/72329296) to reboot to the home screen without a wizard on an Android 12 emulator, and here the wizard package is missing, not disabled |
+| `dpm set-device-owner`, `PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE`, `PROVISION_MANAGED_DEVICE`, NFC | Rejected | They skip the wizard's QR reader or Play Protect (see above) |
+
+Issue #255 therefore needs a real phone with Google Play services: factory
+reset, six taps on the welcome screen, scan the dashboard's QR code, and note
+what [the setup guide](setup-test-phone.md) asks for.
 
 To check the probe's decisions without an emulator, run
 `python3 -m unittest scripts/test_dpc_provisioning_probe.py` (the CI `changes`
