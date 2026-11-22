@@ -57,6 +57,9 @@ private const val PLAYER_ACTIVITY = "$PLAYER/.PlayerActivity"
 private const val MESSAGE = "I am at the test stop"
 private const val REPLY = "Emulator parent reply"
 
+/** One sync run seen during setup, with the phone id of the rules saved when it finished. */
+private data class SetupRun(val reason: String, val outcome: SyncRunner.Outcome, val rulesPhoneId: String?)
+
 abstract class EmulatorFlow {
     protected val instrumentation = InstrumentationRegistry.getInstrumentation()
     protected val context = instrumentation.targetContext
@@ -83,12 +86,13 @@ abstract class EmulatorFlow {
         // Begin at the setup screen's existing pending-QR entry point. The fixture uses HTTP
         // on the emulator loopback, whereas the public setup link parser requires HTTPS.
         store.saveEnrollToken(response.getJSONObject("enrollment").getString("token"))
-        // Pairing also registers the 15-minute WorkManager sync, which could deliver the first
-        // status and rules by itself. Wait for the sync the setup starts under its own reason.
-        val setupSync = if (mode == Mode.LIGHT) "initial light setup" else "paired"
-        // Record every run from here on, before anything can pair the phone.
-        val runs = CopyOnWriteArrayList<Pair<String, SyncRunner.Outcome>>()
-        SyncRunner.runObserverForTest = { reason, outcome -> runs.add(reason to outcome) }
+        // Wait for the real condition: a finished sync that left this phone's rules saved. Not
+        // for a reason label. Device Owner setup may apply the rules in the pairing screen's own
+        // "setup finished" sync, and the queued "paired" sync shares one KEEP slot with every
+        // other immediate sync, so it can run under another reason or after the rules are in
+        // (#236). Each run is recorded with the rules' phone id as that run left them.
+        val runs = CopyOnWriteArrayList<SetupRun>()
+        SyncRunner.runObserverForTest = { reason, outcome -> runs.add(SetupRun(reason, outcome, store.rules()?.phoneId)) }
         try {
             if (mode == Mode.STRONG) awaitFirstDeviceOwnerLock()
             val setup = if (mode == Mode.LIGHT) LightSetupActivity.intent(context) else PairingActivity.setupIntent(context)
@@ -102,8 +106,8 @@ abstract class EmulatorFlow {
                 text(context.getString(R.string.light_confirm_link_action)).click()
             }
             // Built at the timeout: the runs and the work as they are then, not when the wait began.
-            await({ "the setup's own first sync ($setupSync), runs seen: $runs, sync work: ${syncWork()}" }) {
-                runs.any { (reason, outcome) -> reason == setupSync && outcome is SyncRunner.Outcome.Synced }
+            await({ "a setup sync that saved this phone's rules ($id), runs seen: $runs, sync work: ${syncWork()}" }) {
+                runs.any { it.outcome is SyncRunner.Outcome.Synced && it.rulesPhoneId == id }
             }
         } finally {
             SyncRunner.runObserverForTest = null
@@ -207,7 +211,8 @@ abstract class EmulatorFlow {
             .get(5, TimeUnit.SECONDS)
             .map { work ->
                 val kind = if (work.periodicityInfo != null) "periodic" else "once"
-                "$kind ${work.state} attempts=${work.runAttemptCount} stopReason=${work.stopReason}"
+                "$kind ${work.state} attempts=${work.runAttemptCount} stopReason=${work.stopReason} " +
+                    "delayMs=${work.initialDelayMillis}"
             }.toString()
     }.getOrElse { "unavailable (${it.javaClass.simpleName})" }
 
