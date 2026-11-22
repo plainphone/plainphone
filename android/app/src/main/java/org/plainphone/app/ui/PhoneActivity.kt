@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -214,6 +215,7 @@ internal object TelecomHandoff {
     @Volatile
     internal var interceptForTest: ((Uri) -> Unit)? = null
 
+    @RequiresPermission(Manifest.permission.CALL_PHONE)
     fun submit(context: Context, address: Uri) {
         val intercept = interceptForTest
         if (intercept != null) intercept(address)
