@@ -97,10 +97,14 @@ whole command, not one per read: kernel messages share the console and would
 otherwise keep a stuck command alive. A command that overruns gets a Ctrl-C, so
 the diagnostics after it still get a shell. Each flow also has a watchdog
 (`FlowWatchdog`) that fails it 60 seconds before the harness's limit for that
-flow (15 minutes for light mode, 7 for Device Owner). A call that never returns
+flow (16 minutes for light mode, so its watchdog still allows the 11-minute
+midnight wait plus the flow; 7 for Device Owner). A call that never returns
 then fails the flow with the step it was at and the stack traces of the flow and
-the app's main thread, and logcat gets every thread (tag `PlainphoneE2E`, which
-also logs each step as it starts). On failure, the job log shows whether the
+the app's main thread, and logcat gets every thread in parts below its 4 KB
+entry limit (tag `PlainphoneE2E`, which also logs each step as it starts).
+The stuck call itself cannot be stopped, so after a watchdog failure the flow's
+`finally` blocks do not run; after the light flow, the clock then stays 35 days
+ahead for the rest of the run. On failure, the job log shows whether the
 server was still running and the end of its log.
 
 The test parent's number is the emulator's own SIM number, `+15555215554`

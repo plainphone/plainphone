@@ -93,6 +93,15 @@ class SosSenderTest {
         assertThat(JSONObject(started.getStringExtra(SosSender.EXTRA_JOB)!!).getString("id")).isEqualTo(id)
         val work = WorkManager.getInstance(context).getWorkInfosForUniqueWork(id).get().single()
         assertThat(work.state).isAnyOf(WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING, WorkInfo.State.SUCCEEDED)
+        // The worker sends on Dispatchers.IO, so its report can land after enqueue returns (CI run 45043929153).
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        var state = work.state
+        while (!state.isFinished && System.nanoTime() < deadline) {
+            shadowOf(android.os.Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+            state = WorkManager.getInstance(context).getWorkInfoById(work.id).get()?.state ?: break
+        }
+        assertThat(state).isEqualTo(WorkInfo.State.SUCCEEDED)
         // The safety net ran too: one report, no matter how many runners.
         assertThat(reports.map { it.first.getString("id") }).containsExactly(id)
     }

@@ -41,7 +41,10 @@ class FlowWatchdog(private val limitSeconds: Long?) : TestRule {
                     val stuck = flow.stackTrace
                     val main = Looper.getMainLooper().thread.stackTrace
                     for ((thread, frames) in Thread.getAllStackTraces()) {
-                        Log.e(TAG, "watchdog: ${thread.name} (${thread.state})\n${frames.joinToString("\n") { "  at $it" }}")
+                        // Logcat cuts an entry at about 4 KB; the deepest frames of a stuck call matter most.
+                        frames.toList().chunked(LOG_FRAMES).forEachIndexed { part, chunk ->
+                            Log.e(TAG, "watchdog: ${thread.name} (${thread.state}) part ${part + 1}\n${chunk.joinToString("\n") { "  at $it" }}")
+                        }
                     }
                     flow.interrupt()
                     throw AssertionError(
@@ -59,5 +62,6 @@ class FlowWatchdog(private val limitSeconds: Long?) : TestRule {
     private companion object {
         const val TAG = "PlainphoneE2E"
         const val MAX_FRAMES = 40
+        const val LOG_FRAMES = 20
     }
 }

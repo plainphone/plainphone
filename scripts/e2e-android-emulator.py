@@ -122,13 +122,15 @@ def serial_shell(console, *args, timeout=30):
     raise RuntimeError("Emulator serial console disconnected")
 
 
-# Each flow takes two to four minutes. The light flow can first wait up to ten minutes so that
+# Each flow takes two to four minutes. The light flow can first wait up to eleven minutes so that
 # its day and month counts do not straddle a real midnight (LightModeFlow.awaitClearOfMidnight).
 # Together these limits fit the limit of the CI step that runs both flows.
-INSTRUMENT_TIMEOUTS = {"LightModeFlow": 900, "DeviceOwnerFlow": 420}
+INSTRUMENT_TIMEOUTS = {"LightModeFlow": 960, "DeviceOwnerFlow": 420}
 # The flow's own watchdog (FlowWatchdog) fails it this long before the limit above, with the step
 # it was at and the stuck stack traces, instead of the limit ending `am instrument` with no output.
 WATCHDOG_MARGIN = 60
+# The light flow's longest legitimate run: the midnight wait (at most 11 minutes) and the flow.
+LIGHT_FLOW_WORST_CASE = 11 * 60 + 4 * 60
 
 
 def console_lines(console, deadline, overrun):

@@ -55,6 +55,24 @@ class GuardGapsTest {
         assertEquals("the dropped block is retried", 2, homeActions())
     }
 
+    @Test fun `a blocked app brought back over its stop screen without a window state event is blocked again`() {
+        front(game)
+        assertEquals(1, homeActions())
+        front(service.packageName) // the stop screen
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        // A second start of the open game moves its task to the front: Android 14 reported only the focus change.
+        shadow.windowList = listOf(AccessibilityWindowInfo().also {
+            Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+                rootNode = AccessibilityNodeInfo().apply { packageName = game }
+                focused = true
+            }
+        })
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED).apply {
+            ReflectionHelpers.setField(this, "mWindowChangeTypes", AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
+        })
+        assertEquals("the game is stopped again", 2, homeActions())
+    }
+
     @Test fun `a guard that restarts checks the app already in front`() {
         shadow.root = AccessibilityNodeInfo().apply { packageName = game }
         ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")

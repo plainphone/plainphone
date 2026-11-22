@@ -287,6 +287,11 @@ class InstrumentTest(unittest.TestCase):
             self.assertGreaterEqual(limit - watchdog, 30, f"{flow}: room for the failure report")
             self.assertEqual(adb.call_args.kwargs["timeout"], limit, flow)
 
+    def test_the_light_watchdog_waits_out_a_run_that_starts_just_before_midnight(self):
+        # Up to 11 minutes of midnight wait plus a four-minute flow is a pass, not a hang.
+        watchdog = harness.INSTRUMENT_TIMEOUTS["LightModeFlow"] - harness.WATCHDOG_MARGIN
+        self.assertGreaterEqual(watchdog, harness.LIGHT_FLOW_WORST_CASE)
+
 
 class DiagnosticsTest(unittest.TestCase):
     def setUp(self):

@@ -140,7 +140,13 @@ class GuardService : AccessibilityService() {
         if (e.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             val changes = e.windowChanges
             if (changes == 0 || (changes and WINDOW_INVENTORY_CHANGES) != 0) {
-                updateWindowSubscription(focusChanges = if (maintenance) 0 else changes)
+                val app = updateWindowSubscription(focusChanges = if (maintenance) 0 else changes)
+                // A task brought back to the front (a second start of an open app) can come without a
+                // window state event, so the app in front would be the stop screen it covered (API 34).
+                if (app != null && app != foreground) {
+                    foreground = app
+                    if (canGuardApps()) guard(app)
+                }
             }
             // An app that enters picture-in-picture only shows up here, never as "in front".
             if (!maintenance && canGuardApps()) guardPip()
@@ -183,10 +189,12 @@ class GuardService : AccessibilityService() {
             (pkg == SettingsGuard.VPN_DIALOGS && LightFilter.method(this) == FilterMethod.VPN &&
                 !LightSetup.vpnSetupAllowed())
 
+    /** Returns the app (not Settings, not an overlay) whose window just gained focus or became active. */
     @Suppress("DEPRECATION")
-    private fun updateWindowSubscription(focusChanges: Int = 0) {
+    private fun updateWindowSubscription(focusChanges: Int = 0): String? {
         val visibleWindows = windows
         var watchContent = visibleWindows.isEmpty()
+        var app: String? = null
         for (window in visibleWindows) {
             try {
                 val root = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -196,12 +204,15 @@ class GuardService : AccessibilityService() {
                 }
                 val pkg = root?.packageName?.toString()
                 root?.let(::recycle)
-                if (pkg != null && !guardsSettings(pkg)) continue
-                watchContent = true
                 val gainedFocus = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_FOCUSED) != 0 &&
                     window.isFocused
                 val becameActive = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_ACTIVE) != 0 &&
                     window.isActive
+                if (pkg != null && !guardsSettings(pkg)) {
+                    if ((gainedFocus || becameActive) && !isOverlay(pkg) && !window.isInPictureInPictureMode) app = pkg
+                    continue
+                }
+                watchContent = true
                 if (gainedFocus || becameActive) {
                     if (pkg == null) {
                         pendingSettingsWindowIds.add(window.id)
@@ -215,6 +226,7 @@ class GuardService : AccessibilityService() {
             }
         }
         updateEventTypes(watchContent)
+        return app
     }
 
     private fun updateEventTypes(watchContent: Boolean) {
