@@ -186,6 +186,12 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Robolectric unit tests run offline. Gradle resolves the instrumented SDK jars before
+the test JVM starts and stages them in `android/.gradle/robolectric`. CI caches this
+directory, and it survives `./gradlew clean`.
+Update `android/gradle/robolectric.properties` when bumping Robolectric or adding a
+test SDK. Gradle needs Maven access on the first run if its dependency cache is empty.
+
 The Android location-budget tests use a simulated monotonic clock to exercise provider fallback and expiry without waiting for the phone's lookup deadline.
 
 The APK includes English, Danish, Swedish, Norwegian Bokmål and German resources. See [translation review status](docs/translations.md). The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).

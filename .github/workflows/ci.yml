@@ -117,15 +117,13 @@ jobs:
         with:
           packages: "platforms;android-37.0 build-tools;36.1.0"
 
-      # Robolectric downloads its android-all jars from Maven Central into ~/.m2 on first use.
-      # Cache them so the unit tests stop depending on a live fetch.
-      - name: Cache Robolectric android-all jars
+      - name: Cache Robolectric instrumented SDKs
+        id: robolectric
         if: needs.changes.outputs.android == 'true'
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: ~/.m2/repository/org/robolectric
-          key: robolectric-android-all-${{ runner.os }}-${{ hashFiles('android/app/build.gradle.kts') }}
-          restore-keys: robolectric-android-all-${{ runner.os }}-
+          path: android/.gradle/robolectric
+          key: robolectric-sdks-${{ runner.os }}-${{ hashFiles('android/gradle/robolectric.properties') }}
 
       - uses: gradle/actions/setup-gradle@v6
         if: needs.changes.outputs.android == 'true'
@@ -133,6 +131,8 @@ jobs:
       # Share compilation and SDK setup across debug and release checks.
       - name: Debug and release APKs, lint and unit tests (including encryption vectors)
         if: needs.changes.outputs.android == 'true'
+        env:
+          ROBOLECTRIC_SDK_CACHE_HIT: ${{ steps.robolectric.outputs.cache-hit }}
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug assembleRelease lintRelease
 
       - name: Smoke test of the minified release APK (R8)
@@ -251,12 +251,20 @@ jobs:
         if: needs.changes.outputs.e2e == 'true'
         with:
           packages: "platforms;android-37.0 build-tools;36.1.0"
+      - name: Cache Robolectric instrumented SDKs
+        id: robolectric
+        if: needs.changes.outputs.e2e == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: android/.gradle/robolectric
+          key: robolectric-sdks-${{ runner.os }}-${{ hashFiles('android/gradle/robolectric.properties') }}
       - uses: gradle/actions/setup-gradle@v6
         if: needs.changes.outputs.e2e == 'true'
       - name: Pair, sync rules, Find and status against the real server
         if: needs.changes.outputs.e2e == 'true'
         env:
           DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2e
+          ROBOLECTRIC_SDK_CACHE_HIT: ${{ steps.robolectric.outputs.cache-hit }}
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb -U plainphone plainphone_e2e
           scripts/e2e-phone-sync.sh
