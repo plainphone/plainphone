@@ -11,9 +11,11 @@ import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
+import { eq } from "drizzle-orm";
 import { createApp } from "../../src/app.js";
 import { loadConfig } from "../../src/config.js";
 import { createDb, runMigrations } from "../../src/db/client.js";
+import { phones } from "../../src/db/schema.js";
 import { HttpDnsProvider } from "../../src/providers/dns.js";
 import { MemoryMailProvider } from "../../src/providers/mail.js";
 import { MemoryParentPushProvider } from "../../src/providers/parent-push.js";
@@ -45,9 +47,20 @@ const { db, sql } = createDb(databaseUrl);
 await runMigrations(db);
 const mail = new MemoryMailProvider();
 const publicUrl = `http://127.0.0.1:${port}`;
+const emulator = process.env.PLAINPHONE_EMULATOR_E2E === "1";
 // Confirm HTTP provisioning without requiring a DNS resolver in CI.
 const dnsToken = "e2e-dns-token";
 const dnsClients = new Set<string>();
+// A Device Owner emulator forces private DNS to the rules' host once the DNS service has
+// accepted its ClientID. No DNS-over-TLS server knows these ClientIDs in CI: the production
+// resolver refused them, Android marked the network unvalidated and WorkManager stopped every
+// sync (run 45006624811). So the stub refuses strong-mode phones, which keeps them on the
+// QR code's provisioning host, as a real phone stays until its ClientID is accepted.
+async function refusesDnsClient(clientId: string) {
+  if (!emulator) return false;
+  const [phone] = await db.select({ mode: phones.mode }).from(phones).where(eq(phones.dnsClientId, clientId));
+  return phone?.mode === "strong";
+}
 const dnsServer = serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -59,6 +72,7 @@ const dnsServer = serve({
     if (request.method === "POST" && path === "/v1/clients") {
       const { client_id } = await request.json() as { client_id?: string };
       if (!client_id) return new Response(null, { status: 400 });
+      if (await refusesDnsClient(client_id)) return new Response(null, { status: 503 });
       dnsClients.add(client_id);
       return new Response(null, { status: 201 });
     }
@@ -86,6 +100,8 @@ const ctx: Ctx = {
     DNS_PROVIDER: "http",
     DNS_API_URL: dnsUrl,
     DNS_API_TOKEN: dnsToken,
+    // A reserved name (RFC 6761): no emulator may reach the production resolver.
+    ...(emulator ? { DNS_HOST_SUFFIX: "dns.e2e.invalid" } : {}),
   }),
   mail,
   dns: new HttpDnsProvider(dnsUrl, dnsToken),
@@ -114,7 +130,7 @@ const { sessionToken } = (await verify.json()) as { sessionToken: string };
 
 // Opt-in gateway fault for the emulator. The real quick-message endpoint can
 // return a successful, quiet rate-limit response, which must not fall back.
-const injectQuickMessage429 = process.env.PLAINPHONE_EMULATOR_E2E === "1";
+const injectQuickMessage429 = emulator;
 let quickMessageRequests = 0;
 let smsObserved = false;
 const server = serve({

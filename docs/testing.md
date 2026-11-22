@@ -43,6 +43,18 @@ PostgreSQL instance. To use your own PostgreSQL, set `DATABASE_URL` to a
 host loopback alias (`10.0.2.2`). The local serial console carries instrumentation
 output after Device Owner policy disables ADB. The harness stops the server on exit.
 
+Device Owner forces private DNS (DNS over TLS) to the host in the phone's rules
+once the server says the DNS service has accepted its ClientID; until then it
+keeps the QR code's provisioning host (`family.adguard-dns.com` by default).
+CI has no DNS service that knows the test ClientIDs, and the production
+resolver refuses them: Android then marks the network unvalidated and
+WorkManager stops every sync. So in emulator mode (`PLAINPHONE_EMULATOR_E2E=1`)
+the server's DNS stub refuses strong-mode phones, which stay on the provisioning
+host as a real phone does while its ClientID is pending, and the per-phone host
+suffix is the reserved `dns.e2e.invalid`. No emulator reaches the production
+resolver. The JVM contract test (`scripts/e2e-phone-sync.sh`) still checks the
+`.dns.plainphone.org` host.
+
 The serial console listens on TCP port 5599 (`E2E_SERIAL_PORT` changes it). Keep
 it outside 5555–5585: the adb server probes those ports for emulators and sends
 its `CNXN` handshake into whatever answers, which corrupts the root shell. The
