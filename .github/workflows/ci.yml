@@ -235,6 +235,17 @@ jobs:
         id: turbo
         if: needs.changes.outputs.server == 'true'
         run: echo "prefix=turbo-server-${RUNNER_OS}-${RUNNER_ARCH}-node-$(node --version)-" >> "$GITHUB_OUTPUT"
+      # The server tests' cache hash includes the PostgreSQL image and its exact version
+      # (turbo.json env), so a new service image or tag minor reruns them.
+      - name: PostgreSQL version for the Turborepo hash
+        if: needs.changes.outputs.server == 'true'
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          image=$(docker inspect --format '{{.Config.Image}}' "$PG_CONTAINER")
+          version=$(docker exec "$PG_CONTAINER" postgres --version)
+          echo "PLAINPHONE_TEST_PG=${image} ${version}" >> "$GITHUB_ENV"
+          echo "PostgreSQL for the tests: ${image} ${version}"
       - name: Restore the Turborepo cache
         if: needs.changes.outputs.server == 'true'
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5

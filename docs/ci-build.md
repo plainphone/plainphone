@@ -43,8 +43,12 @@ The server and parent app jobs run their JavaScript checks through Turborepo
 types check in the server job, and typecheck, lint, tests and the bundle export in
 the parent app job. The path filters above still decide whether a job runs. Inside a
 job, Turborepo replays every task whose inputs did not change from its local cache,
-so a change to the web app reruns only the web and api-client tasks, not the server
-tests. Each job restores `.turbo/cache` with `actions/cache` and saves a new entry
+so a change to the web app reruns only the web typecheck and tests, not the server
+tests. The server tests' hash also includes the PostgreSQL service image and its exact
+version, so a new image reruns them. The parent app's typecheck, lint and tests also
+hash `ios/Tests/Fixtures/`, which its iPhone tests import. The bundle export is cached
+as a passed check without storing the bundles, and the local cache is capped at 500 MB
+so the Turborepo entries do not push the Android caches out of the repo's cache budget. Each job restores `.turbo/cache` with `actions/cache` and saves a new entry
 after the checks, also when a check failed, because Turborepo stores only tasks that
 passed. The key includes the runner and the exact Node version, so a Node update
 starts with an empty cache. Pull requests restore the newest entry from main or from
@@ -54,8 +58,8 @@ server and parent app jobs.
 
 The jobs do not use `turbo --affected`. It maps changed files to packages, and
 several checks read files outside their package: the API types check reads
-`server/openapi.yaml`, and the server tests read `ios/Tests/Fixtures/`, the
-compose files, `.env.example` and `docs/encryption-test-vectors/`. Those files
+`server/openapi.yaml`, the server and parent app tests read
+`ios/Tests/Fixtures/`, and the server tests read the compose files, `.env.example` and `docs/encryption-test-vectors/`. Those files
 are task `inputs` in `turbo.json`, so the cache hash covers them, while
 package-level change detection would skip the check.
 

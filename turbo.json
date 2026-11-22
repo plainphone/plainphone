@@ -2,7 +2,7 @@
   "$schema": "./node_modules/turbo/schema.json",
   "cacheDir": ".turbo/cache",
   "cacheMaxAge": "14d",
-  "cacheMaxSize": "2GB",
+  "cacheMaxSize": "500MB",
   "ui": "stream",
   "tasks": {
     "transit": {
@@ -60,7 +60,8 @@
         "$TURBO_ROOT$/deploy/dokploy-compose.yaml",
         "$TURBO_ROOT$/.env.example"
       ],
-      "passThroughEnv": ["CI", "DATABASE_URL", "UPDATE_IOS_FIXTURE"]
+      "env": ["PLAINPHONE_TEST_PG", "UPDATE_IOS_FIXTURE"],
+      "passThroughEnv": ["CI", "DATABASE_URL"]
     },
     "@plainphone/crypto#test": {
       "dependsOn": ["^build", "transit"],
@@ -82,10 +83,23 @@
     "@plainphone/crypto-vectors#generate": {
       "cache": false
     },
+    "@plainphone/parent-app#typecheck": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/ios/Tests/Fixtures/**"]
+    },
+    "@plainphone/parent-app#lint": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/ios/Tests/Fixtures/**"]
+    },
+    "@plainphone/parent-app#test": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/ios/Tests/Fixtures/**"],
+      "passThroughEnv": ["CI"]
+    },
     "@plainphone/parent-app#export": {
       "dependsOn": ["transit"],
       "env": ["NODE_ENV", "EXPO_PUBLIC_*", "PLAINPHONE_*"],
-      "outputs": ["dist/**"]
+      "outputs": []
     },
     "dev": {
       "cache": false,
