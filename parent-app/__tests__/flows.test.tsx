@@ -43,6 +43,36 @@ describe("logging in", () => {
     expect(req.body).toEqual({ email: "parent@example.org", locale: "en", client: "native" });
   });
 
+  it("lets only the store review address log in with a code", async () => {
+    const api = fakeApi({
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "POST /auth/request": { status: 202, body: { ok: true, mailEnabled: true, codeSignIn: true } },
+      "POST /auth/review": (c) => ((c.body as { code: string }).code === "the-review-code"
+        ? { body: { user: ME.user, sessionToken: "pp_s_review" } }
+        : { status: 401, body: { error: "wrong address or code" } }),
+      "GET /me": (c) => (c.auth === "Bearer pp_s_review" ? { body: ME } : { status: 401, body: { error: "sign in first" } }),
+      "GET /phones": { body: { phones: [PHONE] } },
+    });
+    await renderRouter(routes, { initialUrl: "/login" });
+    expect(screen.queryByTestId("login-code")).toBeNull();
+    await fireEvent.changeText(await screen.findByLabelText("Email address"), "review@example.org");
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("Log in with a code")).toBeTruthy();
+    expect(screen.queryByText("Check your mail")).toBeNull();
+
+    await fireEvent.changeText(screen.getByLabelText("Code"), "wrong");
+    await fireEvent.press(screen.getByTestId("login-code-submit"));
+    expect(await screen.findByText("The code doesn’t match this address. Check it and try again.")).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByLabelText("Code"), " the-review-code ");
+    await fireEvent.press(screen.getByTestId("login-code-submit"));
+    expect(await screen.findByText("Alma")).toBeTruthy();
+    expect(api.calls.filter((c) => c.path === "/auth/review").at(-1)!.body).toEqual({
+      email: "review@example.org", code: "the-review-code", locale: "en", client: "native",
+    });
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.session", "pp_s_review");
+  });
+
   it("uses the selected server for sign-in and can return to the hosted service", async () => {
     const custom = "https://plainphone.example.org";
     const api = fakeApi({
