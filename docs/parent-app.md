@@ -127,6 +127,17 @@ The privacy manifest (`ios.privacyManifests` in `app.config.ts`) declares the si
 
 EAS Build is optional for compiling and signing. Push does not need an Expo account: the app registers its APNs or FCM token with your server.
 
+The iOS build links the local Expo module `modules/plainphone-screentime` (Family Controls,
+ManagedSettings, DeviceActivity). The Parent role never calls it. Its Swift bridge file is only
+compiled by an Expo build, not by CI, so build once on a Mac after changing it. A build with
+`PLAINPHONE_IOS_CHILD=1` also offers the Child role ("Whose phone is this?" on the first launch,
+then the setup on the iPhone) on iPhones with iOS 26 or later, checked at run time; parents on
+older iPhones (from iOS 16.4) get the same build as Parent only. The Child role needs the Family
+Controls entitlement and the App Group
+`group.org.plainphone.app`, and the extension targets are not part of the Expo build yet
+([docs/ios/architecture.md](ios/architecture.md#what-exists-now-phase-1-skeleton)). Leave it off for
+App Store builds until phase 1 has run on a real iPhone.
+
 ## Your own server
 
 Select **Use your own server** on the sign-in screen or in Settings, enter the HTTPS origin

@@ -1,8 +1,11 @@
 # Plainphone on iPhone: architecture
 
-Status: phase 0 (groundwork) done, and the server, dashboard and parent app are prepared for
-phase 1 (see [Phase 1 preparation](#phase-1-preparation-server-and-dashboard)). No iOS code ships yet. This page is the plan the later phases
-follow, based on the research in issue #163 and the maintainer decisions of 2026-11-20.
+Status: phase 0 (groundwork) done, the server, dashboard and parent app are prepared for
+phase 1 (see [Phase 1 preparation](#phase-1-preparation-server-and-dashboard)), and the phase 1
+skeleton is in the repo (see [What exists now](#what-exists-now-phase-1-skeleton)): the Swift module,
+the extension targets and the Child role, behind a build switch. It has not run on a real iPhone
+yet, and no iOS build ships it until the spikes have. This page is the plan the later phases
+follow, based on the research in issue #163 and the maintainer decisions of 2026-11-20 and 21.
 Related: [apple-applications.md](apple-applications.md) (entitlement requests) and
 [spikes.md](spikes.md) (questions to answer on a real iPhone).
 
@@ -15,13 +18,30 @@ Related: [apple-applications.md](apple-applications.md) (entitlement requests) a
   generator for supervision with Apple Configurator comes in phase 7 (tier `supervised`). No own
   MDM now; a spike after Tier 1 ships decides whether there ever is one.
 - **The app is free and complete.** Any payment happens outside the app (App Review 3.1.1 and 4.10).
-- **Minimum iOS 26**, the existing Apple Developer account, our own Swift Expo module and extension
-  targets. No `react-native-device-activity` dependency (it is a reference, not a dependency).
+- **Minimum iOS 26 for the Child role**, the existing Apple Developer account, our own Swift Expo
+  module and extension targets. Parents keep using the app from iOS 16.4 (2026-11-21, see
+  [App roles](#app-roles)). No `react-native-device-activity` dependency (it is a reference, not a dependency).
 - **EU app names** (FamilyActivityData, iOS 26.4+): used, off until the family turns it on, and the
   child is told.
 - **SOS and help calls:** apply for Critical Alerts now; Time Sensitive notifications until granted.
 - **Calls, contacts, bedtime:** a guided wizard through Apple's Communication Limits and Downtime,
   with a check that they are on. The dashboard says honestly what Apple controls.
+
+## Decisions (2026-11-21, phase 1 skeleton)
+
+- **School time, bedtime and the daily limit are hidden quietly in phase 1.** The iPhone does not
+  enforce them yet and does not report them as failed, so the dashboard shows the base lock as
+  intact without them and does not say they are missing. They stay in the rules document and in the
+  compiled plan; one switch turns them on in phase 2. See
+  [Phase 1: what the iPhone does not enforce yet](#phase-1-what-the-iphone-does-not-enforce-yet).
+- **The base lock is always on:** passcode, accounts and automatic date and time are locked on every
+  paired iPhone, with no per-phone switch, like the Android lock itself.
+- **iOS minimum for the Child role only:** parents keep the app from iOS 16.4; "Whose phone is
+  this?" and the child setup appear only on iOS 26 or later.
+- **Kept as built:** Screen Time permission comes before pairing; an app selection the phone cannot
+  read shields every app (allow list) or keeps the old shield (block list); a phone removed from the
+  dashboard keeps its lock until a new pairing or a release; the dev host uses
+  `org.plainphone.app.dev`.
 
 ## Bundle IDs
 
@@ -58,7 +78,8 @@ A content filter extension (child devices only) is later work and not part of ph
 
 The extensions are generated as Xcode targets at prebuild from hand-written Swift sources, in the
 style of `@bacons/apple-targets`. Whether we take that package as a dev dependency or write a small
-config plugin is decided in phase 1, after the usual package check. The extensions contain no React
+config plugin is still open: today the extension targets are built by the xcodegen project in
+[`ios/`](../../ios), not by the Expo prebuild. The extensions contain no React
 Native and no networking: the monitor extension is killed at about 6 MB, and the shield extensions
 run in a sandbox without network access.
 
@@ -66,26 +87,34 @@ run in a sandbox without network access.
 
 ```
 parent-app/modules/plainphone-screentime/
-  expo-module.config.json
+  expo-module.config.json      # Apple only; Android builds do not link it
   index.ts                     # typed JS API, the only thing screens import
   ios/
-    PlainphoneScreenTimeModule.swift   # Expo module: authorization, picker, apply, status
-    RulesCompiler.swift        # rules document -> named stores, schedules and events
-    Stores.swift               # ManagedSettingsStore names: base, school, bedtime, limits, maintenance
-    AppGroup.swift             # compiled plan and event log in group.org.plainphone.app
-    Receipt.swift              # what the app reports back (status additions below)
+    PlainphoneScreenTime.podspec
+    PlainphoneScreenTimeModule.swift   # Expo bridge: JSON strings in and out, no logic
+    Core/                      # pure Swift except FamilyControlsApplier; unit tested
+      RulesDocument.swift      # decodes and checks the IosRules document
+      RulesCompiler.swift      # rules document -> CompiledPlan (stores, windows, today's limit)
+      Stores.swift             # ManagedSettingsStore names: base, school, bedtime, limits, maintenance
+      AppGroup.swift           # compiled plan, receipt and event log in group.org.plainphone.app
+      Receipt.swift            # what the app reports back (status additions below)
+      ScreenTimeApplier.swift  # the ScreenTimeApplying seam and FakeScreenTime
+      FamilyControlsApplier.swift  # the real one (FamilyControls, ManagedSettings, DeviceActivity)
+      ScreenTimeEngine.swift   # one sync: check, compile, apply, save, receipt
+      ShieldCopy.swift         # the shield's words in da, en, sv, nb, de
   targets/
     activity-monitor/          # DeviceActivityMonitor subclass, reads the compiled plan
     shield-configuration/
     shield-action/
-    activity-report/
-    location-push/
+    # activity-report/ and location-push/ come with phases 2 and 3
 ```
 
 The JS API is small and promise-based: `requestAuthorization(kind)`, `authorizationStatus()`,
-`pickActivities()` (FamilyActivityPicker, returns encoded selections), `applyRules(document)`,
-`status()` and `startLocationPushes()`. Android builds get a stub that throws, so the parent app keeps
-building for Android.
+`applyRules(document, etag, phoneId, selection)`, `setMaintenance(on, selection)`,
+`beginNewPairing()` and `status()`. The Swift module also has `pickActivities()`
+(FamilyActivityPicker) and `startLocationPushes()`, which reject until spike (a) and phase 3.
+Outside an iPhone build (Android, web, Expo Go) `nativeScreenTime()` returns a stub that throws,
+so the parent app keeps building everywhere.
 
 ## How it talks to the sync API
 
@@ -140,11 +169,17 @@ wizard exists, the lines can point to it instead.
 ## App roles
 
 [`parent-app/src/lib/roles.ts`](../../parent-app/src/lib/roles.ts) holds the role model: `parent`,
-`child` and `myself`. `ROLE_FLAGS` switches Child and Myself off, so only Parent is reachable and the
-app behaves exactly as today. Parent can never be switched off: a parent must always reach the
-dashboard. Phase 1 turns `child` on and adds the first-launch question "Whose phone is this?"
-(`needsRoleChoice`), like the Android app. A saved role the build no longer offers falls back to
-Parent.
+`child` and `myself`. `ROLE_FLAGS` decides which roles a build offers. Parent can never be switched
+off: a parent must always reach the dashboard. Child is on only in an iPhone build made with
+`PLAINPHONE_IOS_CHILD=1` (`extra.iosChildRole` in `app.config.ts`), and only on iOS 26 or later:
+`childRoleOffered` checks `Platform.Version` against `CHILD_MIN_IOS_MAJOR` at run time, so the same
+build still works for a parent on an older iPhone (from iOS 16.4, the podspec's minimum). Every
+other build or iPhone offers Parent only and behaves exactly as before; the role question and the
+child setup send it to the dashboard, also when opened from a link. Myself stays off. In a build with Child, the first launch asks
+"Whose phone is this?" (`needsRoleChoice`, [`role.tsx`](../../parent-app/src/app/role.tsx)), like the
+Android app, unless a parent is already signed in, who then keeps the dashboard without a question
+([`role-context.tsx`](../../parent-app/src/lib/role-context.tsx)). A saved role the build no longer
+offers falls back to Parent.
 
 ## Phase 1 preparation: server and dashboard
 
@@ -216,14 +251,75 @@ switches that would do nothing, the Apps page says apps are picked on the iPhone
 last picked, the health card checks Screen Time permission instead of Android's protections, and
 light mode's Android parts (Private DNS choice, contact restriction, protections list) are hidden.
 
-### Left for the Swift side (phase 1 proper)
+## What exists now (phase 1 skeleton)
 
-the Child role and the app's own "Whose phone is
-this?" screen (`ROLE_FLAGS` in [`roles.ts`](../../parent-app/src/lib/roles.ts) still has Child off),
-calling `POST /device/pairings` with `platform: "ios"` and showing the code and QR, `.child`
-authorization, `RulesCompiler` for the `IosRules` document, the picker and the two selection
-routes, the status `ios` object, APNs registration for wake-ups, the transparency page, release
-and maintenance with the parent PIN. Then turn `IOS_PAIRING_ENABLED` on for TestFlight.
+Built without a real iPhone, so everything that depends on a spike sits behind a seam with a
+`TODO(spike …)` pointing to [spikes.md](spikes.md). Details and the seam table: [ios/README.md](../../ios/README.md).
+
+- **Swift module.** `RulesDocument` decodes the `IosRules` document leniently where the server may
+  grow (unknown keys, the family's switches default to on as the server documents) and strictly
+  where a wrong value would loosen the phone (platform, phone id, times, weekdays, limits).
+  `RulesCompiler` makes the `CompiledPlan`: the base store (allow list or, in open mode, block list;
+  no installs or removals; locked accounts, passcode and automatic date), the school and bedtime
+  windows, today's whole-phone limit with today's bonuses in the phone's time zone, and the family's
+  `askMoreTimeEnabled` and `limitWarningEnabled`. `ScreenTimeEngine` applies it through
+  `ScreenTimeApplying` (`FamilyControlsApplier`, or `FakeScreenTime` in tests and the simulator),
+  saves it in the App Group and keeps the receipt. An invalid document or a failed apply leaves
+  the old stores and the old ETag in place and puts the reason in `failedPolicies`. A released phone
+  never locks again until a new pairing (`beginNewPairing`).
+- **Phase 1 applies the base store only.** School time, bedtime and the daily limit are not
+  enforced; see the next section.
+- **Extensions.** The Device Activity Monitor and the two shield extensions exist as targets and
+  read the plan from the App Group. The shield shows the reason in the phone's language and one
+  button that closes the app.
+- **Child role in the app.** "Whose phone is this?", then a guided setup
+  ([`child/setup.tsx`](../../parent-app/src/app/child/setup.tsx), steps in
+  [`wizard.ts`](../../parent-app/src/lib/iphone/wizard.ts)): welcome, Screen Time permission
+  (`.child`, the parent approves with their Apple Account), pairing by QR code and code
+  (`POST /device/pairings` with `platform: "ios"`, [`pairing.ts`](../../parent-app/src/lib/iphone/pairing.ts)),
+  the Apple settings Plainphone cannot set (Communication Limits, Downtime; can wait), done. The
+  step is derived from facts, so the setup resumes in place and permission can never be skipped.
+- **Sync and receipts.** [`sync.ts`](../../parent-app/src/lib/iphone/sync.ts) fetches
+  `GET /device/rules` with the applied ETag, fetches `GET /device/ios-selection` when the selection's
+  revision changes, lets the Swift module apply both, and reports with `PUT /device/status` (the
+  `ios` object, `rulesEtag`, `rulesReceiptConfirmed`). A release is applied, then acknowledged with
+  `POST /device/released`, again at the next sync if the answer is lost. The device token lives in
+  the Keychain, apart from a parent's session.
+- **The child's screen** ([`child/index.tsx`](../../parent-app/src/app/child/index.tsx)) says that
+  Plainphone is on and lists what the phone tells the parents, as the
+  [design principles](../design-principles.md) ask (no hidden monitoring).
+- **CI.** The `ios` job builds the dev host with its extensions for the simulator and runs the unit
+  tests on macOS. `ios/scripts/linux-check.sh` runs the same tests in the Swift container on Linux.
+
+Still to do for phase 1: run the spikes, wire the extension targets into the Expo prebuild (config
+plugin or `@bacons/apple-targets`), the app's own entitlements in a `PLAINPHONE_IOS_CHILD=1` build
+(`com.apple.developer.family-controls` and the App Group `group.org.plainphone.app` in
+`ios.entitlements` in `parent-app/app.config.ts`; without them `requestAuthorization` fails and the
+rules are stored where the extensions cannot read them), the picker (spike a), maintenance and release with the parent
+PIN on the phone, APNs registration for wake-ups and background refresh (spike d), and a first
+Expo build on a Mac. Then turn `IOS_PAIRING_ENABLED` on for TestFlight.
+
+## Phase 1: what the iPhone does not enforce yet
+
+Phase 1 does **not** enforce school time, bedtime (for apps) or the daily time limit on an iPhone,
+and the dashboard and the parent app **do not show** that: an iPhone with those rules set shows its
+lock as intact, and the rules look the same as on Android. This is a deliberate choice for the
+phase 1 test builds (decision 2026-11-21), not something the code hides by accident:
+
+- The Swift core has one switch, `IosEnforcement.enforcesSchedules`
+  ([`Enforcement.swift`](../../parent-app/modules/plainphone-screentime/ios/Core/Enforcement.swift)),
+  `false` in phase 1. The rules document still carries the schedules and the limit, and
+  `RulesCompiler` still compiles them into the plan (`activities`, `dailyLimitMinutes`), but the
+  plan's `monitoredActivities` and `monitoredDailyLimitMinutes` stay empty, so `FamilyControlsApplier`
+  starts nothing and reports nothing. A problem with them (an unknown schedule kind or time zone)
+  is not reported either, because nothing that is not enforced can fail.
+- The server never expects the `school`, `bedtime` or `limits` stores from an iPhone
+  (`iosLockIntact` in [`server/src/lib/ios.ts`](../../server/src/lib/ios.ts)), and the capability
+  map keeps `schoolTime`, `bedtimeApps` and `timeLimits` at `yes`, so no iPhone line appears under
+  those rules. Android is unchanged.
+- Phase 2 builds the DeviceActivity monitoring and sets the switch to `true`. If the switch is
+  turned on before the monitoring exists, the applier reports the windows and the limit as failed,
+  so the dashboard never claims more than the phone does.
 
 ## Phases
 

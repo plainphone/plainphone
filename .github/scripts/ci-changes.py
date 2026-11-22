@@ -23,6 +23,8 @@ FILTERS = {
     "emulator": WORKSPACE + ("android/*", "server/*", "scripts/e2e-android-emulator.py"),
     "server": WORKSPACE + CRYPTO_VECTORS + (
         "server/*", "web/*", "Dockerfile", ".dockerignore",
+        # The Swift tests' rules fixture, checked against the server (test/ios-contract.test.ts).
+        "ios/Tests/Fixtures/*",
     ),
     "parent": (
         "parent-app/*",
@@ -38,6 +40,7 @@ FILTERS = {
     ),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*", "server/catalog/??.json"),
+    "ios": ("ios/*", "parent-app/modules/plainphone-screentime/*"),
     "backup": (
         "compose.yaml", "deploy/dokploy-compose.yaml", "deploy/backup.Dockerfile*",
         "scripts/backup*.sh", "scripts/restore-backup.sh", "scripts/restore-service.py",
