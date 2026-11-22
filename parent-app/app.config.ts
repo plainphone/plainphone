@@ -41,7 +41,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     privacyManifests: {
       NSPrivacyTracking: false,
       NSPrivacyTrackingDomains: [],
-      NSPrivacyCollectedDataTypes: [],
+      // Kept on the server and linked to the account (docs/privacy.md): the sign-in email,
+      // and what the parent writes (phone names, rules, approved contacts, messages).
+      NSPrivacyCollectedDataTypes: [
+        "NSPrivacyCollectedDataTypeEmailAddress",
+        "NSPrivacyCollectedDataTypeOtherUserContent",
+      ].map((type) => ({
+        NSPrivacyCollectedDataType: type,
+        NSPrivacyCollectedDataTypeLinked: true,
+        NSPrivacyCollectedDataTypeTracking: false,
+        NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],
+      })),
     },
   },
   android: {

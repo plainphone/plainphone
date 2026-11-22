@@ -38,3 +38,26 @@ describe("native app identifiers", () => {
     expect(appConfig(context).android?.package).toBe("org.example.android.test");
   });
 });
+
+describe("iOS privacy manifest", () => {
+  // What the app sends to the server and the server keeps linked to the account
+  // (docs/privacy.md): the sign-in email address, and what the parent writes
+  // (phone names, rules, approved contacts, messages and requests). Nothing is
+  // used for tracking, and every item serves the app's own function.
+  const linked = (type: string) => ({
+    NSPrivacyCollectedDataType: type,
+    NSPrivacyCollectedDataTypeLinked: true,
+    NSPrivacyCollectedDataTypeTracking: false,
+    NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],
+  });
+
+  it("declares the data the app collects, without tracking", () => {
+    const manifest = appConfig(context).ios?.privacyManifests;
+    expect(manifest?.NSPrivacyTracking).toBe(false);
+    expect(manifest?.NSPrivacyTrackingDomains).toEqual([]);
+    expect(manifest?.NSPrivacyCollectedDataTypes).toEqual([
+      linked("NSPrivacyCollectedDataTypeEmailAddress"),
+      linked("NSPrivacyCollectedDataTypeOtherUserContent"),
+    ]);
+  });
+});
