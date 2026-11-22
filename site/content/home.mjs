@@ -40,7 +40,7 @@ export const home = {
     decide: {
       title: "Who decides",
       body: [
-        "For a child, the parents decide, ideally together with the child. Set the rules in the parent dashboard or the parent app, and change them as your child grows.",
+        "For a child, the parents decide, ideally together with the child. Set the rules in the parent dashboard, and change them as your child grows.",
         "On your own phone, you decide. Loosening a rule can wait for a delay or for someone you trust to approve it, and you can always cancel.",
       ],
     },
@@ -67,6 +67,21 @@ export const home = {
       ],
     },
     free: "Free and open",
+    alpha: {
+      title: "Alpha: try it, but don’t rely on it yet",
+      body: [
+        "Plainphone is an alpha. The phone app, the parent dashboard, the server and the web filter work together. Features still change, and things can break.",
+        "There has been no external security audit. Install Plainphone on a spare phone you are ready to reset, and don’t rely on it for a child’s phone yet.",
+      ],
+      nextTitle: "What you can do now",
+      next: {
+        guide: "Read the setup guide and try it on a spare phone",
+        star: "Star or watch the project on GitHub",
+        releases: "Follow new releases",
+        feedback: "Tell us on GitHub what works and what doesn’t",
+        mail: "Or write to",
+      },
+    },
     closing: {
       title: "Start with one phone.",
       body: "Set it up together, try a call and the apps you need, and change the rules as you go.",
@@ -106,7 +121,7 @@ export const home = {
     decide: {
       title: "Hvem bestemmer",
       body: [
-        "For et barn bestemmer forældrene, helst sammen med barnet. Sæt reglerne i forældrepanelet eller forældreappen, og ret dem, efterhånden som barnet bliver ældre.",
+        "For et barn bestemmer forældrene, helst sammen med barnet. Sæt reglerne i forældrepanelet, og ret dem, efterhånden som barnet bliver ældre.",
         "På din egen telefon bestemmer du. Før en regel bliver lempet, kan der være en ventetid, eller en, du stoler på, kan skulle godkende den. Du kan altid fortryde.",
       ],
     },
@@ -133,6 +148,21 @@ export const home = {
       ],
     },
     free: "Gratis og åben",
+    alpha: {
+      title: "Alfa: prøv det, men stol ikke på det endnu",
+      body: [
+        "Plainphone er en alfaversion. Appen på telefonen, forældrepanelet, serveren og webfilteret virker sammen. Funktionerne ændrer sig stadig, og noget kan gå i stykker.",
+        "Plainphone har ikke været igennem en ekstern sikkerhedsgennemgang. Installér det på en reservetelefon, du er klar til at nulstille, og stol ikke på det til et barns telefon endnu.",
+      ],
+      nextTitle: "Det kan du gøre nu",
+      next: {
+        guide: "Læs opsætningsguiden, og prøv det på en reservetelefon",
+        star: "Giv projektet en stjerne, eller følg det på GitHub",
+        releases: "Følg nye udgivelser",
+        feedback: "Fortæl os på GitHub, hvad der virker, og hvad der ikke gør",
+        mail: "Eller skriv til",
+      },
+    },
     closing: {
       title: "Start med én telefon.",
       body: "Sæt den op sammen, prøv et opkald og de apps, I har brug for, og ret reglerne undervejs.",
@@ -172,7 +202,7 @@ export const home = {
     decide: {
       title: "Vem bestämmer",
       body: [
-        "För ett barn bestämmer föräldrarna, helst tillsammans med barnet. Ställ in reglerna i föräldrapanelen eller föräldraappen och ändra dem när barnet blir äldre.",
+        "För ett barn bestämmer föräldrarna, helst tillsammans med barnet. Ställ in reglerna i föräldrapanelen och ändra dem när barnet blir äldre.",
         "På din egen telefon bestämmer du. En lättnad i reglerna kan få vänta en tid eller behöva godkännas av någon du litar på, och du kan alltid ångra.",
       ],
     },
@@ -199,6 +229,21 @@ export const home = {
       ],
     },
     free: "Gratis och öppen",
+    alpha: {
+      title: "Alfa: prova, men lita inte på det än",
+      body: [
+        "Plainphone är en alfaversion. Appen på telefonen, föräldrapanelen, servern och webbfiltret fungerar tillsammans. Funktionerna ändras fortfarande, och saker kan gå sönder.",
+        "Plainphone har inte granskats av någon extern säkerhetsgranskare. Installera det på en reservtelefon som du är beredd att återställa, och lita inte på det för ett barns telefon än.",
+      ],
+      nextTitle: "Det här kan du göra nu",
+      next: {
+        guide: "Läs installationsguiden och prova på en reservtelefon",
+        star: "Stjärnmärk eller bevaka projektet på GitHub",
+        releases: "Följ nya versioner",
+        feedback: "Berätta på GitHub vad som fungerar och vad som inte gör det",
+        mail: "Eller skriv till",
+      },
+    },
     closing: {
       title: "Börja med en telefon.",
       body: "Ställ in den tillsammans, testa ett samtal och de appar ni behöver och ändra reglerna efter hand.",
@@ -238,7 +283,7 @@ export const home = {
     decide: {
       title: "Hvem bestemmer",
       body: [
-        "For et barn bestemmer foreldrene, helst sammen med barnet. Sett reglene i foreldrepanelet eller foreldreappen, og endre dem etter hvert som barnet blir eldre.",
+        "For et barn bestemmer foreldrene, helst sammen med barnet. Sett reglene i foreldrepanelet, og endre dem etter hvert som barnet blir eldre.",
         "På din egen telefon bestemmer du. En lettelse i reglene kan måtte vente en stund eller godkjennes av noen du stoler på, og du kan alltid angre.",
       ],
     },
@@ -265,6 +310,21 @@ export const home = {
       ],
     },
     free: "Gratis og åpen",
+    alpha: {
+      title: "Alfa: prøv det, men ikke stol på det ennå",
+      body: [
+        "Plainphone er en alfaversjon. Appen på telefonen, foreldrepanelet, serveren og nettfilteret fungerer sammen. Funksjonene endrer seg fortsatt, og ting kan slutte å virke.",
+        "Plainphone har ikke vært gjennom en ekstern sikkerhetsrevisjon. Installer det på en reservetelefon du er klar til å tilbakestille, og ikke stol på det for et barns telefon ennå.",
+      ],
+      nextTitle: "Dette kan du gjøre nå",
+      next: {
+        guide: "Les oppsettguiden og prøv det på en reservetelefon",
+        star: "Gi prosjektet en stjerne eller følg det på GitHub",
+        releases: "Følg nye versjoner",
+        feedback: "Fortell oss på GitHub hva som fungerer og hva som ikke gjør det",
+        mail: "Eller skriv til",
+      },
+    },
     closing: {
       title: "Start med én telefon.",
       body: "Sett den opp sammen, prøv en samtale og appene dere trenger, og endre reglene underveis.",
@@ -304,7 +364,7 @@ export const home = {
     decide: {
       title: "Wer entscheidet",
       body: [
-        "Bei einem Kind entscheiden die Eltern, am besten gemeinsam mit dem Kind. Legen Sie die Regeln im Elternbereich oder in der Eltern-App fest und passen Sie sie an, wenn Ihr Kind älter wird.",
+        "Bei einem Kind entscheiden die Eltern, am besten gemeinsam mit dem Kind. Legen Sie die Regeln im Elternbereich fest und passen Sie sie an, wenn Ihr Kind älter wird.",
         "Auf Ihrem eigenen Handy entscheiden Sie. Eine Lockerung kann eine Wartezeit haben oder die Zustimmung einer Vertrauensperson brauchen, und Sie können jederzeit abbrechen.",
       ],
     },
@@ -331,6 +391,21 @@ export const home = {
       ],
     },
     free: "Kostenlos und offen",
+    alpha: {
+      title: "Alpha: ausprobieren, aber noch nicht darauf verlassen",
+      body: [
+        "Plainphone ist eine Alpha-Version. Die App auf dem Handy, der Elternbereich, der Server und der Webfilter arbeiten zusammen. Funktionen ändern sich noch, und es kann etwas kaputtgehen.",
+        "Plainphone wurde noch nicht extern auf Sicherheit geprüft. Installieren Sie es auf einem Ersatzhandy, das Sie zurücksetzen können, und verlassen Sie sich bei einem Kinderhandy noch nicht darauf.",
+      ],
+      nextTitle: "Was Sie jetzt tun können",
+      next: {
+        guide: "Die Einrichtungsanleitung lesen und auf einem Ersatzhandy ausprobieren",
+        star: "Das Projekt auf GitHub mit einem Stern markieren oder beobachten",
+        releases: "Neuen Versionen folgen",
+        feedback: "Auf GitHub sagen, was funktioniert und was nicht",
+        mail: "Oder schreiben Sie an",
+      },
+    },
     closing: {
       title: "Fangen Sie mit einem Handy an.",
       body: "Richten Sie es gemeinsam ein, probieren Sie einen Anruf und die Apps aus, die Sie brauchen, und passen Sie die Regeln nach und nach an.",

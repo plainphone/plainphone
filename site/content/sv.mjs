@@ -46,7 +46,7 @@ export default {
   },
   skip: "Hoppa till innehållet",
   nav: { label: "Huvudmeny", source: "Källkod", language: "Språk" },
-  status: "Tidig version för testning.",
+  status: "Alfaversion. Prova den på en reservtelefon.",
   compatibility: {
     path: "/sv/apps/",
     title: "Fungerar min app med Plainphone?",
@@ -145,7 +145,7 @@ export default {
   phones: {
     title: "Testade telefoner",
     body:
-      "En så här långt: en OnePlus 5T på Android 10. Installationen, låset och anslutningen till kontrollpanelen fungerar, som <a href=\"/sv/setup/#tested\">installationsguiden</a> visar. Den har inte gått igenom vår <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass checklista</a> på riktig hårdvara ännu, och en telefon räknas som fullständigt testad först efter att den har klarat alla tester på den listan. Tills dess, behandla Plainphone som ett experiment.",
+      "En så här långt: en OnePlus 5T på Android 10. Installationen, låset och anslutningen till kontrollpanelen fungerar, som <a href=\"/sv/setup/#tested\">installationsguiden</a> visar. Den har inte gått igenom vår <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">checklista för kringgåenden</a> på riktig hårdvara ännu, och en telefon räknas som fullständigt testad först efter att den har klarat alla tester på den listan. Tills dess bör du se Plainphone som ett experiment.",
   },
   faq: {
     title: "Frågor",
@@ -153,7 +153,7 @@ export default {
       {
         group: "gettingStarted",
         q: "Fungerar det på iPhone?",
-        a: "Plainphone skyddar barnets Android-telefon. Föräldraappen för iPhone är under utveckling. Du kan redan använda föräldrapanelen i Safari.",
+        a: "Inte än. Telefonen som följer reglerna måste vara en Android. Stöd för iPhone är planerat. Föräldrar kan använda föräldrapanelen i alla webbläsare, även Safari på en iPhone. Föräldraappen för iPhone och Android finns inte i appbutikerna än.",
       },
       {
         group: "safety",
@@ -239,7 +239,7 @@ export default {
           "Du loggar in med din e-postadress och en länk vi skickar till dig. Det finns inget lösenord. Vi lagrar:",
           {
             list: [
-              "din e-postadress och ditt språk (engelska eller danska)",
+              "din e-postadress och ditt språk (svenska, engelska, danska, norska eller tyska)",
               "inloggningslänken du bad om: din e-postadress, en utgångstid och en hash av länken. Den raderas ungefär en dag efter att den löper ut, även när det inte finns något konto för den adressen",
               "din session: en hash av nyckeln som din webbläsare har och när den slutar (max 60 dagar, eller när du loggar ut). Vi lagrar inte din IP-adress eller din enhet",
               "ditt hushåll: dess namn, vem som finns i det och de inbjudningar du har skickat, med den inbjudna e-postadressen och utgångsdatum. En inbjudan raderas när den accepteras och en dag efter att den löper ut",

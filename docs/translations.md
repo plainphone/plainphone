@@ -22,6 +22,10 @@ and website lookup and the help pages need native review in Swedish, Norwegian
 Bokmål and German. Review the localized catalog labels in
 `server/catalog/dk.json` as well.
 
+New in the alpha review (November 2026), written without a native speaker: the alpha
+notice on the front page (`alpha` in `site/content/home.mjs`), the status label and the
+iPhone answer in the FAQ, and the whole press kit page (`site/content/press.mjs`).
+
 Website copy lives in `site/content/`. See the [site README](../site/README.md)
 for build and check commands.
 
