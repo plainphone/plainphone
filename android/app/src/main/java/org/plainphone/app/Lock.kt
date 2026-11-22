@@ -12,6 +12,8 @@ import android.util.Log
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.quiet.BedtimeDnd
 import org.plainphone.app.quiet.DndOutcome
@@ -47,6 +49,22 @@ object Lock {
     private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
     private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
+
+    /**
+     * Tests: returns once the work queued on both background executors has run. The executors are
+     * process-wide, so a Robolectric test that leaves work queued hands it to the next test.
+     */
+    internal fun awaitIdleForTests(idle: () -> Unit = {}) {
+        val queued = listOf(executor, installRecoveryExecutor).map { it.submit {} }
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+        while (!queued.all { it.isDone }) {
+            // A stall (a stuck apply or a recovery blocked on a lock) fails the test instead of hanging CI.
+            if (System.nanoTime() > deadline) throw TimeoutException("Lock executors still busy after 30 s")
+            idle()
+            Thread.sleep(1)
+        }
+        queued.forEach { it.get() }
+    }
 
     fun applier(context: Context, onInstallsAllowed: () -> Unit = {}): PolicyApplier {
         val app = context.applicationContext
