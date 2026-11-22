@@ -7,6 +7,7 @@ import socket
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -104,6 +105,32 @@ class SerialShellTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Unexpected data"):
             self.run_command(FakeConsole(answer(b"", b"0push_mkdir")), "true")
 
+    def test_gives_up_at_the_deadline_while_the_console_keeps_talking(self):
+        # Run 45018411514: kernel messages kept a stuck command's console busy until the job limit.
+        ours, guest = socket.socketpair()
+        self.addCleanup(ours.close)
+        stop = threading.Event()
+
+        def chatter():
+            with guest:
+                line = guest.makefile("rb").readline()
+                marker = re.search(rb"'(plainphone-[0-9a-f]+)-start'", line)[1]
+                guest.sendall(b"\r\n" + marker + b"-start\r\n")
+                while not stop.wait(0.05):
+                    guest.sendall(b"[  42.0] binder: still waiting\r\n")
+                guest.settimeout(1)
+                self.received = guest.recv(64)
+
+        thread = threading.Thread(target=chatter, daemon=True)
+        thread.start()
+        began = time.monotonic()
+        with self.assertRaisesRegex(TimeoutError, r"am did not finish within 0.5 s"):
+            harness.serial_shell(ours, "am", "instrument", timeout=0.5)
+        self.assertLess(time.monotonic() - began, 2)
+        stop.set()
+        thread.join(timeout=5)
+        self.assertEqual(self.received, b"\x03", "the overrunning command must be interrupted")
+
     def test_reports_a_closed_console(self):
         ours, guest = socket.socketpair()
         self.addCleanup(ours.close)
@@ -125,6 +152,53 @@ class ProbeConsoleTest(unittest.TestCase):
         self.addCleanup(console.close)
         with self.assertRaisesRegex(RuntimeError, "No shell answered"):
             harness.probe_console(console.harness, attempts=2, timeout=0.2)
+
+
+class ReadinessTest(unittest.TestCase):
+    def test_default_network(self):
+        self.assertEqual(harness.default_network("NetworkFactories:\n  Active default network: 100\n"),
+                         (True, "Active default network: 100"))
+        self.assertFalse(harness.default_network("Active default network: none\n")[0])
+        self.assertFalse(harness.default_network("dumpsys: service not ready\n")[0])
+
+    def test_voice_service_reads_the_current_state_not_the_event_log(self):
+        registry = ("Phone Id=0\n  mServiceState={mVoiceRegState=1(OUT_OF_SERVICE), mDataRegState=1(OUT_OF_SERVICE)}\n"
+                    "local logs:\n  notifyServiceStateForSubscriber: state={mVoiceRegState=0(IN_SERVICE), ...}\n")
+        self.assertEqual(harness.voice_service(registry), (False, "voice 1(OUT_OF_SERVICE)"))
+        self.assertTrue(harness.voice_service(registry.replace("=1(OUT_OF_SERVICE), mData", "=0(IN_SERVICE), mData"))[0])
+        self.assertFalse(harness.voice_service("")[0])
+
+    def test_wait_until_returns_once_ready(self):
+        answers = iter([(False, "booting"), OSError("refused"), (True, "up")])
+        self.assertEqual(harness.wait_until("thing", lambda: self.answer(answers), timeout=5, interval=0), "up")
+
+    @staticmethod
+    def answer(answers):
+        value = next(answers)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    def test_wait_until_names_the_last_sighting(self):
+        with self.assertRaisesRegex(RuntimeError, r"waiting for the modem; last seen: ConnectionRefusedError: down"):
+            harness.wait_until("the modem", lambda: self.answer(iter([ConnectionRefusedError("down")])),
+                               timeout=0, interval=0)
+
+    def test_ensure_server_reports_an_exited_server(self):
+        server = mock.Mock(returncode=1, **{"poll.return_value": 1})
+        with self.assertRaisesRegex(RuntimeError, "Test server exited with code 1"):
+            harness.ensure_server(server, 1, timeout=5)
+
+
+class WorkflowTest(unittest.TestCase):
+    def test_snapshot_is_cached_before_the_flows_and_a_hang_still_uploads(self):
+        workflow = (Path(__file__).parents[1] / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        job = workflow[workflow.index("  android-e2e:"):]
+        job = job[:job.index("\n  offsite-backup:")]
+        self.assertNotIn("uses: actions/cache@", job)
+        self.assertLess(job.index("uses: actions/cache/save@"), job.index("name: Run the device flows once"))
+        flows = job[job.index("name: Run the device flows once"):job.index("uses: actions/upload-artifact")]
+        self.assertRegex(flows, r"timeout-minutes: \d+")
 
 
 class DiagnosticsTest(unittest.TestCase):

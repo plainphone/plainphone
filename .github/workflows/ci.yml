@@ -459,14 +459,17 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           sudo udevadm settle
           test -w /dev/kvm
-      - name: Cache clean emulator snapshot
+      # Restored and saved as separate steps: a post-job save would store the AVD after the
+      # flows below had written to it (Device Owner, adb disabled), not the clean boot.
+      - name: Restore clean emulator snapshot
         id: avd
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.android/avd
-          key: plainphone-avd-v4-${{ runner.os }}-${{ runner.arch }}-aosp-${{ matrix.api }}
+          key: plainphone-avd-v5-${{ runner.os }}-${{ runner.arch }}-aosp-${{ matrix.api }}
       - name: Boot and save a clean snapshot
         if: steps.avd.outputs.cache-hit != 'true'
+        timeout-minutes: 10
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api }}
@@ -479,8 +482,17 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
             -feature ModemSimulator -phone-number 15555215554 -shell-serial tcp:127.0.0.1:5599,server,nowait
           script: adb shell getprop sys.boot_completed
+      - name: Cache clean emulator snapshot
+        if: steps.avd.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.android/avd
+          key: ${{ steps.avd.outputs.cache-primary-key }}
       - name: Run the device flows once
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        # Ends a hang as a failure, so the artifact upload below still runs; a job that hits
+        # its own limit is cancelled and uploads nothing (run 45018411514).
+        timeout-minutes: 15
+        uses:reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
           DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2e
         with:

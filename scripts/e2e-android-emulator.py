@@ -89,6 +89,9 @@ def serial_shell(console, *args, timeout=30):
     # emulator's separate root console remains available to the test harness.
     marker = f"plainphone-{uuid4().hex}"
     command = shlex.join(args)
+    # One deadline for the whole command: kernel messages share the console, so a timeout per
+    # read never expires while a stuck command waits (run 45018411514 hung until the job limit).
+    deadline = time.monotonic() + timeout
     console.settimeout(timeout)
     # Android services cannot use a serial TTY passed through Binder.
     console.sendall(f"set -o pipefail; printf '\\n%s\\n' '{marker}-start'; "
@@ -97,28 +100,52 @@ def serial_shell(console, *args, timeout=30):
     start = f"{marker}-start".encode()
     end = f"{marker}-end ".encode()
     started = False
-    with console.makefile("rb") as stream:
-        for line in stream:
-            content = line.rstrip(b"\r\n")
-            # Only the shell's own lines can carry adb's handshake. The command's
-            # output (base64 screenshots, logcat) may contain "CNXN" by chance.
-            at_end = started and content.startswith(end)
-            if (not started or at_end) and b"CNXN" in line:
-                raise RuntimeError("adb is connected to the serial console socket; "
-                                   "move -shell-serial outside adb's emulator ports")
-            if content == start:
-                started = True
-            elif at_end:
-                result = output.decode(errors="replace").replace("\r\n", "\n")
-                status = content[len(end):].decode(errors="replace")
-                if not status.isdigit():
-                    raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
-                if status != "0":
-                    raise RuntimeError(f"Emulator serial command failed: {args[0]} ({status})\n{result}")
-                return result
-            elif started:
-                output.extend(line)
+    for line in console_lines(console, deadline, f"{args[0]} did not finish within {timeout:g} s"):
+        content = line.rstrip(b"\r\n")
+        # Only the shell's own lines can carry adb's handshake. The command's
+        # output (base64 screenshots, logcat) may contain "CNXN" by chance.
+        at_end = started and content.startswith(end)
+        if (not started or at_end) and b"CNXN" in line:
+            raise RuntimeError("adb is connected to the serial console socket; "
+                               "move -shell-serial outside adb's emulator ports")
+        if content == start:
+            started = True
+        elif at_end:
+            result = output.decode(errors="replace").replace("\r\n", "\n")
+            status = content[len(end):].decode(errors="replace")
+            if not status.isdigit():
+                raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
+            if status != "0":
+                raise RuntimeError(f"Emulator serial command failed: {args[0]} ({status})\n{result}")
+            return result
+        elif started:
+            output.extend(line)
     raise RuntimeError("Emulator serial console disconnected")
+
+
+def console_lines(console, deadline, overrun):
+    # Each read waits only for what is left of the deadline.
+    pending = b""
+    while True:
+        while b"\n" not in pending:
+            remaining = deadline - time.monotonic()
+            try:
+                if remaining <= 0:
+                    raise TimeoutError
+                console.settimeout(remaining)
+                chunk = console.recv(65536)
+            except TimeoutError:
+                # Ctrl-C stops the overrunning command, so the diagnostics after it get a shell.
+                try:
+                    console.sendall(b"\x03")
+                except OSError:
+                    pass
+                raise TimeoutError(f"Emulator serial command {overrun}") from None
+            if not chunk:
+                return
+            pending += chunk
+        line, pending = pending.split(b"\n", 1)
+        yield line + b"\n"
 
 
 def instrument(flow, port, token, console=None, command_prefix=(), *, parent_number=None):
@@ -201,13 +228,72 @@ def collect_diagnostics(console, settle=3):
         print(f"Unable to request WorkManager diagnostics: {exc}", flush=True)
 
 
-def run_flows(port, token, console):
+def wait_until(description, probe, timeout, interval=0.5):
+    # Polls a readiness signal. `probe` returns (ready, what it saw); the error names the last sighting.
+    began = time.monotonic()
+    seen = "nothing yet"
+    while True:
+        try:
+            ready, seen = probe()
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            ready, seen = False, f"{type(exc).__name__}: {exc}"
+        waited = time.monotonic() - began
+        if ready:
+            print(f"Ready after {waited:.1f} s: {description} ({seen})", flush=True)
+            return seen
+        if waited >= timeout:
+            raise RuntimeError(f"Timed out after {timeout:g} s waiting for {description}; last seen: {seen}")
+        time.sleep(interval)
+
+
+def default_network(connectivity):
+    # `dumpsys connectivity` names the default network's netId, or "none" while there is none.
+    match = re.search(r"^\s*Active default network: (\S+)", connectivity, re.MULTILINE)
+    if not match:
+        return False, "no default network line in dumpsys connectivity"
+    return match[1] != "none", match[0].strip()
+
+
+def voice_service(registry):
+    # The current state per SIM slot; the registry's event log below it also holds old states.
+    states = re.findall(r"^\s*mServiceState=\{mVoiceRegState=(\d+)\((\w+)\)", registry, re.MULTILINE)
+    if not states:
+        return False, "no mServiceState in dumpsys telephony.registry"
+    return ("0", "IN_SERVICE") in states, ", ".join(f"voice {code}({name})" for code, name in states)
+
+
+def await_device_ready(timeout=120):
+    # A snapshot-restored emulator answers adb before its network and modem are back. The
+    # guest reaches the server through the default network, and an SMS sent while the modem
+    # is out of service is dropped without a loopback.
+    wait_until("the emulator's default network", lambda: default_network(shell("dumpsys", "connectivity")), timeout)
+    wait_until("the emulator modem in service",
+               lambda: voice_service(shell("dumpsys", "telephony.registry")), timeout)
+
+
+def server_health(port):
+    with urlopen(f"http://127.0.0.1:{port}/api/health", timeout=5) as response:
+        body = json.load(response)
+    return body.get("ok") is True, f"ok={body.get('ok')} db={body.get('db')}"
+
+
+def ensure_server(server, port, timeout=30):
+    # Before each flow: the server process is alive and answers its health check on the host.
+    def probe():
+        if server.poll() is not None:
+            raise RuntimeError(f"Test server exited with code {server.returncode}; see server.log")
+        return server_health(port)
+    wait_until(f"the test server on port {port}", probe, timeout)
+
+
+def run_flows(port, token, console, check_server=lambda: None):
     if shell("getprop", "ro.kernel.qemu").strip() != "1":
         raise RuntimeError("Select a disposable Android emulator")
     serial = adb("get-serialno", text=True, stdout=subprocess.PIPE).stdout.strip()
     match = re.fullmatch(r"emulator-(5[0-9]{3})", serial)
     if not match:
         raise RuntimeError("Select an emulator by its console-port serial")
+    await_device_ready()
     # The parent's number is the emulator's own SIM number, so the child's SMS loops back.
     parent_number = f"+{modem_number()}"
     if shell("getprop", "init.svc.console").strip() != "running":
@@ -227,6 +313,7 @@ def run_flows(port, token, console):
         shell("settings", "put", "global", setting, "0")
     shell("settings", "put", "global", "auto_time", "0")
     shell("settings", "put", "global", "private_dns_mode", "off")
+    check_server()
     instrument("LightModeFlow", port, token)
 
     shell("settings", "delete", "secure", "enabled_accessibility_services")
@@ -262,6 +349,7 @@ def run_flows(port, token, console):
     with ThreadPoolExecutor(max_workers=1) as executor:
         reply = executor.submit(inject_parent_sms, port, token, stop, serial, parent_number)
         try:
+            check_server()
             instrument("DeviceOwnerFlow", port, token, console, android_runtime, parent_number=parent_number)
             if not reply.result(timeout=5):
                 raise RuntimeError("SMS injection stopped before delivery")
@@ -282,6 +370,14 @@ def inject_parent_sms(port, token, stop, serial, parent_number):
                     raise RuntimeError(f"Emulator rejected the incoming SMS: {response}")
                 return True
     return False
+
+
+def report_server(server, log, lines=30):
+    # In the job log too, so a server that exited shows without downloading the artifact.
+    log.flush()
+    state = "still running" if server.poll() is None else f"exited with code {server.returncode}"
+    tail = Path(log.name).read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]
+    print(f"Test server {state}. Last lines of server.log:", *tail, sep="\n", flush=True)
 
 
 def main():
@@ -307,9 +403,11 @@ def main():
                 else:
                     raise RuntimeError("Test server was not ready after 120 seconds")
                 config = json.loads(fixture.read_text(encoding="utf-8"))
-                run_flows(int(config["url"].rsplit(":", 1)[1]), config["parentToken"], console)
+                port = int(config["url"].rsplit(":", 1)[1])
+                run_flows(port, config["parentToken"], console, lambda: ensure_server(server, port))
             except Exception as error:
                 print(error, flush=True)
+                report_server(server, log)
                 capture(console, "screen.png")
                 collect_diagnostics(console)
                 capture(console, "logcat.txt")
