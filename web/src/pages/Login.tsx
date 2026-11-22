@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router";
 import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, serverHasMail } from "../lib/api";
+import { type SignInProtection, signInProtection, useBotCheck } from "../lib/bot-check";
 import { INVITE_KEY, NEXT_KEY, noteLinkAsked, takeNext, useSession } from "../lib/session";
 import { isHostedService, privacyUrl, termsUrl } from "../lib/site-links";
 
@@ -36,9 +37,14 @@ export function LoginPage() {
   // The store review address (docs/store-review.md) gets a code field instead of a mail.
   const [codeFor, setCodeFor] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  // Bot and spam protection the server asks for (docs/operations.md): a background puzzle and a hidden field.
+  const [protection, setProtection] = useState<SignInProtection>({ botChallenge: false, honeypot: false });
+  const botCheck = useBotCheck(protection.botChallenge);
+  const [website, setWebsite] = useState("");
 
   useEffect(() => {
     void serverHasMail().then(setMail);
+    void signInProtection().then(setProtection);
   }, []);
 
   // While the user opens the mail (often in another tab), notice when the cookie arrives.
@@ -66,7 +72,19 @@ export function LoginPage() {
     }
     setBusy(true);
     try {
-      const r = await api.post<{ ok: boolean; mailEnabled: boolean; codeSignIn?: boolean }>("/auth/request", { email: value, locale });
+      let altcha: string | undefined;
+      try {
+        altcha = await botCheck.take();
+      } catch {
+        setFormError(t("botCheck.failed"));
+        return;
+      }
+      const r = await api.post<{ ok: boolean; mailEnabled: boolean; codeSignIn?: boolean }>("/auth/request", {
+        email: value,
+        locale,
+        ...(altcha ? { altcha } : {}),
+        ...(website ? { website } : {}),
+      });
       if (r.codeSignIn) {
         setCode("");
         setCodeFor(value);
@@ -79,6 +97,7 @@ export function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.fields().email) setFieldError(t("login.invalidEmail"));
       else if (err instanceof ApiError && err.data.code === "signup_cap_reached") setCapped(true);
+      else if (err instanceof ApiError && err.data.code === "disposable_email") setFieldError(t("disposableEmail.error"));
       else setFormError(errorMessage(err, t));
     } finally {
       setBusy(false);
@@ -177,6 +196,23 @@ export function LoginPage() {
                 />
               )}
             </Field>
+            {protection.honeypot && (
+              // A person never sees or reaches this field; a bot that fills in every field does.
+              <div className="sr-only" aria-hidden="true">
+                <label>
+                  {t("botCheck.honeypot")}
+                  <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    data-testid="honeypot"
+                  />
+                </label>
+              </div>
+            )}
             {capped && (
               <div className="notice notice-info stack-sm" role="status" data-testid="signup-capped">
                 <p><strong>{t("signupCap.title")}</strong></p>
@@ -184,7 +220,10 @@ export function LoginPage() {
                 <p>{t("signupCap.selfHost")} <a href={SELF_HOSTING_GUIDE}>{t("login.selfHostGuide")}</a></p>
               </div>
             )}
-            <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+            <LiveStatus
+              notice={formError ? { tone: "error", text: formError }
+                : busy && botCheck.state === "working" ? { tone: "info", text: t("botCheck.working") } : null}
+            />
             <div>
               <button type="submit" className="btn btn-primary" disabled={busy}>
                 {busy ? t("login.sending") : t("login.submit")}
