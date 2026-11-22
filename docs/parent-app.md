@@ -37,7 +37,7 @@ Logging out ends the session on the server, which also removes the device's push
 The server publishes the association files:
 
 - `GET /.well-known/apple-app-site-association` lists `APPLE_APP_IDS` (default `P7698GU4AV.org.plainphone.app`). Update any explicit override that still points to the old iOS bundle ID.
-- The App Store build of the parent app (Plainphone Parent) is built with `PLAINPHONE_BUNDLE_ID=org.plainphone.parent`. A server that serves it lists both apps, `APPLE_APP_IDS=P7698GU4AV.org.plainphone.app,P7698GU4AV.org.plainphone.parent`, and sends its push with `APNS_BUNDLE_ID=org.plainphone.parent`. `deploy/dokploy-compose.yaml` passes `APPLE_APP_IDS`, `ANDROID_APP_PACKAGE` and `ANDROID_APP_CERT_SHA256` through to the app.
+- The App Store build of the parent app (Plainphone Parent) is built with `PLAINPHONE_BUNDLE_ID=org.plainphone.parent`. A server that serves it lists both apps, `APPLE_APP_IDS=P7698GU4AV.org.plainphone.app,P7698GU4AV.org.plainphone.parent`, and sends its push with `APNS_BUNDLE_ID=org.plainphone.parent`. Both `deploy/dokploy-compose.yaml` and the self-hosting `compose.yaml` pass `APPLE_APP_IDS`, `ANDROID_APP_PACKAGE` and `ANDROID_APP_CERT_SHA256` through to the app.
 - `GET /.well-known/assetlinks.json` lists `ANDROID_APP_PACKAGE` (default `org.plainphone.parent`) with the certificate fingerprints in `ANDROID_APP_CERT_SHA256`. It is an empty list until a fingerprint is set.
 
 For Android app links to verify, `ANDROID_APP_CERT_SHA256` must hold the SHA-256 fingerprint of every certificate that signs a build people install: the Play App Signing key (shown in Play Console under Test and release > App integrity), and optionally the upload key for builds installed outside Play. Separate several with commas.

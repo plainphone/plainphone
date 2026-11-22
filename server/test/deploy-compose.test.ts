@@ -46,13 +46,18 @@ describe("appEnvironment", () => {
       "    build: .",
       "    environment:",
       "      PUBLIC_URL: ${PUBLIC_URL:?}",
+      "      # a comment inside the map",
+      "      ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}",
       "    ports:",
       '      - "8080:8080"',
       "  backup:",
       "    environment:",
       "      ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-y}",
     ].join("\n");
-    expect(appEnvironment(compose)).toEqual(["      PUBLIC_URL: ${PUBLIC_URL:?}"]);
+    expect(appEnvironment(compose)).toEqual([
+      "      PUBLIC_URL: ${PUBLIC_URL:?}",
+      "      ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}",
+    ]);
   });
 });
 
