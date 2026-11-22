@@ -3,7 +3,7 @@
 // The phone side of the sync API (docs/sync-api.md) for the Child role on an iPhone. Separate from
 // the parent client in src/api/client.ts: it sends the device token, never the parent's session,
 // so the two can never mix on one iPhone.
-import type { components } from "../../api/schema";
+import type { components } from "@plainphone/api-client/schema";
 import { getItem, removeItem, setItem } from "../storage";
 
 export type IosStatus = components["schemas"]["IosStatus"];

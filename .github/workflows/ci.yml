@@ -230,7 +230,8 @@ jobs:
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm install --frozen-lockfile
+      # The parent app has its own job; leave React Native out of this install.
+      - run: pnpm install --frozen-lockfile --filter '!@plainphone/parent-app'
         if: needs.changes.outputs.server == 'true'
       - run: pnpm --filter @plainphone/server install --frozen-lockfile
         if: needs.changes.outputs.server == 'false' && needs.changes.outputs.e2e == 'true'
@@ -238,14 +239,21 @@ jobs:
         id: typecheck
         continue-on-error: true
         if: needs.changes.outputs.server == 'true'
-        run: pnpm -r typecheck
-      - name: Tests (server, web and encryption vectors)
+        run: pnpm -r --filter '!@plainphone/parent-app' typecheck
+      - name: Tests (server, web, shared packages and encryption vectors)
         id: tests
         continue-on-error: true
         if: needs.changes.outputs.server == 'true'
         env:
           DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_test
-        run: pnpm -r test
+        run: pnpm -r --filter '!@plainphone/parent-app' test
+      # Both apps type their API calls from packages/api-client/src/schema.d.ts. After a change
+      # to server/openapi.yaml, run `pnpm --filter @plainphone/api-client generate`.
+      - name: API types match server/openapi.yaml
+        id: api-types
+        continue-on-error: true
+        if: needs.changes.outputs.server == 'true'
+        run: pnpm --filter @plainphone/api-client check
       - uses: actions/setup-java@v6
         if: needs.changes.outputs.e2e == 'true'
         with:
@@ -290,8 +298,8 @@ jobs:
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb -U plainphone plainphone_e2e
           scripts/e2e-phone-sync.sh
-      - name: Require successful typecheck and tests
-        if: ${{ !cancelled() && (steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure') }}
+      - name: Require successful typecheck, tests and API types
+        if: ${{ !cancelled() && (steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure' || steps.api-types.outcome == 'failure') }}
         run: exit 1
 
   # E2EE phase 0 prototype (docs/e2ee-prototype.md): the OpenMLS core, the scripted demo
@@ -657,32 +665,17 @@ jobs:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
         if: needs.changes.outputs.parent == 'true'
-        with:
-          package_json_file: parent-app/package.json
       - uses: actions/setup-node@v7
         if: needs.changes.outputs.parent == 'true'
         with:
           node-version: "24"
           cache: pnpm
-          cache-dependency-path: parent-app/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+      # The app and the workspace packages it imports (@plainphone/i18n, shared, api-client).
+      # The server job checks that the API types match server/openapi.yaml.
+      - name: Install the app and its workspace packages
         if: needs.changes.outputs.parent == 'true'
-      # Same idea for the copy and formatting shared with the PWA: test the app with the
-      # PWA's current files, and warn when the committed copy is behind (pnpm sync:shared).
-      - name: Shared copy and formatting match the PWA
-        if: needs.changes.outputs.parent == 'true'
-        run: pnpm check:shared || echo "::warning::parent-app/src/shared is behind web/src; run pnpm --dir parent-app sync:shared"
-      - name: Use the PWA's current shared files
-        if: needs.changes.outputs.parent == 'true'
-        run: pnpm sync:shared
-      # Typecheck against the API as it is now, so a breaking change in openapi.yaml
-      # fails here. A stale committed schema only warns; refresh it with pnpm gen:api.
-      - name: Typed API client matches server/openapi.yaml
-        if: needs.changes.outputs.parent == 'true'
-        run: pnpm check:api || echo "::warning file=parent-app/src/api/schema.d.ts::out of date with server/openapi.yaml; run pnpm --dir parent-app gen:api"
-      - name: Regenerate the API types from server/openapi.yaml
-        if: needs.changes.outputs.parent == 'true'
-        run: pnpm gen:api
+        working-directory: .
+        run: pnpm install --frozen-lockfile --filter '@plainphone/parent-app...'
       - name: Typecheck
         if: needs.changes.outputs.parent == 'true'
         run: pnpm typecheck

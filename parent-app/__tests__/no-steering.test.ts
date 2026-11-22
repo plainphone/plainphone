@@ -3,18 +3,15 @@
 // The parent app is a store app: it must never send anyone to a card payment (store
 // anti-steering rules, docs/billing.md). This scans the app's own source and fails on any
 // mention of Stripe or a checkout, and on any call that buys an early unlock. The generated API
-// schema and the files copied from the web dashboard (src/shared) are left out.
+// schema and the code shared with the web dashboard live in packages/, outside src.
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join, relative } from "node:path";
 
 const root = join(__dirname, "..", "src");
-const skipped = (rel: string) => rel === join("api", "schema.d.ts") || rel === "shared" || rel.startsWith(`shared${sep}`);
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
-    const rel = relative(root, path);
-    if (skipped(rel)) return [];
     if (statSync(path).isDirectory()) return sources(path);
     return /\.(ts|tsx|js|jsx)$/.test(name) ? [path] : [];
   });
@@ -30,8 +27,6 @@ it("scans a real set of app files", () => {
   const files = sources(root).map((f) => relative(root, f));
   expect(files.length).toBeGreaterThan(20);
   expect(files).toContain(join("components", "Billing.tsx"));
-  expect(files.some((f) => f.startsWith("shared"))).toBe(false);
-  expect(files).not.toContain(join("api", "schema.d.ts"));
 });
 
 it("catches what it is meant to catch", () => {

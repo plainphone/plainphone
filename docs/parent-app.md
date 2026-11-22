@@ -70,7 +70,7 @@ updates** and **SOS alert** switch it off per device. See [live updates](live-up
 
 ## Location screen
 
-The screen mirrors the PWA's location page, section by section, with the same copy (`loc.*`, `ring.*` and `checkin.*` come from `web/src/i18n` through `pnpm sync:shared`):
+The screen mirrors the PWA's location page, section by section, with the same copy (`loc.*`, `ring.*` and `checkin.*` come from `@plainphone/i18n` in `packages/i18n`, which the PWA uses too):
 
 1. **Last known position**: when ("5 minutes ago"), the date, how accurate, the map, and Find. Under it, "Drive there" with Apple Maps and Google Maps (Apple first on iOS, Google first on Android) and "Copy position" (`lat, lon` with six decimals).
 2. **Ring the phone**: start, an option to keep ringing for the full 5 minutes, a live status (waiting, ringing with the time left, "I'm here" pressed, stopped, nobody answered) and "Stop the sound".

@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Domain types, the same shapes as web/src/lib/api.ts. Request and response types for
-// each endpoint come from the generated src/api/schema.d.ts (pnpm gen:api); these are
+// Domain types, the same shapes as web/src/lib/api.ts; the ones the shared lib files need
+// come from @plainphone/shared/models. Request and response types for
+// each endpoint come from @plainphone/api-client (generated from server/openapi.yaml); these are
 // the narrower shapes the screens work with.
 
-import type { components } from "./schema";
+import type { components } from "@plainphone/api-client/schema";
 
-import type { Language, PhoneLanguage } from "../shared/lib/phone-language";
-import type { EarlyUnlockOffer } from "../shared/lib/billing";
+import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
+import type { EarlyUnlockOffer } from "@plainphone/shared/billing";
+import type { DnsCategory, KeyInput, Op, OpenCategory, PhoneSetting, ScheduleInput, SettingKey } from "@plainphone/shared/models";
 
-export type { EarlyUnlockOffer, EarlyUnlockPurchase, Plan } from "../shared/lib/billing";
+export type { EarlyUnlockOffer, EarlyUnlockPurchase, Plan } from "@plainphone/shared/billing";
+export type { DnsCategory, FilterMethod, Home, KeyInput, Limit, Locale, Op, OpenCategory, PhoneSetting, ScheduleInput, ScheduleKind, SettingKey, SettingMode, SettingValue } from "@plainphone/shared/models";
 
-export type Locale = Language;
 export type Profile = "child" | "self";
-export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
-/** Open mode: every app is allowed except the block list (docs/open-mode.md). */
-export type OpenCategory = "social" | "gambling" | "adult";
 export interface OpenModeState {
   enabled: boolean;
   categories: { category: OpenCategory; blocked: boolean; hasApps: boolean }[];
@@ -82,7 +81,7 @@ export interface Phone {
   healthBoardEnabled?: boolean;
   weeklySummaryEnabled?: boolean;
   /** Age presets, the review reminder and the family agreement (Child phones). Missing on old servers. */
-  agePreset?: import("../shared/lib/age").AgePresetId | null;
+  agePreset?: import("@plainphone/shared/age").AgePresetId | null;
   reviewEnabled?: boolean;
   reviewIntervalMonths?: number;
   reviewDueAt?: string | null;
@@ -96,7 +95,7 @@ export interface Phone {
   appUpdatesEnabled?: boolean;
   appUpdatesRequestedAt?: string | null;
   /** iPhone support (docs/ios/architecture.md). Missing on old servers: an Android phone. */
-  platform?: import("../shared/lib/platform").Platform;
+  platform?: import("@plainphone/shared/platform").Platform;
   tier?: "strong" | "light" | "family_controls" | "supervised";
   capabilities?: components["schemas"]["Capabilities"];
   ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
@@ -131,14 +130,6 @@ export interface DnsState {
   blockedCategories: DnsCategory[];
   allowDomains: string[];
   blockDomains: string[];
-}
-export type ScheduleKind = "school" | "bedtime";
-export interface ScheduleInput {
-  kind: ScheduleKind;
-  days: number[];
-  startMinute: number;
-  endMinute: number;
-  allowedPackages: string[];
 }
 export interface Schedule extends ScheduleInput {
   id: string;
@@ -190,15 +181,6 @@ export interface LocationState {
   ring: Ring | null;
   checkin: Checkin | null;
 }
-export interface KeyInput {
-  keyType: "delay" | "trusted";
-  delayHours: number;
-  trustedEmail: string | null;
-  /** "Offer early unlock" (docs/billing.md). Amount and recipient are legacy and only echoed back. */
-  payUnlockEnabled: boolean;
-  payUnlockAmount: number;
-  payUnlockRecipient: "plainphone";
-}
 export type KeyLevel = "mild" | "firm" | "strict" | "custom";
 /** Emergency openings of a Self phone: off by default, light mode only. */
 export interface EmergencySettings {
@@ -227,72 +209,10 @@ export interface SelfKey extends KeyInput {
   emergency?: EmergencySettings;
 }
 
-export type SettingKey =
-  | "bluetooth"
-  | "wifi"
-  | "mobileNetworks"
-  | "roaming"
-  | "tethering"
-  | "nfc"
-  | "airplaneMode"
-  | "screenTimeout"
-  | "brightness"
-  | "volume"
-  | "wallpaper"
-  | "location"
-  | "camera"
-  | "screenCapture"
-  | "language";
-/** `free`: the child (or the Self user) decides. `preset`: set once. `locked`: set and kept. */
-export type SettingMode = "free" | "preset" | "locked";
-export type SettingValue = string | number;
-export interface PhoneSetting {
-  mode: SettingMode;
-  /** Only for `preset` and `locked`, and only for settings that have a value. */
-  value?: SettingValue;
-}
 /** Every setting, `free` filled in. */
 export type PhoneSettings = Record<SettingKey, PhoneSetting>;
-export interface Home {
-  layout: "list" | "grid";
-  theme: "system" | "light" | "dark";
-  palette: "grey" | "sage" | "sand";
-  /** Package names on the front page, in order. At most 8. */
-  apps: string[];
-}
 
-export type Op =
-  | { type: "app.set"; packageName: string; allowed: boolean }
-  | { type: "contact.add"; name: string; number: string }
-  | { type: "contact.remove"; contactId: string }
-  | { type: "contact.schedule"; restricted: boolean }
-  | { type: "dns.method"; method: components["schemas"]["FilterMethod"] }
-  | { type: "dns.category"; category: DnsCategory; blocked: boolean }
-  | { type: "openMode.set"; enabled: boolean }
-  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
-  | { type: "dns.allowDomain"; domain: string; present: boolean }
-  | { type: "dns.blockDomain"; domain: string; present: boolean }
-  | { type: "schedule.create"; schedule: ScheduleInput }
-  | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
-  | { type: "schedule.delete"; scheduleId: string }
-  | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
-  | { type: "home.set"; home: Home }
-  | { type: "key.set"; key: KeyInput }
-  | { type: "emergency.set"; enabled: boolean; allowance: number }
-  | { type: "phone.remove"; dnsClientId: string }
-  | { type: "phone.release" }
-  | { type: "move.allow"; allowed: boolean }
-  | { type: "move.start"; exportId: string; serverUrl: string }
-  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
-  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
-  | { type: "catalog.add"; packageName: string; label: string }
-  | { type: "catalog.remove"; packageName: string };
 
-/** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). See docs/time-limits.md. */
-export interface Limit {
-  minutes: number;
-  days: Partial<Record<string, number>>;
-}
 
 export type ApprovalSummary = Record<"en" | "da", string>;
 

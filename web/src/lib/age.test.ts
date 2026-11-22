@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import {
   AGREEMENT_LINE_MAX,
   type AgePreset,
@@ -10,7 +10,7 @@ import {
   parseLines,
   presetLines,
   suggestionText,
-} from "./age";
+} from "@plainphone/shared/age";
 
 const preset: AgePreset = {
   id: "10-11",

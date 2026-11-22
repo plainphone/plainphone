@@ -45,14 +45,16 @@ To pair a phone or an emulator with this server, see [Your own phone app](docs/s
 
 ## Setup per part
 
-The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root. `pnpm lint` there runs each package's `lint`, which is its TypeScript typecheck (there is no separate linter).
+The JavaScript parts are one pnpm workspace with one lockfile: `server/`, `web/`, `parent-app/` and `packages/*` (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root. `pnpm lint` there runs each package's `lint`: the TypeScript typecheck, and ESLint in the parent app. The web app and the parent app import shared copy, logic and API types from `packages/` (`@plainphone/i18n`, `@plainphone/shared`, `@plainphone/api-client`); change them there, never in a copy.
 
 | Part | Requirements | Check before a PR |
 |---|---|---|
 | `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testDebugUnitTest lintDebug assembleDebug` |
 | `server/` | PostgreSQL 18, `DATABASE_URL` pointing at a test database | `pnpm --filter @plainphone/server typecheck` and `test` |
 | `web/` | | `pnpm --filter @plainphone/web typecheck` and `test` |
-| `parent-app/` | See [docs/parent-app.md](docs/parent-app.md) | `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm check:api` and `pnpm check:shared` in `parent-app/` |
+| `parent-app/` | See [docs/parent-app.md](docs/parent-app.md) | `pnpm typecheck`, `pnpm lint` and `pnpm test` in `parent-app/` |
+| `packages/` | | `pnpm --filter @plainphone/i18n --filter @plainphone/shared --filter @plainphone/api-client typecheck`, and `pnpm --filter @plainphone/api-client test` |
+| `server/openapi.yaml` | | `pnpm --filter @plainphone/api-client generate` after a change, then `check` (CI fails when the generated types are behind the spec) |
 | `dns/` | Python 3, Docker for the full stack | `python3 -m unittest discover -s dns/tests -p 'test_ppdns.py'` and `dns/tests/run-stack.sh` |
 | `site/` | Node only, no dependencies | `node build.mjs` and `npm run check` in `site/` |
 | `scripts/` | Python 3 | `python3 -m unittest scripts/test_provisioning_qr.py` |

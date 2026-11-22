@@ -10,7 +10,7 @@ type Review = { action: "approve" | "reject"; id: string } | { action: "approveA
 
 export function ContactSuggestions({ phoneId, onApproved }: { phoneId: string; onApproved: () => Promise<void> }) {
   const { t } = useI18n();
-  const path = `/phones/${phoneId}/contact-suggestions`;
+  const path = `/phones/${phoneId}/contact-suggestions` as const;
   const result = useLoad(() => api.get<{ suggestions: Suggestion[] }>(path).then((r) => r.suggestions), [path]);
   const shown = result.data ?? [];
   const [busy, setBusy] = useState(false);

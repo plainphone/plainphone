@@ -2,7 +2,7 @@
 import { useId, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
-import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "../lib/sos-options";
+import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "@plainphone/shared/sos-options";
 import { CallbackSettings } from "./CallbackSettings";
 import { FamilyInbox } from "./FamilyInbox";
 import { QuickMessages } from "./QuickMessages";
@@ -11,7 +11,7 @@ import { PickGroup, Switch, useLoad } from "./ui";
 /** Hidden SOS and quick messages for one Child phone. Every option is a switch with one line of explanation. */
 export function SosOptions({ pid }: { pid: string }) {
   const { t } = useI18n();
-  const path = `/phones/${pid}/sos`;
+  const path = `/phones/${pid}/sos` as const;
   const res = useLoad(() => api.get<{ settings?: Partial<SosSettings>; callbackNumber?: string | null }>(path), [path]);
   const { setData, reload } = res;
   const [saving, setSaving] = useState(false);

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, type Phone } from "../lib/api";
-import { appUpdateLines } from "../lib/app-updates";
+import { appUpdateLines } from "@plainphone/shared/app-updates";
 import { errorMessage, type Notice, Switch } from "./ui";
 
 /**

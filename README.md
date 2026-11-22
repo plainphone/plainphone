@@ -186,7 +186,7 @@ See [support tools and release troubleshooting](docs/support.md).
 | [`ios/`](ios) | The iPhone's Swift code on its own: an xcodegen project with the Family Controls module, the extensions and their unit tests, see [ios/README.md](ios/README.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
-| [`packages/`](packages) | Shared encryption test vectors |
+| [`packages/`](packages) | Workspace packages: the copy in every language ([`i18n`](packages/i18n)), logic the web app and the parent app share ([`shared`](packages/shared)), the API types generated from `server/openapi.yaml` with a small typed client ([`api-client`](packages/api-client)), and the encryption library and test vectors ([`crypto`](packages/crypto), [`crypto-vectors`](packages/crypto-vectors)) |
 | [`e2ee/`](e2ee/mls-core/README.md) | E2EE phase 0 prototype: the OpenMLS core for family texts, test data only ([docs/e2ee-prototype.md](docs/e2ee-prototype.md)) |
 | [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test, end-to-end tests for phone sync and the Android emulator, and the E2EE prototype demo |
 | [`docs/`](docs) | Design, evidence, policies and how-tos. Google Play and F-Droid preparation: [docs/play/](docs/play/README.md) |

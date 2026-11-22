@@ -12,8 +12,8 @@ import type { EarlyUnlockPurchase, PendingChange, Plan } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { useMe } from "../lib/session";
 import { space } from "../lib/theme";
-import { planNowKey, purchaseLine, usageText } from "../shared/lib/billing";
-import { intlLocale } from "../shared/lib/format";
+import { planNowKey, purchaseLine, usageText } from "@plainphone/shared/billing";
+import { intlLocale } from "@plainphone/shared/format";
 import { Button, Card, errorMessage, Field, LiveStatus, type NoticeValue, Row, Stack as VStack, Text, useLoad } from "./ui";
 
 /** The household's plan, or null while loading, on an old server or after any error (= no billing UI). */

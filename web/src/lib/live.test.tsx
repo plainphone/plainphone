@@ -11,7 +11,7 @@ import { I18nProvider } from "../i18n/I18n";
 import { api } from "./api";
 import { LIVE_DEBOUNCE_MS, LiveProvider, useLiveRefresh, useLiveStatus } from "./live";
 import { LIVE_KEY, SOS_SOUND_KEY } from "./live-settings";
-import type { LiveEventType } from "./live-events";
+import type { LiveEventType } from "@plainphone/shared/live-events";
 
 class FakeEventSource {
   static all: FakeEventSource[] = [];

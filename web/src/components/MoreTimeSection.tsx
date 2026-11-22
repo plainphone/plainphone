@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { api, type Phone } from "../lib/api";
-import { merge, type MoreTimeAnswer, type MoreTimeAnswerResult, type MoreTimeRequest } from "../lib/more-time";
+import { merge, type MoreTimeAnswer, type MoreTimeAnswerResult, type MoreTimeRequest } from "@plainphone/shared/more-time";
 import { MoreTimeRequests } from "./MoreTimeRequests";
 import { type Notice, useLoad } from "./ui";
 
