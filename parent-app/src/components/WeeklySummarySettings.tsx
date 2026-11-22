@@ -5,7 +5,7 @@ import { useState } from "react";
 import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import { useActiveHousehold } from "../lib/session";
-import { type SummarySettings, summaryDayName, summaryTime } from "../shared/lib/weekly-summary";
+import { type SummarySettings, summaryDayName, summaryTime } from "@plainphone/shared/weekly-summary";
 import { Button, Card, Choice, errorMessage, LiveStatus, LoadGate, type NoticeValue, Switch, Text, useLoad } from "./ui";
 
 /** Times to choose from; a time set elsewhere (the web dashboard) is kept and shown as well. */

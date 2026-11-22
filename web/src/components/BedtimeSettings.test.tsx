@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as jsxDevRuntime from "react/jsx-dev-runtime";
 import * as jsxRuntime from "react/jsx-runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { api, type Phone } from "../lib/api";
 import { PhoneSwitch, SLEEP_TIP_KEY, SLEEP_TIP_SOURCE, SleepOutsideTip } from "./BedtimeSettings";
 

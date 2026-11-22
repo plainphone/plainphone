@@ -9,8 +9,8 @@ import { Link, Navigate, useSearchParams } from "react-router";
 import { errorNotice, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
-import { formatPrice, type Plan, planNowKey, usageText } from "../lib/billing";
-import { intlLocale } from "../lib/format";
+import { formatPrice, type Plan, planNowKey, usageText } from "@plainphone/shared/billing";
+import { intlLocale } from "@plainphone/shared/format";
 import { useMe } from "../lib/session";
 import "../components/billing.css";
 

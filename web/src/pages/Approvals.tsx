@@ -7,7 +7,7 @@ import { useI18n } from "../i18n/I18n";
 import { EmergencyBlock } from "../components/EmergencyOpenings";
 import { useLiveRefresh } from "../lib/live";
 import { api, ApiError, type Approval, type EmergencyOpening, type EmergencySettings } from "../lib/api";
-import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../lib/approval-state";
+import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "@plainphone/shared/approval-state";
 
 /** `emergency` is missing when the server is older. */
 interface HelpedPerson {

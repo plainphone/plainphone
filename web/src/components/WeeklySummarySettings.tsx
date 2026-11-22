@@ -5,7 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
 import { useActiveHousehold } from "../lib/session";
 import { HouseholdPicker } from "./HouseholdPicker";
-import { type SummarySettings, summaryDayName, summaryTime } from "../lib/weekly-summary";
+import { type SummarySettings, summaryDayName, summaryTime } from "@plainphone/shared/weekly-summary";
 import { errorMessage, LiveStatus, LoadGate, type Notice, useLoad } from "./ui";
 
 type Toggle = "enabled" | "byMail" | "byPush" | "actNowOnly";

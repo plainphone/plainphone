@@ -7,9 +7,9 @@ import { Link, Navigate } from "react-router";
 import { AgePicker, ReviewPicker } from "../components/AgeControls";
 import { errorMessage, Field, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { type AgePresetId, type AgeState, presetName, suggestionText } from "../lib/age";
+import { type AgePresetId, type AgeState, presetName, suggestionText } from "@plainphone/shared/age";
 import { api, applyAgePreset, getAgePresets, getAgeState, markReviewed, type Phone, putReview } from "../lib/api";
-import { intlLocale } from "../lib/format";
+import { intlLocale } from "@plainphone/shared/format";
 import { usePhone } from "./Phone";
 
 /** A local calendar date (YYYY-MM-DD) in a time zone, for the date field. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Copy that only the native app needs. Shared copy lives in src/shared/i18n (synced
-// from the PWA). Every key here must exist in app-da.ts (the type enforces it).
+// Copy that only the native app needs. Shared copy lives in @plainphone/i18n
+// (packages/i18n, used by the PWA too). Every key here must exist in app-da.ts (the type enforces it).
 // Never use em dashes in copy.
 
 export const appEn = {

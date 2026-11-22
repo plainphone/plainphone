@@ -5,7 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import { ApiError, api } from "../lib/api";
 import {
   type CallbackList, type CallbackRequest, callbackRefusalKey, callbackStateKey, isOpenCallback,
-} from "../lib/sos-options";
+} from "@plainphone/shared/sos-options";
 import { useLoad } from "./ui";
 
 /**
@@ -16,7 +16,7 @@ import { useLoad } from "./ui";
  */
 export function CallbackRequests({ pid, phoneName }: { pid: string; phoneName?: string }) {
   const { locale, t } = useI18n();
-  const path = `/phones/${pid}/callback-requests`;
+  const path = `/phones/${pid}/callback-requests` as const;
   const res = useLoad(() => api.get<CallbackList>(path), [path]);
   const { reload } = res;
   const [busy, setBusy] = useState(false);

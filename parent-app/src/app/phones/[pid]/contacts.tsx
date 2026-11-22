@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { isIphone } from "../../../shared/lib/platform";
+import { isIphone } from "@plainphone/shared/platform";
 import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { View } from "react-native";

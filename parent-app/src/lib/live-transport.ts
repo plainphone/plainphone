@@ -2,9 +2,9 @@
 //
 // The live connection's transport for React Native, whose fetch cannot stream: an
 // XMLHttpRequest whose growing responseText is read piece by piece into the shared SSE
-// parser (src/shared/lib/live-events.ts). No extra package needed.
+// parser (@plainphone/shared/live-events). No extra package needed.
 import { getSessionToken } from "../api/client";
-import { SseParser, type Transport } from "../shared/lib/live-events";
+import { SseParser, type Transport } from "@plainphone/shared/live-events";
 
 /** responseText only ever grows, so the connection is renewed (LiveClient resumes) past this size. */
 export const MAX_STREAM_CHARS = 1_000_000;

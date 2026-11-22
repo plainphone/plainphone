@@ -5,8 +5,8 @@ import { PhoneSwitch, SleepOutsideTip } from "../components/BedtimeSettings";
 import { Field, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type App, type ChangeResult, type Schedule, type ScheduleInput, type ScheduleKind } from "../lib/api";
-import { crossesMidnight, hhmmToMinutes, minutesToHHMM, weekdayName } from "../lib/format";
-import { formatDays, formatWindow, kindLabel } from "../lib/ops";
+import { crossesMidnight, hhmmToMinutes, minutesToHHMM, weekdayName } from "@plainphone/shared/format";
+import { formatDays, formatWindow, kindLabel } from "@plainphone/shared/ops";
 import { usePhone } from "./Phone";
 
 interface Data {

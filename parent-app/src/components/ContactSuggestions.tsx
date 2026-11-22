@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
 import { client, unwrap } from "../api/client";
-import type { operations } from "../api/schema";
+import type { operations } from "@plainphone/api-client/schema";
 import { useI18n } from "../i18n/I18n";
 import { space } from "../lib/theme";
 import { Button, Card, type Loaded, LoadGate, Notice, Stack, Text } from "./ui";

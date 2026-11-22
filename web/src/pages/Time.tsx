@@ -3,10 +3,10 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { TimeSwitches } from "../components/TimeSwitches";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { T } from "../i18n/translate";
+import type { T } from "@plainphone/i18n/translate";
 import { api, type App, type ChangeResult, type Limit, type Locale, type TimeLimits } from "../lib/api";
-import { formatMinutes, limitOn, todayIn, weekdayName } from "../lib/format";
-import { minuteWords } from "../lib/ops";
+import { formatMinutes, limitOn, todayIn, weekdayName } from "@plainphone/shared/format";
+import { minuteWords } from "@plainphone/shared/ops";
 import { usePhone } from "./Phone";
 
 /** The durations offered in the pickers. Few, round choices. */
@@ -263,7 +263,7 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
     setBusy(null);
   }
 
-  const path = (pkg: string) => `/phones/${phone.id}/time-limits/apps/${encodeURIComponent(pkg)}`;
+  const path = (pkg: string) => `/phones/${phone.id}/time-limits/apps/${encodeURIComponent(pkg)}` as const;
 
   return (
     <section className="section" aria-labelledby="apps-h">

@@ -5,7 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import { api, type Approval } from "../lib/api";
 import { clearNextIf, useSession } from "../lib/session";
 import { LiveProvider } from "../lib/live";
-import { isLanguage, languageNames, languages } from "../lib/phone-language";
+import { isLanguage, languageNames, languages } from "@plainphone/i18n/phone-language";
 import { LiveIndicator } from "./LiveIndicator";
 import { LiveSosAlert } from "./LiveSosAlert";
 import { Mark } from "./Mark";

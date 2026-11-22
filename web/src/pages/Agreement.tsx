@@ -7,7 +7,7 @@ import { Navigate } from "react-router";
 import { agreementProblems, AgreementFields, type AgreementDraft } from "../components/AgeControls";
 import { errorMessage, LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { type Agreement, parseLines } from "../lib/age";
+import { type Agreement, parseLines } from "@plainphone/shared/age";
 import { api, getAgreement, type Phone, putAgreement } from "../lib/api";
 import { usePhone } from "./Phone";
 

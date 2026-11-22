@@ -8,7 +8,10 @@ import sys
 from fnmatch import fnmatchcase
 
 WORKFLOWS = (".github/workflows/*", ".github/scripts/*")
-WORKSPACE = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*", "packages/*")
+WORKSPACE_ROOT = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*")
+WORKSPACE = WORKSPACE_ROOT + ("packages/*",)
+# Code the web dashboard and the parent app share. The server and the phone never import it.
+CLIENT_PACKAGES = ("packages/i18n/*", "packages/shared/*", "packages/api-client/*")
 CRYPTO_VECTORS = ("docs/encryption-test-vectors/*",)
 ANDROID = (
     "android/*",
@@ -28,18 +31,8 @@ FILTERS = {
         # The Swift tests' rules fixture, checked against the server (test/ios-contract.test.ts).
         "ios/Tests/Fixtures/*",
     ),
-    "parent": (
-        "parent-app/*",
-        "server/openapi.yaml",
-        "web/src/i18n/*",
-        "web/src/lib/format.ts",
-        "web/src/lib/failedPolicies.ts",
-        "web/src/lib/lock-steps.ts",
-        "web/src/lib/phone-language.ts",
-        "web/src/lib/phoneUpdate.ts",
-        "web/src/lib/ops.ts",
-        "web/src/lib/settings.ts",
-    ),
+    # The app is in the root workspace: its lockfile, the shared packages and the spec they type.
+    "parent": WORKSPACE_ROOT + CLIENT_PACKAGES + ("parent-app/*", "server/openapi.yaml"),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     # site/scripts/privacy.test.mjs reads the parent app's tile host and map button labels.
     "site": ("site/*", "server/catalog/??.json", "parent-app/src/i18n/app-??.ts", "parent-app/src/lib/tiles.ts"),
@@ -60,6 +53,9 @@ FILTERS = {
     ),
 }
 
+# Paths a check ignores although one of its patterns matches them.
+IGNORED = {"e2e": CLIENT_PACKAGES, "emulator": CLIENT_PACKAGES}
+
 base, head = sys.argv[1:]
 # A push can lack a usable predecessor, for example after a force push.
 if base in ("all", "nightly"):
@@ -77,6 +73,8 @@ with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             changed = check == "e2ee"
         else:
             changed = paths is None or any(
-                fnmatchcase(path, pattern) for path in paths for pattern in WORKFLOWS + patterns
+                any(fnmatchcase(path, pattern) for pattern in WORKFLOWS + patterns)
+                and not any(fnmatchcase(path, pattern) for pattern in IGNORED.get(check, ()))
+                for path in paths
             )
         print(f"{check}={str(changed).lower()}", file=output)

@@ -4,8 +4,8 @@ import { client, unwrap } from "../api/client";
 import type { ChangeResult, OpenCategory, OpenModeState } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { space } from "../lib/theme";
-import type { MessageKey } from "../shared/i18n/translate";
-import { formatList } from "../shared/lib/format";
+import type { MessageKey } from "@plainphone/i18n/translate";
+import { formatList } from "@plainphone/shared/format";
 import { usePhone } from "./PhoneContext";
 import { Card, errorMessage, Notice, Stack as VStack, Switch, Text, useLoad } from "./ui";
 

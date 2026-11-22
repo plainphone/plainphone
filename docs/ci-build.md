@@ -26,9 +26,12 @@ test driver. The [Android emulator suite](testing.md) runs on every main push
 and on pull requests touching its Android, server, workflow or test inputs.
 It caches a clean AOSP snapshot for API 34 (API 29 cold-boots every run, see
 [testing](testing.md)) and keeps the screenshot
-and logs when a device flow fails. Parent app checks watch the OpenAPI spec and the PWA files copied
-by `pnpm sync:shared`. Server checks also watch the root workspace packages
-and encryption test vectors, which run in the TypeScript workspace suite.
+and logs when a device flow fails. Parent app checks watch the app, the OpenAPI spec, the root workspace files
+and the packages the app shares with the PWA (`packages/i18n`, `shared` and
+`api-client`). Server checks also watch the root workspace packages
+and encryption test vectors, which run in the TypeScript workspace suite, and
+fail when `packages/api-client/src/schema.d.ts` is behind `server/openapi.yaml`.
+Phone sync and the emulator suite skip changes to the shared client packages.
 DNS checks watch the server schema and validation
 files mirrored by `dns/ppdns/profiles.py`. Independent jobs run in parallel.
 Debug and release APK checks share one Gradle invocation. The Docker smoke job

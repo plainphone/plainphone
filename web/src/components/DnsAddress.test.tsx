@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as jsxRuntime from "react/jsx-runtime";
 import * as jsxDevRuntime from "react/jsx-dev-runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { DnsAddress } from "./DnsAddress";
 
 vi.mock("../i18n/I18n", () => ({ useI18n: () => ({ t: makeT("en") }) }));
