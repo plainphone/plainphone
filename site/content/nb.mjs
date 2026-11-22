@@ -200,7 +200,7 @@ export default {
     description:
       "Hva Plainphone lagrer om deg og telefonene du administrerer, hvor lenge, hvem andre er involvert, og hvordan du kan be oss om å rette eller slette det.",
     h1: "Personvernerklæring",
-    updated: "Sist oppdatert 20. november 2026",
+    updated: "Sist oppdatert 22. november 2026",
     lead:
       "Plainphone holder så lite den kan, så kort tid den kan. Denne siden sier hva det betyr i praksis. Den er skrevet for å leses, ikke for å skjule ting.",
     status:
@@ -287,7 +287,7 @@ export default {
           "Telefonen er åpen om det. Hver gang den sender en enkelt posisjon (Finn, eller et ubesvart \"Går det bra?\"), viser det en kort varsel som sier det. Når plassering alltid er på, viser telefonen det hele tiden, i et varsel og på Plainphones egen skjerm. Barnet kan åpne \"Hva kan foreldrene mine se?\" på telefonen: den forklarer gjeldende innstilling og viser hver gang posisjonen ble sendt i løpet av de siste 30 dagene. Den listen forblir på telefonen.",
           "\"Går det bra?\" ber barnet svare innen en tid forelderen velger. Svarer barnet, sendes ingen stilling. Hvis ingen svarer i tide, sender telefonen én posisjon. \"Ring the phone\" spiller av en alarmlyd og vibrerer i maksimalt fem minutter; den sender ingen posisjon. Serveren beholder en ring eller et spørsmål (tider og svaret, og det godkjente nummeret for \"Ring meg\") i en dag etter at det er slutt, og sletter det deretter.",
           "Serveren beholder kun den siste posisjonen: koordinater, nøyaktighet og tid. Hver ny stilling erstatter den gamle, og ingen historikk føres. Hvis du slår av plassering eller fjerner telefonen, slettes den lagrede posisjonen.",
-          "Dashbordet viser posisjonen på et kart. Kartflisene kommer fra OpenFreeMap (tiles.openfreemap.org, OpenStreetMap-data), så lasting av dem forteller OpenFreeMap omtrent hvilket område som blir sett på, sammen med forelderens IP-adresse. Kartet lastes kun inn på lokasjonssiden. Foreldreappen på en telefon bruker OpenStreetMaps fliseservere, og først etter at forelderen trykker på Vis kart. Hvis en forelder velger «Kjør dit» med Google Maps eller Apple Maps, eller kopierer posisjonen, går koordinatene til den appen, og dens egne retningslinjer gjelder derfra.",
+          "Dashbordet viser posisjonen på et kart. Kartflisene kommer fra OpenFreeMap (tiles.openfreemap.org, OpenStreetMap-data), så lasting av dem forteller OpenFreeMap omtrent hvilket område som blir sett på, sammen med forelderens IP-adresse. Kartet lastes kun inn på lokasjonssiden. Appen Plainphone Parent viser ikke noe kart før forelderen trykker på Vis kart, og husker deretter valget på den enheten til forelderen trykker på Skjul kart. Mens kartet vises, henter appen ni kartfliser rundt posisjonen fra OpenStreetMap Foundations fliseservere (tile.openstreetmap.org). Hver forespørsel inneholder bare flisens zoomnivå og nummer, som avgrenser posisjonen til et kvadrat på omtrent 170 m til 5 km, avhengig av hvor nøyaktig den er, sammen med forelderens IP-adresse og appens navn og versjon. Det sendes ingen kontoopplysninger, navn eller nøyaktige koordinater. OpenStreetMap Foundations personvernerklæring gjelder for disse forespørslene (osmfoundation.org/wiki/Privacy_Policy). Hvis en forelder velger «Kjør dit» med Google Maps eller Apple Maps, eller kopierer posisjonen, går koordinatene til den appen, og dens egne retningslinjer gjelder derfra.",
         ],
       },
       {
