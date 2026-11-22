@@ -20,7 +20,9 @@ ANDROID = (
 FILTERS = {
     "android": ANDROID + CRYPTO_VECTORS + ("packages/crypto*", "web/test-fixtures/*"),
     "e2e": ANDROID + WORKSPACE + ("server/*", "scripts/e2e-phone-sync.sh"),
-    "emulator": WORKSPACE + ("android/*", "server/*", "scripts/e2e-android-emulator.py"),
+    "emulator": WORKSPACE + (
+        "android/*", "server/*", "scripts/e2e-android-emulator.py", "scripts/test_e2e_android_emulator.py",
+    ),
     "server": WORKSPACE + CRYPTO_VECTORS + (
         "server/*", "web/*", "Dockerfile", ".dockerignore",
         # The Swift tests' rules fixture, checked against the server (test/ios-contract.test.ts).

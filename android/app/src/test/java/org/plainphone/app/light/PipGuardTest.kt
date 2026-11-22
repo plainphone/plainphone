@@ -105,6 +105,114 @@ class PipGuardTest {
         assertEquals(1, homeActions())
     }
 
+    @Test fun `a dismiss that came too early is repeated while the window floats, the stop screen is not`() {
+        // Android 10 ignored the first dismiss, sent while the window was still entering
+        // picture-in-picture (emulator run 45008421127); the window then floated on.
+        val pip = window(game, true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
+        val dismissals = { shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS } }
+        assertEquals(1, dismissals())
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        assertEquals(2, dismissals())
+        assertEquals(1, homeActions())
+    }
+
+    private fun answerDismiss(window: AccessibilityWindowInfo, accepted: Boolean) {
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(window).rootNode!!
+        shadowOf(root).setOnPerformActionListener { _, _ -> accepted }
+    }
+
+    private fun installLauncher(pkg: String) {
+        val component = android.content.ComponentName(pkg, "$pkg.Main")
+        val pm = shadowOf(service.packageManager)
+        pm.addActivityIfNotPresent(component)
+        pm.addIntentFilterForActivity(component, android.content.IntentFilter(android.content.Intent.ACTION_MAIN).apply {
+            addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        })
+    }
+
+    @Test fun `Android 10 refuses the dismiss, so the app is expanded and covered without Home`() {
+        // Android 10's System UI accepts ACTION_DISMISS only on a node id no app window reports
+        // (emulator run 45010722598: the window floated on). Starting the pinned app expands it.
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = false)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        // Robolectric hands back the latest start first: the stop screen comes after the expand.
+        val started = shadowOf(service.application)
+        val stop = started.nextStartedActivity
+        assertEquals(BlockedActivity::class.java.name, stop.component?.className)
+        assertEquals(game, started.nextStartedActivity.component?.packageName)
+        assertTrue("the stop screen must not count as the user leaving", stop.flags and android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION != 0)
+        assertEquals(0, homeActions())
+    }
+
+    @Test fun `the expanded app arriving in front is covered without Home too, later blocks press Home again`() {
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = false)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        // Android moves the expanded task on top of the first stop screen.
+        shadow.windowList = listOf(window(game, false))
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(1))
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply { packageName = game })
+        looper.idleFor(Duration.ofSeconds(1))
+        assertEquals(0, homeActions())
+        looper.idleFor(Duration.ofMillis(PipGuard.EXPAND_QUIET_MS))
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply { packageName = game })
+        looper.idleFor(Duration.ofSeconds(1))
+        assertEquals(1, homeActions())
+    }
+
+    @Test fun `an accepted dismiss does not reopen the app`() {
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        assertEquals(BlockedActivity::class.java.name, shadowOf(service.application).nextStartedActivity.component?.className)
+        assertEquals(null, shadowOf(service.application).nextStartedActivity)
+        assertEquals(1, homeActions())
+    }
+
+    @Test fun `a refused dismiss is expanded once per window, not on every check`() {
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = false)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        repeat(3) {
+            shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+            windowsChanged()
+        }
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals(1, starts.count { it.component?.packageName == game })
+    }
+
+    @Test fun `the quiet window ends`() {
+        assertTrue(PipGuard.expandedRecently(1_000L, 1_000L + PipGuard.EXPAND_QUIET_MS))
+        assertTrue(!PipGuard.expandedRecently(1_000L, 1_001L + PipGuard.EXPAND_QUIET_MS))
+        assertTrue(!PipGuard.expandedRecently(null, 1_000L))
+    }
+
+    @Test fun `an already stopped window is not dismissed again once its app is allowed`() {
+        val pip = window(game, true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit()
+            .putStringSet("blocked", emptySet()).commit()
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
+        assertEquals(1, shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS })
+    }
+
     @Test fun `the same app is stopped again when it returns to picture-in-picture after the window was gone`() {
         shadow.windowList = listOf(window(game, true))
         windowsChanged()

@@ -30,6 +30,60 @@ def shell(*args):
     return adb("shell", *args, text=True, stdout=subprocess.PIPE).stdout
 
 
+# adb's server probes these emulator ports (ADB_LOCAL_TRANSPORT_MAX_PORT moves the end)
+# and sends its CNXN handshake to whatever answers, so the serial console must not use one.
+ADB_SCAN_PORTS = range(5555, int(os.environ.get("ADB_LOCAL_TRANSPORT_MAX_PORT", "5585")) + 1)
+DEFAULT_SERIAL_PORT = 5599
+
+
+def serial_port(environment=os.environ):
+    port = int(environment.get("E2E_SERIAL_PORT", DEFAULT_SERIAL_PORT))
+    if port in ADB_SCAN_PORTS:
+        raise RuntimeError(f"Serial console port {port} is in adb's emulator scan range "
+                           f"{ADB_SCAN_PORTS.start}-{ADB_SCAN_PORTS.stop - 1}; adb would write into the root shell")
+    return port
+
+
+# With -feature ModemSimulator the modem loops an SMS back only when it is addressed to the SIM's
+# own number, and answers "sent" for any other number without delivering it. That number is not
+# derived from the console port: the simulator's default SIM profile holds +15551234567. The
+# emulator is therefore started with `-phone-number` set to this number (docs/testing.md).
+DEFAULT_MODEM_NUMBER = "15555215554"
+
+
+def modem_number(environment=os.environ):
+    number = environment.get("E2E_MODEM_NUMBER", DEFAULT_MODEM_NUMBER)
+    # Eleven digits: the simulator reads the last four of such a number as a port, and only
+    # 6520-6527 are sent on to another instance instead of being compared with the SIM's number.
+    if not re.fullmatch(r"[0-9]{11}", number) or 6520 <= int(number[7:]) <= 6527:
+        raise RuntimeError(f"E2E_MODEM_NUMBER must be the 11 digits given to -phone-number "
+                           f"and must not end in 6520-6527: {number}")
+    return number
+
+
+def connect_console(port, attempts=30):
+    # The emulator opens the serial socket while it boots.
+    for attempt in range(attempts):
+        try:
+            return socket.create_connection(("127.0.0.1", port), timeout=10)
+        except OSError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(2)
+
+
+def probe_console(console, attempts=12, timeout=10):
+    # Prove that a shell answers on this socket before trusting it with the
+    # suite. The console service may still be starting, so resend until it answers.
+    for attempt in range(attempts):
+        try:
+            serial_shell(console, "true", timeout=timeout)
+            return
+        except TimeoutError:
+            if attempt == attempts - 1:
+                raise RuntimeError("No shell answered on the emulator serial console") from None
+
+
 def serial_shell(console, *args, timeout=30):
     # The Device Owner disables adb as part of the real lock. The disposable
     # emulator's separate root console remains available to the test harness.
@@ -46,11 +100,19 @@ def serial_shell(console, *args, timeout=30):
     with console.makefile("rb") as stream:
         for line in stream:
             content = line.rstrip(b"\r\n")
+            # Only the shell's own lines can carry adb's handshake. The command's
+            # output (base64 screenshots, logcat) may contain "CNXN" by chance.
+            at_end = started and content.startswith(end)
+            if (not started or at_end) and b"CNXN" in line:
+                raise RuntimeError("adb is connected to the serial console socket; "
+                                   "move -shell-serial outside adb's emulator ports")
             if content == start:
                 started = True
-            elif started and content.startswith(end):
+            elif at_end:
                 result = output.decode(errors="replace").replace("\r\n", "\n")
-                status = content[len(end):].decode()
+                status = content[len(end):].decode(errors="replace")
+                if not status.isdigit():
+                    raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
                 if status != "0":
                     raise RuntimeError(f"Emulator serial command failed: {args[0]} ({status})\n{result}")
                 return result
@@ -102,6 +164,43 @@ def capture(console, label):
         print(f"Unable to collect {label}: {exc}", flush=True)
 
 
+# What decides whether a sync can run: the network's capabilities (VALIDATED, private DNS)
+# and the app's jobs with their unsatisfied constraints and stop reasons.
+DIAGNOSTICS = {
+    "connectivity.txt": ("dumpsys", "connectivity"),
+    "jobscheduler.txt": ("dumpsys", "jobscheduler", PACKAGE),
+    # Outgoing and incoming SMS are logged only in the radio buffer.
+    "radio.txt": ("logcat", "-b", "radio", "-d", "-v", "threadtime", "-t", "5000"),
+}
+# WorkManager's DiagnosticsReceiver logs every work request's state to logcat (WM-DiagnosticsWrkr).
+# `cmd activity` is native, so it also works from the serial console without the ART classpaths.
+# As root: the lock's DISALLOW_DEBUGGING_FEATURES makes Android refuse broadcasts from the shell
+# user ("Shell does not have permission to access user 0"); the dumps above do not need it.
+WORK_DIAGNOSTICS = ("su", "0", "cmd", "activity", "broadcast", "-a", "androidx.work.diagnostics.REQUEST_DIAGNOSTICS", "-p", PACKAGE)
+
+
+def device_command(console, *command, timeout=20):
+    # Device Owner policy disables adb; the serial console still answers.
+    try:
+        return adb("shell", *command, text=True, stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT, timeout=timeout).stdout
+    except (OSError, subprocess.SubprocessError):
+        return serial_shell(console, *command, timeout=timeout)
+
+
+def collect_diagnostics(console, settle=3):
+    for label, command in DIAGNOSTICS.items():
+        try:
+            (ARTIFACTS / label).write_text(device_command(console, *command), encoding="utf-8")
+        except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+            print(f"Unable to collect {label}: {exc}", flush=True)
+    try:
+        device_command(console, *WORK_DIAGNOSTICS)
+        time.sleep(settle)  # The diagnostics worker logs asynchronously; logcat is captured next.
+    except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"Unable to request WorkManager diagnostics: {exc}", flush=True)
+
+
 def run_flows(port, token, console):
     if shell("getprop", "ro.kernel.qemu").strip() != "1":
         raise RuntimeError("Select a disposable Android emulator")
@@ -109,13 +208,14 @@ def run_flows(port, token, console):
     match = re.fullmatch(r"emulator-(5[0-9]{3})", serial)
     if not match:
         raise RuntimeError("Select an emulator by its console-port serial")
-    # AOSP derives the virtual modem's phone number from the emulator console port.
-    parent_number = f"+1555521{match[1]}"
+    # The parent's number is the emulator's own SIM number, so the child's SMS loops back.
+    parent_number = f"+{modem_number()}"
     if shell("getprop", "init.svc.console").strip() != "running":
         # Android 10 labels the emulator UART as a generic serial device; init
         # needs the console label to open it. Keep SELinux enforcing.
         shell("su", "0", "chcon", "u:object_r:console_device:s0", "/dev/ttyS0")
         shell("su", "0", "start", "console")
+    probe_console(console)
     android = ROOT / "android"
     adb("install", "-g", str(android / "app/build/outputs/apk/debug/app-debug.apk"))
     adb("install", str(android / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"))
@@ -155,6 +255,8 @@ def run_flows(port, token, console):
         "su", "0", "nsenter", f"--mount=/proc/{system_pid}/ns/mnt", "--",
         "sh", "-c", f'. {classpaths}; exec "$@"', "sh",
     )
+    # am instrument force-stops the app this starts for its admin-enabled broadcast,
+    # so DeviceOwnerFlow replays that broadcast before it opens the pairing screen.
     serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
     stop = Event()
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -185,9 +287,8 @@ def inject_parent_sms(port, token, stop, serial, parent_number):
 def main():
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, PORT="0", PLAINPHONE_EMULATOR_E2E="1")
-    console_port = int(os.environ.get("E2E_SERIAL_PORT", "5557"))
     with (
-        socket.create_connection(("127.0.0.1", console_port), timeout=10) as console,
+        connect_console(serial_port()) as console,
         tempfile.TemporaryDirectory() as temp,
         (ARTIFACTS / "server.log").open("w") as log,
     ):
@@ -210,6 +311,7 @@ def main():
             except Exception as error:
                 print(error, flush=True)
                 capture(console, "screen.png")
+                collect_diagnostics(console)
                 capture(console, "logcat.txt")
                 raise
             finally:
