@@ -36,7 +36,7 @@ const schema = z.object({
    * served at /.well-known/apple-app-site-association and /.well-known/assetlinks.json.
    * Self-hosters with their own app builds put their own ids here.
    */
-  APPLE_APP_IDS: z.string().default("P7698GU4AV.org.plainphone.app"),
+  APPLE_APP_IDS: z.string().default("P7698GU4AV.org.plainphone.app,P7698GU4AV.org.plainphone.parent"),
   ANDROID_APP_PACKAGE: z.string().default("org.plainphone.parent"),
   /** SHA-256 fingerprints (AA:BB:…) of the Android signing certificates, comma separated. */
   ANDROID_APP_CERT_SHA256: z.string().default(""),

@@ -294,7 +294,8 @@ describe("app links", () => {
     const res = await new Client(h).get("/.well-known/apple-app-site-association");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/application\/json/);
-    expect(res.json.applinks.details[0].appIDs).toEqual(["P7698GU4AV.org.plainphone.app"]);
+    // The App Store build is org.plainphone.parent; org.plainphone.app stays for existing builds.
+    expect(res.json.applinks.details[0].appIDs).toEqual(["P7698GU4AV.org.plainphone.app", "P7698GU4AV.org.plainphone.parent"]);
     expect(res.json.applinks.details[0].components.map((c: { "/": string }) => c["/"])).toEqual(["/auth/app", "/pair", "/invite"]);
   });
 

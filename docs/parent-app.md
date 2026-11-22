@@ -6,7 +6,7 @@ The native parent app lives in [`parent-app/`](../parent-app). This page covers 
 
 | | iOS | Android |
 |---|---|---|
-| Id | `org.plainphone.app` | `org.plainphone.parent` |
+| Id | `org.plainphone.app` (App Store build: `org.plainphone.parent`) | `org.plainphone.parent` |
 | Team / signing | Apple team `P7698GU4AV` | Play App Signing, with an upload key |
 | Minimum OS | Expo SDK 58 default | Expo SDK 58 default |
 
@@ -36,7 +36,7 @@ Logging out ends the session on the server, which also removes the device's push
 
 The server publishes the association files:
 
-- `GET /.well-known/apple-app-site-association` lists `APPLE_APP_IDS` (default `P7698GU4AV.org.plainphone.app`). Update any explicit override that still points to the old iOS bundle ID.
+- `GET /.well-known/apple-app-site-association` lists `APPLE_APP_IDS` (default `P7698GU4AV.org.plainphone.app,P7698GU4AV.org.plainphone.parent`). The App Store build of the parent app is `org.plainphone.parent` (built with `PLAINPHONE_BUNDLE_ID=org.plainphone.parent`); without it in this list, login links open the web page instead of the app. Update any explicit override so it includes the bundle ID of every build people install.
 - `GET /.well-known/assetlinks.json` lists `ANDROID_APP_PACKAGE` (default `org.plainphone.parent`) with the certificate fingerprints in `ANDROID_APP_CERT_SHA256`. It is an empty list until a fingerprint is set.
 
 For Android app links to verify, `ANDROID_APP_CERT_SHA256` must hold the SHA-256 fingerprint of every certificate that signs a build people install: the Play App Signing key (shown in Play Console under Test and release > App integrity), and optionally the upload key for builds installed outside Play. Separate several with commas.

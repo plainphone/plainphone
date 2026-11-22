@@ -124,7 +124,7 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 | `PAYMENTS_ENABLED` | `false` | Unused (the old pay-to-unlock flag, replaced by [billing](billing.md)). |
 | `IOS_PAIRING_ENABLED` | `false` | iPhone pairing ([docs/ios/architecture.md](ios/architecture.md)). Leave off until the iOS app is released: the server then refuses iPhone pairings with a clear "not yet" error, and the dashboard hides "Add an iPhone". |
 | `APNS_BUNDLE_ID` | `org.plainphone.app` | APNs topic for iOS; override for custom builds ([push-setup.md](push-setup.md)) |
-| `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.app` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
+| `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.app,P7698GU4AV.org.plainphone.parent` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
 | `LATENCY_STATS` | `on` | Delivery timings (durations and provider names only) for `/api/latency` and the dashboard's "alerts usually arrive within" line. `off` records and shows nothing ([latency.md](latency.md)) |
 | `METRICS_TOKEN` | | Bearer token (at least 24 random characters) for `GET /api/metrics`, the operator's delivery-speed numbers for Prometheus. Unset, or too short (dropped and reported), the endpoint answers 404. See [Watching delivery speed](#watching-delivery-speed) |
