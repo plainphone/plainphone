@@ -85,6 +85,22 @@ class SerialShellTest(unittest.TestCase):
                          "Success: Device owner set\n")
         self.assertIn(b"dpm set-device-owner x/.Y </dev/null", console.commands[0])
 
+    def test_joins_lines_split_across_reads(self):
+        # A serial console delivers a few bytes at a time; markers must still match whole lines.
+        ours, guest = socket.socketpair()
+        self.addCleanup(ours.close)
+
+        def trickle():
+            with guest:
+                marker = re.search(rb"'(plainphone-[0-9a-f]+)-start'", guest.makefile("rb").readline())[1]
+                reply = answer(b"Success")(marker)
+                for offset in range(0, len(reply), 5):
+                    guest.sendall(reply[offset:offset + 5])
+                    time.sleep(0.001)
+
+        threading.Thread(target=trickle, daemon=True).start()
+        self.assertEqual(harness.serial_shell(ours, "dpm", timeout=5), "Success\n")
+
     def test_raises_on_nonzero_status(self):
         with self.assertRaisesRegex(RuntimeError, r"failed: su \(1\)\nnot allowed"):
             self.run_command(FakeConsole(answer(b"not allowed", b"1")), "su", "0", "true")
