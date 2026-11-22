@@ -111,6 +111,11 @@ const schema = z.object({
    */
   BILLING_ENABLED: unsetIfEmpty(z.enum(["true", "false"]).default("false")).transform((v) => v === "true"),
   /**
+   * E2EE phase 0 prototype (docs/e2ee-prototype.md): the MLS delivery-service routes under
+   * /api/e2ee. Test data only. Off by default, and always off with NODE_ENV=production.
+   */
+  E2EE_PROTOTYPE_ENABLED: unsetIfEmpty(z.enum(["true", "false"]).default("false")).transform((v) => v === "true"),
+  /**
    * Households created before this instant keep an unlimited plan ("grandfathered"). Required
    * when BILLING_ENABLED is true; without it billing stays off and /api/health reports why.
    */
@@ -165,6 +170,7 @@ const LENIENT: { key: string; values: string[]; area: "push" | "other"; label: s
   { key: "APNS_SANDBOX", values: ["true", "false"], area: "push", label: "apns" },
   { key: "MAIL_PROVIDER", values: ["none", "log", "smtp"], area: "other", label: "mail" },
   { key: "BILLING_ENABLED", values: ["true", "false"], area: "other", label: "billing" },
+  { key: "E2EE_PROTOTYPE_ENABLED", values: ["true", "false"], area: "other", label: "e2ee" },
   { key: "LATENCY_STATS", values: ["on", "off"], area: "other", label: "latency" },
 ];
 
@@ -210,6 +216,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Optional: without a cutoff nobody could be grandfathered, so billing stays off.
     cfg.BILLING_ENABLED = false;
     warnings.other.push("billing: BILLING_ENABLED needs BILLING_GRANDFATHER_BEFORE");
+  }
+  if (cfg.E2EE_PROTOTYPE_ENABLED && cfg.NODE_ENV === "production") {
+    // The prototype has had no independent review: never in production (docs/e2ee-prototype.md).
+    cfg.E2EE_PROTOTYPE_ENABLED = false;
+    warnings.other.push("e2ee: E2EE_PROTOTYPE_ENABLED is not allowed in production");
   }
   if (cfg.DNS_PROVIDER === "http" && (!cfg.DNS_API_URL || !cfg.DNS_API_TOKEN)) {
     throw new Error("DNS_PROVIDER=http needs DNS_API_URL and DNS_API_TOKEN");

@@ -19,6 +19,10 @@ val signingProps: Properties? = System.getenv("PLAINPHONE_SIGNING")
 val fcmEnabled = providers.gradleProperty("plainphoneFcm").orNull == "true"
 // Play builds (-PplainphonePlay=true) pay through Google Play Billing; the direct build has no store.
 val playEnabled = providers.gradleProperty("plainphonePlay").orNull == "true"
+// E2EE phase 0 prototype (docs/e2ee-prototype.md): -PplainphoneE2eePrototype=true packages the
+// OpenMLS core from e2ee/mls-core/scripts/build-android.sh into DEBUG builds. Release never has it.
+val e2eePrototype = providers.gradleProperty("plainphoneE2eePrototype").orNull == "true"
+val mlsHostLib = providers.gradleProperty("plainphoneMlsHostLib").orNull
 
 android {
     namespace = "org.plainphone.app"
@@ -87,6 +91,13 @@ android {
         sourceSets["release"].manifest.srcFile("src/fcm/AndroidManifest.xml")
     }
     sourceSets["main"].assets.directories.add(rootProject.file("../server/catalog/helplines").absolutePath)
+    if (e2eePrototype) {
+        val libs = rootProject.file("../e2ee/mls-core/target/jniLibs")
+        require(libs.resolve("arm64-v8a/libplainphone_mls.so").isFile) {
+            "Run e2ee/mls-core/scripts/build-android.sh before -PplainphoneE2eePrototype=true"
+        }
+        sourceSets["debug"].jniLibs.directories.add(libs.absolutePath)
+    }
 
     androidResources {
         localeFilters += listOf("en", "da", "sv", "nb", "de")
@@ -154,6 +165,8 @@ val restoredRobolectricSdks = providers.environmentVariable("ROBOLECTRIC_SDK_CAC
 tasks.withType<Test>().configureEach {
     // Robolectric and Compose screenshot tests outgrow the 512 MB default test heap.
     maxHeapSize = "1536m"
+    // MlsCoreJniTest (E2EE prototype) runs only with a host build of the core.
+    if (mlsHostLib != null) systemProperty("plainphone.mlsHostLib", mlsHostLib)
     if (!restoredRobolectricSdks) dependsOn(prepareRobolectricSdks)
     inputs.dir(robolectricDependencyDir).withPropertyName("robolectricSdks")
     systemProperty("robolectric.offline", "true")
