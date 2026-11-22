@@ -40,7 +40,7 @@ describe("review sign-in switched off", () => {
     ["only a code", { REVIEW_LOGIN_CODE: CODE }],
     ["a short code", { REVIEW_LOGIN_EMAIL: EMAIL, REVIEW_LOGIN_CODE: "x".repeat(31) }],
     ["an invalid address", { REVIEW_LOGIN_EMAIL: "not an address", REVIEW_LOGIN_CODE: CODE }],
-  ])("stays off with %s, reported without the values", async (_, env) => {
+  ] as [string, Record<string, string>][])("stays off with %s, reported without the values", async (_, env) => {
     enable(env);
     expect(h.ctx.cfg.REVIEW_LOGIN_EMAIL).toBeUndefined();
     expect(h.ctx.cfg.REVIEW_LOGIN_CODE).toBeUndefined();
