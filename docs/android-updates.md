@@ -97,6 +97,10 @@ deadline until it can retire the window and record any observed delay. A later r
 recovers a stale window before opening another one. If saving the closing state fails,
 recovery still attempts to restore the restriction. It keeps the durable lease and
 retains any observed delay in memory so it can retry recording the incident.
+Recovery restores the restriction directly and never waits for a policy run to finish,
+so a policy run and a lease recovery cannot block each other. After a window closes,
+follow-up work, such as reporting the end of an app update window, runs on its own
+thread for the same reason.
 
 The ten-second self-update deadline is a recovery target. Android can suspend or kill
 the process and delay the recovery triggers. During a delayed self-update window, a
