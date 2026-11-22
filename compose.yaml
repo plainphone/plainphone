@@ -33,6 +33,10 @@ services:
       APNS_TEAM_ID: ${APNS_TEAM_ID:-}
       APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
       APNS_SANDBOX: ${APNS_SANDBOX:-false}
+      # App links (docs/parent-app.md): the apps that open this server's login, pairing and invite links.
+      APPLE_APP_IDS: ${APPLE_APP_IDS:-P7698GU4AV.org.plainphone.app}
+      ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-org.plainphone.parent}
+      ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
       PUSH_EXTRA_HOSTS: ${PUSH_EXTRA_HOSTS:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
