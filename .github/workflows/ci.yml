@@ -9,6 +9,21 @@ on:
     - cron: "17 2 * * *"
   # Runs every check, including both emulator legs, on the chosen branch.
   workflow_dispatch:
+    inputs:
+      dpc_probe:
+        description: Also run the Play Protect DPC provisioning probe (issue #255)
+        type: boolean
+        default: false
+      dpc_probe_api:
+        description: Google Play image API level for the probe
+        type: choice
+        options: ["36", "35", "34", "36.1", "37.0"]
+        default: "36"
+      dpc_probe_image_tag:
+        description: System image tag for the probe
+        type: choice
+        options: ["google_apis_playstore", "google_apis_playstore_ps16k"]
+        default: google_apis_playstore
 
 permissions:
   contents: read
@@ -46,6 +61,9 @@ jobs:
           persist-credentials: false
       - name: Test change detection
         run: python3 -m unittest discover -s .github/scripts
+      # The probe itself only runs on demand; its decisions are checked on every run (a second).
+      - name: Test the DPC provisioning probe
+        run: python3 -m unittest scripts/test_dpc_provisioning_probe.py
       - name: Detect changes in the checked-out revision
         id: filter
         env:
@@ -576,6 +594,14 @@ jobs:
           name: android-e2e-api-${{ matrix.api }}
           path: android/build/emulator-e2e/
           retention-days: 14
+
+  # Manual only, not a required check: does Play Protect block QR setup? (docs/testing.md)
+  dpc-provisioning-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.dpc_probe
+    uses: ./.github/workflows/dpc-provisioning-probe.yml
+    with:
+      api: ${{ inputs.dpc_probe_api }}
+      image_tag: ${{ inputs.dpc_probe_image_tag }}
 
   offsite-backup:
     needs: changes
