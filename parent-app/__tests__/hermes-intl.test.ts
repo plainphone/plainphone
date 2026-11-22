@@ -5,7 +5,7 @@
 // converts the unit itself (250 m came out as "0,25 km", 1.25 km as "0.777mi" on an iOS 27 simulator).
 // Jest runs on Node, which has all of it, so these tests take the missing parts away.
 import { formatAccountTypes, formatList, formatMeters, formatRelative, intlLocale } from "../src/shared/lib/format";
-import { languages } from "../src/shared/lib/phone-language";
+import { languages } from "@plainphone/i18n/phone-language";
 
 const RealNf = Intl.NumberFormat;
 const saved = (["RelativeTimeFormat", "ListFormat", "NumberFormat"] as const).map(

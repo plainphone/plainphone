@@ -3,7 +3,7 @@
 // The weekly summary (docs/weekly-summary.md): the shape the server sends, and the short lines
 // the dashboard and the parent app show for each phone. Shared with the parent app.
 
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import type { Locale } from "./api";
 import { formatMinutes, intlLocale, weekdayName } from "./format";
 

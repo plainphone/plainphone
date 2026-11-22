@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import type { Locale } from "./api";
 
 const labels = new Map<string, Record<"en" | "da", string>>();

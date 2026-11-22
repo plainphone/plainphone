@@ -3,7 +3,7 @@
 // The hosted plan and paid early unlock (docs/billing.md), shared by the dashboard and the parent
 // app. Pure helpers only: no React, no requests. Nothing here is shown while `billing` is false.
 
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import type { Locale } from "./api";
 import { formatDateTime, intlLocale } from "./format";
 

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { Locale } from "../lib/api";
-import { isLanguage, languages } from "../lib/phone-language";
+import { isLanguage, languages, type Language as Locale } from "./phone-language";
 import { sv } from "./sv";
 import { nb } from "./nb";
 import { de } from "./de";

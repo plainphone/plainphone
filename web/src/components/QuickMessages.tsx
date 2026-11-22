@@ -2,7 +2,7 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { ApiError, api } from "../lib/api";
 import {
   MAX_QUICK_MESSAGES,

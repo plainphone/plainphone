@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { da } from "../i18n/da";
-import { en } from "../i18n/en";
+import { da } from "@plainphone/i18n/da";
+import { en } from "@plainphone/i18n/en";
 import { decisionOutcome, isFinal, outcomeKey, outcomeOf, queueOf, queueSummaryKey } from "./approval-state";
 import { phoneState } from "./phone-state";
 import { approvalFixtures, FIXTURE_NOW, phoneFixtures } from "./status-fixtures";

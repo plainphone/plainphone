@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import type { Locale } from "./api";
 import { failedPolicyLabel } from "./failedPolicies";
 import { SETTING_SPECS, settingName } from "./settings";

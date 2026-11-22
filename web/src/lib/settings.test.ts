@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { da } from "../i18n/da";
-import { en } from "../i18n/en";
-import { makeT } from "../i18n/translate";
+import { da } from "@plainphone/i18n/da";
+import { en } from "@plainphone/i18n/en";
+import { makeT } from "@plainphone/i18n/translate";
 import type { Op, SettingKey } from "./api";
 import { describeOp } from "./ops";
 import {

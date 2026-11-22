@@ -4,7 +4,7 @@
 // (docs/ios/architecture.md, "Capability map"). The server derives `capabilities` from the
 // phone's platform and tier. Shared by the dashboard and the parent app.
 
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 
 export type Platform = "android" | "ios";
 export type Support = "yes" | "partial" | "no";

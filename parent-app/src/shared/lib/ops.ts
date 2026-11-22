@@ -2,7 +2,7 @@
 //
 // Pending changes described in plain words, e.g. "Show Instagram" or "Allow example.com".
 
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import type { DnsCategory, Locale, Op, ScheduleInput } from "./api";
 import { formatClock, formatList, formatMinutes, weekdayName } from "./format";
 import { formatSettingValue, settingName } from "./settings";

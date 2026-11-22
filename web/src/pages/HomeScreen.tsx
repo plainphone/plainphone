@@ -2,7 +2,7 @@
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Field, LoadGate, PageTitle, PickGroup, type PickOption, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { api, ApiError, type App, getHome, type Home, putHome, setHomeFreePromise } from "../lib/api";
 import { formatClock, intlLocale } from "../lib/format";
 import { HOME_LAYOUTS, HOME_MAX_APPS, HOME_PALETTES, HOME_THEMES, moveItem } from "../lib/settings";

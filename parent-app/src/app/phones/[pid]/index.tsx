@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
+import { languageNames, messageLanguage, type PhoneLanguage } from "@plainphone/i18n/phone-language";
 import { CallbackRequests } from "../../../components/CallbackRequests";
 import { SosOptions } from "../../../components/SosOptions";
 import { SosPanel } from "../../../components/SosPanel";

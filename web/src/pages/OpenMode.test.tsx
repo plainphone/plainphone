@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import type { OpenModeState } from "../lib/api";
 import { describeOp } from "../lib/ops";
 import { OpenModePanel } from "./OpenMode";

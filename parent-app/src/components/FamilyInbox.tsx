@@ -11,7 +11,7 @@ import { useLiveRefresh } from "../lib/live";
 import { getItem, removeItem, setItem } from "../lib/storage";
 import { space, useColors } from "../lib/theme";
 import { formatDateTime } from "../shared/lib/format";
-import type { MessageKey } from "../shared/i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { type FamilyInboxThread, familyState, REPLY_LENGTH, type SosSettings } from "../shared/lib/sos-options";
 import { ExtendedFamily } from "./ExtendedFamily";
 import { SnapshotLine } from "./SnapshotLine";

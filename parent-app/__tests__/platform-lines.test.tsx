@@ -3,7 +3,7 @@
 // The honest lines on the phone screen when the phone is an iPhone (docs/ios/architecture.md).
 import * as SecureStore from "expo-secure-store";
 import { renderRouter, screen } from "expo-router/testing-library";
-import { en } from "../src/shared/i18n/en";
+import { en } from "@plainphone/i18n/en";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {

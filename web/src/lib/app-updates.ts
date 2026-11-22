@@ -3,7 +3,7 @@
 // What the parents see about app updates in strong mode (docs/policies.md, "App updates").
 // Shared by the dashboard and the parent app.
 
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { formatDateTime, intlLocale } from "./format";
 import type { Locale } from "./api";
 

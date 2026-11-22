@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { api, type App, type ChangeResult } from "../lib/api";
 import { usePhone } from "./Phone";
 import { Chevron } from "./Phones";

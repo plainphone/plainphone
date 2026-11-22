@@ -3,7 +3,7 @@
 // One answer to "has the phone got my rules?", shared by the dashboard and the parent app.
 // The last connection and the last confirmed rules are different facts, so they never
 // share a sentence: "Last online just now" next to "No status yet" read like a contradiction.
-import type { MessageKey } from "../i18n/en";
+import type { MessageKey } from "@plainphone/i18n/en";
 
 const DEFAULT_OFFLINE_HOURS = 24;
 

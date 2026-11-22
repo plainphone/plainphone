@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { ApiError, api } from "../lib/api";
 import { DEFAULT_SOS_SETTINGS, type FamilyInboxThread, type SosSettings } from "../lib/sos-options";
 import { FamilyInbox } from "./FamilyInbox";

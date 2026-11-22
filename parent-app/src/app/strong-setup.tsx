@@ -13,7 +13,7 @@ import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
 import { DEFAULT_AGE_CHOICES, saveSetupChoices, type AgeChoices } from "../lib/setup-choices";
 import { type AgePreset, parseLines } from "../shared/lib/age";
-import type { PhoneLanguage } from "../shared/lib/phone-language";
+import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
 
 type Stage = "who" | "age" | "agreement";
 

@@ -6,7 +6,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../shared/i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import {
   MAX_QUICK_MESSAGES,
   QUICK_MESSAGE_LENGTH,

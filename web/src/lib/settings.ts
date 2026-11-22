@@ -4,7 +4,7 @@
 // support and which values can be picked. Mirrors docs/phone-settings.md; the server has the
 // final word and answers 400 to anything else.
 
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import type { Home, PhoneSetting, SettingKey, SettingMode, SettingValue } from "./api";
 
 export type ValueMode = Exclude<SettingMode, "free">;

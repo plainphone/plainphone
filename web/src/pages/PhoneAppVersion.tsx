@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { errorMessage, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import { api, type PhoneStatus } from "../lib/api";
 import { updateBatteryExemptionMessage } from "../lib/failedPolicies";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, type LatestVersion } from "../lib/phoneUpdate";

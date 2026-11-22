@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { lockStepLabel } from "./lock-steps";
 
 describe("lock step labels", () => {

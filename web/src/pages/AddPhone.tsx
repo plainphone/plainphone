@@ -21,7 +21,7 @@ import {
 } from "../lib/provisioning";
 import { useIosPairing } from "../lib/session";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
-import type { PhoneLanguage } from "../lib/phone-language";
+import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
 import { useHouseholdId } from "../lib/session";
 import "./add-phone.css";
 

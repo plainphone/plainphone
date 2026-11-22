@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Alert, Share, View } from "react-native";
 import { client, unwrap, ApiError } from "../api/client";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../shared/i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import {
   canRenewLink,
   EXTENDED_NAME_LENGTH,

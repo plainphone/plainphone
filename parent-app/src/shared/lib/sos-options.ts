@@ -2,7 +2,7 @@
 //
 // Hidden SOS and quick messages (docs/sos.md): the per-phone switches, the quick-message list
 // and the labels for how a hidden SOS was sent. Platform-free, shared with the parent app.
-import type { MessageKey } from "../i18n/en";
+import type { MessageKey } from "@plainphone/i18n/en";
 
 export interface SosSettings {
   hiddenPower: boolean;

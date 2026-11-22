@@ -5,7 +5,7 @@
 
 import type { AgePreset, AgePresetId, AgeState, Agreement } from "./age";
 import type { EarlyUnlockOffer } from "./billing";
-import type { Language, PhoneLanguage } from "./phone-language";
+import type { Language, PhoneLanguage } from "@plainphone/i18n/phone-language";
 
 export type Locale = Language;
 export type Profile = "child" | "self";

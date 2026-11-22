@@ -3,7 +3,7 @@
 // Extended family contacts and location snapshots (docs/extended-family.md). Platform-free, so the
 // parent app gets a copy through `pnpm sync:shared`.
 
-import type { MessageKey } from "../i18n/en";
+import type { MessageKey } from "@plainphone/i18n/en";
 
 export type ContactGroupId = "family" | "friends" | "others";
 export type ExtendedStatus =

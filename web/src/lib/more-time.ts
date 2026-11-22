@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Requests for more time, as the dashboard shows them. Pure helpers, so the copy rules are testable.
-import type { MessageKey } from "../i18n/en";
+import type { MessageKey } from "@plainphone/i18n/en";
 
 export type MoreTimeAnswer = "15" | "60" | "day" | "no";
 

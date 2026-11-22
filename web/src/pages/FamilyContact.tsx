@@ -3,7 +3,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { SnapshotLine } from "../components/SnapshotLine";
 import { Field, Loading, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { ApiError } from "../lib/api";
 import {
   type ContactInvitePreview,

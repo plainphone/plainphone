@@ -3,7 +3,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { TimeSwitches } from "../components/TimeSwitches";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { T } from "../i18n/translate";
+import type { T } from "@plainphone/i18n/translate";
 import { api, type App, type ChangeResult, type Limit, type Locale, type TimeLimits } from "../lib/api";
 import { formatMinutes, limitOn, todayIn, weekdayName } from "../lib/format";
 import { minuteWords } from "../lib/ops";

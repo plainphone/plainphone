@@ -9,7 +9,7 @@ import { api, ApiError, type ChangeResult, type KeyInput, type SelfKey } from ".
 import { EmergencySection } from "../components/EmergencyOpenings";
 import { EarlyUnlockReceipt } from "../components/EarlyUnlock";
 import { formatPrice, type Plan } from "../lib/billing";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { useMe } from "../lib/session";
 import { usePhone } from "./Phone";
 import { usePlan } from "./Plan";

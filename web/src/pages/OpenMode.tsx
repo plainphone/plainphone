@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { api, type ChangeResult, type OpenCategory, type OpenModeState } from "../lib/api";
 import { formatList } from "../lib/format";
 import { usePhone } from "./Phone";

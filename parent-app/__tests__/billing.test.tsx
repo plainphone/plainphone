@@ -5,7 +5,7 @@
 // state with the withdrawal control. Never anything to buy.
 import * as SecureStore from "expo-secure-store";
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { makeT } from "../src/shared/i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { formatDateTime } from "../src/shared/lib/format";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 

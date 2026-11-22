@@ -4,7 +4,7 @@
 // docs/family-agreement.md): the types of the API and the words for them, shared by the dashboard
 // and the parent app. Platform-free.
 
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 
 export const AGE_PRESET_IDS = ["8-9", "10-11", "12-13", "14plus"] as const;
 export type AgePresetId = (typeof AGE_PRESET_IDS)[number];

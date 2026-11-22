@@ -3,7 +3,7 @@
 // What happened to a request a trusted person was asked to decide, in one vocabulary for the
 // dashboard, the parent app and the phone. The server's `outcome` field names it; a repeated
 // answer is a success there, so the screen only has to show the processed state.
-import type { MessageKey } from "../i18n/en";
+import type { MessageKey } from "@plainphone/i18n/en";
 
 export type ApprovalOutcome =
   | "approvedByYou"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { messageLanguage } from "../lib/phone-language";
+import { messageLanguage } from "@plainphone/i18n/phone-language";
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { ErrorState, errorMessage, errorNotice, Field, Loading, type Notice, NoticeText, PageTitle, Switch, useLoad, useNow } from "../components/ui";
@@ -11,7 +11,7 @@ import { PhoneSwitch } from "../components/BedtimeSettings";
 import { type Decision, outcomeKey, outcomeOf } from "../lib/approval-state";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import {
   api,
   ApiError,

@@ -14,7 +14,7 @@ import { PageTitle, Switch } from "../src/components/ui";
 import { I18nProvider, useI18n } from "../src/i18n/I18n";
 import type { Phone } from "../src/lib/api";
 import { req } from "../src/lib/more-time-fixtures";
-import { isLanguage } from "../src/lib/phone-language";
+import { isLanguage } from "@plainphone/i18n/phone-language";
 import { FIXTURE_NOW } from "../src/lib/status-fixtures";
 import "../src/styles.css";
 

@@ -6,7 +6,7 @@
 
 import type { components } from "./schema";
 
-import type { Language, PhoneLanguage } from "../shared/lib/phone-language";
+import type { Language, PhoneLanguage } from "@plainphone/i18n/phone-language";
 import type { EarlyUnlockOffer } from "../shared/lib/billing";
 
 export type { EarlyUnlockOffer, EarlyUnlockPurchase, Plan } from "../shared/lib/billing";

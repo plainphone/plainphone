@@ -9,7 +9,7 @@ import { useI18n } from "../i18n/I18n";
 import { radius, space, useColors } from "../lib/theme";
 import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "../shared/lib/approval-state";
 import { formatDateTime } from "../shared/lib/format";
-import { messageLanguage } from "../shared/lib/phone-language";
+import { messageLanguage } from "@plainphone/i18n/phone-language";
 import { ItemRow } from "./parts";
 import { Button, Row, Stack as VStack, Text } from "./ui";
 

@@ -6,7 +6,7 @@ import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Card, errorMessage, Field, LoadGate, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { OpenModePanel } from "../../../components/OpenMode";
 import { useI18n } from "../../../i18n/I18n";
-import type { MessageKey } from "../../../shared/i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { space } from "../../../lib/theme";
 import { IphoneApps } from "../../../components/IphoneApps";
 import { isIphone } from "../../../shared/lib/platform";
