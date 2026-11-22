@@ -46,6 +46,9 @@ services:
       APNS_TEAM_ID: ${APNS_TEAM_ID:-}
       APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
       APNS_SANDBOX: ${APNS_SANDBOX:-false}
+      APPLE_APP_IDS: ${APPLE_APP_IDS:-P7698GU4AV.org.plainphone.app}
+      ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-org.plainphone.parent}
+      ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
       PUBLIC_URL: ${PUBLIC_URL:?}
       MAIL_PROVIDER: ${MAIL_PROVIDER:-none}
       MAIL_FROM: ${MAIL_FROM:-Plainphone <no-reply@plainphone.org>}
