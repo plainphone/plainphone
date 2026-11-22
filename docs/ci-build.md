@@ -38,6 +38,27 @@ Debug and release APK checks share one Gradle invocation. The Docker smoke job
 runs concurrently with server, web and phone sync checks, with `pnpm -r build`
 running in Docker only.
 
+The server and parent app jobs run their JavaScript checks through Turborepo
+(`turbo.json`) with the same step names as before: typecheck, tests and the API
+types check in the server job, and typecheck, lint, tests and the bundle export in
+the parent app job. The path filters above still decide whether a job runs. Inside a
+job, Turborepo replays every task whose inputs did not change from its local cache,
+so a change to the web app reruns only the web and api-client tasks, not the server
+tests. Each job restores `.turbo/cache` with `actions/cache` and saves a new entry
+after the checks, also when a check failed, because Turborepo stores only tasks that
+passed. The key includes the runner and the exact Node version, so a Node update
+starts with an empty cache. Pull requests restore the newest entry from main or from
+their own earlier runs. There is no remote cache. A manual `workflow_dispatch` run
+sets `TURBO_FORCE` and runs every task again. A change to `turbo.json` runs the
+server and parent app jobs.
+
+The jobs do not use `turbo --affected`. It maps changed files to packages, and
+several checks read files outside their package: the API types check reads
+`server/openapi.yaml`, and the server tests read `ios/Tests/Fixtures/`, the
+compose files, `.env.example` and `docs/encryption-test-vectors/`. Those files
+are task `inputs` in `turbo.json`, so the cache hash covers them, while
+package-level change detection would skip the check.
+
 Server and web tests share the installed root workspace and one PostgreSQL
 service with phone sync. Each test suite uses its own database. The root
 workspace install saves the pnpm store under its lockfile key. On phone-only
