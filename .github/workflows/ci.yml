@@ -15,8 +15,9 @@ on:
         type: boolean
         default: false
       dpc_probe_api:
-        description: Google Play image API level for the probe (36, 35 or 37.0)
-        type: string
+        description: Google Play image API level for the probe
+        type: choice
+        options: ["36", "35", "37.0"]
         default: "36"
 
 permissions:

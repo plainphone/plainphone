@@ -169,10 +169,14 @@ What the job does (`scripts/dpc-provisioning-probe.py`):
    what a parent would press: *Accept & continue*, *Next*, *Continue*, the
    emulator's Wi-Fi and so on, never *Cancel* or *Stop setup*. If Play Protect
    offers *Install anyway*, the probe presses it, so the result also says
-   whether a warning can be passed. In the background it reads
+   whether a warning can be passed; a screen that offers *Install anyway* counts
+   as a warning, even when its title says "Blocked by Play Protect". In the
+   background it reads
    `dpm list-owners` every second.
 6. Plainphone's own setup step turns adb off within seconds of becoming Device
-   Owner. The probe then keeps taking screenshots through the emulator console
+   Owner. The probe only takes that as the lock when adb stays off for 30
+   seconds over several checks (the raw states are in the timeline as
+   `adb_state`); if adb comes back, it carries on. It then keeps taking screenshots through the emulator console
    (`adb emu screenrecord screenshot`) for a minute.
 
 The artifact `dpc-provisioning-probe-api-<level>` holds `result.json`,
@@ -186,9 +190,9 @@ the camera frame.
 `blocked_by_play_protect` or `inconclusive`) and a `reason`. It also has
 `play_protect` (shown, `block` or `warning`, the screen texts, whether
 *Install anyway* was pressed), `provisioning_finished`, `device_owner` (`true`
-from `dpm list-owners`, or `"inferred"` when adb went off right after
-Plainphone was installed and before dpm could be read; only the Device Owner
-lock turns adb off), the release, the image with its Play Store and Play
+from `dpm list-owners`, or `"inferred"` when adb went off for at least 30
+seconds after Plainphone was installed and before dpm could be read; only the
+Device Owner lock keeps adb off), the release, the image with its Play Store and Play
 services versions, and a timeline. The job fails on `inconclusive`: the image
 had no setup wizard, six taps did not open QR setup, setup stopped on an error
 screen without a Play Protect screen, a screen stayed unchanged for 150

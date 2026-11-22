@@ -95,6 +95,11 @@ class ScreenTest(unittest.TestCase):
         self.assertEqual(probe.classify(["Unsafe app blocked", "Play Protect"]), "block")
         self.assertEqual(probe.classify(["Play Protect", "This app can request access to sensitive data", "Install anyway"]),
                          "warning")
+        # The sideload dialog's title says blocked, but Install anyway makes it passable.
+        self.assertEqual(probe.classify(["Blocked by Play Protect", "Play Protect doesn't recognise this app",
+                                         "OK", "Install anyway"]), "warning")
+        self.assertIsNone(probe.classify(["Google Play Protect regularly checks your apps", "Accept"]))
+        self.assertIsNone(probe.classify(["If you need help, contact your IT admin", "Next"]))
         self.assertEqual(probe.classify(["Can’t set up device", "Reset"]), "error")
         self.assertIsNone(probe.classify(["This device belongs to your organisation", "Next"]))
 
@@ -108,6 +113,8 @@ class ScreenTest(unittest.TestCase):
         self.assertEqual(pick("Cancel", "Stop setup"), None)
         self.assertEqual(pick("Emergency call", "Get started"), None)
         self.assertEqual(pick("AndroidWifi", "See all Wi-Fi networks"), "AndroidWifi")
+        self.assertEqual(pick("Skip", "AndroidWifi"), "AndroidWifi")
+        self.assertEqual(pick("Skip", "AndroidWifi", "Connected"), "Skip")
         # Body text that happens to contain a button word is not a button.
         self.assertEqual(pick("By continuing you accept that your organisation can see this device's data"), None)
         disabled = probe.parse_ui(dump(node("Next", enabled=False)))
@@ -146,6 +153,26 @@ class ConclusionTest(unittest.TestCase):
         self.assertEqual(probe.CONCLUSIVE, {"provisioned", "provisioned_after_warning", "blocked_by_play_protect"})
 
 
+class AdbOffTest(unittest.TestCase):
+    class FakeDevice:
+        def __init__(self, states):
+            self.states = list(states)
+
+        def state(self):
+            return self.states.pop(0) if len(self.states) > 1 else self.states[0]
+
+    def test_a_short_adb_drop_is_not_the_lock(self):
+        off, states = probe.adb_stays_off(self.FakeDevice(["offline", "device"]), seconds=1, step=0)
+        self.assertFalse(off)
+        self.assertEqual(states, ["offline", "device"])
+
+    def test_adb_that_stays_off_is_the_lock(self):
+        off, states = probe.adb_stays_off(self.FakeDevice(["unreachable"]), seconds=0.05, step=0.01)
+        self.assertTrue(off)
+        self.assertGreaterEqual(len(states), 3)
+        self.assertFalse(probe.adb_stays_off(self.FakeDevice(["unreachable"]), seconds=0, step=0)[0])
+
+
 class WorkflowTest(unittest.TestCase):
     def test_probe_runs_only_on_manual_dispatch(self):
         probe_workflow = yaml.safe_load((WORKFLOWS / "dpc-provisioning-probe.yml").read_text(encoding="utf-8"))
@@ -158,6 +185,9 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("github.event_name == 'workflow_dispatch'", caller["if"])
         self.assertIn("inputs.dpc_probe", caller["if"])
         self.assertIs(ci[True]["workflow_dispatch"]["inputs"]["dpc_probe"]["default"], False)
+        api = ci[True]["workflow_dispatch"]["inputs"]["dpc_probe_api"]
+        own = probe_workflow[True]["workflow_dispatch"]["inputs"]["api"]
+        self.assertEqual((api["type"], api["options"]), ("choice", own["options"]))
 
     def test_probe_job_uses_a_play_image_and_always_uploads(self):
         job = yaml.safe_load((WORKFLOWS / "dpc-provisioning-probe.yml").read_text(encoding="utf-8"))["jobs"]["probe"]

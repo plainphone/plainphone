@@ -77,6 +77,9 @@ jobs:
           cp "$WORK/camera.png" "$OUT/qr-camera-frame.png"
       - name: Create a Google Play emulator
         run: |
+          # Creates ~/.android/adbkey before the emulator boots, so a user build (ro.adb.secure=1)
+          # trusts this adb server instead of staying "unauthorized".
+          adb start-server
           echo no | avdmanager create avd -n plainphone-probe -k "$IMAGE" -d pixel_6 --force
           printf '%s\n' hw.ramSize=4096 disk.dataPartition.size=6G >> ~/.android/avd/plainphone-probe.avd/config.ini
           grep -E '^(PlayStore.enabled|image.sysdir.1|tag.id)=' ~/.android/avd/plainphone-probe.avd/config.ini

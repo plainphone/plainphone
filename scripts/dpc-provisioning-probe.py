@@ -41,10 +41,11 @@ CONCLUSIVE = {"provisioned", "provisioned_after_warning", "blocked_by_play_prote
 # Screen texts, matched case-insensitively. The emulator runs in en-US.
 BLOCK_TEXTS = ("app blocked to protect your device", "blocked by play protect", "play protect blocked",
                "harmful app blocked", "this app was blocked", "blocked to protect")
-WARNING_TEXTS = ("play protect", "unsafe app", "can request access to sensitive data", "install anyway",
+# A bare "Play Protect" is not enough: wizard screens mention it without any warning.
+WARNING_TEXTS = ("unsafe app", "can request access to sensitive data", "install anyway",
                  "send app for", "app scan", "potentially harmful")
 ERROR_TEXTS = ("can't set up device", "couldn't set up", "couldn't download", "couldn't be downloaded",
-               "can't use the admin app", "something went wrong", "contact your it admin")
+               "can't use the admin app", "something went wrong")
 START_TEXTS = ("get started", "start", "let's go", "begin")
 # Tapped in this order once the QR code is scanned. "Install anyway" first: the probe also wants
 # to know whether a warning can be passed. Matched against whole button labels only, so Cancel,
@@ -92,7 +93,8 @@ def fetch(out: Path, tag: str | None) -> None:
         with urllib.request.urlopen(request, timeout=120) as r:
             return r.read()
 
-    releases = json.loads(get(f"https://api.github.com/repos/{REPO}/releases?per_page=30"))
+    api = f"https://api.github.com/repos/{REPO}/releases"
+    releases = [json.loads(get(f"{api}/tags/{tag}"))] if tag else json.loads(get(f"{api}?per_page=30"))
     release, apk_asset, meta_asset = pick_release(releases, tag)
     out.mkdir(parents=True, exist_ok=True)
     apk = out / apk_asset["name"]
@@ -174,6 +176,9 @@ def signature(nodes: list[dict]) -> str:
 def classify(texts: list[str]) -> str | None:
     """'block', 'warning' (Play Protect, can be passed or is a question) or 'error' (setup failed)."""
     joined = "\n".join(texts).lower().replace("’", "'")
+    # The sideload dialog is titled "Blocked by Play Protect" yet offers Install anyway: passable.
+    if "install anyway" in joined:
+        return "warning"
     if any(t in joined for t in BLOCK_TEXTS) or (
             "blocked" in joined and ("play protect" in joined or "unsafe app" in joined)):
         return "block"
@@ -192,6 +197,9 @@ def choose_tap(nodes: list[dict]) -> dict | None:
     """The button a parent would press to go on, or None. Button labels only, never body text."""
     buttons = [n for n in nodes if n["label"] and n["enabled"] and len(n["label"]) <= 40]
     labels = {norm(n["label"]): n for n in reversed(buttons)}
+    # The network step lists the emulator's Wi-Fi next to Skip; picking it is what a parent does.
+    if "androidwifi" in labels and not any(norm(n["label"]) == "connected" for n in nodes):
+        return labels["androidwifi"]
     for word in POSITIVE:
         if word in labels:
             return labels[word]
@@ -199,9 +207,6 @@ def choose_tap(nodes: list[dict]) -> dict | None:
     # changes nothing about the install, so take it.
     if "don't send" in labels:
         return labels["don't send"]
-    # The network step lists the emulator's Wi-Fi; picking it is what a parent does.
-    if "androidwifi" in labels and not any(norm(n["label"]) == "connected" for n in nodes):
-        return labels["androidwifi"]
     return None
 
 
@@ -266,9 +271,13 @@ class Device:
     def shell(self, command: str, timeout: int = 30) -> str | None:
         return self.adb("shell", command, timeout=timeout)
 
-    def online(self) -> bool:
+    def state(self) -> str:
+        """Raw `adb get-state`: "device", "offline", ... or "unreachable"."""
         state = self.adb("get-state", timeout=10)
-        return state is not None and state.strip() == "device"
+        return state.strip() if state is not None else "unreachable"
+
+    def online(self) -> bool:
+        return self.state() == "device"
 
     def ui(self) -> list[dict]:
         for _ in range(3):
@@ -300,6 +309,17 @@ class Device:
 
     def tap(self, x: int, y: int) -> None:
         self.shell(f"input tap {x} {y}")
+
+
+def adb_stays_off(dev, seconds: float = 30, step: float = 5) -> tuple[bool, list[str]]:
+    """True only if adb stays away for `seconds`, checked several times. A busy emulator (dex2oat
+    right after the install) can drop adb for a moment; only the Device Owner lock keeps it off."""
+    states = [dev.state()]
+    end = time.time() + seconds
+    while states[-1] != "device" and time.time() < end:
+        time.sleep(step)
+        states.append(dev.state())
+    return states[-1] != "device" and len(states) >= 3, states
 
 
 def wait_for(predicate, deadline: float, step: float = 3):
@@ -408,7 +428,7 @@ def run(args: argparse.Namespace) -> int:
 
         # From here: record every new screen and press the button a parent would press.
         deadline = time.time() + args.flow_timeout
-        seen: dict[str, float] = {}
+        seen: set[str] = set()
         last_change = time.time()
         blocked_at = None
         unreadable_shot = 0.0
@@ -420,6 +440,10 @@ def run(args: argparse.Namespace) -> int:
                     log("emulator_gone")
                     break
                 if installed.is_set() or obs["device_owner"]:
+                    off, states = adb_stays_off(dev)
+                    log("adb_state", states=states)
+                    if not off:
+                        continue  # adb came back: a hiccup, not the lock
                     if not obs["device_owner"]:
                         obs["device_owner"] = "inferred"
                     log("adb_off", note="the Device Owner lock turned adb off")
@@ -434,7 +458,7 @@ def run(args: argparse.Namespace) -> int:
             sig = signature(nodes)
             texts = screen_texts(nodes)
             if nodes and sig not in seen:
-                seen[sig] = time.time()
+                seen.add(sig)
                 last_change = time.time()
                 kind = classify(texts)
                 log("screen", screenshot=dev.screenshot("-".join(texts[:3]) or "screen"), texts=texts, kind=kind)
