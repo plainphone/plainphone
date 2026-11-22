@@ -249,6 +249,22 @@ class WorkflowTest(unittest.TestCase):
         # A step that overruns fails before the job is cancelled, so the artifact is still uploaded.
         self.assertLess(boot + flows, job["timeout-minutes"])
 
+    def test_api_29_cold_boots_and_a_hung_emulator_is_killed(self):
+        job = yaml.safe_load((self.WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))["jobs"]["android-e2e"]
+        legs = {leg["api"]: leg["snapshot"] for leg in job["strategy"]["matrix"]["include"]}
+        self.assertEqual(legs, {34: True, 29: False})
+        steps = {step.get("name"): step for step in job["steps"]}
+        # Snapshot steps must not run on a cold-boot leg, whatever the cache says.
+        for name in ("Restore clean emulator snapshot", "Boot and save a clean snapshot", "Cache clean emulator snapshot"):
+            self.assertIn("matrix.snapshot", steps[name]["if"], name)
+        flows = steps["Run the device flows once"]
+        self.assertIn("'-no-snapshot'", flows["with"]["emulator-options"])
+        self.assertIn("ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL", flows["env"])
+        names = [step.get("name") for step in job["steps"]]
+        cleanup = steps["Stop any emulator left running"]
+        self.assertEqual(cleanup["if"], "always()")
+        self.assertLess(names.index("Run the device flows once"), names.index("Stop any emulator left running"))
+
 
 class DiagnosticsTest(unittest.TestCase):
     def setUp(self):

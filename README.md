@@ -21,17 +21,6 @@ Plainphone is free today. Running it on your own server and keeping one fully pr
 
 ## Why
 
-See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work. The [endpoint encryption recommendation](docs/research/e2ee-recommendation.md) compares OpenMLS with a Matrix SDK on synthetic data ([harnesses](research/e2ee/README.md)). A [phase 0 prototype](docs/e2ee-prototype.md) of the recommended design runs on test data only; its switches are off in release builds and production.
-
-**iPhone:** planned, not available yet. Plainphone for iPhone will use Apple's Family Controls, and
-some things stay Apple's to decide (who can call, who rings at bedtime). The dashboard already says
-so per rule for an iPhone. The server, dashboard and parent app are ready for iPhone pairing
-behind `IOS_PAIRING_ENABLED`, which stays off until the iPhone app is out. The first Swift code is
-in the repo: a Swift module and extension targets ([`ios/`](ios), built and unit tested by CI on
-macOS) and a Child role in the parent app with a guided setup, which only an iPhone build made with
-`PLAINPHONE_IOS_CHILD=1` offers. It has not run on a real iPhone yet. See the [architecture and phase plan](docs/ios/architecture.md), the
-[Apple entitlement requests](docs/ios/apple-applications.md) and the [real-device spikes](docs/ios/spikes.md).
-
 Plainphone is built on a short list of [design principles](docs/design-principles.md), each tied to research, regulation or official guidance. The [evidence review](docs/evidence.md) lists the sources per feature and says where the evidence is weak. In short:
 
 - the child can see, on the phone, what the parent can see;
@@ -126,7 +115,6 @@ See [Self keys](docs/self-keys.md).
 - **A filter DNS per phone.** Each phone gets its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver in [`dns/`](dns). On servers without an HTTP DNS provider, the web dashboard says the web filter is unavailable. It shows the address after the HTTP DNS provider confirms provisioning, with [router and VPN setup guides](docs/self-hosting-dns.md#use-a-phones-filter-on-a-router-or-vpn). Previously confirmed phones keep their filter while the server refreshes legacy confirmations. Both parent apps explain the filter's limits even when the DNS settings cannot load. How apps could still get around it: [docs/dns-bypass.md](docs/dns-bypass.md).
 - **Rules from the server.** App list (or, in [open mode](docs/open-mode.md), a block list), approved contacts, school time, bedtime ([silent at night](docs/bedtime.md), switchable), optional [modes](docs/modes.md) (School, Homework, Night and your own on one weekly plan, with Family, Friends and Others contact groups), [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. The app inventory refreshes when installed apps, the phone locale, or enabled keyboard packages change. See [phone sync](docs/phone-sync.md) and the [Android wakeup inventory](docs/wakeups.md). Faster rule updates (push wake-ups) start on for new phones when the server can wake them and can be switched off per phone. With both FCM and UnifiedPush configured, any phone can opt for UnifiedPush without changing the others. The native parent app can receive alerts directly via FCM and APNs. Removing a native app in the dashboard pauses its alerts until you enable them again in the app. The default iOS APNs topic is `org.plainphone.app`. See [push setup](docs/push-setup.md).
 - **Silent bedtime, and approval with the parent PIN.** At bedtime the phone makes no sound and shows no notifications; calls from parents, 112 and help lines still ring, and the child is told so on the home screen. When a parent is next to the child, a waiting request can be approved on the phone itself with the parent PIN, and the dashboard shows it as approved on the phone. Both have a switch per phone and default to on. See [docs/bedtime.md](docs/bedtime.md). 112, the parents and the help lines are [always reachable](docs/always-reachable.md) in every mode, and a test fails if a rule ever blocks them.
-- **Rules from the server.** App list (or, in [open mode](docs/open-mode.md), a block list), approved contacts, school time, bedtime, optional [modes](docs/modes.md), [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. The app inventory refreshes when installed apps, the phone locale, or enabled keyboard packages change. See [phone sync](docs/phone-sync.md) and the [Android wakeup inventory](docs/wakeups.md). Faster rule updates (push wake-ups) start on for new phones when the server can wake them and can be switched off per phone. With both FCM and UnifiedPush configured, any phone can opt for UnifiedPush without changing the others. The native parent app can receive alerts directly via FCM and APNs. Removing a native app in the dashboard pauses its alerts until you enable them again in the app. See [push setup](docs/push-setup.md).
 - **More time, on request.** The phone warns quietly 5 minutes before an app or the daily limit runs out. When the time is up, the stop screen has one friendly action: ask for more, with an optional reason. Parents answer 15 minutes, 1 hour, the rest of the day or no from the notification, the dashboard or the parent app. The first answer wins, and the extra time counts for that app and that day only. Both can be switched off per phone. See [docs/more-time.md](docs/more-time.md).
 - **Location on request.** By default the phone shares its position when a parent presses Find or when a check-in reaches its reply deadline without an answer. The server waits briefly before showing a check-in position so a reply arriving at the same time can still win. The phone sends saved or cached positions before requesting new ones, then looks up new positions in order of server expiry. Older Android apps can answer both requests with one position. The map can show the last known position with its original time if a lookup fails. An older position leaves Find open for a newer one. Each lookup has a 30-second budget, and each request gets up to five precise attempts. Sharing every few minutes is an explicit, time-limited choice. Only the latest position is kept, and the child can see each request on the phone. See [docs/location.md](docs/location.md).
 - **Rule confirmations.** See when the phone applied the current rules, whether it is still waiting to confirm, or whether it appears offline. The web dashboard shows this on the phone overview and rule screens. A change waiting for a Self key still appears in the waiting list.
@@ -158,7 +146,7 @@ See [support tools and release troubleshooting](docs/support.md).
 ## Privacy and security
 
 - [docs/privacy.md](docs/privacy.md) says what is stored, for how long and why.
-- [docs/encryption.md](docs/encryption.md) specifies end-to-end encryption between the phone and the parent's devices. It is a specification under development and **not implemented yet**. Today the hosted service stores readable data in its application database.
+- [docs/encryption.md](docs/encryption.md) specifies end-to-end encryption between the phone and the parent's devices. It is a specification under development and **not implemented yet**; a [phase 0 prototype](docs/e2ee-prototype.md) runs on test data only. Today the hosted service stores readable data in its application database.
 - **Plainphone has not had an external security audit.**
 - A way around the lock is a security bug. Report it privately as described in [SECURITY.md](SECURITY.md).
 
@@ -287,16 +275,20 @@ Wi-Fi, Play may update them for up to 45 minutes. A new app installed meanwhile 
 hidden and becomes a request. Parents can switch this off per phone or press **Update
 apps now**. See [App updates](docs/policies.md#app-updates-strong-mode).
 
-## Roadmap
+## Status and what's next
 
-1. Proof of lock
-2. Contacts and DNS: dialer and SMS role with an allowlist, own AdGuard Home with a DNS address per phone
-3. Server and parent web app: accounts, pairing, rules, app list, location, school time
-4. Light mode on a phone already in use; time limits and an app catalog ([docs/app-catalog.md](docs/app-catalog.md))
-5. Native parent apps
-6. Self-hosting, plainphone.org and the public launch
+Built and in test builds: strong and light mode, approved contacts and SMS, the filter DNS per phone, the server and parent web app, the native parent app, time limits and requests for more time, SOS, the family inbox, self-hosting and plainphone.org. Every merge to main runs an end-to-end test on Android 10 and Android 14 emulators, and pull requests run it when they touch the Android app or the server. Each change runs the unit tests for the parts it touches. What is missing before a child's phone should rely on it is testing on real phones; see [docs/bypass-checklist.md](docs/bypass-checklist.md).
 
-End-to-end encryption ([docs/encryption.md](docs/encryption.md)) is being specified alongside.
+**Family messages and calls.** Planned, and waiting for end-to-end encryption. The [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) describe the proposed work. The [endpoint encryption recommendation](docs/research/e2ee-recommendation.md) compares OpenMLS with a Matrix SDK on synthetic data ([harnesses](research/e2ee/README.md)). A [phase 0 prototype](docs/e2ee-prototype.md) of the recommended design runs on test data only; its switches are off in release builds and production.
+
+**iPhone:** planned, not available yet. Plainphone for iPhone will use Apple's Family Controls, and
+some things stay Apple's to decide (who can call, who rings at bedtime). The dashboard already says
+so per rule for an iPhone. The server, dashboard and parent app are ready for iPhone pairing
+behind `IOS_PAIRING_ENABLED`, which stays off until the iPhone app is out. The first Swift code is
+in the repo: a Swift module and extension targets ([`ios/`](ios), built and unit tested by CI on
+macOS) and a Child role in the parent app with a guided setup, which only an iPhone build made with
+`PLAINPHONE_IOS_CHILD=1` offers. It has not run on a real iPhone yet. See the [architecture and phase plan](docs/ios/architecture.md), the
+[Apple entitlement requests](docs/ios/apple-applications.md) and the [real-device spikes](docs/ios/spikes.md).
 
 ## Contributing
 
