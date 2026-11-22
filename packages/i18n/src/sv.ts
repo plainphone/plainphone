@@ -77,6 +77,12 @@ export const sv: Messages = {
   "login.invalidEmail": "Ange en giltig e-postadress, som namn@exempel.com.",
   "login.inviteNote": "Logga in för att acceptera inbjudan till ett hushåll.",
   "login.pairNote": "Logga in för att lägga till telefonen. Din kod sparas tills du är tillbaka.",
+  "login.codeTitle": "Logga in med en kod",
+  "login.codeIntro": "Den här adressen loggar in med en kod i stället för en länk. Inget mejl skickas.",
+  "login.code": "Kod",
+  "login.codeSubmit": "Logga in",
+  "login.codeSending": "Loggar in…",
+  "login.codeWrong": "Koden passar inte till adressen. Kontrollera den och försök igen.",
 
   "callback.title": "Loggar in",
   "callback.working": "Ett ögonblick…",

@@ -79,6 +79,12 @@ export const da: Messages = {
   "login.invalidEmail": "Skriv en gyldig e-mailadresse, fx navn@eksempel.dk.",
   "login.inviteNote": "Log ind for at tage imod invitationen til en husstand.",
   "login.pairNote": "Log ind for at tilføje telefonen. Din kode er gemt, til du er tilbage.",
+  "login.codeTitle": "Log ind med en kode",
+  "login.codeIntro": "Denne adresse logger ind med en kode i stedet for et link. Der bliver ikke sendt en mail.",
+  "login.code": "Kode",
+  "login.codeSubmit": "Log ind",
+  "login.codeSending": "Logger ind…",
+  "login.codeWrong": "Koden passer ikke til adressen. Tjek den, og prøv igen.",
 
   "callback.title": "Logger dig ind",
   "callback.working": "Et øjeblik…",

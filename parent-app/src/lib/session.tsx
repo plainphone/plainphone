@@ -48,6 +48,8 @@ interface SessionValue {
   refresh: () => Promise<Me | null>;
   /** Exchanges a magic-link token for a session. Throws ApiError(400) for a used/expired link. */
   verify: (linkToken: string) => Promise<Me | null>;
+  /** Signs the store review address in with its code (docs/store-review.md). Throws ApiError(401) for a wrong code. */
+  signInWithCode: (email: string, code: string) => Promise<Me | null>;
   logout: () => Promise<void>;
   saveLocale: (l: Locale) => void;
   /** Where to go after login, e.g. a pairing link opened while signed out. */
@@ -168,23 +170,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  const verify = useCallback(
-    async (linkToken: string) => {
+  /** Starts a sign-in on the current server: `ask` asks the server for a session token. */
+  const signInWith = useCallback(
+    async (ask: () => Promise<{ sessionToken?: string }>) => {
       if (switching.current) return null;
       const origin = SERVER_URL;
       const revision = serverRevision.current;
       linkSignIn.current = true;
       // A new sign-in gets a fresh answer from takeNext(), also without passing through anon.
       taking.current = null;
-      let p = inflight.get(linkToken);
-      if (!p) {
-        p = unwrap<{ sessionToken?: string }>(
-          client.POST("/auth/verify", { body: { token: linkToken, locale: localeRef.current, client: "native" } }),
-        );
-        inflight.set(linkToken, p);
-        // A failed attempt (offline, say) can be retried with the same link.
-        p.catch(() => { if (inflight.get(linkToken) === p) inflight.delete(linkToken); });
-      }
+      const p = ask();
       let out: { sessionToken?: string };
       try {
         out = await p;
@@ -206,6 +201,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return refresh();
     },
     [refresh, restore],
+  );
+
+  const verify = useCallback(
+    (linkToken: string) =>
+      signInWith(() => {
+        let p = inflight.get(linkToken);
+        if (!p) {
+          p = unwrap<{ sessionToken?: string }>(
+            client.POST("/auth/verify", { body: { token: linkToken, locale: localeRef.current, client: "native" } }),
+          );
+          inflight.set(linkToken, p);
+          // A failed attempt (offline, say) can be retried with the same link.
+          p.catch(() => { if (inflight.get(linkToken) === p) inflight.delete(linkToken); });
+        }
+        return p;
+      }),
+    [signInWith],
+  );
+
+  const signInWithCode = useCallback(
+    (email: string, code: string) =>
+      signInWith(() =>
+        unwrap<{ sessionToken?: string }>(
+          client.POST("/auth/review", { body: { email, code, locale: localeRef.current, client: "native" } }),
+        ),
+      ),
+    [signInWith],
   );
 
   const signedIn = state.status === "in";
@@ -285,8 +307,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, serverUrl, serverChanging, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext }),
-    [state, serverUrl, serverChanging, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext],
+    () => ({ state, serverUrl, serverChanging, changeServer, refresh, verify, signInWithCode, logout, saveLocale, next, setNext, takeNext }),
+    [state, serverUrl, serverChanging, changeServer, refresh, verify, signInWithCode, logout, saveLocale, next, setNext, takeNext],
   );
   return <SessionContext.Provider value={value}>{serverReady ? children : null}</SessionContext.Provider>;
 }

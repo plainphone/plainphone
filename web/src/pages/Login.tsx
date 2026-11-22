@@ -33,6 +33,9 @@ export function LoginPage() {
   const [capped, setCapped] = useState(false);
   const [mail, setMail] = useState<boolean | null>(null);
   const [reason] = useState(pendingReason);
+  // The store review address (docs/store-review.md) gets a code field instead of a mail.
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     void serverHasMail().then(setMail);
@@ -63,7 +66,12 @@ export function LoginPage() {
     }
     setBusy(true);
     try {
-      const r = await api.post<{ ok: boolean; mailEnabled: boolean }>("/auth/request", { email: value, locale });
+      const r = await api.post<{ ok: boolean; mailEnabled: boolean; codeSignIn?: boolean }>("/auth/request", { email: value, locale });
+      if (r.codeSignIn) {
+        setCode("");
+        setCodeFor(value);
+        return;
+      }
       // A link this browser asked for is used without a question (pages/AuthCallback.tsx).
       noteLinkAsked();
       setMail(r.mailEnabled);
@@ -77,9 +85,57 @@ export function LoginPage() {
     }
   }
 
+  async function submitCode(e: FormEvent) {
+    e.preventDefault();
+    if (!codeFor) return;
+    setFieldError(undefined);
+    setFormError(null);
+    setBusy(true);
+    try {
+      await api.post("/auth/review", { email: codeFor, code: code.trim(), locale });
+      const me = await refresh();
+      if (me) navigate(takeNext(), { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 400)) setFieldError(t("login.codeWrong"));
+      else setFormError(errorMessage(err, t));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="narrow">
-      {sentTo && mail !== false ? (
+      {codeFor ? (
+        <>
+          <PageTitle sub={t("login.codeIntro")}>{t("login.codeTitle")}</PageTitle>
+          <form onSubmit={submitCode} noValidate className="stack">
+            <Field label={t("login.code")} error={fieldError}>
+              {(p) => (
+                <input
+                  {...p}
+                  type="password"
+                  name="code"
+                  autoComplete="one-time-code"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              )}
+            </Field>
+            <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+            <div className="actions">
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                {busy ? t("login.codeSending") : t("login.codeSubmit")}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setCodeFor(null); setFieldError(undefined); }}>
+                {t("login.again")}
+              </button>
+            </div>
+          </form>
+        </>
+      ) : sentTo && mail !== false ? (
         <>
           <PageTitle>{t("login.sentTitle")}</PageTitle>
           <p>{t("login.sentBody", { email: sentTo })}</p>

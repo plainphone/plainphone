@@ -77,6 +77,12 @@ export const de: Messages = {
   "login.invalidEmail": "Geben Sie eine gültige E-Mail-Adresse ein, z. B. name@example.com.",
   "login.inviteNote": "Melden Sie sich an, um die Einladung zu einem Haushalt anzunehmen.",
   "login.pairNote": "Melden Sie sich an, um das Telefon hinzuzufügen. Ihr Code wird gespeichert, bis Sie zurück sind.",
+  "login.codeTitle": "Mit einem Code anmelden",
+  "login.codeIntro": "Diese Adresse meldet sich mit einem Code statt mit einem Link an. Es wird keine E-Mail gesendet.",
+  "login.code": "Code",
+  "login.codeSubmit": "Anmelden",
+  "login.codeSending": "Anmelden…",
+  "login.codeWrong": "Der Code passt nicht zu dieser Adresse. Prüfen Sie ihn und versuchen Sie es erneut.",
 
   "callback.title": "Anmeldung läuft",
   "callback.working": "Einen Moment…",

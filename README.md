@@ -205,6 +205,15 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+The JavaScript parts (server, web app, parent app and `packages/`) build and test from the repository root:
+
+```sh
+pnpm install
+pnpm build      # also: pnpm typecheck, pnpm lint, pnpm test
+```
+
+These root scripts run through [Turborepo](https://turborepo.dev) (`turbo.json`). It runs each package's script in dependency order and replays a task from its local cache in `.turbo/cache` when none of its inputs changed. There is no remote cache. `pnpm --filter <package> <script>` still runs a single package's script directly.
+
 Robolectric unit tests run offline. Gradle resolves the instrumented SDK jars before
 the test JVM starts and stages them in `android/.gradle/robolectric`. CI caches this
 directory, and it survives `./gradlew clean`.

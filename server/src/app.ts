@@ -26,6 +26,7 @@ import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
 import { latencyRoutes } from "./routes/latency.js";
+import { reviewLoginRoutes } from "./routes/review-login.js";
 import { LocalEventBus } from "./services/live-events.js";
 import { LiveHub, type LiveHubOptions } from "./services/live-hub.js";
 import { botChallengeRoutes } from "./routes/bot-challenge.js";
@@ -175,6 +176,8 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
   app.route("/api/family-contact", familyContactRoutes(ctx));
   // Public, like /auth/request: the sign-in form fetches its bot challenge here.
   app.route("/api", botChallengeRoutes(ctx));
+  // Store review sign-in (docs/store-review.md); its demo phone calls this app in process.
+  app.route("/api", reviewLoginRoutes(ctx, (path, init) => app.request(path, init)));
   app.route("/api", parentRoutes(ctx, updateWake, (parent) => {
     resetProtection.parent(parent);
     liveEventRoutes(parent, live);

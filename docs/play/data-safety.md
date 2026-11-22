@@ -32,7 +32,7 @@ because of it.
 | Does your app collect or share any of the required user data types? | Yes |
 | Is all of the user data collected by your app encrypted in transit? | Yes |
 | Do you provide a way for users to request that their data is deleted? | Yes: in the app (Settings → Delete my account) and at the web link below |
-| Data deletion web link | `https://plainphone.org/privacy/` until a dedicated page or anchor exists (see [policy-review.md](policy-review.md#data-safety-privacy-policy-and-account-deletion)) |
+| Data deletion web link | `https://plainphone.org/delete-account/` |
 | Privacy policy | `https://plainphone.org/privacy/` |
 | Is data shared with third parties? | No. Mail, push and DNS upstreams are service providers; Google Play Billing (phone app, Play edition, off today) is a payment processor |
 | Independent security review | No |

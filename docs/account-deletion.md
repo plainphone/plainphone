@@ -26,7 +26,9 @@ profile (a name is not a rule).
 
 ## Deleting an account
 
-`DELETE /api/me` with `{ "confirmEmail": "<own address>" }` (Settings → Delete my account).
+`DELETE /api/me` with `{ "confirmEmail": "<own address>" }` (Settings → Delete my account, in the
+dashboard and the parent app). <https://plainphone.org/delete-account/> explains this in five
+languages, and how to ask for deletion by mail without the app; app stores link to it.
 
 | Situation | What happens |
 |---|---|

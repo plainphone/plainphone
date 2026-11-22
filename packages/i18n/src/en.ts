@@ -81,6 +81,12 @@ export const en = {
   "login.invalidEmail": "Enter a valid email address, like name@example.com.",
   "login.inviteNote": "Log in to accept the invitation to a household.",
   "login.pairNote": "Log in to add the phone. Your code is saved until you are back.",
+  "login.codeTitle": "Log in with a code",
+  "login.codeIntro": "This address logs in with a code instead of a link. No mail is sent.",
+  "login.code": "Code",
+  "login.codeSubmit": "Log in",
+  "login.codeSending": "Logging in…",
+  "login.codeWrong": "The code doesn’t match this address. Check it and try again.",
 
   "callback.title": "Logging you in",
   "callback.working": "One moment…",

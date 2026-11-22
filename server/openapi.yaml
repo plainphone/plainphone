@@ -3969,10 +3969,65 @@ paths:
                   maxLength: 500
                   description: The honeypot. A person never sees the field and leaves it empty.
       responses:
-        "202": { description: "Accepted" }
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  mailEnabled: { type: boolean }
+                  codeSignIn:
+                    type: boolean
+                    description: "Only for the store review address (REVIEW_LOGIN_EMAIL): no mail is sent; sign in with POST /auth/review instead."
         "403": { $ref: "#/components/responses/BotChallenge" }
         "422": { $ref: "#/components/responses/DisposableEmail" }
         "429": { $ref: "#/components/responses/TooManyOrCapped" }
+
+  /auth/review:
+    post:
+      operationId: postAuthReview
+      security: []
+      tags: [auth]
+      summary: Sign in with the store review code
+      description: >-
+        Only on servers with REVIEW_LOGIN_EMAIL and REVIEW_LOGIN_CODE set (docs/store-review.md); otherwise 404.
+        Only that address with that code signs in. The first sign-in creates the account and household, and every
+        sign-in gives the household its demo phone (or checks it in again). Rate limited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, maxLength: 200 }
+                locale: { enum: [en, da, sv, nb, de] }
+                client:
+                  enum: [web, native]
+                  default: web
+                  description: Native apps send `native` to get the session token in the body. The PWA only gets the HttpOnly cookie.
+      responses:
+        "200":
+          description: Signed in. Sets the `pp_session` cookie; `sessionToken` is only in the body for `client=native`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionToken: { type: string }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      email: { type: string }
+                      locale: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
 
   /auth/challenge:
     get:
