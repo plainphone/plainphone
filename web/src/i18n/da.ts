@@ -49,6 +49,7 @@ export const da: Messages = {
   "nav.logoutFailed": "Du er stadig logget ind. Tjek din forbindelse, og prøv igen.",
   "nav.language": "Sprog",
   "nav.privacy": "Privatliv",
+  "nav.terms": "Vilkår",
   "nav.status": "Status",
 
   "error.generic": "Noget gik galt. Prøv igen.",
@@ -71,6 +72,8 @@ export const da: Messages = {
   "login.selfHost": "Driver du selv serveren?",
   "login.selfHostHelp": "Sæt MAIL_PROVIDER og SMTP_URL som beskrevet i vejledningen.",
   "login.selfHostGuide": "Vejledning til selvhosting",
+  "login.testService": "Plainphone er en alfaversion. Testtjenesten er gratis og leveres, som den er.",
+  "login.terms": "Vilkår for testtjenesten",
   "login.invalidEmail": "Skriv en gyldig e-mailadresse, fx navn@eksempel.dk.",
   "login.inviteNote": "Log ind for at tage imod invitationen til en husstand.",
   "login.pairNote": "Log ind for at tilføje telefonen. Din kode er gemt, til du er tilbage.",

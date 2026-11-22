@@ -51,6 +51,7 @@ export const en = {
   "nav.logoutFailed": "You are still logged in. Check your connection and try again.",
   "nav.language": "Language",
   "nav.privacy": "Privacy",
+  "nav.terms": "Terms",
   "nav.status": "Status",
 
   "error.generic": "Something went wrong. Please try again.",
@@ -73,6 +74,8 @@ export const en = {
   "login.selfHost": "Do you run your own server?",
   "login.selfHostHelp": "Set MAIL_PROVIDER and SMTP_URL as described in the guide.",
   "login.selfHostGuide": "Self-hosting guide",
+  "login.testService": "Plainphone is in alpha. The test service is free and provided as is.",
+  "login.terms": "Terms of the test service",
   "login.invalidEmail": "Enter a valid email address, like name@example.com.",
   "login.inviteNote": "Log in to accept the invitation to a household.",
   "login.pairNote": "Log in to add the phone. Your code is saved until you are back.",
