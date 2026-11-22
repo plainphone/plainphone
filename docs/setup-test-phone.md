@@ -48,6 +48,8 @@ Settings → System → Reset options → Erase all data (factory reset). On Sam
 
 If the phone says "Can't set up device" or "The app couldn't be downloaded", see the troubleshooting section below.
 
+**Open question: Play Protect (issue #255).** Google Play Protect now blocks QR setup of Device Owner apps that Android Enterprise has not approved, and of sideloaded apps that ask for SMS or accessibility access during enrollment ([help page](https://support.google.com/work/android/answer/16694822)). Plainphone is not on that list and asks for both, so on phones with Google Play services this step may stop with "App blocked to protect your device" or a Play Protect warning. We do not know yet whether it does. An emulator cannot answer it: the SDK's Google Play images have no Google setup wizard, so there is no QR reader to test ([why](testing.md#why-the-emulator-has-no-qr-path)). A real phone has not been tested yet. If you see a Play Protect screen, take a photo of it, note the phone model, Android version and Play services version (Settings → Apps → Google Play services), and add it to issue #255. Do not press *Install anyway* on a child's phone without reading what it says.
+
 ## 4. Check that the lock is on
 
 For a strong-mode Child phone, start Android setup in one language and make a QR
@@ -107,6 +109,7 @@ Open Plainphone and check that the lock, including the adb block, is on. This pa
 | Tapping 6 times does nothing | Not the very first screen, or the phone is older than Android 7 | Go back to the first welcome screen and tap one spot in the middle |
 | "Can't set up device. Can't use the admin app. It's missing components or corrupted." | The phone runs Android 9 or older (Plainphone 0.1.2 and earlier needed Android 14), or the checksum does not match the APK | Check the Android version. Then build a new QR code with `--apk` set to exactly the file at `--apk-url` |
 | "Can't set up device" right after the scan | Checksum does not match the APK | The QR code was built for a different APK. Build a new one with `--apk` set to exactly the file at `--apk-url` |
+| "App blocked to protect your device", or another Play Protect screen, during setup | Play Protect blocks Device Owner apps that Android Enterprise has not approved (open question, see [step 3](#3-scan-the-qr-code)) | Note the exact text, phone model, Android and Play services versions, and add them to issue #255 |
 | "Couldn't download the app" | No internet, a login portal, or the URL is wrong | Use a normal Wi-Fi or mobile data. Open the URL on a PC to check that it downloads |
 | Setup ends but the Plainphone app says "Not locked" | Provisioning fell back to a normal app install | Factory reset and scan again; note the phone model and Android version in the issue |
 | `FAIL private DNS` stays | The DNS host does not answer DNS-over-TLS on port 853 on that network | Try another network. Some networks block port 853 |

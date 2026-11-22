@@ -9,6 +9,7 @@ import { callbackDe } from "./callback";
 import { modesDe } from "./modes";
 import { extendedDe } from "./extended";
 import { signupCapDe } from "./signup-cap";
+import { antiAbuseDe } from "./anti-abuse";
 import { statusEn } from "./status";
 
 export const de: Messages = {
@@ -20,6 +21,7 @@ export const de: Messages = {
   ...modesDe,
   ...extendedDe,
   ...signupCapDe,
+  ...antiAbuseDe,
   ...callbackDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",

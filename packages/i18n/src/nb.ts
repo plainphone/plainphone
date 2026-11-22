@@ -9,6 +9,7 @@ import { callbackNb } from "./callback";
 import { modesNb } from "./modes";
 import { extendedNb } from "./extended";
 import { signupCapNb } from "./signup-cap";
+import { antiAbuseNb } from "./anti-abuse";
 import { statusEn } from "./status";
 
 export const nb: Messages = {
@@ -20,6 +21,7 @@ export const nb: Messages = {
   ...modesNb,
   ...extendedNb,
   ...signupCapNb,
+  ...antiAbuseNb,
   ...callbackNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",

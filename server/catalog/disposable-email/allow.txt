@@ -1,0 +1,7 @@
+# Domains that are never treated as disposable, one per line. Lines starting with # are comments.
+# Forwarding and alias services that people use as their real, lasting address belong here.
+duck.com
+simplelogin.com
+simplelogin.co
+anonaddy.com
+addy.io
