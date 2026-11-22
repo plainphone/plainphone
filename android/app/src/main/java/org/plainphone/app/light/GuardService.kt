@@ -41,6 +41,9 @@ class GuardService : AccessibilityService() {
     private var pipPackages: List<String> = emptyList()
     /** Picture-in-picture apps already stopped once; forgotten when their window is gone. */
     private val pipStopped = mutableSetOf<String>()
+    /** Picture-in-picture apps asked to return to full screen (Android 10 refuses the dismiss), by elapsed time. */
+    private val pipExpandedAt = mutableMapOf<String, Long>()
+    private var lastPipSeen = ""
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
@@ -255,23 +258,34 @@ class GuardService : AccessibilityService() {
 
     /**
      * Closes a blocked app that plays on in picture-in-picture (see [PipGuard]): tries to dismiss the
-     * window, then shows the stop screen, which also sends Home. The stop screen comes once per
-     * window; the dismiss is repeated while the window floats, and it does not depend on which app is Home.
+     * window, then shows the stop screen, which also sends Home. Android 10 refuses the dismiss (its
+     * System UI accepts it only on a node id that an app's window never reports), so a refused dismiss
+     * brings the app back to full screen instead, where the stop screen covers it without the Home
+     * press that would let it float again. The stop screen comes once per window; the dismiss is
+     * repeated while the window floats, and none of this depends on which app is Home.
      */
     @Suppress("DEPRECATION")
     private fun guardPip() {
         val wins = ArrayList<PipGuard.Win>()
         val roots = HashMap<String, AccessibilityNodeInfo>()
+        val seen = ArrayList<String>()
         for (window in windows) {
             try {
                 val inPip = window.isInPictureInPictureMode
                 val root = if (!inPip) null else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) window.getRoot(0) else window.root
                 val pkg = root?.packageName?.toString()
                 wins += PipGuard.Win(pkg, inPip)
+                if (inPip) seen += "$pkg#${window.id}@${window.layer}"
                 if (root != null && pkg != null && !roots.containsKey(pkg)) roots[pkg] = root else root?.let(::recycle)
             } finally {
                 if (Build.VERSION.SDK_INT < 33) window.recycle()
             }
+        }
+        // Logged on change only: this runs on every window-list change.
+        val seenNow = seen.joinToString()
+        if (seenNow != lastPipSeen) {
+            Log.i(TAG, if (seen.isEmpty()) "pip: no window" else "pip: windows $seenNow")
+            lastPipSeen = seenNow
         }
         pipPackages = PipGuard.packages(wins, packageName)
         pipStopped.retainAll(pipPackages.toSet())
@@ -281,10 +295,11 @@ class GuardService : AccessibilityService() {
         val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, plan, pipStopped, ::openedForNow)
         if (!inCall) {
             PipGuard.stillFloating(wins, packageName, plan, pipStopped, ::openedForNow)
-                .forEach { roots[it.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS) }
+                .forEach { dismissPip(it.pkg, roots[it.pkg]) }
         }
         for (t in targets) {
-            roots[t.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS)
+            // Expanded once per window, like the stop screen: a task that stays pinned is not reopened every tick.
+            if (!dismissPip(t.pkg, roots[t.pkg])) expandPip(t.pkg)
             // Once per window: if dismissing does not close it, Home and the stop screen must not repeat every tick.
             if (block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)) pipStopped += t.pkg
         }
@@ -292,6 +307,24 @@ class GuardService : AccessibilityService() {
         // Time may be up before the stored plan knows it: the live check covers picture-in-picture apps too.
         val unchecked = pipPackages.filter { p -> p !in pipStopped && targets.none { it.pkg == p } && !isOverlay(p) }
         if (!inCall && unchecked.isNotEmpty()) pipTimeCheck(unchecked)
+    }
+
+    private fun dismissPip(pkg: String, root: AccessibilityNodeInfo?): Boolean {
+        val dismissed = root?.performAction(AccessibilityNodeInfo.ACTION_DISMISS) == true
+        Log.i(TAG, "pip $pkg: dismiss ${if (root == null) "without a root" else if (dismissed) "accepted" else "refused"}")
+        return dismissed
+    }
+
+    /**
+     * Starting the app of a pinned task makes Android expand it to full screen (System UI's answer to
+     * a pinned activity's restart, Android 10 and later). It is then an ordinary app in front.
+     */
+    private fun expandPip(pkg: String) {
+        val launch = packageManager.getLaunchIntentForPackage(pkg)
+        val started = launch != null && runCatching { startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onFailure { Log.w(TAG, "pip $pkg: could not expand: ${it.message}") }.isSuccess
+        Log.i(TAG, "pip $pkg: expand ${if (launch == null) "without a launch intent" else if (started) "requested" else "failed"}")
+        if (started) pipExpandedAt[pkg] = SystemClock.elapsedRealtime()
     }
 
     /**
@@ -417,8 +450,14 @@ class GuardService : AccessibilityService() {
             return false
         }
         lastBlockAt = now
-        if (reason != BlockedActivity.Reason.PROTECTION) performGlobalAction(GLOBAL_ACTION_HOME)
-        runCatching { startActivity(BlockedActivity.intent(this, pkg, reason)) }
+        // An app just brought back from picture-in-picture is covered without a user leave: Home, or a
+        // stop screen that counts as the user leaving, lets a video app float again at once.
+        val quiet = PipGuard.expandedRecently(pipExpandedAt[pkg], now)
+        if (reason != BlockedActivity.Reason.PROTECTION && !quiet) performGlobalAction(GLOBAL_ACTION_HOME)
+        val intent = BlockedActivity.intent(this, pkg, reason)
+        if (quiet) intent.addFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION)
+        Log.i(TAG, "stop screen for $pkg: $reason${if (quiet) ", after expanding it" else ""}")
+        runCatching { startActivity(intent) }
             .onFailure { Log.w(TAG, "could not show the blocked screen: ${it.message}") }
         return true
     }
