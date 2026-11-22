@@ -11,7 +11,6 @@ import { LiveIndicator } from "./LiveIndicator";
 import { LiveSosAlert } from "./LiveSosAlert";
 import { Mark } from "./Mark";
 
-
 /** The public status page, served by Uptime Kuma. */
 const STATUS_URL = "https://status.plainphone.org";
 

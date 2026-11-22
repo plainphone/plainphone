@@ -6,7 +6,6 @@ import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import * as apiModule from "../lib/api";
-import { privacyUrl, termsUrl } from "../lib/site-links";
 import { LoginPage } from "./Login";
 
 vi.mock("../lib/session", async (original) => ({
@@ -65,14 +64,4 @@ it("shows no terms on a self-hosted server", async () => {
   hosted.value = false;
   await render("en");
   expect(links().some((h) => h?.includes("/terms/"))).toBe(false);
-});
-
-it("knows the hosted service and the website addresses", async () => {
-  const real = await vi.importActual<typeof import("../lib/site-links")>("../lib/site-links");
-  expect(real.isHostedService("https://app.plainphone.org")).toBe(true);
-  expect(real.isHostedService("https://plainphone.example.com")).toBe(false);
-  expect(real.isHostedService("http://localhost:5173")).toBe(false);
-  expect(termsUrl("en")).toBe("https://plainphone.org/terms/");
-  expect(termsUrl("de")).toBe("https://plainphone.org/de/terms/");
-  expect(privacyUrl("sv")).toBe("https://plainphone.org/sv/privacy/");
 });

@@ -44,7 +44,7 @@ export const terms = {
         id: "free",
         title: "It is free",
         body: [
-          "The test service is free. There is nothing to pay, and it takes no payments during the alpha. If that changes, we tell you well in advance and change these terms first. Running Plainphone on your own server and one fully protected phone on the hosted service stay free.",
+          "The test service is free. There is nothing to pay, and it takes no payments during the alpha. If that changes, we tell you well in advance and change these terms first. Running Plainphone on your own server and keeping one fully protected phone on the hosted service stay free.",
         ],
       },
       {
