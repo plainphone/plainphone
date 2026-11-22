@@ -43,6 +43,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.ConfigStore
@@ -103,6 +104,8 @@ private const val OPENING_APP = "org.plainphone.e2e.opening"
 private const val DATE_JUMP_DAYS = 35L
 
 abstract class EmulatorFlow {
+    // The harness passes its own limit for the flow, less a margin, so a hang fails with a stack trace.
+    @get:Rule val watchdog = FlowWatchdog(InstrumentationRegistry.getArguments().getString("watchdogSeconds")?.toLong())
     protected val instrumentation = InstrumentationRegistry.getInstrumentation()
     protected val context = instrumentation.targetContext
     protected val device = Configurator.getInstance().run {
@@ -114,6 +117,9 @@ abstract class EmulatorFlow {
     private val server = "http://10.0.2.2:${checkNotNull(arguments.getString("port"))}"
     protected val parentNumber get() = checkNotNull(arguments.getString("parentNumber"))
     protected lateinit var phone: String
+
+    /** Names the part of the flow that runs now, in logcat and in a watchdog failure. */
+    protected fun step(name: String) = watchdog.step(name)
 
     protected fun enroll(mode: String, timezone: String = "UTC") {
         assertEquals(mode, Mode.name(context))
@@ -380,6 +386,7 @@ abstract class EmulatorFlow {
 
 class DeviceOwnerFlow : EmulatorFlow() {
     @Test fun enrollApplyRulesAndSendSos() {
+        step("enroll")
         enroll(Mode.STRONG)
         val controls = AndroidDeviceControls(context)
         assertTrue("unknown app must be hidden on first sync", controls.isHidden(PLAYER))
@@ -391,6 +398,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
         assertTrue("revoked app must be hidden again", controls.isHidden(PLAYER))
         assertEmergencyDialing()
 
+        step("SOS")
         context.startActivity(Intent(context, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         if (store.enrollmentAccount() != null) {
             checkNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 15_000)) {
@@ -415,6 +423,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
         }
         device.pressBack()
 
+        step("quick message over the modem")
         parent("POST", "$phone/contacts", 200, JSONObject().put("name", "Test parent").put("number", parentNumber))
         val contactId = parent("GET", "$phone/contacts", 200).getJSONArray("contacts")
             .getJSONObject(0).getString("id")
@@ -460,6 +469,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * restriction greys out the time zone in Settings.
      */
     private fun assertTimeForced() {
+        step("time forced")
         val resolver = context.contentResolver
         val users = context.getSystemService(UserManager::class.java)
         assertTrue("date and time settings must be restricted", users.hasUserRestriction(UserManager.DISALLOW_CONFIG_DATE_TIME))
@@ -517,6 +527,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * approved. The refusal stays on the keypad until the number changes, so waiting for it cannot race it.
      */
     private fun assertKeypadRefusesStranger() {
+        step("keypad refuses a stranger")
         val handedToTelecom = CopyOnWriteArrayList<Uri>()
         TelecomHandoff.interceptForTest = { handedToTelecom.add(it) }
         try {
@@ -541,6 +552,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * shell stands in for that app: it holds CALL_PHONE, and Telecom treats its ACTION_CALL like any app's.
      */
     private fun assertCallFromAnotherAppEnded() {
+        step("another app's call ended")
         val telecom = context.getSystemService(TelecomManager::class.java)
         val started = device.executeShellCommand("am start -a android.intent.action.CALL -d tel:$DIALLED_STRANGER")
         assertFalse("Could not start the other app's call: $started", "Error" in started)
@@ -562,6 +574,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * and logged; an approved contact's text matches although the number is written differently.
      */
     private fun assertTextsReachTheInboxOnlyFromContacts() {
+        step("texts only from contacts")
         // The national number only expands to +1 202 555 0123 on a US phone.
         assertEquals("emulator SIM country", "us", context.getSystemService(TelephonyManager::class.java).simCountryIso)
         parent("POST", "$phone/contacts", 200, JSONObject().put("name", FORMAT_CONTACT).put("number", FORMAT_CONTACT_SAVED))
@@ -586,6 +599,7 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * controlled here; for 114 neither may open the window. A stranger's call is then still rejected.
      */
     private fun assertNonUrgentCallOpensNoCallBackWindow() {
+        step("114 and a stranger's call")
         val telecom = context.getSystemService(TelecomManager::class.java)
         // Plainphone, not Android, must be what lets 114 through here: no emergency call is placed.
         @Suppress("MissingPermission")
@@ -607,11 +621,13 @@ class DeviceOwnerFlow : EmulatorFlow() {
 
 class LightModeFlow : EmulatorFlow() {
     @Test fun stopAppsAndPipAndKeepSchoolTimeAfterWallClockChange() {
+        step("enroll")
         enroll(Mode.LIGHT, LIGHT_ZONE)
         // Register after am instrument has restarted the app process.
         device.executeShellCommand("settings put secure enabled_accessibility_services ${context.packageName}/.light.GuardService")
         device.executeShellCommand("settings put secure accessibility_enabled 1")
         await("Plainphone accessibility guard") { GuardService.isConnected }
+        step("stop the player and its picture-in-picture")
         launchPlayer()
         assertPlayerStopped()
         allowPlayer(true)
@@ -631,6 +647,7 @@ class LightModeFlow : EmulatorFlow() {
         // because the real day ends during the test. InstallWindow counts in the system time zone.
         awaitClearOfMidnight(zone, ZoneId.systemDefault())
 
+        step("use up a one-minute limit")
         // L-T3: use up a one-minute limit; the date jump below must not give the minute back.
         device.executeShellCommand("appops set ${context.packageName} GET_USAGE_STATS allow")
         assertTrue("Plainphone needs usage access to count minutes", TimeGuard.hasUsageAccess(context))
@@ -644,6 +661,7 @@ class LightModeFlow : EmulatorFlow() {
         launchPlayer()
         assertPlayerStopped(LightPlan.Why.TIME_USED_UP)
 
+        step("five Play windows")
         // L-T7: five Play windows a day, then no sixth.
         parent("POST", "$phone/catalog", 200, JSONObject().put("packageName", CATALOG_APP))
         sync()
@@ -655,6 +673,7 @@ class LightModeFlow : EmulatorFlow() {
         }
         assertEquals("a sixth Play window", InstallWindow.OpenResult.DAILY_LIMIT, InstallWindow.openForParent(context, CATALOG_APP))
 
+        step("one emergency opening")
         // L-T6: use the month's only emergency opening. Openings exist on Self phones only; this Child
         // phone counts one through the same store and trusted clock with a Self rule of one a month.
         val openings = EmergencyOpenings.of(context)
@@ -679,6 +698,7 @@ class LightModeFlow : EmulatorFlow() {
         val before = trusted.now().earliest
         val elapsed = SystemClock.elapsedRealtime()
         try {
+            step("wall clock $DATE_JUMP_DAYS days ahead")
             // Into another day and another month on the phone's own clock.
             setWallClock(before.plus(Duration.ofDays(DATE_JUMP_DAYS)))
             val moved = trusted.now()

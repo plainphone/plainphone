@@ -126,6 +126,9 @@ def serial_shell(console, *args, timeout=30):
 # its day and month counts do not straddle a real midnight (LightModeFlow.awaitClearOfMidnight).
 # Together these limits fit the limit of the CI step that runs both flows.
 INSTRUMENT_TIMEOUTS = {"LightModeFlow": 900, "DeviceOwnerFlow": 420}
+# The flow's own watchdog (FlowWatchdog) fails it this long before the limit above, with the step
+# it was at and the stuck stack traces, instead of the limit ending `am instrument` with no output.
+WATCHDOG_MARGIN = 60
 
 
 def console_lines(console, deadline, overrun):
@@ -157,7 +160,7 @@ def instrument(flow, port, token, console=None, command_prefix=(), *, parent_num
     command = (
         "am", "instrument", "-w", "-r", "-e", "class",
         f"{PACKAGE}.e2e.{flow}", "-e", "port", str(port), "-e", "parentToken",
-        token,
+        token, "-e", "watchdogSeconds", str(INSTRUMENT_TIMEOUTS[flow] - WATCHDOG_MARGIN),
     )
     if parent_number is not None:
         command += ("-e", "parentNumber", parent_number)

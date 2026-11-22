@@ -95,8 +95,13 @@ Before each flow, it checks that the test server process is alive and answers
 last thing it saw. Every command on the serial console has one deadline for the
 whole command, not one per read: kernel messages share the console and would
 otherwise keep a stuck command alive. A command that overruns gets a Ctrl-C, so
-the diagnostics after it still get a shell. On failure, the job log shows
-whether the server was still running and the end of its log.
+the diagnostics after it still get a shell. Each flow also has a watchdog
+(`FlowWatchdog`) that fails it 60 seconds before the harness's limit for that
+flow (15 minutes for light mode, 7 for Device Owner). A call that never returns
+then fails the flow with the step it was at and the stack traces of the flow and
+the app's main thread, and logcat gets every thread (tag `PlainphoneE2E`, which
+also logs each step as it starts). On failure, the job log shows whether the
+server was still running and the end of its log.
 
 The test parent's number is the emulator's own SIM number, `+15555215554`
 (`E2E_MODEM_NUMBER` changes it; pass the same 11 digits to `-phone-number`).

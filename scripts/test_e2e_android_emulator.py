@@ -266,6 +266,28 @@ class WorkflowTest(unittest.TestCase):
         self.assertLess(names.index("Run the device flows once"), names.index("Stop any emulator left running"))
 
 
+class InstrumentTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        patch = mock.patch.object(harness, "ARTIFACTS", Path(temp.name))
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_each_flow_gets_a_watchdog_that_fires_before_the_harness_limit(self):
+        # A hung flow must fail with its own stack trace, not end silently at the harness limit (run 45036374085).
+        passed = subprocess.CompletedProcess(("adb",), 0, stdout="OK (1 test)\n")
+        for flow, limit in harness.INSTRUMENT_TIMEOUTS.items():
+            with mock.patch.object(harness, "adb", return_value=passed) as adb:
+                harness.instrument(flow, 8080, "token")
+            args = list(adb.call_args.args)
+            watchdog = int(args[args.index("watchdogSeconds") + 1])
+            self.assertEqual(args[args.index("watchdogSeconds") - 1], "-e", flow)
+            self.assertLess(watchdog, limit, flow)
+            self.assertGreaterEqual(limit - watchdog, 30, f"{flow}: room for the failure report")
+            self.assertEqual(adb.call_args.kwargs["timeout"], limit, flow)
+
+
 class DiagnosticsTest(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
