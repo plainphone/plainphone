@@ -17,6 +17,12 @@ vi.mock("../lib/session", async (original) => ({
   useSession: () => ({ state: { status: "anon" }, refresh: async () => null }),
 }));
 
+const hosted = vi.hoisted(() => ({ value: false }));
+vi.mock("../lib/site-links", async (original) => ({
+  ...(await original<typeof import("../lib/site-links")>()),
+  isHostedService: () => hosted.value,
+}));
+
 let root: Root;
 let container: HTMLElement;
 
@@ -32,11 +38,40 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function submit(email: string) {
+async function render(locale: string) {
+  localStorage.setItem("pp.locale", locale);
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root.render(<MemoryRouter><I18nProvider><LoginPage /></I18nProvider></MemoryRouter>));
+  await act(async () => {
+    root.render(
+      <I18nProvider>
+        <MemoryRouter>
+          <LoginPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+  });
+}
+
+const links = () => [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+
+it("links the terms and the privacy policy on the hosted test service", async () => {
+  hosted.value = true;
+  await render("da");
+  expect(links()).toContain("https://plainphone.org/da/terms/");
+  expect(links()).toContain("https://plainphone.org/da/privacy/");
+  expect(container.textContent).toContain("Vilkår for testtjenesten");
+});
+
+it("shows no terms on a self-hosted server", async () => {
+  hosted.value = false;
+  await render("en");
+  expect(links().some((h) => h?.includes("/terms/"))).toBe(false);
+});
+
+async function submit(email: string) {
+  await render("en");
   const input = container.querySelector<HTMLInputElement>('input[type="email"]')!;
   await act(async () => {
     const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;

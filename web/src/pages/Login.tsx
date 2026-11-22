@@ -5,6 +5,7 @@ import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, serverHasMail } from "../lib/api";
 import { INVITE_KEY, NEXT_KEY, noteLinkAsked, takeNext, useSession } from "../lib/session";
+import { isHostedService, privacyUrl, termsUrl } from "../lib/site-links";
 
 const SELF_HOSTING_GUIDE = "https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md";
 
@@ -134,6 +135,14 @@ export function LoginPage() {
               </button>
             </div>
           </form>
+          {isHostedService(window.location.origin) && (
+            <p className="muted">
+              {t("login.testService")}{" "}
+              <a href={termsUrl(locale)} target="_blank" rel="noopener noreferrer">{t("login.terms")}</a>
+              {" · "}
+              <a href={privacyUrl(locale)} target="_blank" rel="noopener noreferrer">{t("nav.privacy")}</a>
+            </p>
+          )}
         </>
       )}
     </div>
