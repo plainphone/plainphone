@@ -518,11 +518,11 @@ jobs:
             -feature ModemSimulator -phone-number 15555215554 -shell-serial tcp:127.0.0.1:5599,server,nowait
           script: python3 scripts/e2e-android-emulator.py
       # The action's `emu kill` can hang after a failed start; the step timeout then stops the
-      # action but not the emulator, which would hold the runner until the job limit.
+      # action but not the emulator. Kill it so CPU and adb are free before the artifact upload.
       - name: Stop any emulator left running
         if: always()
         run: |
-          pkill -f qemu-system-x86_64 || true
+          pkill -9 -f qemu-system || true
           adb kill-server || true
       - uses: actions/upload-artifact@v7
         if: failure()
