@@ -173,7 +173,7 @@ See [support tools and release troubleshooting](docs/support.md).
 - [docs/privacy.md](docs/privacy.md) says what is stored, for how long and why, and what happens to the test service's data during the alpha.
 - The [terms of the test service](https://plainphone.org/terms/) cover app.plainphone.org: an alpha, free, provided as is, with 30 days' notice before any wipe. The software itself is Apache-2.0.
 - [docs/encryption.md](docs/encryption.md) specifies end-to-end encryption between the phone and the parent's devices. It is a specification under development and **not implemented yet**; a [phase 0 prototype](docs/e2ee-prototype.md) runs on test data only. Today the hosted service stores readable data in its application database.
-- Sign-in and invitation mails are protected against bots and spam: a self-hosted proof-of-work check (ALTCHA, no third party or cookies), a honeypot field, no new households with throwaway addresses, a daily cap on invitations per household, and rate limits kept in the database as daily-changing hashes, never IP addresses. Each one can be switched off per server ([operations.md](docs/operations.md#bot-and-spam-protection)).
+- Sign-in and invitation mails are protected against bots and spam: a self-hosted proof-of-work check (ALTCHA, no third party or cookies), a honeypot field, no new households with throwaway addresses, a daily cap on invitations per household, and rate limits kept in the database as daily-changing hashes, never IP addresses. Each check can be switched off per server ([operations.md](docs/operations.md#bot-and-spam-protection)).
 - **Plainphone has not had an external security audit.**
 - A way around the lock is a security bug. Report it privately as described in [SECURITY.md](SECURITY.md).
 
