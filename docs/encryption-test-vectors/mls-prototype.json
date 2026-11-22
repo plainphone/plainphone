@@ -1,0 +1,173 @@
+{
+  "binding": [
+    {
+      "binding": "qB89sDJVRwBKf-BfKg-cZq9gGQ2DUgt3_r4HY_NiABQ6j6XNgjwA7M14DqDmqTnqh8mcijwr5IqTLCuSlqlzCg",
+      "deviceId": "parent-a-phone",
+      "logSeed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "logSignPub": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+      "mlsSignPub": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50",
+      "role": "admin",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6InBhcmVudC1hLXBob25lIiwibWxzU2lnblB1YiI6IjI1bGY0bEZwMFVIS3VidTZrcnFnSDU4dUhzNTk5TXNxd0ZHUTgzX01INTAifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"parent-a-phone\",\"mlsSignPub\":\"25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50\"}]"
+    },
+    {
+      "binding": "yT1PDzV9S5giGSX_XBsv8jFIucN6ek4Mh0d5-O_VzLup2sLkQo6IbdiUTaWoqrtkuiLAuAYigsMSVsoRRKw7Cg",
+      "deviceId": "parent-b-phone",
+      "logSeed": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "logSignPub": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q",
+      "mlsSignPub": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+      "role": "admin",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6InBhcmVudC1iLXBob25lIiwibWxzU2lnblB1YiI6IklWTDQwWnQ1SFNSRk1rTGhYeTZyYkxmUC1udHFYdE1BbDVZT0JwaUIyeEkifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"parent-b-phone\",\"mlsSignPub\":\"IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI\"}]"
+    },
+    {
+      "binding": "KqRfGKxJECzFDwKny9HfBgC8hVti6wbVMVGhjc8T11YqR2viEIKBft2w3yjPZU77x61OVg85OaWhItVGFvr9Cw",
+      "deviceId": "child-phone",
+      "logSeed": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "logSignPub": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY_k2NsFGFKyHN9E",
+      "mlsSignPub": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY",
+      "role": "child",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6ImNoaWxkLXBob25lIiwibWxzU2lnblB1YiI6Ikl2d3BkNUx3dHZfQXY4X2JmdHNNQ3FGT0FsbzJYc0RqUXVodU9DbkxkTFkifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"child-phone\",\"mlsSignPub\":\"Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY\"}]"
+    }
+  ],
+  "bindingRejections": [
+    {
+      "binding": "KqRfGKxJECzFDwKny9HfBgC8hVti6wbVMVGhjc8T11YqR2viEIKBft2w3yjPZU77x61OVg85OaWhItVGFvr9Cw",
+      "deviceId": "child-tablet",
+      "error": "binding_invalid",
+      "logSeed": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "logSignPub": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY_k2NsFGFKyHN9E",
+      "mlsSignPub": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY",
+      "name": "signed for another device",
+      "role": "child",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6ImNoaWxkLXBob25lIiwibWxzU2lnblB1YiI6Ikl2d3BkNUx3dHZfQXY4X2JmdHNNQ3FGT0FsbzJYc0RqUXVodU9DbkxkTFkifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"child-phone\",\"mlsSignPub\":\"Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY\"}]"
+    },
+    {
+      "binding": "KqRfGKxJECzFDwKny9HfBgC8hVti6wbVMVGhjc8T11YqR2viEIKBft2w3yjPZU77x61OVg85OaWhItVGFvr9Cw",
+      "deviceId": "child-phone",
+      "error": "binding_invalid",
+      "logSeed": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "logSignPub": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY_k2NsFGFKyHN9E",
+      "mlsSignPub": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+      "name": "another MLS key",
+      "role": "child",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6ImNoaWxkLXBob25lIiwibWxzU2lnblB1YiI6Ikl2d3BkNUx3dHZfQXY4X2JmdHNNQ3FGT0FsbzJYc0RqUXVodU9DbkxkTFkifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"child-phone\",\"mlsSignPub\":\"Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY\"}]"
+    },
+    {
+      "binding": "KqRfGKxJECzFDwKny9HfBgC8hVti6wbVMVGhjc8T11YqR2viEIKBft2w3yjPZU77x61OVg85OaWhItVGFvr9Cw",
+      "deviceId": "child-phone",
+      "error": "binding_invalid",
+      "logSeed": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "logSignPub": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+      "mlsSignPub": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY",
+      "name": "signed by another log key",
+      "role": "child",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6ImNoaWxkLXBob25lIiwibWxzU2lnblB1YiI6Ikl2d3BkNUx3dHZfQXY4X2JmdHNNQ3FGT0FsbzJYc0RqUXVodU9DbkxkTFkifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"child-phone\",\"mlsSignPub\":\"Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY\"}]"
+    },
+    {
+      "binding": "KqRfGKxJECzFDwKny9HfBgC8hVti6wbVMVGhjc8T11YqR2viEIKBft2w3yjPZU77x61OVg85OaWhItVGFvr9Cw",
+      "deviceId": "child-phone",
+      "error": "binding_invalid",
+      "logSeed": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "logSignPub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "mlsSignPub": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY",
+      "name": "small-order log key",
+      "role": "child",
+      "signInput": "WyJwbGFpbnBob25lIiwxLCJtbHMtbGVhZiIseyJkZXZpY2VJZCI6ImNoaWxkLXBob25lIiwibWxzU2lnblB1YiI6Ikl2d3BkNUx3dHZfQXY4X2JmdHNNQ3FGT0FsbzJYc0RqUXVodU9DbkxkTFkifV0",
+      "signInputUtf8": "[\"plainphone\",1,\"mls-leaf\",{\"deviceId\":\"child-phone\",\"mlsSignPub\":\"Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY\"}]"
+    }
+  ],
+  "ciphersuite": 1,
+  "description": "E2EE phase 0 prototype (docs/e2ee-prototype.md). Synthetic test data only: never use these keys, seeds or messages outside tests. The binding cases are deterministic; the wire cases are recorded OpenMLS 0.9.2 output for suite 0x0001 with PURE_CIPHERTEXT and padding 64.",
+  "keyPackages": [
+    {
+      "keyPackage": "AAEAASAs1RVGO2kHVosd5ORvee9N_xvZMD37xlvmtZBWc5ANcSAhEoLKiIC3vCZXJV2Wu9zhEFlYtfufLLZLaPzQpqNxfSCYtA_iQutDYCC06HbtI38Sv88YWr_nGvt7zyXt94pJhAABC2NoaWxkLXBob25lAgABAgABAgAKAAIAAQEAAAAAawG9ngAAAABrcImuAEBAjjWcMvhgq93CGh0WRdt21eUQAD-_Mzlw_ZSdnoLnQZKODH0IdPjXNRSaim4AcNLTBOwwEyZCHllcRuay-tajAwBAQHNzdS8xTBlGef3tV02rIf1hvf_Wrl7zGcXtdi11ImDqcVCBqQ7tl59SMyo9mcUtH-h-ZjH2Mn9F_dpPKX59iAo",
+      "name": "child key package"
+    },
+    {
+      "keyPackage": "AAEAASD9aBHvjhKMIfEDXShqrlfdn_8yZfOHmDlx-lsUlFpRSyDDnBvAeA7f8PVHUhG_h23wLhcvbv2K69fBG_hdV_zwLiCYtA_iQutDYCC06HbtI38Sv88YWr_nGvt7zyXt94pJhAABC2NoaWxkLXBob25lAgABAgABAgAKAAIAAQEAAAAAawG9ngAAAABrcImuAEBAZ4BNKKLbrPljQg9QINWvwUY-xhvx0fR2keUwiFEgvoz6cfWL8c6vfSw3eaq32L-4fnZ4zpIMlpxvZ5NEdyTXBAMACgBAQEmNZDIDetcNtn38GlHn8varARSEsumU0zTGjp2uCaOBFbJifIvf1uhQziX3aEoBE3tGSSuBTUc5kawqY4Xc_ws",
+      "name": "child last-resort key package"
+    }
+  ],
+  "wire": [
+    {
+      "contentType": 3,
+      "epoch": 0,
+      "groupId": "Mn3ewHizm_QL_lJObvBcAQ",
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAADABzdE0ZiYS7mATRf4LCR62eCQ9_Kr-GCuILUlVb0QoDB6X5driiwF3h5s_SSm11287Z_eHuky1D3-2SHecJVKr9Ys7DRzesj1AysKH4ARfrKbcMvRINaxESfrH7fvpki9nmNTy0-X-fuHHGQ8iO0bmG6NQMrbxJ-Ya1cv5uSUDRBQqcu89SZ8jPpktJUU57L56E6a6egSmfBCB34N2Z73COAqJf4QS00gXHBNhalu74X0rGYaURqnLTnmBQBrKzJikNs8a6aFepOE70gFx5R13p0dbbAIn9QEhPtTWbTweDnR2GUy_Xz0NzXZ3EpuvcaSNWJrLepqhQtsjjN4nYijmbMddCvm7okdujTS9sr9Y72UeofuY9JNzPoaGu5Gcrrg9C7AItFSjTvoebFkYxP6ojHcei09wgUx-2yNpac2i4G-j-vCin0AgvWH__UxXCEGVHIms0fbJpygT3qQ1ECWnzY6bdvnZyxujVhePsY7YWRnI0eTpX7QLSU28sPjNaR0z7oLcC1n939NfQZrnYw_GStdh0DD2wRCp1Ch_KXO2wBVAaUG-psFkDkws7tLiGpbJAdKPvnHzEJwytGj-WGg4oadzkJ-Ixh4qb5lXWBGpHGk2U_IpyWibyOGqqHfuUL1Bh7cVe9_BouFL8j3HgrbLDwAz022t-BZyp3vDhDiEJAsrTY8CUTPTs-TWbWCK2WPernr_saW_MvjY6h2Fqx4zSRLNCKvskrWvJVsZWDDkRfwIWNxYAJgkDUK42GaXpv45oW38B58vfFT91-ZpQOzHfHhOK-iF6NKtPV6BLzvqgYTpeGfPNViZdJRp24OlIObnAstGgAOCyRsYmQy85J55Rn1FUhEf5ah-DpZb7SON8yVivlcrDPq5fU-cPHj0Zd",
+      "name": "commit adding the child",
+      "wireFormat": 2
+    },
+    {
+      "cipherSuite": 1,
+      "message": "AAEAAwABQJggf4MQfnAb3ojtiAkP3EdX-NSd9xwlg_iTuoYPYaXl1UcgFxCjsX56ACyGHivRw_INpg-xJDw6eQQ5fy4NgKhBKmRAVGGUhzb7kNo0jJIiwjT7WfzN4eGlFRaPpoekkG8A5MrWtu-tx73-kR-T8ZQbYOT1YNLcdJBqLIW3HpMpSnSlmJIB6Rv1cohC8IZThfatJ0xgVLzOVUKAw-TZ1djpbwGV-Rb6nz5OGIDJOFDB5HXOO_KY1myKoLUHb0aZvyEV1UtZiw6iHI30kTjLpP-Eg8r6tdA1iDFh-bcgeSCyrtH_8tYs6rxXYkF2OhNaceX0MD-WGIQQvQ_z1Ls-wnPhk7uuaNgH0n3Az7DQ3t1t5Q0Z77oK-jIFpAgeoBxKkJbdgBFiDIGEsPWp_VuXH2-rMQ0HfZLRYCXEsuuHKR-jdrFxBCfvftMKuEQDYBgx4w_PVvkm1Hw1VBTepg6_j4DfJAnSXSEhWRNFiK1VRWW4T85dvLUeZntV47VrKVDuNhxPciMWU1_7nuHpXQWfj5dUB5vhuvJMolh5vGhL4TKTGQVlH9ozxPjVIsb85b7X3To9jMVfFH7c37u4RtM4HHXePuRzq8Sg400-_-48iOKn_YJkHgJArDHe8cI7mGi9s7IhkEo9CmuF6eh1g0awhvy4W8twIMXz5c7aUiiiYhQqaWj744PMF8pr5oH82PaT8XXIII-OLcOP75vPcSoa19Z9doK07rswpjLmpLu4aD6e-hjuEUaQhzKHgaXf1LPh_i_lWTv98R0aHJM57UIpottE6VP_UjSVSUcNOyMvsrJdE6lajWkZFLXawJG3ZwAhNGmyPdLvLL5P1wfb01-cTqze5nvkHD1V5cekVJG0A_exgKU2Hs-JQUaUGV_CO6z3bu0ere2Wposlp1Ly5VRNk4SAIHiNESW0xR-pcEL5p7VTskUl-7r1XJsX0wYdMQboftzaAo-pOGHWnscv-o_HTk2ZhU2HZ8X3hWFcfJzXmEIhjE0ltVdZ_ZIfTuCiI2k7aBc0CiQbhyVmwPPjVo3zNXZXADm2B3uHkNg6cA",
+      "name": "welcome for the child",
+      "wireFormat": 3
+    },
+    {
+      "contentType": 1,
+      "epoch": 1,
+      "groupId": "Mn3ewHizm_QL_lJObvBcAQ",
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEBABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oMow",
+      "name": "application message",
+      "wireFormat": 2
+    },
+    {
+      "contentType": 3,
+      "epoch": 1,
+      "groupId": "Mn3ewHizm_QL_lJObvBcAQ",
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEDABzSDFkTwvkI2aAVdtinq3Yx2WqDzgNtfkJCgZBQQcDc8BH3dddCsB2gmrIkQy9yor7UhenfA3ejDCInhxCyhYvov6NKWbqoU-4rXzx9nan4rukrxCelYDb3nydQQlUuqZs5QkhR99SL2sHqFcrb8q89m3TC1Xq7UJDmUvgKNl7zyzfZKq3m67ieO4887DReGJzRnO5l1cyiLtMvUkA4izalZWvAYdxswd188qtMUL5bwLKqYNefP8tRSDdpnAsmY4p7_ikpdxiGtxl1kqPdyCyc_r_eR1WXuiiKga1Y5cjT2LltesFjlPwXtR6g26szejdEe-rwRXjgMHJSja6gskk9fOKwhIBD4PiJgFvZGj6it3aBxoJujjd8Yb8mXG27mqZoSb26-Gii9zEAPgxQt0bF3AEcdB1tRzapTMpnX-d-24eE9RkndnHpsJ8fla2r8XUyAzIvRvZroZxhOZ8lpLAcBLkkPZwD9aev5i60lIRSeNdhpIpqGuXdIjE4R3duvh-q9wSdNA3A5OqGjU4VnU1YVW-CyvCyHXRusiLdcaHx2HchRJSSMUUTD_1WfpHuLQ5yChzwhu5kYlEp5YL4-wFULivISRL6UH6QXW8z9ayn9OiLmI0DiGTCQ7nEPHhw",
+      "name": "key rotation commit by the child",
+      "wireFormat": 2
+    },
+    {
+      "contentType": 1,
+      "epoch": 2,
+      "groupId": "Mn3ewHizm_QL_lJObvBcAQ",
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAIBABy2JLlKx0YYxAPnFtVk62QTwrVEle1ZQziWqgLCQMANOO3ufMqBNwQ5hFgpK2go9IcvS5Qup2wIStfCGSy256VpWvg5afcVpg74BkjZszL9Qev1cbOgN1k2MCF0b5_bucwjVxGKoegL1r_HGS-3hXEwfMmekR252YtPdAoGkKGeA69mts7ZUQggPaGqG6_ehxgwBd8002gbEF5nusqIAwpI9OV3w8WPUYngq7Hw7gE7rvmqm3myeRuVSNB9l5ULuBYrJPDfeh93jFHE2elZ8dhadgQVNE_N0AOb6IP7YF8",
+      "name": "application message after rotation",
+      "wireFormat": 2
+    }
+  ],
+  "wireRejections": [
+    {
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEBABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oM",
+      "name": "truncated",
+      "openmlsRejects": true
+    },
+    {
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEBABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oMowA",
+      "name": "trailing byte",
+      "openmlsRejects": true
+    },
+    {
+      "message": "AAIAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEBABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oMow",
+      "name": "unsupported version",
+      "openmlsRejects": true
+    },
+    {
+      "message": "AAEAARAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEBABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oMow",
+      "name": "public message wire format",
+      "openmlsRejects": false
+    },
+    {
+      "message": "AAEAAkAQMn3ewHizm_QL_lJObvBcAQAAAAAAAAABAQAcKq8DZu2PUA0TM10_WymGANzPBN1GLVhZtMSmPkCASoHYO-vrvXLjyD-q_Zjc0vbPSPQ_Vh5XICWFovh2z1ejRZIele1iFAvBR3NLqoiL9K5aTdcPby5xgPOm-T0xtaYAEQY0nknHwhhXUfWhJRameB-QZPppBD1kSAg9Mg22FK0C0C7ppytkYxJhps7X9f9omriXTDpEEzBNXm9aDKM",
+      "name": "non-minimal group id length",
+      "openmlsRejects": false
+    },
+    {
+      "message": "AAEAAsAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEBABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oMow",
+      "name": "length prefix 0b11",
+      "openmlsRejects": true
+    },
+    {
+      "message": "AAEAAhAyfd7AeLOb9Av-Uk5u8FwBAAAAAAAAAAEJABwqrwNm7Y9QDRMzXT9bKYYA3M8E3UYtWFm0xKY-QIBKgdg76-u9cuPIP6r9mNzS9s9I9D9WHlcgJYWi-HbPV6NFkh6V7WIUC8FHc0uqiIv0rlpN1w9vLnGA86b5PTG1pgARBjSeScfCGFdR9aElFqZ4H5Bk-mkEPWRICD0yDbYUrQLQLumnK2RjEmGmztf1_2iauJdMOkQTME1eb1oMow",
+      "name": "unknown content type",
+      "openmlsRejects": true
+    }
+  ]
+}
