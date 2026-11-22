@@ -46,7 +46,7 @@ export default {
   },
   skip: "Gå til indholdet",
   nav: { label: "Hovedmenu", source: "Kildekode", language: "Sprog" },
-  status: "Tidlig udgave til afprøvning.",
+  status: "Alfaversion. Prøv den på en reservetelefon.",
   compatibility: {
     path: "/da/apps/",
     title: "Virker min app med Plainphone?",
@@ -121,7 +121,7 @@ export default {
   },
   price: {
     title: "Pris",
-    body: "Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.",
+    body: "Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med alle funktioner på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.",
     items: [
       {
         q: "Hvad koster det?",
@@ -129,7 +129,7 @@ export default {
       },
       {
         q: "Hvad er altid gratis?",
-        a: "At køre Plainphone på egen server og at have én telefon med fuld beskyttelse på vores server.",
+        a: "At køre Plainphone på egen server og at have én telefon med alle funktioner på vores server.",
       },
       {
         q: "Hvad hvis jeg kører Plainphone på min egen server?",
@@ -145,7 +145,7 @@ export default {
   phones: {
     title: "Testede telefoner",
     body:
-      "Én indtil videre: en OnePlus 5T med Android 10. Opsætning, låsen og forbindelsen til forældrenes oversigt virker, som <a href=\"/da/setup/#tested\">opsætningsguiden</a> viser. Den har endnu ikke været igennem vores <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">tjekliste over omgåelser</a> på rigtig hardware, og en telefon regnes først for helt testet, når den har klaret alle test på den liste. Indtil da er Plainphone et eksperiment.",
+      "Én indtil videre: en OnePlus 5T med Android 10. Opsætning, låsen og forbindelsen til forældrepanelet virker, som <a href=\"/da/setup/#tested\">opsætningsguiden</a> viser. Den har endnu ikke været igennem vores <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">tjekliste over omgåelser</a> på rigtig hardware, og en telefon regnes først for helt testet, når den har klaret alle test på den liste. Indtil da er Plainphone et eksperiment.",
   },
   faq: {
     title: "Spørgsmål",
@@ -153,7 +153,7 @@ export default {
       {
         group: "gettingStarted",
         q: "Virker det på iPhone?",
-        a: "Plainphone beskytter barnets Android-telefon. Forældreappen til iPhone er under udvikling. Du kan allerede bruge forældrepanelet i Safari.",
+        a: "Ikke endnu. Telefonen, der følger reglerne, skal være en Android. Understøttelse af iPhone er planlagt. Forældre kan bruge forældrepanelet i alle browsere, også Safari på en iPhone. Forældreappen til iPhone og Android er ikke i app-butikkerne endnu.",
       },
       {
         group: "safety",
@@ -239,7 +239,7 @@ export default {
           "Du logger ind med din e-mailadresse og et link, vi sender dig. Der er ingen adgangskode. Vi gemmer:",
           {
             list: [
-              "din e-mailadresse og dit sprog (dansk eller engelsk)",
+              "din e-mailadresse og dit sprog (dansk, engelsk, svensk, norsk bokmål eller tysk)",
               "det link til at logge ind, du har bedt om: din e-mailadresse, et udløbstidspunkt og et fingeraftryk (hash) af linket. Det bliver slettet omkring et døgn efter, at det er udløbet, også når der ikke findes en konto til adressen",
               "din session: et fingeraftryk (hash) af den nøgle, din browser har, og hvornår den udløber (højst 60 dage, eller når du logger ud). Vi gemmer ikke din IP-adresse eller din enhed",
               "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato. En invitation bliver slettet, når den tages imod, og et døgn efter at den er udløbet",
@@ -460,7 +460,7 @@ export default {
     path: "/da/setup/",
     title: "Sæt en telefon op: Plainphone",
     h1: "Sæt en telefon op",
-    description: "Sæt Plainphone op på en ny Android-telefon eller en telefon i brug med en privat kode fra dit dashboard.",
+    description: "Sæt Plainphone op på en ny Android-telefon eller en telefon i brug med en privat kode fra forældrepanelet.",
     lead: "Du skal bruge en telefon med Android 10 eller nyere og dashboardet åbent på en anden enhed.",
     question: "Er telefonen ny eller allerede i brug?",
     strong: "Den er ny eller nulstillet",

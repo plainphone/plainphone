@@ -46,7 +46,7 @@ export default {
   },
   skip: "Gå til innhold",
   nav: { label: "Hovedmeny", source: "Kildekode", language: "Språk" },
-  status: "Tidlig versjon til utprøving.",
+  status: "Alfaversjon. Prøv den på en reservetelefon.",
   compatibility: {
     path: "/nb/apps/",
     title: "Fungerer appen min med Plainphone?",
@@ -121,7 +121,7 @@ export default {
   },
   price: {
     title: "Pris",
-    body: "Plainphone er gratis nå. Det vil alltid være gratis å kjøre Plainphone på egen server og å ha én telefon med full beskyttelse på tjenesten vår. Senere tar vi betalt for flere telefoner på tjenesten vår. Tidlige brukere får beskjed i god tid.",
+    body: "Plainphone er gratis nå. Det vil alltid være gratis å kjøre Plainphone på egen server og å ha én telefon med alle funksjoner på tjenesten vår. Senere tar vi betalt for flere telefoner på tjenesten vår. Tidlige brukere får beskjed i god tid.",
     items: [
       {
         q: "Hva koster det?",
@@ -129,7 +129,7 @@ export default {
       },
       {
         q: "Hva er alltid gratis?",
-        a: "Å kjøre Plainphone på egen server og å ha én telefon med full beskyttelse på tjenesten vår.",
+        a: "Å kjøre Plainphone på egen server og å ha én telefon med alle funksjoner på tjenesten vår.",
       },
       {
         q: "Hva om jeg kjører Plainphone på min egen server?",
@@ -145,7 +145,7 @@ export default {
   phones: {
     title: "Testede telefoner",
     body:
-      "En så langt: en OnePlus 5T på Android 10. Oppsett, låsen og tilkoblingen til dashbordet fungerer, som <a href=\"/nb/setup/#tested\">oppsettguiden</a> viser. Den har ikke vært gjennom <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass-sjekklisten</a> på ekte maskinvare ennå, og en telefon teller som fullstendig testet først etter at den har bestått hver test på den listen. Inntil da, vennligst behandle Plainphone som et eksperiment.",
+      "En så langt: en OnePlus 5T på Android 10. Oppsett, låsen og tilkoblingen til dashbordet fungerer, som <a href=\"/nb/setup/#tested\">oppsettguiden</a> viser. Den har ikke vært gjennom <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass-sjekklisten</a> på ekte maskinvare ennå, og en telefon teller som fullstendig testet først etter at den har bestått hver test på den listen. Inntil da bør du se på Plainphone som et eksperiment.",
   },
   faq: {
     title: "Spørsmål",
@@ -153,7 +153,7 @@ export default {
       {
         group: "gettingStarted",
         q: "Fungerer det på iPhone?",
-        a: "Plainphone beskytter barnets Android-telefon. Foreldreappen for iPhone er under utvikling. Du kan allerede bruke foreldrepanelet i Safari.",
+        a: "Ikke ennå. Telefonen som følger reglene, må være en Android. Støtte for iPhone er planlagt. Foreldre kan bruke foreldrepanelet i alle nettlesere, også Safari på en iPhone. Foreldreappen for iPhone og Android er ikke i appbutikkene ennå.",
       },
       {
         group: "safety",
@@ -239,7 +239,7 @@ export default {
           "Du logger på med e-postadressen din og en lenke vi sender deg. Det er ikke noe passord. Vi lagrer:",
           {
             list: [
-              "din e-postadresse og ditt språk (engelsk eller dansk)",
+              "din e-postadresse og ditt språk (norsk bokmål, engelsk, dansk, svensk eller tysk)",
               "påloggingslenken du ba om: e-postadressen din, en utløpstid og en hash av lenken. Den slettes omtrent en dag etter at den utløper, også når det ikke finnes noen konto for den adressen",
               "økten din: en hash av nøkkelen nettleseren din har og når den avsluttes (maks 60 dager, eller når du logger ut). Vi lagrer ikke din IP-adresse eller enheten din",
               "husstanden din: dens navn, hvem som er i den, og invitasjonene du har sendt, med den inviterte e-postadressen og utløpsdatoen. En invitasjon slettes når den er akseptert, og en dag etter at den utløper",
