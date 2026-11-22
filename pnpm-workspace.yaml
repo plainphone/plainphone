@@ -1,8 +1,9 @@
 packages:
   - server
   - web
-  - packages/crypto
-  - packages/crypto-vectors
+  - parent-app
+  - packages/*
 allowBuilds:
   '@embedded-postgres/linux-x64': true
+  '@parcel/watcher': false
   esbuild: true
