@@ -97,8 +97,10 @@ async function blocked(tx: Tx, cap: number, email: string, now: Date, reserve: b
  * Runs `issue` (which stores the login link) only if the address may sign in today. The check
  * and the insert share one lock, so two processes cannot both take the last place.
  */
-export async function withSignupPlace<T>(ctx: Ctx, email: string, issue: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withSignupPlace<T>(ctx: Ctx, email: string, issue: (db: Db | Tx) => Promise<T>): Promise<T> {
   const cap = ctx.cfg.SIGNUP_DAILY_CAP;
+  // Off (the self-hosting default): no lock, no counting, the login path is as before.
+  if (cap <= 0) return issue(ctx.db);
   return ctx.db.transaction(async (tx) => {
     const now = ctx.now();
     if (await blocked(tx, cap, email, now, true)) throw new SignupCapError(nextUtcMidnight(now));
