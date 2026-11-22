@@ -10,6 +10,8 @@ from fnmatch import fnmatchcase
 WORKFLOWS = (".github/workflows/*", ".github/scripts/*")
 WORKSPACE_ROOT = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*")
 WORKSPACE = WORKSPACE_ROOT + ("packages/*",)
+# Turborepo's task graph and cache inputs; only the jobs that run through Turborepo use it.
+TURBO = ("turbo.json",)
 # Code the web dashboard and the parent app share. The server and the phone never import it.
 CLIENT_PACKAGES = ("packages/i18n/*", "packages/shared/*", "packages/api-client/*")
 CRYPTO_VECTORS = ("docs/encryption-test-vectors/*",)
@@ -26,13 +28,13 @@ FILTERS = {
     "emulator": WORKSPACE + (
         "android/*", "server/*", "scripts/e2e-android-emulator.py", "scripts/test_e2e_android_emulator.py",
     ),
-    "server": WORKSPACE + CRYPTO_VECTORS + (
+    "server": WORKSPACE + TURBO + CRYPTO_VECTORS + (
         "server/*", "web/*", "Dockerfile", ".dockerignore",
         # The Swift tests' rules fixture, checked against the server (test/ios-contract.test.ts).
         "ios/Tests/Fixtures/*",
     ),
     # The app is in the root workspace: its lockfile, the shared packages and the spec they type.
-    "parent": WORKSPACE_ROOT + CLIENT_PACKAGES + ("parent-app/*", "server/openapi.yaml"),
+    "parent": WORKSPACE_ROOT + TURBO + CLIENT_PACKAGES + ("parent-app/*", "server/openapi.yaml"),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     # site/scripts/privacy.test.mjs reads the parent app's tile host and map button labels.
     "site": ("site/*", "server/catalog/??.json", "parent-app/src/i18n/app-??.ts", "parent-app/src/lib/tiles.ts"),
