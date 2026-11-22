@@ -47,7 +47,8 @@ through the same API a real phone uses (in process, `server/src/services/review-
 - a position in a public park in Copenhagen, sent as the answer to a Find the phone.
 
 Every later review sign-in checks the same phone in again (last seen, time used, a new request if
-the reviewer answered the last one, a fresh position). If the reviewer removes it, the next sign-in
+the reviewer answered the last one, a fresh position unless a Find is still open; the app list and,
+if the phone has none, the contacts are sent again). If the reviewer removes it, the next sign-in
 makes a new one. A household that has a real phone paired is left alone. Everything is invented:
 the contacts' numbers are in the 555-01xx range kept for fiction. The demo phone never answers a
 new Find, a ring or a check-in, because there is no phone behind it.

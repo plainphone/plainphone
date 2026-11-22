@@ -26,6 +26,10 @@ New in the alpha review (November 2026), written without a native speaker: the a
 notice on the front page (`alpha` in `site/content/home.mjs`), the status label and the
 iPhone answer in the FAQ, and the whole press kit page (`site/content/press.mjs`).
 
+New for Google Play review (November 2026), written without a native speaker: the account
+deletion page (`site/content/delete-account.mjs`) and the "Sign in with a code" texts
+(`login.code*` in `packages/i18n`).
+
 Website copy lives in `site/content/`. See the [site README](../site/README.md)
 for build and check commands.
 

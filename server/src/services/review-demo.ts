@@ -67,13 +67,18 @@ export async function ensureReviewDemo(ctx: Ctx, request: LocalRequest, userId: 
     const poll = await anonymous.call("GET", `/api/device/pairings/${start.pairingId}`, undefined, { "x-poll-secret": start.pollSecret });
     device = api(poll.deviceToken as string);
     await device.call("GET", "/api/device/rules");
-    await device.call("PUT", "/api/device/apps", { apps: DEMO_APPS });
-    for (const contact of DEMO_CONTACTS) await parent.call("POST", `/api/phones/${phoneId}/contacts`, contact);
   } else {
     // The phone's own token is never stored, only its hash: each sign-in gives it a fresh one.
     const token = randomToken(DEVICE_PREFIX);
     await ctx.db.update(phones).set({ deviceTokenHash: sha256(token) }).where(eq(phones.id, phoneId));
     device = api(token);
+  }
+  // Sent again on every sign-in, so a first sign-in that failed halfway is completed later. The
+  // app list is replaced as a whole; contacts are only added to a phone that has none.
+  await device.call("PUT", "/api/device/apps", { apps: DEMO_APPS });
+  const contacts = await parent.call("GET", `/api/phones/${phoneId}/contacts`);
+  if (!contacts?.contacts?.length) {
+    for (const contact of DEMO_CONTACTS) await parent.call("POST", `/api/phones/${phoneId}/contacts`, contact);
   }
   await checkIn(ctx, device, parent, phoneId);
 }

@@ -19,18 +19,13 @@ import { SESSION_COOKIE } from "./parent.js";
 export function reviewLoginRoutes(ctx: Ctx, request: LocalRequest) {
   const app = new Hono();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
-  // The code is long enough that guessing is hopeless; the limits keep the log readable and stop
-  // a script from spending the server's time. The global one is generous so a reviewer is never
-  // locked out by someone else's attempts for long.
-  const ipLimit = new RateLimiter(10, 15 * 60_000);
-  const allLimit = new RateLimiter(100, 60 * 60_000);
+  // The code is 32 characters or more, so guessing is hopeless; the limit keeps the log readable.
+  // It counts only failed attempts, per IP, and never blocks the right code: the route is public,
+  // so nobody else's junk may lock the reviewer out (which is also why there is no global limit).
+  const failLimit = new RateLimiter(10, 15 * 60_000);
 
   app.post("/auth/review", async (c) => {
     if (!reviewLoginEnabled(ctx.cfg)) return c.json({ error: "not found" }, 404);
-    if (!ipLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY)) || !allLimit.take("all")) {
-      console.warn("review sign-in: rate limited");
-      throw new HTTPException(429, { message: "too many attempts; try again later" });
-    }
     const input = await body(
       c,
       z.object({
@@ -42,6 +37,10 @@ export function reviewLoginRoutes(ctx: Ctx, request: LocalRequest) {
     );
     // One answer for a wrong address and a wrong code, so neither can be found on its own.
     if (!reviewCodeMatches(ctx.cfg, input.email, input.code.trim())) {
+      if (!failLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) {
+        console.warn("review sign-in: rate limited");
+        throw new HTTPException(429, { message: "too many attempts; try again later" });
+      }
       console.warn("review sign-in: refused");
       return c.json({ error: "wrong address or code" }, 401);
     }

@@ -104,10 +104,12 @@ describe("review sign-in switched on", () => {
     expect(await h.ctx.db.select().from(users).where(eq(users.email, EMAIL))).toHaveLength(0);
   });
 
-  it("is rate limited", async () => {
+  it("rate limits failed attempts but never blocks the right code", async () => {
     for (let i = 0; i < 10; i++) expect((await reviewSignIn({ email: EMAIL, code: "wrong" })).r.status).toBe(401);
-    const limited = await reviewSignIn({ email: EMAIL, code: CODE });
-    expect(limited.r.status).toBe(429);
+    expect((await reviewSignIn({ email: EMAIL, code: "wrong" })).r.status).toBe(429);
+    expect((await reviewSignIn({ email: "someone@example.test", code: CODE })).r.status).toBe(429);
+    // Someone else's junk from the same IP (or a proxy everyone shares) cannot lock the reviewer out.
+    expect((await reviewSignIn({ email: EMAIL, code: CODE })).r.status).toBe(200);
   });
 
   it("logs each attempt without the address or the code", async () => {
@@ -156,6 +158,21 @@ describe("review sign-in switched on", () => {
     expect(again.json.phones).toHaveLength(1);
     expect(again.json.phones[0].id).toBe(phone.id);
     expect(again.json.phones[0].lastSeenAt).toBe(h.clock.now.toISOString());
+  });
+
+  it("completes a demo phone whose first set-up stopped halfway", async () => {
+    const { c } = await reviewSignIn({ email: EMAIL, code: CODE });
+    const [phone] = (await c.get("/api/phones")).json.phones;
+    // As if the first sign-in failed after the pairing: no contacts.
+    for (const contact of (await c.get(`/api/phones/${phone.id}/contacts`)).json.contacts) {
+      expect((await c.del(`/api/phones/${phone.id}/contacts/${contact.id}`)).status).toBeLessThan(300);
+    }
+    await reviewSignIn({ email: EMAIL, code: CODE });
+    expect((await c.get(`/api/phones/${phone.id}/contacts`)).json.contacts).toHaveLength(2);
+    expect((await c.get(`/api/phones/${phone.id}/apps`)).json.apps.length).toBeGreaterThan(5);
+    // A third sign-in adds no duplicates.
+    await reviewSignIn({ email: EMAIL, code: CODE });
+    expect((await c.get(`/api/phones/${phone.id}/contacts`)).json.contacts).toHaveLength(2);
   });
 
   it("makes a new demo phone when the reviewer removed it", async () => {
