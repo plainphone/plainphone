@@ -9,6 +9,7 @@ import { callbackSv } from "./callback";
 import { modesSv } from "./modes";
 import { extendedSv } from "./extended";
 import { signupCapSv } from "./signup-cap";
+import { antiAbuseSv } from "./anti-abuse";
 import { statusEn } from "./status";
 
 export const sv: Messages = {
@@ -20,6 +21,7 @@ export const sv: Messages = {
   ...modesSv,
   ...extendedSv,
   ...signupCapSv,
+  ...antiAbuseSv,
   ...callbackSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",
   "status.never.title": "Ännu inte ansluten",

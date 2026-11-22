@@ -6,8 +6,9 @@ import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { householdMembers, phones } from "../db/schema.js";
-import { body, clientIp, param, RateLimiter } from "../lib/http.js";
+import { body, clientIp, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
+import { DbRateLimiter } from "../services/rate-limits.js";
 import {
   acceptInvite, answerInvite, blockContact, childReceived, childThread, clearSnapshot, CONTACT_REPLY_MAX, contactJson,
   contactReply, contactView, declineInvite, ExtendedError, extendedSwitches, inviteContact, leave, listContacts, NAME_MAX,
@@ -173,9 +174,9 @@ export function familyContactRoutes(ctx: Ctx) {
   const token = z.strictObject({ token: z.string().min(10).max(200) });
   // Like the other unauthenticated token routes (parent.ts): a link cannot be guessed, but the
   // lookups are still capped per address.
-  const tokenLimit = new RateLimiter(30, 15 * 60_000);
+  const tokenLimit = new DbRateLimiter("family-contact-token-ip", 30, 15 * 60_000);
   const limited = async (c: Context<ContactEnv>, next: () => Promise<void>) => {
-    if (!tokenLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "slow down" });
+    if (!(await tokenLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "slow down" });
     await next();
   };
   app.use("/invite", limited);

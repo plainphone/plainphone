@@ -11,6 +11,7 @@ import { Button, errorMessage, Field, Loading, LiveStatus, Notice, PageTitle, Sc
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
 import { noteLinkAsked } from "../lib/link-asked";
+import { BOT_CHALLENGE_CODES, BotCheckFailed, solveBotCheck } from "../lib/bot-check";
 import { useSession } from "../lib/session";
 import { space, touch, useColors } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
@@ -36,11 +37,18 @@ export default function LoginScreen() {
   /** The hosted service has taken today's new households (SIGNUP_DAILY_CAP). */
   const [capped, setCapped] = useState(false);
   const [mail, setMail] = useState<boolean | null>(null);
+  // The server asks for a solved bot check before it mails a link (docs/operations.md).
+  const [botCheck, setBotCheck] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     let active = true;
-    unwrap<{ mail?: string }>(client.GET("/health"))
-      .then((h) => { if (active && serverUrl === SERVER_URL) setMail(h?.mail ? h.mail !== "none" : null); })
+    unwrap<{ mail?: string; botChallenge?: string }>(client.GET("/health"))
+      .then((h) => {
+        if (!active || serverUrl !== SERVER_URL) return;
+        setMail(h?.mail ? h.mail !== "none" : null);
+        setBotCheck(h?.botChallenge === "altcha");
+      })
       .catch(() => { if (active && serverUrl === SERVER_URL) setMail(null); });
     return () => { active = false; };
   }, [serverUrl]);
@@ -92,10 +100,32 @@ export default function LoginScreen() {
     }
     pending.current = true;
     setAction("login");
-    try {
-      const r = await unwrap<{ mailEnabled?: boolean; codeSignIn?: boolean } | undefined>(
-        client.POST("/auth/request", { body: { email: value, locale, client: "native" } }),
+    const ask = async (withCheck: boolean) => {
+      let altcha: string | undefined;
+      if (withCheck) {
+        setChecking(true);
+        try {
+          altcha = await solveBotCheck();
+        } catch (err) {
+          // Offline stays the network message; anything else is a check that did not work.
+          throw err instanceof ApiError && err.status === 0 ? err : new BotCheckFailed();
+        } finally {
+          setChecking(false);
+        }
+      }
+      return unwrap<{ mailEnabled?: boolean; codeSignIn?: boolean } | undefined>(
+        client.POST("/auth/request", { body: { email: value, locale, client: "native", ...(altcha ? { altcha } : {}) } }),
       );
+    };
+    try {
+      // A server that turned the check on since /health was read says so: solve it and ask once more.
+      const r = await ask(botCheck).catch((err: unknown) => {
+        if (!botCheck && err instanceof ApiError && err.data.code === "bot_challenge_required") {
+          setBotCheck(true);
+          return ask(true);
+        }
+        throw err;
+      });
       if (r?.codeSignIn) {
         setCode("");
         setCodeFor(value);
@@ -108,7 +138,10 @@ export default function LoginScreen() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.fields().email) setFieldError(t("login.invalidEmail"));
       else if (err instanceof ApiError && err.data.code === "signup_cap_reached") setCapped(true);
-      else setFormError(errorMessage(err, t));
+      else if (err instanceof ApiError && err.data.code === "disposable_email") setFieldError(t("disposableEmail.error"));
+      else if (err instanceof BotCheckFailed || (err instanceof ApiError && BOT_CHALLENGE_CODES.includes(String(err.data.code)))) {
+        setFormError(t("botCheck.failed"));
+      } else setFormError(errorMessage(err, t));
     } finally {
       pending.current = false;
       setAction(null);
@@ -225,7 +258,9 @@ export default function LoginScreen() {
                 </Notice>
               </View>
             ) : null}
-            <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+            <LiveStatus
+              notice={formError ? { tone: "error", text: formError } : checking ? { tone: "info", text: t("botCheck.working") } : null}
+            />
             <Button
               testID="login-submit"
               title={action === "login" ? t("login.sending") : t("login.submit")}

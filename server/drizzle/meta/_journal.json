@@ -330,6 +330,13 @@
       "when": 1795279364854,
       "tag": "0058_e2ee_prototype",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795368827117,
+      "tag": "0059_anti_abuse",
+      "breakpoints": true
     }
   ]
 }

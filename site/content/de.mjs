@@ -417,7 +417,7 @@ export default {
               ],
             },
           },
-          "Wie bei jedem Webdienst schreibt der Webserver vor der App normale technische Protokolle (IP-Adresse, Uhrzeit, angeforderte Adresse). Wir verwenden sie nur, um den Dienst am Laufen zu halten und Missbrauch zu verhindern. Die App selbst speichert IP-Adressen aus Gründen der Geschwindigkeitsbegrenzung nur im Speicher und schreibt sie niemals in ihre Datenbank.",
+          "Wie bei jedem Webdienst schreibt der Webserver vor der App normale technische Protokolle (IP-Adresse, Uhrzeit, angeforderte Adresse). Wir verwenden sie nur, um den Dienst am Laufen zu halten und Missbrauch zu verhindern. Die App selbst schreibt niemals IP-Adressen in ihre Datenbank. Grenzen dafür, wie oft jemand einen Anmeldelink anfordern oder die Einrichtung eines Telefons starten kann, werden stattdessen mit einem verschlüsselten Fingerabdruck der Adresse gezählt, erstellt mit einem geheimen Schlüssel, der jeden Tag wechselt. Er lässt sich nicht in die Adresse zurückverwandeln oder mit dem Vortag verknüpfen und wird innerhalb eines Tages gelöscht. Bevor ein Anmeldelink verschickt wird, löst das Dashboard oder die App selbst eine kleine Aufgabe, damit Skripte keine Mails in großen Mengen verschicken können. Diese Prüfung nutzt keinen externen Dienst und kein Cookie und verrät uns nichts über Ihr Gerät. Eine neue Familie kann sich nicht mit einer Wegwerf-E-Mail-Adresse anmelden.",
         ],
       },
       {
