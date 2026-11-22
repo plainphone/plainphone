@@ -201,6 +201,8 @@ def run_flows(port, token, console):
         "su", "0", "nsenter", f"--mount=/proc/{system_pid}/ns/mnt", "--",
         "sh", "-c", f'. {classpaths}; exec "$@"', "sh",
     )
+    # am instrument force-stops the app this starts for its admin-enabled broadcast,
+    # so DeviceOwnerFlow replays that broadcast before it opens the pairing screen.
     serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
     stop = Event()
     with ThreadPoolExecutor(max_workers=1) as executor:

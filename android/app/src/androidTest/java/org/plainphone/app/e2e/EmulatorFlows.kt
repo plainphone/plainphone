@@ -2,6 +2,7 @@
 package org.plainphone.app.e2e
 
 import android.app.UiAutomation
+import android.app.admin.DeviceAdminReceiver
 import android.content.Intent
 import android.net.Uri
 import android.os.SystemClock
@@ -27,6 +28,7 @@ import org.junit.Test
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
+import org.plainphone.app.PlainphoneAdminReceiver
 import org.plainphone.app.R
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.home.HomeActivity
@@ -34,6 +36,7 @@ import org.plainphone.app.light.GuardService
 import org.plainphone.app.light.LightLock
 import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.light.Mode
+import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncRunner
 import org.plainphone.app.sync.SyncStore
@@ -75,6 +78,7 @@ abstract class EmulatorFlow {
         // Pairing also registers the 15-minute WorkManager sync, which could deliver the first
         // status and rules by itself. Wait for the sync the setup starts under its own reason.
         val setupSync = if (mode == Mode.LIGHT) "initial light setup" else "paired"
+        if (mode == Mode.STRONG) awaitFirstDeviceOwnerLock()
         val runs = CopyOnWriteArrayList<Pair<String, SyncRunner.Outcome>>()
         SyncRunner.runObserverForTest = { reason, outcome -> runs.add(reason to outcome) }
         try {
@@ -98,6 +102,21 @@ abstract class EmulatorFlow {
         assertFalse("setup must have paired the phone", summary.isNull("pairedAt"))
         assertFalse("setup must have uploaded the first status", summary.isNull("status"))
         assertEquals("setup must have saved the first rules", id, store.rules()?.phoneId)
+    }
+
+    /**
+     * Without the PIN, the pairing screen opens only in the hour after the first lock
+     * (PairingController.allowedWithoutPin). `dpm set-device-owner` starts that lock through
+     * the admin-enabled broadcast, but `am instrument` force-stops the app before it finishes.
+     * Replay that broadcast, as a provisioned phone runs it, and wait for the lock it applies.
+     */
+    private fun awaitFirstDeviceOwnerLock() {
+        assertNull("a fresh test phone has no lock yet", Lock.firstAppliedAtMs(context))
+        // Android 10 and 11 hold the first lock until the unlocked-bootloader warning is confirmed.
+        BootloaderWarning.acknowledge(context)
+        PlainphoneAdminReceiver().onEnabled(context, Intent(DeviceAdminReceiver.ACTION_DEVICE_ADMIN_ENABLED))
+        await("the first Device Owner lock, which opens the setup window") { Lock.firstAppliedAtMs(context) != null }
+        assertTrue("the setup must be able to pair without the PIN", PairingActivity.canPairWithoutPin(context))
     }
 
     protected fun sync() {
