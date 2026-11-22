@@ -46,6 +46,7 @@ class GuardService : AccessibilityService() {
     private var lastPipSeen = ""
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
+    private var planWatch: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private val pendingSettingsPackages = mutableSetOf<String>()
     private val pendingSettingsWindowIds = mutableSetOf<Int>()
@@ -107,6 +108,12 @@ class GuardService : AccessibilityService() {
             registerReceiver(it, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })
         }
         if (isInteractive()) main.postDelayed(tick, TICK_MS)
+        // New rules (a sync, a used-up limit) can block the app in front or one floating in
+        // picture-in-picture. No window changes then, so look now instead of at the next tick.
+        planWatch = LightLock.watchPlan(this) {
+            main.removeCallbacks(reguard)
+            main.post(reguard)
+        }
         protectionChanged("accessibility on")
         // An app opened while the guard was away (a crash, an update) is checked now, not at its next window change.
         rootInActiveWindow?.let { root ->
@@ -540,6 +547,8 @@ class GuardService : AccessibilityService() {
         cancelSettingsChecks()
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
+        planWatch?.let { LightLock.unwatchPlan(this, it) }
+        planWatch = null
         worker.shutdown()
         protectionChanged(why)
     }

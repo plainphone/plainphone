@@ -3,6 +3,7 @@
 package org.plainphone.app.light
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.VpnService
 import android.os.Build
 import android.provider.Settings
@@ -125,6 +126,21 @@ object LightLock {
             timeBlocked = p.getStringSet("time_blocked", null)?.toSet().orEmpty(),
         )
     }
+
+    /**
+     * Calls [changed] on the main thread when a saved plan differs from the one before (an unchanged
+     * plan does not call it). Keep the listener: SharedPreferences holds it only weakly.
+     */
+    internal fun watchPlan(context: Context, changed: () -> Unit): SharedPreferences.OnSharedPreferenceChangeListener {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "blocked" || key == "time_blocked") changed()
+        }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener)
+        return listener
+    }
+
+    internal fun unwatchPlan(context: Context, listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(listener)
 
     private fun save(context: Context, plan: LightPlan) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()

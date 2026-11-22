@@ -5,8 +5,10 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import java.time.Duration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,7 +19,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.util.ReflectionHelpers
 
-/** Moments where a blocked app could stay in front: a block that was rate-limited, and a guard that restarts. */
+/**
+ * Moments where a blocked app could stay in front: a block that was rate-limited, a guard that restarts,
+ * and rules that block an app already open.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], shadows = [GuardServiceTest.ServiceShadow::class, GuardServiceTest.WindowShadow::class])
 class GuardGapsTest {
@@ -64,5 +69,28 @@ class GuardGapsTest {
         ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")
         shadowOf(android.os.Looper.getMainLooper()).idle()
         assertEquals(0, homeActions())
+    }
+
+    @Test fun `an app the new rules block is stopped at once, also while it floats in picture-in-picture`() {
+        val video = "com.example.video"
+        shadow.root = AccessibilityNodeInfo().apply { packageName = "com.android.launcher3" }
+        shadow.windowList = listOf(AccessibilityWindowInfo().also {
+            Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+                rootNode = AccessibilityNodeInfo().apply { packageName = video }
+                pip = true
+            }
+        })
+        ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(1))
+        assertEquals("allowed while the old rules hold", 0, homeActions())
+
+        // A sync saves the new plan; no window changes, and the guard's next tick is 30 s away.
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit()
+            .putStringSet("blocked", setOf(game, video)).apply()
+        looper.idleFor(Duration.ofSeconds(1))
+        assertEquals("the floating app is stopped without waiting for the tick", 1, homeActions())
+        val stop = shadowOf(service.application).nextStartedActivity
+        assertTrue("stop screen for $video: $stop", stop?.component?.className == BlockedActivity::class.java.name)
     }
 }
