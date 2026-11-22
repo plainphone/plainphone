@@ -6,7 +6,7 @@ The native parent app lives in [`parent-app/`](../parent-app). This page covers 
 
 | | iOS | Android |
 |---|---|---|
-| Id | `org.plainphone.app` | `org.plainphone.parent` |
+| Id | `org.plainphone.parent` for the App Store build (Plainphone Parent, `PLAINPHONE_BUNDLE_ID`); `org.plainphone.app` when it is unset | `org.plainphone.parent` |
 | Team / signing | Apple team `P7698GU4AV` | Play App Signing, with an upload key |
 | Minimum OS | Expo SDK 58 default | Expo SDK 58 default |
 
