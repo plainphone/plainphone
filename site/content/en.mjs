@@ -46,7 +46,7 @@ export default {
   },
   skip: "Skip to content",
   nav: { label: "Main", source: "Source code", language: "Language" },
-  status: "Early version for testing.",
+  status: "Alpha. Try it on a spare phone.",
   compatibility: {
     path: "/apps/",
     title: "Does my app work with Plainphone?",
@@ -153,7 +153,7 @@ export default {
       {
         group: "gettingStarted",
         q: "Does it work on iPhone?",
-        a: "Plainphone protects a child’s Android phone. For parents, the iPhone app is in development. You can already use the parent dashboard in Safari.",
+        a: "Not yet. The phone that follows the rules has to be an Android. iPhone support is planned. Parents can use the parent dashboard in any browser, including Safari on an iPhone. The parent app for iPhone and Android is not in the app stores yet.",
       },
       {
         group: "safety",
@@ -239,7 +239,7 @@ export default {
           "You sign in with your email address and a link we send you. There is no password. We store:",
           {
             list: [
-              "your email address and your language (English or Danish)",
+              "your email address and your language (English, Danish, Swedish, Norwegian Bokmål or German)",
               "the sign-in link you asked for: your email address, an expiry time and a hash of the link. It is deleted about a day after it expires, also when no account exists for that address",
               "your session: a hash of the key your browser holds and when it ends (60 days at most, or when you log out). We do not store your IP address or your device",
               "your household: its name, who is in it, and the invitations you have sent, with the invited email address and expiry date. An invitation is deleted when it is accepted, and a day after it expires",

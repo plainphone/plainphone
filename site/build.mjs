@@ -15,6 +15,8 @@ import nb from "./content/nb.mjs";
 import de from "./content/de.mjs";
 import { compatibilityContent } from "./compatibility.mjs";
 import { figures } from "./figures.mjs";
+import { press } from "./content/press.mjs";
+import { KIT, ZIP, pressContent, pressFiles } from "./press.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const src = join(root, "src");
@@ -175,6 +177,7 @@ function footer(t, route = (p) => p.path) {
 <li><a href="${t.path}#self-hosting">${t.hosting.title}</a></li>
 <li><a href="${SECURITY_POLICY}">${l.security}</a></li>
 <li><a href="/.well-known/security.txt">security.txt</a></li>
+<li><a href="${press[t.lang].path}">${press[t.lang].h1}</a></li>
 </ul></section>
 <section aria-labelledby="languages"><h2 id="languages" tabindex="-1">${l.languages}</h2>
 <ul class="language-links" role="list">${languageLinks(route, t)}</ul></section>
@@ -192,17 +195,36 @@ function statusParagraph(text) {
 
 const plainText = (html) => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
 
+// No ratings or reviews: there are none to cite. The price is what it is today, free.
+const ORGANIZATION = {
+  "@type": "Organization",
+  "@id": "https://mahoje.dk/#organization",
+  name: "Mahoje",
+  url: "https://mahoje.dk",
+  taxID: "DK39413892",
+  address: { "@type": "PostalAddress", addressCountry: "DK" },
+};
+const LICENSE_URL = "https://www.apache.org/licenses/LICENSE-2.0";
+const FREE = { "@type": "Offer", price: "0", priceCurrency: "EUR" };
+
 function landingSchema(t, items) {
   return [
-    { "@type": "Organization", name: "Mahoje", url: "https://mahoje.dk", taxID: "DK39413892" },
+    ORGANIZATION,
     {
       "@type": "SoftwareApplication",
       name: "Plainphone",
       description: t.description,
       url: ORIGIN + t.path,
+      image: `${ORIGIN}/og-${t.lang}.png`,
       operatingSystem: "Android 10+",
       applicationCategory: "UtilitiesApplication",
-      inLanguage: t.lang,
+      inLanguage: pages.map((p) => p.lang),
+      license: LICENSE_URL,
+      isAccessibleForFree: true,
+      offers: FREE,
+      downloadUrl: `${GITHUB}/releases`,
+      sameAs: [GITHUB],
+      publisher: { "@id": ORGANIZATION["@id"] },
     },
     {
       "@type": "WebApplication",
@@ -210,6 +232,9 @@ function landingSchema(t, items) {
       url: "https://app.plainphone.org/",
       browserRequirements: "Requires a web browser",
       applicationCategory: "UtilitiesApplication",
+      isAccessibleForFree: true,
+      offers: FREE,
+      publisher: { "@id": ORGANIZATION["@id"] },
     },
     {
       "@type": "FAQPage",
@@ -263,7 +288,7 @@ function page(t) {
 
   const hero = `<section class="hero wrap" aria-labelledby="hero-title">
 <div>
-<p class="status">${t.status}</p>
+<p class="status"><a href="#alpha">${t.status}</a></p>
 <h1 id="hero-title">${h.title}</h1>
 <p class="lead">${h.lead}</p>
 <div class="actions">
@@ -311,7 +336,7 @@ ${head2("who", t.who.title)}
 ${head2("modes", m.title, t.how.lead)}
 <div class="table-wrap compare" role="region" aria-label="${esc(m.caption)}" tabindex="0"><table>
 <caption class="sr">${m.caption}</caption>
-<thead><tr><td><span class="sr">${m.corner}</span></td>${t.how.steps.map((step) => `<th scope="col">${step.title}</th>`).join("")}</tr></thead>
+<thead><tr><th scope="col"><span class="sr">${m.corner}</span></th>${t.how.steps.map((step) => `<th scope="col">${step.title}</th>`).join("")}</tr></thead>
 <tbody>${m.rows.map(([label, strong, light]) => `<tr><th scope="row">${label}</th><td>${strong}</td><td>${light}</td></tr>`).join("")}</tbody>
 </table></div>
 <div class="actions"><a class="button" href="${t.setup.path}">${t.how.guide}</a></div>
@@ -324,9 +349,19 @@ ${head2("first-day", dayTitle)}
 <ol class="steps">${daySteps.map((step) => `<li>${step}</li>`).join("")}</ol>
 </section>`;
 
-  const phones = `<section class="section wrap" id="phones" aria-labelledby="phones-title">
-<div class="notice"><h2 id="phones-title">${t.phones.title}</h2><p>${t.phones.body}</p></div>
-</section>`;
+  // Alpha status, right after the hero: what alpha means, the one tested phone, and what to do now.
+  const a = hm.alpha;
+  const alpha = `<section class="section wrap" id="alpha" aria-labelledby="alpha-title">
+<div class="notice alpha">
+<div><h2 id="alpha-title">${a.title}</h2>${a.body.map((b) => `<p>${b}</p>`).join("")}
+<h3>${t.phones.title}</h3><p>${t.phones.body}</p></div>
+<div><h3>${a.nextTitle}</h3><ul role="list">
+<li><a href="${t.setup.path}">${a.next.guide}</a></li>
+<li><a href="${GITHUB}">${a.next.star}</a></li>
+<li><a href="${GITHUB}/releases">${a.next.releases}</a></li>
+<li><a href="${GITHUB}/issues/new/choose">${a.next.feedback}</a></li>
+</ul><p>${a.next.mail} <a href="mailto:support@plainphone.org">support@plainphone.org</a></p></div>
+</div></section>`;
 
   const o = t.open;
   const host = t.hosting;
@@ -373,13 +408,13 @@ ${faqGroups.map(({ title, items }) => `<div class="faq-group"><h3>${esc(title)}<
 ${header(t)}
 <main id="main" tabindex="-1">
 ${hero}
+${alpha}
 ${switches}
 ${decide}
 ${childView}
 ${who}
 ${modes}
 ${firstDay}
-${phones}
 ${free}
 ${privacy}
 ${faq}
@@ -647,6 +682,31 @@ ${footer(t, route)}
 `;
 }
 
+const kitFiles = pressFiles(src);
+const zipSize = kitFiles.find((f) => f.name === ZIP).data.length;
+
+function pressPage(t) {
+  const p = press[t.lang];
+  const route = (x) => press[x.lang].path;
+  return `${head(t, {
+    path: p.path,
+    title: p.title,
+    description: p.description,
+    ogTitle: p.h1,
+    alternates: pages.map((x) => ({ lang: x.lang, path: press[x.lang].path })),
+    xDefault: press.en.path,
+  })}
+<body>
+${header(t, "press", route)}
+<main id="main" tabindex="-1" class="doc press">
+${pressContent(t, { esc, picture, github: GITHUB, zipSize })}
+</main>
+${footer(t, route)}
+</body>
+</html>
+`;
+}
+
 rmSync(dist, { recursive: true, force: true });
 for (const t of pages) {
   mkdirSync(join(dist, help[t.lang].path), { recursive: true });
@@ -665,7 +725,11 @@ for (const t of pages) {
   writeFileSync(join(dist, giving[t.lang].path, "index.html"), givingPage(t));
   mkdirSync(join(dist, t.setup.path), { recursive: true });
   writeFileSync(join(dist, t.setup.path, "index.html"), setupPage(t));
+  mkdirSync(join(dist, press[t.lang].path), { recursive: true });
+  writeFileSync(join(dist, press[t.lang].path, "index.html"), pressPage(t));
 }
+mkdirSync(join(dist, KIT), { recursive: true });
+for (const { name, data } of kitFiles) writeFileSync(join(dist, KIT, name), data);
 writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
@@ -680,7 +744,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => deleteAccount[p.lang].path, (p) => p.why.path, (p) => p.compatibility.path, (p) => help[p.lang].path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => deleteAccount[p.lang].path, (p) => p.why.path, (p) => p.compatibility.path, (p) => help[p.lang].path, (p) => press[p.lang].path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -721,9 +785,15 @@ writeFileSync(
 /fonts/*
   Cache-Control: public, max-age=604800
 
+/img/*
+  Cache-Control: public, max-age=86400
+
+/press-kit/*
+  Cache-Control: public, max-age=86400
+
 /mail/*
   ! Cross-Origin-Resource-Policy
   Cross-Origin-Resource-Policy: cross-origin
 `,
 );
-console.log(`Built ${pages.length * 8} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 9} pages + 404 into dist/ (css ${css.length} bytes, press kit zip ${zipSize} bytes)`);

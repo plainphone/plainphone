@@ -189,7 +189,8 @@ See [support tools and release troubleshooting](docs/support.md).
 | [`packages/`](packages) | Shared encryption test vectors |
 | [`e2ee/`](e2ee/mls-core/README.md) | E2EE phase 0 prototype: the OpenMLS core for family texts, test data only ([docs/e2ee-prototype.md](docs/e2ee-prototype.md)) |
 | [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test, end-to-end tests for phone sync and the Android emulator, and the E2EE prototype demo |
-| [`docs/`](docs) | Design, evidence, policies and how-tos |
+| [`docs/`](docs) | Design, evidence, policies and how-tos. Google Play and F-Droid preparation: [docs/play/](docs/play/README.md) |
+| [`fastlane/play/`](fastlane/play) | Store texts for the phone app (Play edition) in five languages, kept out of `fastlane/metadata/android/` so F-Droid does not read them; the parent app's are in `parent-app/fastlane/` |
 
 ## Build the Android app
 

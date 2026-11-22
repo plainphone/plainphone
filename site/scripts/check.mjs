@@ -21,7 +21,7 @@ const recoveryStatus = {
   de: "ob der letzte Bericht des Handys zeigt, dass der Schutz vor dem Zurücksetzen aktiv ist",
 };
 const lookupRoute = "apps/";
-const routes = ["", "setup/", "privacy/", "delete-account/", "why/", "help/", lookupRoute];
+const routes = ["", "setup/", "privacy/", "delete-account/", "why/", "help/", lookupRoute, "press/"];
 const pagePaths = routes.map((page) =>
   Object.fromEntries(locales.map((lang) => [
     lang,
@@ -285,6 +285,37 @@ for (const lang of locales) {
     }
   }
 }
+// Press kit: every language links the zip, and the zip holds the logos, share images and screenshots.
+const kitZip = join(dist, "press-kit", "plainphone-press-kit.zip");
+if (!existsSync(kitZip)) errors.push("press-kit: missing plainphone-press-kit.zip");
+else {
+  const names = zipNames(readFileSync(kitZip));
+  const expected = [
+    "logo/plainphone-logo.svg", "logo/plainphone-logo.png", "logo/plainphone-logo-dark.svg", "logo/plainphone-logo-dark.png",
+    "logo/plainphone-mark.svg", "logo/plainphone-mark.png", "logo/plainphone-mark-dark.svg", "logo/plainphone-mark-dark.png",
+    "logo/plainphone-app-icon.svg", "logo/plainphone-app-icon.png", "fonts/OFL.txt",
+    ...locales.map((lang) => `share-image/plainphone-${lang}.png`),
+    ...locales.flatMap((lang) => shotNames.flatMap((shot) => ["light", "dark"].map((s) => `screenshots/${lang}/${shot}-${s}.webp`))),
+  ];
+  for (const name of expected) if (!names.includes(name)) errors.push(`press-kit zip: missing ${name}`);
+  for (const lang of locales) {
+    const page = readFileSync(target(pagePaths[routes.indexOf("press/")][lang]), "utf8");
+    if (!page.includes('href="/press-kit/plainphone-press-kit.zip" download')) errors.push(`${lang}: press page does not link the zip`);
+  }
+}
+function zipNames(buf) {
+  const end = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (end < 0) return [];
+  const names = [];
+  let at = buf.readUInt32LE(end + 16);
+  for (let i = 0; i < buf.readUInt16LE(end + 10); i++) {
+    const length = buf.readUInt16LE(at + 28);
+    names.push(buf.toString("utf8", at + 46, at + 46 + length));
+    at += 46 + length + buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+  }
+  return names;
+}
+
 if (external) {
   for (const url of externalLinks) {
     try {

@@ -46,7 +46,7 @@ export default {
   },
   skip: "Zum Inhalt springen",
   nav: { label: "Hauptnavigation", source: "Quellcode", language: "Sprache" },
-  status: "Frühe Version zum Ausprobieren.",
+  status: "Alpha-Version. Auf einem Ersatzhandy ausprobieren.",
   compatibility: {
     path: "/de/apps/",
     title: "Funktioniert meine App mit Plainphone?",
@@ -145,7 +145,7 @@ export default {
   phones: {
     title: "Getestete Telefone",
     body:
-      "Eines bisher: ein OnePlus 5T auf Android 10. Einrichtung, Sperre und Verbindung zum Dashboard funktionieren, wie der <a href=\"/de/setup/#tested\">Setup-Guide</a> zeigt. Es hat unsere <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">Bypass-Checkliste</a> auf echter Hardware noch nicht durchlaufen und ein Telefon gilt erst dann als vollständig getestet, wenn es alle Tests auf dieser Liste bestanden hat. Bis dahin betrachten Sie Plainphone bitte als Experiment.",
+      "Eines bisher: ein OnePlus 5T auf Android 10. Einrichtung, Sperre und Verbindung zum Dashboard funktionieren, wie der <a href=\"/de/setup/#tested\">Setup-Guide</a> zeigt. Es hat unsere <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">Bypass-Checkliste</a> auf echter Hardware noch nicht durchlaufen, und ein Telefon gilt erst dann als vollständig getestet, wenn es alle Tests auf dieser Liste bestanden hat. Bis dahin betrachten Sie Plainphone bitte als Experiment.",
   },
   faq: {
     title: "Fragen",
@@ -153,7 +153,7 @@ export default {
       {
         group: "gettingStarted",
         q: "Funktioniert es auf dem iPhone?",
-        a: "Plainphone schützt das Android-Handy des Kindes. Die Eltern-App für iPhone ist in Entwicklung. Der Elternbereich ist bereits in Safari verfügbar.",
+        a: "Noch nicht. Das Handy, das den Regeln folgt, muss ein Android-Handy sein. Die Unterstützung für das iPhone ist geplant. Eltern können den Elternbereich in jedem Browser nutzen, auch in Safari auf dem iPhone. Die Eltern-App für iPhone und Android ist noch nicht in den App-Stores.",
       },
       {
         group: "safety",
@@ -239,7 +239,7 @@ export default {
           "Sie melden sich mit Ihrer E-Mail-Adresse und einem Link an, den wir Ihnen senden. Es gibt kein Passwort. Wir speichern:",
           {
             list: [
-              "Ihre E-Mail-Adresse und Ihre Sprache (Englisch oder Dänisch)",
+              "Ihre E-Mail-Adresse und Ihre Sprache (Deutsch, Englisch, Dänisch, Schwedisch oder Norwegisch)",
               "den von Ihnen angeforderten Anmeldelink: Ihre E-Mail-Adresse, eine Ablaufzeit und einen Hash des Links. Sie wird etwa einen Tag nach Ablauf gelöscht, auch wenn für diese Adresse kein Konto vorhanden ist",
               "Ihre Sitzung: ein Hash des Schlüssels, den Ihr Browser speichert, und wann diese endet (höchstens 60 Tage oder wenn Sie sich abmelden). Wir speichern weder Ihre IP-Adresse noch Ihr Gerät",
               "Ihr Haushalt: sein Name, wer darin ist und die Einladungen, die Sie gesendet haben, mit der eingeladenen E-Mail-Adresse und dem Ablaufdatum. Eine Einladung wird gelöscht, wenn sie angenommen wird, und einen Tag nach Ablauf",
