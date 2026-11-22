@@ -8,6 +8,8 @@
 # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (Web Push; generate with
 # `pnpm --filter @plainphone/server exec tsx src/lib/webpush.ts`), and optionally
 # VAPID_SUBJECT, OFFLINE_ALERT_HOURS, PUSH_EXTRA_HOSTS, IOS_PAIRING_ENABLED.
+# iOS push: APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID (docs/push-setup.md).
+# App links (docs/parent-app.md): APPLE_APP_IDS, ANDROID_APP_PACKAGE, ANDROID_APP_CERT_SHA256.
 services:
   db:
     image: postgres:18
