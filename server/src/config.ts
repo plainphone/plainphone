@@ -158,6 +158,22 @@ const schema = z.object({
    */
   SIGNUP_DAILY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
   /**
+   * Bot and spam protection on the sign-in form (docs/operations.md, "Bot and spam protection").
+   * `altcha`: the dashboard and the parent app solve a small proof-of-work puzzle before a login
+   * link is mailed. Off by default for self-hosting; the hosted service turns it on.
+   */
+  BOT_CHALLENGE: unsetIfEmpty(z.enum(["altcha", "off"]).default("off")),
+  /** Largest number in the puzzle: the average work is half of it (SHA-256 hashes). */
+  BOT_CHALLENGE_DIFFICULTY: unsetIfEmpty(z.coerce.number().int().min(1_000).max(10_000_000).default(100_000)),
+  /** HMAC key for the puzzles. Unset: made on first start and kept in the database. */
+  BOT_CHALLENGE_HMAC_KEY: unsetIfEmpty(z.string().min(32).optional()),
+  /** A hidden form field only bots fill in: they get a normal answer, and no mail is sent. */
+  SPAM_HONEYPOT: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
+  /** Refuse throwaway mail addresses for new households (server/catalog/disposable-email/domains.txt). */
+  BLOCK_DISPOSABLE_EMAIL: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
+  /** Invitation mails per household per 24 hours, counted in the database. 0: no cap. */
+  INVITES_PER_HOUSEHOLD_DAILY: unsetIfEmpty(z.coerce.number().int().min(0).default(20)),
+  /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.
    */
@@ -191,6 +207,9 @@ const LENIENT: { key: string; values: string[]; area: "push" | "other"; label: s
   { key: "BILLING_ENABLED", values: ["true", "false"], area: "other", label: "billing" },
   { key: "E2EE_PROTOTYPE_ENABLED", values: ["true", "false"], area: "other", label: "e2ee" },
   { key: "LATENCY_STATS", values: ["on", "off"], area: "other", label: "latency" },
+  { key: "BOT_CHALLENGE", values: ["altcha", "off"], area: "other", label: "bot challenge" },
+  { key: "SPAM_HONEYPOT", values: ["on", "off"], area: "other", label: "honeypot" },
+  { key: "BLOCK_DISPOSABLE_EMAIL", values: ["on", "off"], area: "other", label: "disposable mail" },
 ];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -221,6 +240,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     delete sane.METRICS_TOKEN;
     warnings.other.push("metrics: invalid METRICS_TOKEN");
   }
+  if (sane.BOT_CHALLENGE_HMAC_KEY && sane.BOT_CHALLENGE_HMAC_KEY.length < 32) {
+    // The server then makes its own key, so the challenge keeps working.
+    delete sane.BOT_CHALLENGE_HMAC_KEY;
+    warnings.other.push("bot challenge: invalid BOT_CHALLENGE_HMAC_KEY");
+  }
+  // A protection that was asked for but misspelt stays on rather than silently off.
+  if (warnings.other.includes("bot challenge: invalid BOT_CHALLENGE")) sane.BOT_CHALLENGE = "altcha";
   if (sane.REVIEW_LOGIN_EMAIL || sane.REVIEW_LOGIN_CODE) {
     const address = z.string().trim().toLowerCase().pipe(z.email()).safeParse(sane.REVIEW_LOGIN_EMAIL ?? "");
     const code = sane.REVIEW_LOGIN_CODE?.trim() ?? "";

@@ -48,6 +48,7 @@ import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { activateMove, MoveError } from "./server-move.js";
 import { nextRulesRevision, wakePhone } from "./phones.js";
 import { changeCategory, recordSummaryEvent } from "./summary-record.js";
+import { takeInviteMail } from "./invite-cap.js";
 
 export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
@@ -584,13 +585,18 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
 }
 
 /** Side effects outside the database, after an op has been applied. */
-async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
+async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null, householdId: string) {
   if (op.type === "phone.remove") {
     // Failures stay queued in dns_deletions and the sweeper retries them.
     await retryDnsDeletions(ctx, [op.dnsClientId]);
     return;
   }
   if (op.type !== "key.set" || op.key.keyType !== "trusted" || !op.key.trustedEmail || !ctx.mail.canSend) return;
+  // The key is set either way; over the household's daily invitation cap only the mail is skipped.
+  if (!(await takeInviteMail(ctx, householdId))) {
+    console.warn("trusted person invitation not mailed: the household reached INVITES_PER_HOUSEHOLD_DAILY");
+    return;
+  }
   const [requester] = requestedBy
     ? await ctx.db.select({ locale: users.locale }).from(users).where(eq(users.id, requestedBy))
     : [];
@@ -670,7 +676,7 @@ export async function submitChange(
   });
   if (result.status === "applied") {
     if (result.dns) await syncDns(ctx, phone.id);
-    await afterApply(ctx, op, userId);
+    await afterApply(ctx, op, userId, phone.householdId);
     await wakePhone(ctx, phone.id, "rules");
     return { status: "applied", op };
   }
@@ -781,11 +787,11 @@ export async function applyPending(
       .update(pendingChanges)
       .set({ status, decidedBy, decidedAt: ctx.now(), approvalChallengeHash: null })
       .where(eq(pendingChanges.id, change.id));
-    return { phoneId: phone.id, dns, op: change.op as Op, requestedBy: change.requestedBy, status };
+    return { phoneId: phone.id, householdId: phone.householdId, dns, op: change.op as Op, requestedBy: change.requestedBy, status };
   });
   if (!out) return "gone";
   if (out.dns) await syncDns(ctx, out.phoneId);
-  if (out.status === "applied") await afterApply(ctx, out.op, out.requestedBy);
+  if (out.status === "applied") await afterApply(ctx, out.op, out.requestedBy, out.householdId);
   await wakePhone(ctx, out.phoneId, "rules");
   return "applied";
 }

@@ -29,6 +29,8 @@ import { latencyRoutes } from "./routes/latency.js";
 import { reviewLoginRoutes } from "./routes/review-login.js";
 import { LocalEventBus } from "./services/live-events.js";
 import { LiveHub, type LiveHubOptions } from "./services/live-hub.js";
+import { botChallengeRoutes } from "./routes/bot-challenge.js";
+import { honeypotOn } from "./services/signup-guard.js";
 
 /** The largest request body the API reads, unless a route sets its own limit. */
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
@@ -125,7 +127,9 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
       await ctx.db.execute(sql`select 1`);
       // "mock" means no DNS service is configured; otherwise "ok" or "down" from its /healthz.
       const dns = ctx.cfg.DNS_PROVIDER === "mock" ? "mock" : (await dnsHealthy()) ? "ok" : "down";
-      return c.json({ ok: true, compatibility: 1, db: "ok", mail: ctx.mail.name, dns, push: {
+      return c.json({ ok: true, compatibility: 1, db: "ok", mail: ctx.mail.name, dns,
+        // Bot and spam protection on the sign-in form (docs/operations.md): what a client must send.
+        botChallenge: ctx.cfg.BOT_CHALLENGE, honeypot: honeypotOn(ctx), push: {
         web: parentPushEnabled(ctx.parentPush, "web"),
         fcm: parentPushEnabled(ctx.parentPush, "fcm"),
         apns: parentPushEnabled(ctx.parentPush, "apns"),
@@ -170,6 +174,8 @@ export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partia
   app.route("/api/reset-protection", resetProtection.callback);
   // Before the parent API: an extended contact has no parent session (docs/extended-family.md).
   app.route("/api/family-contact", familyContactRoutes(ctx));
+  // Public, like /auth/request: the sign-in form fetches its bot challenge here.
+  app.route("/api", botChallengeRoutes(ctx));
   // Store review sign-in (docs/store-review.md); its demo phone calls this app in process.
   app.route("/api", reviewLoginRoutes(ctx, (path, init) => app.request(path, init)));
   app.route("/api", parentRoutes(ctx, updateWake, (parent) => {

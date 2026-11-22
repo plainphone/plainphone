@@ -418,7 +418,7 @@ export default {
               ],
             },
           },
-          "Som enhver webtjeneste skriver den webserver, der står foran appen, almindelige tekniske logs (IP-adresse, tidspunkt, den adresse der bedes om). Vi bruger dem kun til at holde tjenesten kørende og til at stoppe misbrug. Selve appen har kun IP-adresser i hukommelsen, til grænser for hyppighed, og skriver dem aldrig i sin database.",
+          "Som enhver webtjeneste skriver den webserver, der står foran appen, almindelige tekniske logs (IP-adresse, tidspunkt, den adresse der bedes om). Vi bruger dem kun til at holde tjenesten kørende og til at stoppe misbrug. Selve appen skriver aldrig IP-adresser i sin database. Grænser for, hvor tit nogen kan bede om et login-link eller starte opsætning af en telefon, tælles i stedet med et kodet fingeraftryk af adressen, lavet med en hemmelig nøgle, der skifter hver dag. Det kan ikke laves tilbage til adressen eller kobles med dagen før, og det slettes inden for et døgn. Før et login-link sendes, løser dashboardet eller appen selv en lille opgave, så scripts ikke kan sende mails i store mængder. Tjekket bruger ingen ekstern tjeneste og ingen cookie og fortæller os intet om din enhed. En ny familie kan ikke oprette sig med en midlertidig mailadresse.",
         ],
       },
       {

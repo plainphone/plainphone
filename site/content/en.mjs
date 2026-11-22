@@ -418,7 +418,7 @@ export default {
               ],
             },
           },
-          "Like any web service, the web server in front of the app writes ordinary technical logs (IP address, time, the address asked for). We use them only to keep the service running and to stop abuse. The app itself holds IP addresses only in memory, for rate limits, and never writes them to its database.",
+          "Like any web service, the web server in front of the app writes ordinary technical logs (IP address, time, the address asked for). We use them only to keep the service running and to stop abuse. The app itself never writes IP addresses to its database. Limits on how often someone can ask for a sign-in link or start pairing a phone are counted with a coded fingerprint of the address instead, made with a secret key that changes every day, so it cannot be turned back into the address or matched with the day before, and it is deleted within a day. Before a sign-in link is mailed, the dashboard or the app solves a small puzzle by itself, so scripts cannot send mail in bulk. That check uses no outside service and no cookie, and tells us nothing about your device. A new family cannot sign up with a throwaway mail address.",
         ],
       },
       {
