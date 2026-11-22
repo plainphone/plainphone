@@ -47,11 +47,10 @@ ERROR_TEXTS = ("can't set up device", "couldn't set up", "couldn't download", "c
                "can't use the admin app", "something went wrong", "contact your it admin")
 START_TEXTS = ("get started", "start", "let's go", "begin")
 # Tapped in this order once the QR code is scanned. "Install anyway" first: the probe also wants
-# to know whether a warning can be passed. Matched against whole button labels.
+# to know whether a warning can be passed. Matched against whole button labels only, so Cancel,
+# Stop setup, Emergency call and the like are never pressed.
 POSITIVE = ("install anyway", "accept & continue", "accept and continue", "accept", "agree", "i agree",
             "continue", "next", "ok", "got it", "allow", "set as default", "skip", "not now", "done")
-NEGATIVE = ("cancel", "back", "stop setup", "exit", "decline", "emergency call", "emergency",
-            "accessibility", "vision settings", "don't install", "uninstall", "reset", "stop")
 
 
 # ---- release -------------------------------------------------------------------------------
@@ -325,9 +324,12 @@ def run(args: argparse.Namespace) -> int:
         obs["timeline"].append(entry)
         print(json.dumps(entry), flush=True)
 
+    # A fixed console port and serial: `adb emu` reaches the console by the serial's port number,
+    # which is how the probe still takes screenshots after the lock has turned adb off.
+    os.environ["ANDROID_SERIAL"] = "emulator-5554"
     emulator_log = (out / "emulator.log").open("w")
     emulator = subprocess.Popen(
-        [str(Path(os.environ["ANDROID_HOME"], "emulator", "emulator")), "-avd", args.avd, "-wipe-data",
+        [str(Path(os.environ["ANDROID_HOME"], "emulator", "emulator")), "-avd", args.avd, "-port", "5554", "-wipe-data",
          "-no-snapshot", "-no-window", "-gpu", "swiftshader_indirect", "-noaudio", "-no-boot-anim",
          "-camera-back", f"imagefile:{args.qr.resolve()}", "-camera-front", "none"],
         stdout=emulator_log, stderr=subprocess.STDOUT)
@@ -371,7 +373,7 @@ def run(args: argparse.Namespace) -> int:
                     if owners_include_plainphone(owners) and obs["device_owner"] is not True:
                         obs["device_owner"] = True
                         log("device_owner", owners=owners.strip())
-                    if not installed.is_set() and PACKAGE in (dev.adb("shell", f"pm path {PACKAGE}", timeout=10) or ""):
+                    if not installed.is_set() and "package:" in (dev.adb("shell", f"pm path {PACKAGE}", timeout=10) or ""):
                         installed.set()
                         log("plainphone_installed")
                 poller_stop.wait(1)
@@ -413,6 +415,10 @@ def run(args: argparse.Namespace) -> int:
         after_owner_until = None
         while time.time() < deadline:
             if not dev.online():
+                if dev.adb("emu", "avd", "name", timeout=20) is None:
+                    obs["stopped"] = "the emulator stopped answering"
+                    log("emulator_gone")
+                    break
                 if installed.is_set() or obs["device_owner"]:
                     if not obs["device_owner"]:
                         obs["device_owner"] = "inferred"

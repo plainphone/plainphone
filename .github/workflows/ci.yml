@@ -48,6 +48,9 @@ jobs:
           persist-credentials: false
       - name: Test change detection
         run: python3 -m unittest discover -s .github/scripts
+      # The probe itself only runs on demand; its decisions are checked on every run (a second).
+      - name: Test the DPC provisioning probe
+        run: python3 -m unittest scripts/test_dpc_provisioning_probe.py
       - name: Detect changes in the checked-out revision
         id: filter
         env:

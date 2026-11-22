@@ -123,6 +123,101 @@ on stopping the fling, so the tap never reaches the button.
 The emulator covers the AOSP paths listed above. Hardware QR provisioning,
 vendor restrictions, Play services, carrier delivery, real calls, PiP
 audio, and the timing and hardware variants in the
-[bypass checklist](bypass-checklist.md) still need physical devices. The
+[bypass checklist](bypass-checklist.md) still need physical devices (the
+[DPC provisioning probe](#dpc-provisioning-probe) below gives a first answer
+for QR setup on a Google Play image). The
 parent side of the suite uses the authenticated API. To test the phone sync
 protocol without booting an emulator, run `scripts/e2e-phone-sync.sh`.
+
+## DPC provisioning probe
+
+Google Play Protect now blocks QR setup of Device Owner apps that Android
+Enterprise has not approved ([help page](https://support.google.com/work/android/answer/16694822),
+[developer guidance](https://developers.google.com/android/play-protect/warning-dev-guidance#android_enterprise_dpc_enrollment)).
+The guidance also says that sideloaded apps asking for SMS, notification
+listener or accessibility access are blocked during enrollment, and Plainphone
+asks for SMS and accessibility. The suite above cannot answer whether this hits
+Plainphone: it uses AOSP images without Play Protect, and `dpm set-device-owner`
+skips the setup wizard. The probe (issue #255) gives a first answer from an
+emulator before anyone tries it on a real phone.
+
+It is manual only, not run on pushes or pull requests and not a required check.
+Start it from Actions → **DPC provisioning probe** → Run workflow (API level
+36, 35 or 37.0, and optionally a release tag), or with
+`gh workflow run dpc-provisioning-probe.yml -f api=36`. GitHub only offers
+that once the workflow is on main. To run it from a branch, dispatch CI with
+the probe switched on, which also runs every other check:
+`gh workflow run ci.yml --ref <branch> -f dpc_probe=true`.
+
+What the job does (`scripts/dpc-provisioning-probe.py`):
+
+1. Downloads `plainphone-VERSION.apk` from the newest release (pre-releases
+   count) or the chosen tag, and stops unless its SHA-256 and version match the
+   release's `.apk.json`.
+2. Builds the QR code with `scripts/provisioning-qr.py`, which reads the
+   signature checksum from that APK. The download address is the release
+   asset, the PIN is `000000`, and the server is `https://probe.invalid`, so the
+   phone never pairs with a real server. The QR code is drawn on a 4:3 white
+   camera frame, and the job checks with `zbarimg` that the frame decodes to
+   exactly the payload.
+3. Boots a fresh, wiped `google_apis_playstore` x86_64 image with the back
+   camera showing that frame (`-camera-back imagefile:`). It stops without a
+   conclusion if the image skips the setup wizard.
+4. Waits for the welcome screen, taps an empty spot six times (one shell
+   command, so the taps are quick), and checks that the screen changed.
+5. Records every new screen (screenshot and `uiautomator` dump) and presses
+   what a parent would press: *Accept & continue*, *Next*, *Continue*, the
+   emulator's Wi-Fi and so on, never *Cancel* or *Stop setup*. If Play Protect
+   offers *Install anyway*, the probe presses it, so the result also says
+   whether a warning can be passed. In the background it reads
+   `dpm list-owners` every second.
+6. Plainphone's own setup step turns adb off within seconds of becoming Device
+   Owner. The probe then keeps taking screenshots through the emulator console
+   (`adb emu screenrecord screenshot`) for a minute.
+
+The artifact `dpc-provisioning-probe-api-<level>` holds `result.json`,
+`screens/` (every wizard screen as PNG, plus the XML dump where one could be
+read), `logcat.txt` (until adb went off), `logcat-highlights.txt` (Play Store,
+package verification, managed provisioning and Plainphone lines),
+`emulator.log`, `device_policy.txt` when adb was still on, `release.json` and
+the camera frame.
+
+`result.json` gives a `conclusion` (`provisioned`, `provisioned_after_warning`,
+`blocked_by_play_protect` or `inconclusive`) and a `reason`. It also has
+`play_protect` (shown, `block` or `warning`, the screen texts, whether
+*Install anyway* was pressed), `provisioning_finished`, `device_owner` (`true`
+from `dpm list-owners`, or `"inferred"` when adb went off right after
+Plainphone was installed and before dpm could be read; only the Device Owner
+lock turns adb off), the release, the image with its Play Store and Play
+services versions, and a timeline. The job fails on `inconclusive`: the image
+had no setup wizard, six taps did not open QR setup, setup stopped on an error
+screen without a Play Protect screen, a screen stayed unchanged for 150
+seconds, or there was no answer within 15 minutes. A block passes the job, with
+a warning annotation, because the probe did answer the question.
+
+### What matches a real QR setup and what does not
+
+| Step | Same as a real phone | Different |
+| --- | --- | --- |
+| Setup wizard | Google's setup wizard on a Google Play image, with Play Store, Play services and Play Protect | An emulator image, not a certified phone from a maker. Its Play Store and Play services versions are the image's own (recorded in `result.json`) and may be older than a phone's |
+| Opening QR setup | Six taps on the welcome screen | `input tap` instead of a finger |
+| Scanning | The wizard's own QR reader reads the camera | The camera shows an image file: no lens, focus, glare or second screen |
+| QR payload | Built by `scripts/provisioning-qr.py` in the same format as the dashboard | No enrollment token, the server is `https://probe.invalid`, and the APK comes from the GitHub release URL instead of `app.plainphone.org/download/android` |
+| Download, checksum, install | Android's managed provisioning downloads the release-signed APK and checks its signature, and Play Protect checks the install as it would on a phone | The network is a GitHub runner in a data centre, not a home network |
+| Device Owner and Plainphone's setup step | Real | Once adb is off, the probe can take screenshots but cannot tap, so it does not finish Plainphone's battery dialog or the rest of setup |
+| Account | No Google account, as the setup guide says | Same |
+
+Play Protect partly decides on Google's servers, so a result here is a strong
+hint, not proof. A block on the emulator should be confirmed on one real phone
+before acting on it, and a pass should be confirmed on a real phone with
+current Play services before the setup guide says it works.
+
+Other ways to start provisioning were ruled out because they skip the part
+under test: `dpm set-device-owner` skips the wizard and Play Protect, an
+`am start` of `PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE` needs a signature
+permission the shell does not have, `PROVISION_MANAGED_DEVICE` must come from
+an already installed DPC, and the emulator has no NFC.
+
+To check the probe's decisions without an emulator, run
+`python3 -m unittest scripts/test_dpc_provisioning_probe.py` (the CI `changes`
+job runs it on every run).
