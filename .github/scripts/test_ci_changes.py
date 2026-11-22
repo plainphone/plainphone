@@ -36,6 +36,7 @@ class ChangeDetectionTests(unittest.TestCase):
             "scripts/backup-test/storage.py": {"backup"},
             "compose.yaml": {"backup"},
             "scripts/e2e-android-emulator.py": {"emulator"},
+            "scripts/test_e2e_android_emulator.py": {"emulator"},
             ".github/workflows/ci.yml": CHECKS,
             "ios/project.yml": {"ios"},
             "ios/Tests/Fixtures/ios-rules.json": {"ios", "server"},

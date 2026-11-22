@@ -242,8 +242,7 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         (Compat.applicationInfo(pm, pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0
     }.getOrDefault(false)
 
-    override fun grantPermission(pkg: String, permission: String): Boolean =
-        dpm.setPermissionGrantState(admin, pkg, permission, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+    override fun grantPermission(pkg: String, permission: String): Boolean = dpm.grantByPolicy(admin, pkg, permission)
 
     override fun setSuspended(packages: Set<String>, suspended: Boolean): Set<String> =
         dpm.setPackagesSuspended(admin, packages.toTypedArray(), suspended).toSet()

@@ -31,6 +31,30 @@ object PipGuard {
         .mapNotNull { pkg -> plan.why(pkg)?.let { Target(pkg, it) } }
         .filterNot { openedForNow(it.pkg) }
 
+    /**
+     * Blocked windows in [alreadyStopped] that still float. Android 10 can ignore a dismiss sent
+     * while the window is still entering picture-in-picture, so the guard sends it again (it is
+     * invisible); only the stop screen stays once per window.
+     */
+    fun stillFloating(
+        windows: List<Win>,
+        ownPackage: String,
+        plan: LightPlan,
+        alreadyStopped: Set<String>,
+        openedForNow: (String) -> Boolean,
+    ): List<Target> = targets(windows, ownPackage, plan, openedForNow = openedForNow).filter { it.pkg in alreadyStopped }
+
+    /**
+     * True while an app asked to leave picture-in-picture (at [expandedAt], elapsed time) may still be
+     * arriving in front. Its stop screen must not press Home then: a video app answers the user leaving
+     * by floating again.
+     */
+    fun expandedRecently(expandedAt: Long?, now: Long): Boolean =
+        expandedAt != null && now - expandedAt in 0..EXPAND_QUIET_MS
+
+    /** Long enough for Android's expand animation and a stop screen dropped by the guard's rate limit. */
+    const val EXPAND_QUIET_MS = 5_000L
+
     /** Picture-in-picture packages, for the live time check (the plan may not know yet that time is up). */
     fun packages(windows: List<Win>, ownPackage: String): List<String> =
         windows.filter { it.inPip }.mapNotNull { it.pkg }.filter { it != ownPackage }.distinct()

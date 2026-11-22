@@ -75,7 +75,7 @@ fast depends on the transport:
 
 | Transport | Decides the delay | Expected |
 |---|---|---|
-| FCM (`fcm`) | A high-priority data message starts an expedited sync. Android may treat high-priority messages that never show a notification as normal priority after a while. TTL: ring (start and stop) and Find 2 min, SOS acknowledgement 10 min, rules and "Are you okay?" 15 min, app update 1 h. All wakes share one collapse key, so a burst of changes is one wake. | Typical 1 to 5 s including the sync. |
+| FCM (`fcm`) | A high-priority data message starts an expedited sync (an ordinary immediate sync on Android 10 and 11, where WorkManager would need a foreground notice for expedited work). Android may treat high-priority messages that never show a notification as normal priority after a while. TTL: ring (start and stop) and Find 2 min, SOS acknowledgement 10 min, rules and "Are you okay?" 15 min, app update 1 h. All wakes share one collapse key, so a burst of changes is one wake. | Typical 1 to 5 s including the sync. |
 | UnifiedPush (`unifiedpush`) | The distributor (for example ntfy) keeps its own connection; `Urgency: high` and the same TTLs. | Typical 1 to 5 s; depends on the distributor's connection. |
 | Polling (`poll`) | The [timing table](phone-sync.md#when-the-phone-syncs): screen on every 60 s, an open ring or "Are you okay?" every 10 s, screen off every 2 minutes, which deep Doze stretches to 9 to 15 minutes. | Screen on: up to 1 min. Screen off: up to 2 min, in deep Doze up to 15 min. |
 
