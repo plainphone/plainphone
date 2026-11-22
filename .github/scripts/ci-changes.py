@@ -30,6 +30,8 @@ FILTERS = {
     ),
     "server": WORKSPACE + TURBO + CRYPTO_VECTORS + (
         "server/*", "web/*", "Dockerfile", ".dockerignore",
+        # test/env-wiring.test.ts checks the app's environment in these against src/config.ts.
+        "compose.yaml", "deploy/dokploy-compose.yaml", ".env.example", "docs/self-hosting.md",
         # The Swift tests' rules fixture, checked against the server (test/ios-contract.test.ts).
         "ios/Tests/Fixtures/*",
     ),

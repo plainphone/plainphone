@@ -29,7 +29,9 @@ It caches a clean AOSP snapshot for API 34 (API 29 cold-boots every run, see
 and logs when a device flow fails. Parent app checks watch the app, the OpenAPI spec, the root workspace files
 and the packages the app shares with the PWA (`packages/i18n`, `shared` and
 `api-client`). Server checks also watch the root workspace packages
-and encryption test vectors, which run in the TypeScript workspace suite, and
+and encryption test vectors, which run in the TypeScript workspace suite, the two
+compose files, `.env.example` and `docs/self-hosting.md` (checked against the server's
+settings by `server/test/env-wiring.test.ts`), and
 fail when `packages/api-client/src/schema.d.ts` is behind `server/openapi.yaml`.
 Phone sync and the emulator suite skip changes to the shared client packages.
 DNS checks watch the server schema and validation
@@ -59,7 +61,7 @@ server and parent app jobs.
 The jobs do not use `turbo --affected`. It maps changed files to packages, and
 several checks read files outside their package: the API types check reads
 `server/openapi.yaml`, the server and parent app tests read
-`ios/Tests/Fixtures/`, and the server tests read the compose files, `.env.example` and `docs/encryption-test-vectors/`. Those files
+`ios/Tests/Fixtures/`, and the server tests read the compose files, `.env.example`, `docs/self-hosting.md` and `docs/encryption-test-vectors/`. Those files
 are task `inputs` in `turbo.json`, so the cache hash covers them, while
 package-level change detection would skip the check.
 
