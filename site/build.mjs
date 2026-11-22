@@ -9,6 +9,7 @@ import da from "./content/da.mjs";
 import { help } from "./content/help.mjs";
 import { home } from "./content/home.mjs";
 import { giving, organisations } from "./content/giving.mjs";
+import { deleteAccount } from "./content/delete-account.mjs";
 import sv from "./content/sv.mjs";
 import nb from "./content/nb.mjs";
 import de from "./content/de.mjs";
@@ -166,6 +167,7 @@ function footer(t, route = (p) => p.path) {
 <li><a href="${t.path}#faq">${l.faq}</a></li>
 <li><a href="${t.why.path}">${t.why.h1}</a></li>
 <li><a href="${t.privacy.path}">${t.privacy.h1}</a></li>
+<li><a href="${deleteAccount[t.lang].path}">${deleteAccount[t.lang].footer}</a></li>
 <li><a href="${STATUS_URL}" target="_blank" rel="noopener noreferrer">${l.status}</a></li>
 </ul></section>
 <section aria-labelledby="foot-project"><h2 id="foot-project">${l.project}</h2><ul>
@@ -525,9 +527,40 @@ ${header(t, "privacy", route)}
 <p class="updated">${p.updated}</p>
 <p class="lead">${p.lead}</p>
 <p class="notice-box">${p.status}</p>
+<p>${deleteAccount[t.lang].privacyNote.replace("{LINK}", deleteAccount[t.lang].path)}</p>
 <nav class="toc" aria-label="${p.tocLabel}"><ul>${p.sections.map((s) => `<li><a href="#${s.id}">${s.title}</a></li>`).join("")}</ul></nav>
 <section class="short" aria-labelledby="short"><h2 id="short">${p.short.title}</h2>${block({ list: p.short.list })}</section>
 ${p.sections.map(section).join("\n")}
+</main>
+${footer(t, route)}
+</body>
+</html>
+`;
+}
+
+// How to delete an account (content/delete-account.mjs). App stores ask for exactly this page.
+function deleteAccountPage(t) {
+  const p = deleteAccount[t.lang];
+  const route = (x) => deleteAccount[x.lang].path;
+  const block = (b) => {
+    if (typeof b === "string") return `<p>${b.replaceAll("{PRIVACY}", t.privacy.path)}</p>`;
+    if (b.steps) return `<ol>${b.steps.map((li) => `<li>${li}</li>`).join("")}</ol>`;
+    return `<ul>${b.list.map((li) => `<li>${li}</li>`).join("")}</ul>`;
+  };
+  return `${head(t, {
+    path: p.path,
+    title: p.title,
+    description: p.description,
+    ogTitle: p.h1,
+    alternates: pages.map((x) => ({ lang: x.lang, path: route(x) })),
+    xDefault: route(pages[0]),
+  })}
+<body>
+${header(t, "delete-account", route)}
+<main id="main" tabindex="-1" class="doc">
+<h1>${p.h1}</h1>
+<p class="lead">${p.lead}</p>
+${p.sections.map((s) => `<section aria-labelledby="${s.id}"><h2 id="${s.id}">${s.title}</h2>${s.body.map(block).join("")}</section>`).join("\n")}
 </main>
 ${footer(t, route)}
 </body>
@@ -626,6 +659,8 @@ for (const t of pages) {
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
   writeFileSync(join(dist, t.privacy.path, "index.html"), privacyPage(t));
+  mkdirSync(join(dist, deleteAccount[t.lang].path), { recursive: true });
+  writeFileSync(join(dist, deleteAccount[t.lang].path, "index.html"), deleteAccountPage(t));
   mkdirSync(join(dist, giving[t.lang].path), { recursive: true });
   writeFileSync(join(dist, giving[t.lang].path, "index.html"), givingPage(t));
   mkdirSync(join(dist, t.setup.path), { recursive: true });
@@ -645,7 +680,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => p.compatibility.path, (p) => help[p.lang].path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => deleteAccount[p.lang].path, (p) => p.why.path, (p) => p.compatibility.path, (p) => help[p.lang].path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -691,4 +726,4 @@ writeFileSync(
   Cross-Origin-Resource-Policy: cross-origin
 `,
 );
-console.log(`Built ${pages.length * 7} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 8} pages + 404 into dist/ (css ${css.length} bytes)`);
