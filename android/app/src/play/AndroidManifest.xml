@@ -9,6 +9,7 @@
     <!-- Play allows QUERY_ALL_PACKAGES for search, antivirus, file managers and browsers only. -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission"
         tools:node="remove" />
     <!-- The install watchdog belongs to the self-updater and strong mode, neither of which is on Play. -->
     <uses-permission
@@ -77,7 +78,9 @@
         <activity
             android:name=".provisioning.PolicyComplianceActivity"
             tools:node="remove" />
-        <activity android:name=".MainActivity">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter tools:node="remove">
                 <action android:name="android.app.action.PROVISIONING_SUCCESSFUL" />
                 <category android:name="android.intent.category.DEFAULT" />
