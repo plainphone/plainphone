@@ -145,7 +145,8 @@ class SyncRunner(
         data class Synced(val changed: Boolean, val pollSeconds: Int) : Outcome
     }
 
-    fun run(reason: String): Outcome = synchronized(LOCK) { runLocked(reason) }
+    fun run(reason: String): Outcome =
+        synchronized(LOCK) { runLocked(reason) }.also { outcome -> runObserverForTest?.invoke(reason, outcome) }
 
     private fun runLocked(reason: String): Outcome {
         val movedServer = store.movedServer()
@@ -688,6 +689,9 @@ class SyncRunner(
         private val LOCK = Any()
         // Workers create new runners. Share the pending snapshot under LOCK and keep it off disk.
         private var pendingContactSuggestions: PendingContactSuggestions? = null
+        /** Emulator tests only: told the reason and outcome of every finished run. */
+        @Volatile
+        internal var runObserverForTest: ((reason: String, outcome: Outcome) -> Unit)? = null
         /** The lock is re-applied at least this often, so a change on the phone heals itself. */
         const val APPLY_MAX_AGE_MS = 15 * 60_000L
         const val STATUS_EVERY_MS = 15 * 60_000L

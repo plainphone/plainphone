@@ -16,6 +16,7 @@ import java.net.URL
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.CopyOnWriteArrayList
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -38,6 +39,7 @@ import org.plainphone.app.sync.SyncRunner
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.time.TrustedClock
 import org.plainphone.app.ui.PairingActivity
+import org.plainphone.app.ui.TelecomHandoff
 import org.plainphone.app.ui.placeCall
 
 private const val PLAYER = "org.plainphone.fixture"
@@ -70,21 +72,32 @@ abstract class EmulatorFlow {
         // Begin at the setup screen's existing pending-QR entry point. The fixture uses HTTP
         // on the emulator loopback, whereas the public setup link parser requires HTTPS.
         store.saveEnrollToken(response.getJSONObject("enrollment").getString("token"))
-        val setup = if (mode == Mode.LIGHT) LightSetupActivity.intent(context) else PairingActivity.setupIntent(context)
-        context.startActivity(setup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        if (mode == Mode.LIGHT) {
-            text(context.getString(R.string.setup_child)).click()
-            text(context.getString(R.string.setup_continue)).click()
-            val fields = checkNotNull(device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 15_000))
-            assertEquals("The enrollment confirmation needs two PIN fields", 2, fields.size)
-            fields.forEach { it.text = "924681" }
-            text(context.getString(R.string.light_confirm_link_action)).click()
+        // Pairing also registers the 15-minute WorkManager sync, which could deliver the first
+        // status and rules by itself. Wait for the sync the setup starts under its own reason.
+        val setupSync = if (mode == Mode.LIGHT) "initial light setup" else "paired"
+        val runs = CopyOnWriteArrayList<Pair<String, SyncRunner.Outcome>>()
+        SyncRunner.runObserverForTest = { reason, outcome -> runs.add(reason to outcome) }
+        try {
+            val setup = if (mode == Mode.LIGHT) LightSetupActivity.intent(context) else PairingActivity.setupIntent(context)
+            context.startActivity(setup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            if (mode == Mode.LIGHT) {
+                text(context.getString(R.string.setup_child)).click()
+                text(context.getString(R.string.setup_continue)).click()
+                val fields = checkNotNull(device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 15_000))
+                assertEquals("The enrollment confirmation needs two PIN fields", 2, fields.size)
+                fields.forEach { it.text = "924681" }
+                text(context.getString(R.string.light_confirm_link_action)).click()
+            }
+            await("the setup's own first sync ($setupSync), runs seen: $runs") {
+                runs.any { (reason, outcome) -> reason == setupSync && outcome is SyncRunner.Outcome.Synced }
+            }
+        } finally {
+            SyncRunner.runObserverForTest = null
         }
-        await("setup uploading the first status to the parent API") {
-            val summary = parent("GET", phone, 200)
-            !summary.isNull("pairedAt") && !summary.isNull("status")
-        }
-        await("setup saving the first rules") { store.rules()?.phoneId == id }
+        val summary = parent("GET", phone, 200)
+        assertFalse("setup must have paired the phone", summary.isNull("pairedAt"))
+        assertFalse("setup must have uploaded the first status", summary.isNull("status"))
+        assertEquals("setup must have saved the first rules", id, store.rules()?.phoneId)
     }
 
     protected fun sync() {
@@ -147,17 +160,20 @@ abstract class EmulatorFlow {
 
     protected fun assertEmergencyDialing() {
         assertTrue("the phone's call rules must be enforced", ContactPolicySources.get(context).rules().enforced)
-        val handedToTelecom = mutableListOf<Uri>()
+        val handedToTelecom = CopyOnWriteArrayList<Uri>()
         val emergencyNumbers = listOf("112", "911", "114")
-        // Always supply an interceptor: this test must never place an emergency call.
-        for (number in emergencyNumbers) {
-            assertNull("$number must reach the Telecom boundary", placeCall(context, number) { handedToTelecom.add(it) })
+        // The public placeCall, with only its final Telecom hand-off recorded: this test must
+        // never place a real emergency call.
+        TelecomHandoff.interceptForTest = { handedToTelecom.add(it) }
+        try {
+            for (number in emergencyNumbers) {
+                assertNull("$number must reach the Telecom hand-off", placeCall(context, number))
+            }
+            assertEquals(context.getString(R.string.call_not_allowed), placeCall(context, "+12025550199"))
+        } finally {
+            TelecomHandoff.interceptForTest = null
         }
-        assertEquals(
-            context.getString(R.string.call_not_allowed),
-            placeCall(context, "+12025550199") { handedToTelecom.add(it) },
-        )
-        assertEquals(emergencyNumbers.map { Uri.fromParts("tel", it, null) }, handedToTelecom)
+        assertEquals(emergencyNumbers.map { Uri.fromParts("tel", it, null) }, handedToTelecom.toList())
     }
 
     protected fun inboxContains(body: String, sender: String): Boolean =

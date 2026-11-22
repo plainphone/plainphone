@@ -184,9 +184,7 @@ class PhoneActivity : ComponentActivity() {
 }
 
 /** Starts a call if the contacts rule allows it. Returns null on success, else a message for the user. */
-fun placeCall(context: Context, number: String): String? = placeCall(context, number, null)
-
-internal fun placeCall(context: Context, number: String, submitToTelecom: ((Uri) -> Unit)?): String? {
+fun placeCall(context: Context, number: String): String? {
     val rules = if (EmergencyNumbers.forContext(context).isEmergency(number)) null
         else ContactPolicySources.get(context).rules()
     if (rules != null) {
@@ -204,15 +202,23 @@ internal fun placeCall(context: Context, number: String, submitToTelecom: ((Uri)
     return runCatching {
         // The approved number is dialled, not the typed one: the rule matched the normalised form (12345678 for +4512345678).
         val dial = rules?.contactFor(number)?.number?.takeIf { it.isNotBlank() } ?: number
-        val address = Uri.fromParts("tel", dial, null)
-        if (submitToTelecom == null) {
-            context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
-        } else {
-            submitToTelecom(address)
-        }
+        TelecomHandoff.submit(context, Uri.fromParts("tel", dial, null))
         rules?.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }
+}
+
+/** The one place a call leaves Plainphone for Android's Telecom. */
+internal object TelecomHandoff {
+    /** Emulator tests only: records the address instead of placing a real (emergency) call. */
+    @Volatile
+    internal var interceptForTest: ((Uri) -> Unit)? = null
+
+    fun submit(context: Context, address: Uri) {
+        val intercept = interceptForTest
+        if (intercept != null) intercept(address)
+        else context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
+    }
 }
 
 /** The parents from the rules' SOS block (contacts marked for SOS): first on the People tab. */
