@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only in the Google Play edition (docs/play/play-edition.md). Drafts: docs/play/permission-declarations.md. -->
+<resources>
+    <string name="disclosure_not_now">Not now</string>
+    <string name="disclosure_read_again">Read it again</string>
+
+    <string name="disclosure_guard_title">Plainphone guard</string>
+    <string name="disclosure_guard_body">The guard sees which app is open. If it is an app your parent has not allowed, or its time is up, the guard closes it and shows why.\n\nTo keep Plainphone switched on, the guard also reads the text on some Android settings pages. That text stays on this phone.\n\nYour parent can see which apps are on the phone and how many minutes you used apps that have a time limit.</string>
+    <string name="disclosure_guard_agree">Agree and continue</string>
+    <string name="disclosure_guard_declined">Without the guard, Plainphone cannot close apps your parent has not allowed. Setup waits here until you are ready.</string>
+
+    <string name="disclosure_location_title">Location for Find</string>
+    <string name="disclosure_location_body">Plainphone collects location data to enable Find, “Are you okay?” and the SOS button even when the app is closed or not in use.\n\nEach time your parent asks where the phone is, you see a notice. Only the latest position is kept.</string>
+    <string name="disclosure_location_agree">Allow location</string>
+
+    <string name="monitoring_channel">Plainphone is on</string>
+    <string name="monitoring_title">Plainphone is on</string>
+    <string name="monitoring_body">Your parents’ rules apply on this phone. Tap to see what they can see.</string>
+</resources>

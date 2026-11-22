@@ -437,6 +437,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
             SyncRunner.Outcome.Failed(e.javaClass.simpleName)
         }
         Log.i("Plainphone", "sync ($reason): $outcome")
+        // A sync can pair, remove or release the phone (Play edition: the "Plainphone is on" notice).
+        org.plainphone.app.distribution.Distribution.onStateChanged(applicationContext)
         return when (outcome) {
             is SyncRunner.Outcome.Synced -> {
                 // #23: once a day, attest the boot state to the server. Never affects the lock.

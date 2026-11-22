@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="disclosure_not_now">Ikke nå</string>
+    <string name="disclosure_read_again">Les det igjen</string>
+
+    <string name="disclosure_guard_title">Plainphone vakt</string>
+    <string name="disclosure_guard_body">Vakten ser hvilken app som er åpen. Er det en app forelderen din ikke har tillatt, eller er tiden brukt opp, lukker vakten den og viser hvorfor.\n\nFor at Plainphone skal forbli slått på, leser vakten også teksten på noen av Androids innstillingssider. Den teksten blir på telefonen.\n\nForelderen din kan se hvilke apper som er på telefonen, og hvor mange minutter du har brukt apper som har en tidsgrense.</string>
+    <string name="disclosure_guard_agree">Godta og fortsett</string>
+    <string name="disclosure_guard_declined">Uten vakten kan ikke Plainphone lukke apper forelderen din ikke har tillatt. Oppsettet venter her til du er klar.</string>
+
+    <string name="disclosure_location_title">Plassering for Finn</string>
+    <string name="disclosure_location_body">Plainphone samler inn posisjonsdata slik at Finn, «Har du det bra?» og SOS-knappen virker, også når appen er lukket eller ikke er i bruk.\n\nHver gang forelderen din spør hvor telefonen er, får du beskjed. Bare den siste posisjonen lagres.</string>
+    <string name="disclosure_location_agree">Tillat plassering</string>
+
+    <string name="monitoring_channel">Plainphone er på</string>
+    <string name="monitoring_title">Plainphone er på</string>
+    <string name="monitoring_body">Reglene fra foreldrene dine gjelder på denne telefonen. Trykk for å se hva de kan se.</string>
+</resources>

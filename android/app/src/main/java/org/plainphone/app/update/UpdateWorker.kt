@@ -15,10 +15,12 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
+import org.plainphone.app.distribution.Distribution
 
 /** Runs [SelfUpdater]. Periodic (it skips until a day has passed) and on the parent's "Update now". */
 class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
-    override fun doWork(): Result = runUpdateCheck(
+    // A Play build may inherit work enqueued by the GitHub build it replaced: it never runs it.
+    override fun doWork(): Result = if (!Distribution.SELF_UPDATES) Result.success() else runUpdateCheck(
         recoverInstall = { org.plainphone.app.Lock.recoverInstall(applicationContext, "update check") },
         reconcileOnStart = { SelfUpdate.reconcileOnStart(applicationContext) },
         checkForUpdate = { checkForUpdate(inputData.getBoolean(KEY_FORCE, false)) },
@@ -78,6 +80,12 @@ object SelfUpdate {
     }
 
     fun onStart(context: Context) {
+        if (!Distribution.SELF_UPDATES) {
+            // Google Play updates the Play edition (docs/play/play-edition.md).
+            WorkManager.getInstance(context).cancelUniqueWork(PERIODIC)
+            WorkManager.getInstance(context).cancelUniqueWork("$PERIODIC-charging")
+            return
+        }
         reconcileOnStart(context)
 
         // WorkManager combines constraints with AND. Poll more often than the shared daily
@@ -134,6 +142,7 @@ object SelfUpdate {
     /** Persist the work before marking the timestamp handled; a replay uses the same unique name. */
     @Synchronized
     fun request(context: Context, requestedAtMs: Long) {
+        if (!Distribution.SELF_UPDATES) return
         val store = PrefsUpdateStateStore(context)
         if (requestedAtMs <= store.handledRequestMs) return
         val request = OneTimeWorkRequestBuilder<UpdateWorker>()
@@ -146,7 +155,7 @@ object SelfUpdate {
     }
 
     /** For the status report. */
-    fun report(context: Context): UpdateReport? = PrefsUpdateStateStore(context.applicationContext).report?.takeUnless {
+    fun report(context: Context): UpdateReport? = if (!Distribution.SELF_UPDATES) null else PrefsUpdateStateStore(context.applicationContext).report?.takeUnless {
         it.errorCode == UpdateErrorCode.BATTERY_EXEMPTION_MISSING && !UpdateBatteryExemption.checkAndClearNotification(context)
     }
 }

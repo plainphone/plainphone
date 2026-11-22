@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.plainphone.app.light
 
-internal enum class SetupAudience(val profile: String?) {
-    CHILD("child"),
-    PARENT(null),
-    MYSELF("self"),
+import org.plainphone.app.R
+import org.plainphone.app.distribution.Distribution
+
+internal enum class SetupAudience(val profile: String?, val label: Int) {
+    CHILD("child", R.string.setup_child),
+    PARENT(null, R.string.setup_parent),
+    MYSELF("self", R.string.setup_myself),
+    ;
+
+    companion object {
+        /** The first setup screen's choices. The Play edition has no Myself (docs/play/play-edition.md). */
+        fun offered(): List<SetupAudience> = entries.filter { it != MYSELF || Distribution.MYSELF_PROFILE }
+    }
 }
 
 internal fun needsRestrictedSettingsHelp(sdk: Int, step: LightSetup.Step?, granted: Boolean): Boolean =

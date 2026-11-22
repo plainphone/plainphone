@@ -16,9 +16,13 @@ val signingProps: Properties? = System.getenv("PLAINPHONE_SIGNING")
     ?.takeIf { it.isFile }
     ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
+// The Play upload key, also outside the repository (docs/play/play-edition.md). Only bundlePlayRelease uses it.
+val playUploadProps: Properties? = System.getenv("PLAINPHONE_PLAY_UPLOAD")
+    ?.let { file(it) }
+    ?.takeIf { it.isFile }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+
 val fcmEnabled = providers.gradleProperty("plainphoneFcm").orNull == "true"
-// Play builds (-PplainphonePlay=true) pay through Google Play Billing; the direct build has no store.
-val playEnabled = providers.gradleProperty("plainphonePlay").orNull == "true"
 // E2EE phase 0 prototype (docs/e2ee-prototype.md): -PplainphoneE2eePrototype=true packages the
 // OpenMLS core from e2ee/mls-core/scripts/build-android.sh into DEBUG builds. Release never has it.
 val e2eePrototype = providers.gradleProperty("plainphoneE2eePrototype").orNull == "true"
@@ -63,6 +67,28 @@ android {
                 keyPassword = signingProps.getProperty("keyPassword")
             }
         }
+        if (playUploadProps != null) {
+            create("playUpload") {
+                storeFile = file(playUploadProps.getProperty("storeFile"))
+                storePassword = playUploadProps.getProperty("storePassword")
+                keyAlias = playUploadProps.getProperty("keyAlias")
+                keyPassword = playUploadProps.getProperty("keyPassword")
+            }
+        }
+    }
+
+    // Where the app is distributed (docs/play/play-edition.md). `github` is today's app for GitHub
+    // Releases and F-Droid, and the default. `play` is the Google Play edition: light mode, Child
+    // profile, no self-updater; its differences live in src/play (Distribution.kt, the manifest).
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            isDefault = true
+        }
+        create("play") {
+            dimension = "distribution"
+        }
     }
 
     buildTypes {
@@ -85,7 +111,6 @@ android {
     }
 
     sourceSets["main"].kotlin.directories.add(if (fcmEnabled) "src/fcm/java" else "src/noFcm/java")
-    sourceSets["main"].kotlin.directories.add(if (playEnabled) "src/play/java" else "src/direct/java")
     if (fcmEnabled) {
         sourceSets["debug"].manifest.srcFile("src/fcm/AndroidManifest.xml")
         sourceSets["release"].manifest.srcFile("src/fcm/AndroidManifest.xml")
@@ -139,6 +164,14 @@ android {
     }
 }
 
+androidComponents {
+    // The Play bundle is signed with the upload key when PLAINPHONE_PLAY_UPLOAD is set, otherwise like
+    // every release. Google Play re-signs it with the app signing key (docs/play/play-edition.md).
+    onVariants(selector().withFlavor("distribution" to "play").withBuildType("release")) { variant ->
+        if (playUploadProps != null) variant.signingConfig.setConfig(android.signingConfigs.getByName("playUpload"))
+    }
+}
+
 val robolectricArtifacts = Properties().apply {
     val manifest = rootProject.layout.projectDirectory.file("gradle/robolectric.properties")
     load(providers.fileContents(manifest).asText.get().reader())
@@ -175,9 +208,10 @@ tasks.withType<Test>().configureEach {
 
 dependencies {
     if (fcmEnabled) implementation("com.google.firebase:firebase-messaging:25.0.1")
-    if (playEnabled) implementation("com.android.billingclient:billing:9.1.0")
+    // The play flavor (src/play) pays through Google Play Billing; the github flavor has no store.
+    "playImplementation"("com.android.billingclient:billing:9.1.0")
     // Billing's Play services pull in fragment 1.1, too old for the activity result APIs (lint error).
-    if (playEnabled) implementation("androidx.fragment:fragment:1.9.1")
+    "playImplementation"("androidx.fragment:fragment:1.9.1")
     // Phone and messages UI (phase 2).
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")

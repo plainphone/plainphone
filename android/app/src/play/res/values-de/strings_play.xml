@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="disclosure_not_now">Nicht jetzt</string>
+    <string name="disclosure_read_again">Noch einmal lesen</string>
+
+    <string name="disclosure_guard_title">Plainphone-Schutz</string>
+    <string name="disclosure_guard_body">Der Schutz sieht, welche App geöffnet ist. Ist es eine App, die dein Elternteil nicht erlaubt hat, oder ist ihre Zeit abgelaufen, schließt der Schutz sie und zeigt, warum.\n\nDamit Plainphone eingeschaltet bleibt, liest der Schutz auch den Text auf einigen Android-Einstellungsseiten. Dieser Text bleibt auf dem Handy.\n\nDein Elternteil kann sehen, welche Apps auf dem Handy sind und wie viele Minuten du Apps mit einem Zeitlimit genutzt hast.</string>
+    <string name="disclosure_guard_agree">Zustimmen und weiter</string>
+    <string name="disclosure_guard_declined">Ohne den Schutz kann Plainphone keine Apps schließen, die dein Elternteil nicht erlaubt hat. Die Einrichtung wartet hier, bis du bereit bist.</string>
+
+    <string name="disclosure_location_title">Standort für die Suche</string>
+    <string name="disclosure_location_body">Plainphone erfasst Standortdaten, damit die Suche, „Geht es dir gut?“ und die SOS-Taste funktionieren, auch wenn die App geschlossen ist oder nicht verwendet wird.\n\nJedes Mal, wenn dein Elternteil fragt, wo das Handy ist, siehst du einen Hinweis. Nur die letzte Position wird gespeichert.</string>
+    <string name="disclosure_location_agree">Standort erlauben</string>
+
+    <string name="monitoring_channel">Plainphone ist an</string>
+    <string name="monitoring_title">Plainphone ist an</string>
+    <string name="monitoring_body">Die Regeln deiner Eltern gelten auf diesem Handy. Tippe, um zu sehen, was sie sehen können.</string>
+</resources>

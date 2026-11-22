@@ -19,7 +19,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
 
-/** Play builds (`-PplainphonePlay=true`): Google Play is the only way to pay on the phone. */
+/** The `play` flavor: Google Play is the only way to pay on the phone. */
 object Stores {
     const val available = true
 

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Google Play edition (docs/play/play-edition.md). Merged over src/main/AndroidManifest.xml:
+    what Play does not allow is removed here, what it asks for is added.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Play allows QUERY_ALL_PACKAGES for search, antivirus, file managers and browsers only. -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:node="remove" />
+    <!-- The install watchdog belongs to the self-updater and strong mode, neither of which is on Play. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"
+        tools:node="remove" />
+
+    <!-- What the allowlist, time limits and the always-allowed apps need to see, instead of every package. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.telecom.InCallService" />
+        </intent>
+        <intent>
+            <action android:name="android.provider.Telephony.SMS_DELIVER" />
+        </intent>
+        <intent>
+            <action android:name="com.android.phone.EmergencyDialer.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="vnd.android.cursor.dir/contact" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <package android:name="com.google.android.gms" />
+    </queries>
+
+    <application>
+        <!-- Play's monitoring-app policy: "child_monitoring" in every version code on every track. -->
+        <meta-data
+            android:name="isMonitoringTool"
+            android:value="child_monitoring" />
+
+        <!-- No Device Owner setup from the Play build: strong mode is never on Play. -->
+        <activity
+            android:name=".provisioning.ProvisioningModeActivity"
+            tools:node="remove" />
+        <activity
+            android:name=".provisioning.PolicyComplianceActivity"
+            tools:node="remove" />
+        <activity android:name=".MainActivity">
+            <intent-filter tools:node="remove">
+                <action android:name="android.app.action.PROVISIONING_SUCCESSFUL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".update.InstallWatchdogService"
+            tools:node="remove" />
+
+        <!-- Puts the "Plainphone is on" notice back when it is swiped away (MonitoringNotice). -->
+        <receiver
+            android:name=".distribution.MonitoringNoticeReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

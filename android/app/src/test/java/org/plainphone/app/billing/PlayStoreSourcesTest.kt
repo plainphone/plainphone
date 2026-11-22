@@ -10,7 +10,7 @@ import org.junit.Test
 /**
  * Play builds sell only through Google Play: no card (Stripe) path and no web checkout may reach
  * src/play. The phone also never finishes a purchase itself; the server does after checking it.
- * Runs on the default (direct) build, so it reads the sources as text.
+ * Runs on both flavors' unit tests, so it reads the sources as text.
  */
 class PlayStoreSourcesTest {
     private val play = File("src/play")
@@ -20,7 +20,7 @@ class PlayStoreSourcesTest {
     @Test
     fun `the Play source set exists and has the store code`() {
         assertThat(sources(play).map { it.name }).contains("Stores.kt")
-        assertThat(sources(File("src/direct")).map { it.name }).contains("Stores.kt")
+        assertThat(sources(File("src/github")).map { it.name }).contains("Stores.kt")
     }
 
     @Test
@@ -44,8 +44,8 @@ class PlayStoreSourcesTest {
     }
 
     @Test
-    fun `the direct build has no billing library`() {
-        sources(File("src/direct")).forEach { assertThat(it.readText()).doesNotContain("billingclient") }
+    fun `the GitHub build has no billing library`() {
+        sources(File("src/github")).forEach { assertThat(it.readText()).doesNotContain("billingclient") }
         sources(File("src/main")).forEach { assertThat(it.readText()).doesNotContain("com.android.billingclient") }
     }
 

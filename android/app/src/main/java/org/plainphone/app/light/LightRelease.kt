@@ -31,6 +31,7 @@ object LightRelease {
             }
         })
         LightSetup.clearAfterRelease(context, undoPending)
+        org.plainphone.app.distribution.Distribution.onStateChanged(context)
     }
 
     internal fun removeAdmin(context: Context) {
