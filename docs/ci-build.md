@@ -24,7 +24,8 @@ Android checks also watch the provisioning QR and release smoke scripts,
 Phone sync additionally watches the server, root workspace inputs and its
 test driver. The [Android emulator suite](testing.md) runs on every main push
 and on pull requests touching its Android, server, workflow or test inputs.
-It caches a clean AOSP snapshot for each API level and keeps the screenshot
+It caches a clean AOSP snapshot for API 34 (API 29 cold-boots every run, see
+[testing](testing.md)) and keeps the screenshot
 and logs when a device flow fails. Parent app checks watch the OpenAPI spec and the PWA files copied
 by `pnpm sync:shared`. Server checks also watch the root workspace packages
 and encryption test vectors, which run in the TypeScript workspace suite.
