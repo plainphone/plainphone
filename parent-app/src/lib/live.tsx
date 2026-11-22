@@ -15,7 +15,7 @@ import {
   liveMatches,
   pollInterval,
   type Transport,
-} from "../shared/lib/live-events";
+} from "@plainphone/shared/live-events";
 import { DEFAULT_LIVE_SETTINGS, loadLiveSettings, type LiveSettings, saveLiveSetting } from "./live-settings";
 import { xhrTransport } from "./live-transport";
 import { useSession } from "./session";

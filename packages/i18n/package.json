@@ -1,0 +1,17 @@
+{
+  "name": "@plainphone/i18n",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Copy in every app language, shared by the web dashboard and the parent app",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

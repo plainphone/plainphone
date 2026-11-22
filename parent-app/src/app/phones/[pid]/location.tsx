@@ -17,7 +17,7 @@ import { answers, FIND_TIMEOUT_MS, needsPolling, POLL_MS } from "../../../lib/lo
 import { positionText, routeLinks } from "../../../lib/maps";
 import { getItem, setItem } from "../../../lib/storage";
 import { space } from "../../../lib/theme";
-import { formatDateTime, formatMeters, formatRelative } from "../../../shared/lib/format";
+import { formatDateTime, formatMeters, formatRelative } from "@plainphone/shared/format";
 
 const MAP_KEY = "pp.showMap"; // a display preference, not a credential
 

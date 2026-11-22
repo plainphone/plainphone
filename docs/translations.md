@@ -44,8 +44,8 @@ The fallback SMS that the phone builds itself when the server cannot be reached 
 Swedish, Norwegian Bokmål and German need native review there as well. Prioritize
 setup and release instructions, emergency and contact screens, and permissions.
 Android strings live in `android/app/src/main/res/values-*/`. Web catalogs live in
-`web/src/i18n/`. Run `pnpm sync:shared` in `parent-app/` after updating the web catalogs.
-The iPhone lines (`web/src/i18n/platform.ts`) use Apple's own names for its settings: Nedetid,
+`packages/i18n/src/` (`@plainphone/i18n`), which the web app and the parent app both import.
+The iPhone lines (`packages/i18n/src/platform.ts`) use Apple's own names for its settings: Nedetid,
 Nedtid, Nedetid and Auszeit for Downtime; Skærmtid, Skärmtid, Skjermtid and Bildschirmzeit for
 Screen Time; Kommunikationsgrænser, Kommunikationsgränser, Kommunikasjonsgrenser and
 Kommunikationslimits for Communication Limits; Familiedeling, Familjedelning, Familiedeling and

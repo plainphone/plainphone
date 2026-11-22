@@ -9,7 +9,7 @@ import { disablePush } from "../lib/push";
 import { LiveSettings } from "../components/LiveSettings";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { NotificationsSection } from "./Notifications";
-import { planNowKey } from "../lib/billing";
+import { planNowKey } from "@plainphone/shared/billing";
 import { usePlan } from "./Plan";
 
 export function SettingsPage() {

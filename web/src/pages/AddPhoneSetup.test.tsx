@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { api } from "../lib/api";
 import { SetupPhonePage } from "./AddPhone";
 

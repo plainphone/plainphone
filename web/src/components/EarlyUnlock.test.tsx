@@ -5,10 +5,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import { api, type PendingChange } from "../lib/api";
-import type { EarlyUnlockOffer, EarlyUnlockPurchase } from "../lib/billing";
-import { formatDateTime } from "../lib/format";
+import type { EarlyUnlockOffer, EarlyUnlockPurchase } from "@plainphone/shared/billing";
+import { formatDateTime } from "@plainphone/shared/format";
 import { EarlyUnlock, EarlyUnlockReceipt } from "./EarlyUnlock";
 
 vi.mock("../lib/session", () => ({ useMe: () => ({ user: { email: "me@example.test" }, households: [{ id: "h1" }] }) }));

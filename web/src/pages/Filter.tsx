@@ -5,8 +5,8 @@ import { DnsAddress } from "../components/DnsAddress";
 import { Field, Loading, LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../lib/api";
-import { categoryLabel } from "../lib/ops";
-import { isIphone } from "../lib/platform";
+import { categoryLabel } from "@plainphone/shared/ops";
+import { isIphone } from "@plainphone/shared/platform";
 import { usePhone } from "./Phone";
 
 /** Roughly the server's rule; the server has the final word. */

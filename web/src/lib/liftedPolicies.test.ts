@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { liftedNotice } from "./liftedPolicies";
+import { liftedNotice } from "@plainphone/shared/liftedPolicies";
 
 const NOW = Date.parse("2026-11-16T12:00:00Z");
 const NAME = "restriction no_modify_accounts";

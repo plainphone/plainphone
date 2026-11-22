@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { da } from "./da";
-import { en } from "./en";
-import { catalogs, makeT, pickLocale, translate } from "./translate";
+import { da } from "@plainphone/i18n/da";
+import { en } from "@plainphone/i18n/en";
+import { catalogs, makeT, pickLocale, translate } from "@plainphone/i18n/translate";
 
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 

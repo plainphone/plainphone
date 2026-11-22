@@ -3,7 +3,7 @@
 // The phone being managed, loaded once for all its screens (overview, apps, contacts, ...):
 // the phone itself, the changes waiting for its key, the apps' names, and run(), which
 // reports what a rule change did. Same job as PhoneLayout in web/src/pages/Phone.tsx.
-import { messageLanguage } from "../shared/lib/phone-language";
+import { messageLanguage } from "@plainphone/i18n/phone-language";
 import { usePathname } from "expo-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Keyboard, View } from "react-native";
@@ -13,8 +13,8 @@ import type { App, ChangeResult, Locale, PendingChange, Phone } from "../api/mod
 import { type TFn, useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { radius, space, useColors } from "../lib/theme";
-import { formatDateTime, formatDuration } from "../shared/lib/format";
-import { describeOp } from "../shared/lib/ops";
+import { formatDateTime, formatDuration } from "@plainphone/shared/format";
+import { describeOp } from "@plainphone/shared/ops";
 import { Button, ErrorState, errorMessage, LiveStatus, Loading, type NoticeValue, Row, Screen, Text, useLoad, useNow } from "./ui";
 
 export interface PhoneCtx {

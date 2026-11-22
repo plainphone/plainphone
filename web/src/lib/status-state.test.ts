@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { da } from "../i18n/da";
-import { en } from "../i18n/en";
-import { decisionOutcome, isFinal, outcomeKey, outcomeOf, queueOf, queueSummaryKey } from "./approval-state";
-import { phoneState } from "./phone-state";
-import { approvalFixtures, FIXTURE_NOW, phoneFixtures } from "./status-fixtures";
+import { da } from "@plainphone/i18n/da";
+import { en } from "@plainphone/i18n/en";
+import { decisionOutcome, isFinal, outcomeKey, outcomeOf, queueOf, queueSummaryKey } from "@plainphone/shared/approval-state";
+import { phoneState } from "@plainphone/shared/phone-state";
+import { approvalFixtures, FIXTURE_NOW, phoneFixtures } from "@plainphone/shared/status-fixtures";
 
 it("gives every phone fixture one state, and the states differ", () => {
   const states = Object.fromEntries(phoneFixtures.map((p) => [p.id, phoneState(p, FIXTURE_NOW)]));
