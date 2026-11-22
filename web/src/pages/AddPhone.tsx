@@ -5,10 +5,10 @@ import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { Switch, errorMessage, errorNotice, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
-import { intlLocale } from "../lib/format";
+import { intlLocale } from "@plainphone/shared/format";
 import { lightSetupLink } from "../lib/light-setup";
 import { api, ApiError, applyAgePreset, getAgePresets, type Phone, type Profile, putAgreement, putReview } from "../lib/api";
-import { type AgePresetId, parseLines } from "../lib/age";
+import { type AgePresetId, parseLines } from "@plainphone/shared/age";
 import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import {
   hashPin,
@@ -21,7 +21,7 @@ import {
 } from "../lib/provisioning";
 import { useIosPairing } from "../lib/session";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
-import type { PhoneLanguage } from "../lib/phone-language";
+import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
 import { useHouseholdId } from "../lib/session";
 import "./add-phone.css";
 

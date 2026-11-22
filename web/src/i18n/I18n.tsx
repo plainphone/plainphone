@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Locale } from "../lib/api";
-import { makeT, pickLocale, type T } from "./translate";
+import { makeT, pickLocale, type T } from "@plainphone/i18n/translate";
 
 const STORAGE_KEY = "pp.locale"; // a language preference, not a credential
 

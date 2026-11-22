@@ -10,9 +10,9 @@ import {
 } from "react";
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
-import type { T } from "../i18n/translate";
+import type { T } from "@plainphone/i18n/translate";
 import { ApiError } from "../lib/api";
-import { planLimitKey, planLimitOf } from "../lib/billing";
+import { planLimitKey, planLimitOf } from "@plainphone/shared/billing";
 
 /** Turns any error into a sentence for the user. */
 export function errorMessage(err: unknown, t: T): string {

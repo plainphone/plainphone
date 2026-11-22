@@ -5,8 +5,8 @@
 import { getLocales } from "expo-localization";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Locale } from "../api/models";
-import { catalogs, pickLocale, translate, type MessageKey, type Params } from "../shared/i18n/translate";
-import { isLanguage } from "../shared/lib/phone-language";
+import { catalogs, pickLocale, translate, type MessageKey, type Params } from "@plainphone/i18n/translate";
+import { isLanguage } from "@plainphone/i18n/phone-language";
 import { appSv } from "./app-sv";
 import { appNb } from "./app-nb";
 import { appDe } from "./app-de";

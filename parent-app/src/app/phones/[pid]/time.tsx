@@ -11,8 +11,8 @@ import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, Choice, errorMessage, LoadGate, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n, type TFn } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { formatMinutes, limitOn, todayIn, weekdayName } from "../../../shared/lib/format";
-import { minuteWords } from "../../../shared/lib/ops";
+import { formatMinutes, limitOn, todayIn, weekdayName } from "@plainphone/shared/format";
+import { minuteWords } from "@plainphone/shared/ops";
 
 /** Few, round choices, like the web dashboard. */
 const DURATIONS = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360];

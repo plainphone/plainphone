@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { familyState } from "./sos-options";
+import { familyState } from "@plainphone/shared/sos-options";
 
 const at = "2026-11-19T15:00:00Z";
 

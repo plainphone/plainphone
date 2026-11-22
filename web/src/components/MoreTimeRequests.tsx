@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useI18n } from "../i18n/I18n";
-import { formatDateTime } from "../lib/format";
-import { ANSWER_KEY, byKey, MORE_TIME_ANSWERS, type MoreTimeAnswer, type MoreTimeRequest, resultOf } from "../lib/more-time";
+import { formatDateTime } from "@plainphone/shared/format";
+import { ANSWER_KEY, byKey, MORE_TIME_ANSWERS, type MoreTimeAnswer, type MoreTimeRequest, resultOf } from "@plainphone/shared/more-time";
 import "./status.css";
 
 export interface MoreTimeRequestsProps {

@@ -6,7 +6,7 @@
 import { client, unwrap } from "../api/client";
 import type { Phone } from "../api/models";
 import { useI18n } from "../i18n/I18n";
-import { formatRelative } from "../shared/lib/format";
+import { formatRelative } from "@plainphone/shared/format";
 import { LoadGate, Notice, PageTitle, Screen, Text, useLoad, useNow } from "./ui";
 
 interface IosSelectionState {

@@ -13,7 +13,7 @@ import { Button, Card, Choice, errorMessage, Field, LoadGate, Notice, PageTitle,
 import { type Key, type TFn, useI18n } from "../../../i18n/I18n";
 import { planOverlaps } from "../../../lib/modePlan";
 import { space, useColors } from "../../../lib/theme";
-import { formatList, hhmmToMinutes, minutesToHHMM, weekdayName } from "../../../shared/lib/format";
+import { formatList, hhmmToMinutes, minutesToHHMM, weekdayName } from "@plainphone/shared/format";
 
 const GROUPS: ContactGroup[] = ["family", "friends", "others"];
 const PRESETS: Mode["preset"][] = ["school", "homework", "free", "night", "custom"];

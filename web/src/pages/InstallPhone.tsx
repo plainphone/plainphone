@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { lightSetupIntent } from "../lib/light-setup";
 import { ApprovalScanner } from "../components/ApprovalScanner";
-import { isLanguage } from "../lib/phone-language";
+import { isLanguage } from "@plainphone/i18n/phone-language";
 import { api } from "../lib/api";
 import { PageTitle } from "../components/ui";
 import "./add-phone.css";

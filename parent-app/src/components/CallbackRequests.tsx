@@ -12,7 +12,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import {
   type CallbackList, type CallbackRequest, callbackRefusalKey, callbackStateKey, isOpenCallback,
-} from "../shared/lib/sos-options";
+} from "@plainphone/shared/sos-options";
 import { Button, Card, Notice, Text, useLoad } from "./ui";
 
 export function CallbackRequests({ pid, phoneName }: { pid: string; phoneName?: string }) {

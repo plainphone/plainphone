@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { diagnostics, releaseState } from "./phoneSupport";
+import { diagnostics, releaseState } from "@plainphone/shared/phoneSupport";
 
 const pending = { releaseRequestedAt: "2026-11-18T19:26:00Z" };
 

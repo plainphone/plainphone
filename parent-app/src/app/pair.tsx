@@ -12,9 +12,9 @@ import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeV
 import { useI18n } from "../i18n/I18n";
 import { DEFAULT_AGE_CHOICES, saveSetupChoices, type AgeChoices } from "../lib/setup-choices";
 import { fonts } from "../lib/theme";
-import { type AgePreset, parseLines } from "../shared/lib/age";
-import { normaliseCode } from "../shared/lib/format";
-import { IOS_PAIRING_NOT_YET } from "../shared/lib/platform";
+import { type AgePreset, parseLines } from "@plainphone/shared/age";
+import { normaliseCode } from "@plainphone/shared/format";
+import { IOS_PAIRING_NOT_YET } from "@plainphone/shared/platform";
 
 function PairForm() {
   const { t } = useI18n();

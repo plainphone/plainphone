@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { isIphone } from "../../../shared/lib/platform";
+import { isIphone } from "@plainphone/shared/platform";
 import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../../../api/models";
@@ -9,7 +9,7 @@ import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen,
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { cleanDomain, DOMAIN_RE } from "../../../lib/validate";
-import { categoryLabel } from "../../../shared/lib/ops";
+import { categoryLabel } from "@plainphone/shared/ops";
 
 function FilterScreenBody() {
   const { t } = useI18n();

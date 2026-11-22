@@ -14,7 +14,7 @@ import { useI18n } from "../i18n/I18n";
 import { useActiveHousehold, useMe, useSession } from "../lib/session";
 import { space } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
-import { formatDateTime } from "../shared/lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 
 function Household() {
   const { t, locale } = useI18n();

@@ -2,9 +2,9 @@
 import { useEffect } from "react";
 import { useI18n } from "../i18n/I18n";
 import type { Approval } from "../lib/api";
-import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "../lib/approval-state";
-import { formatDateTime } from "../lib/format";
-import { messageLanguage } from "../lib/phone-language";
+import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "@plainphone/shared/approval-state";
+import { formatDateTime } from "@plainphone/shared/format";
+import { messageLanguage } from "@plainphone/i18n/phone-language";
 import "./status.css";
 
 export interface ApprovalQueueProps {
