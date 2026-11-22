@@ -255,7 +255,8 @@ class GuardService : AccessibilityService() {
 
     /**
      * Closes a blocked app that plays on in picture-in-picture (see [PipGuard]): tries to dismiss the
-     * window, then shows the stop screen, which also sends Home.
+     * window, then shows the stop screen, which also sends Home. The stop screen comes once per
+     * window; the dismiss is repeated while the window floats, and it does not depend on which app is Home.
      */
     @Suppress("DEPRECATION")
     private fun guardPip() {
@@ -276,7 +277,12 @@ class GuardService : AccessibilityService() {
         pipStopped.retainAll(pipPackages.toSet())
         // A call (112 included) is never pushed aside by the stop screen; the window is looked at again after it.
         val inCall = getSystemService(android.media.AudioManager::class.java)?.mode == android.media.AudioManager.MODE_IN_CALL
-        val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, LightLock.plan(this), pipStopped, ::openedForNow)
+        val plan = LightLock.plan(this)
+        val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, plan, pipStopped, ::openedForNow)
+        if (!inCall) {
+            PipGuard.stillFloating(wins, packageName, plan, pipStopped, ::openedForNow)
+                .forEach { roots[it.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS) }
+        }
         for (t in targets) {
             roots[t.pkg]?.performAction(AccessibilityNodeInfo.ACTION_DISMISS)
             // Once per window: if dismissing does not close it, Home and the stop screen must not repeat every tick.

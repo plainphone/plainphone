@@ -105,6 +105,33 @@ class PipGuardTest {
         assertEquals(1, homeActions())
     }
 
+    @Test fun `a dismiss that came too early is repeated while the window floats, the stop screen is not`() {
+        // Android 10 ignored the first dismiss, sent while the window was still entering
+        // picture-in-picture (emulator run 45008421127); the window then floated on.
+        val pip = window(game, true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
+        val dismissals = { shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS } }
+        assertEquals(1, dismissals())
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        assertEquals(2, dismissals())
+        assertEquals(1, homeActions())
+    }
+
+    @Test fun `an already stopped window is not dismissed again once its app is allowed`() {
+        val pip = window(game, true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit()
+            .putStringSet("blocked", emptySet()).commit()
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        windowsChanged()
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
+        assertEquals(1, shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS })
+    }
+
     @Test fun `the same app is stopped again when it returns to picture-in-picture after the window was gone`() {
         shadow.windowList = listOf(window(game, true))
         windowsChanged()

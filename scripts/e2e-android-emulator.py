@@ -155,7 +155,9 @@ DIAGNOSTICS = {
 }
 # WorkManager's DiagnosticsReceiver logs every work request's state to logcat (WM-DiagnosticsWrkr).
 # `cmd activity` is native, so it also works from the serial console without the ART classpaths.
-WORK_DIAGNOSTICS = ("cmd", "activity", "broadcast", "-a", "androidx.work.diagnostics.REQUEST_DIAGNOSTICS", "-p", PACKAGE)
+# As root: the lock's DISALLOW_DEBUGGING_FEATURES makes Android refuse broadcasts from the shell
+# user ("Shell does not have permission to access user 0"); the dumps above do not need it.
+WORK_DIAGNOSTICS = ("su", "0", "cmd", "activity", "broadcast", "-a", "androidx.work.diagnostics.REQUEST_DIAGNOSTICS", "-p", PACKAGE)
 
 
 def device_command(console, *command, timeout=20):

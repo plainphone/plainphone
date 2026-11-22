@@ -31,6 +31,19 @@ object PipGuard {
         .mapNotNull { pkg -> plan.why(pkg)?.let { Target(pkg, it) } }
         .filterNot { openedForNow(it.pkg) }
 
+    /**
+     * Blocked windows in [alreadyStopped] that still float. Android 10 can ignore a dismiss sent
+     * while the window is still entering picture-in-picture, so the guard sends it again (it is
+     * invisible); only the stop screen stays once per window.
+     */
+    fun stillFloating(
+        windows: List<Win>,
+        ownPackage: String,
+        plan: LightPlan,
+        alreadyStopped: Set<String>,
+        openedForNow: (String) -> Boolean,
+    ): List<Target> = targets(windows, ownPackage, plan, openedForNow = openedForNow).filter { it.pkg in alreadyStopped }
+
     /** Picture-in-picture packages, for the live time check (the plan may not know yet that time is up). */
     fun packages(windows: List<Win>, ownPackage: String): List<String> =
         windows.filter { it.inPip }.mapNotNull { it.pkg }.filter { it != ownPackage }.distinct()

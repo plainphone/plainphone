@@ -71,7 +71,9 @@ network `VALIDATED`, which private DNS host is in force) and `jobscheduler.txt`
 constraints and stop reasons) show why a sync did not run. Before it saves the
 logcat, the harness asks WorkManager to log every work request's state
 (`WM-DiagnosticsWrkr` lines). These come over the serial console once Device
-Owner policy has disabled ADB. A timed-out setup sync also lists every
+Owner policy has disabled ADB. The request is a broadcast sent as root,
+because the lock's `DISALLOW_DEBUGGING_FEATURES` makes Android refuse
+broadcasts from the shell user. A timed-out setup sync also lists every
 `SyncWorker` request with its state and stop reason in the test failure. Tests run once. Waiting for a UI or asynchronous
 delivery result is bounded and does not repeat the action under test.
 
@@ -81,7 +83,7 @@ delivery result is bounded and does not repeat the action under test.
 | --- | --- |
 | Setup and rules | The Light setup screens confirm the child profile and PIN, and the Device Owner pairing activity redeems its pending token. Both flows must finish the sync the setup starts itself (reason `initial light setup` or `paired`, recorded through a test-only observer on `SyncRunner.run`) and have uploaded the first status and saved the first rules, before the test requests another sync. The 15-minute WorkManager sync registered during pairing does not satisfy this check. The fixture stages the pending QR token for the loopback server. Before the Device Owner pairing screen opens, the test replays the admin-enabled broadcast from `dpm set-device-owner` if that broadcast has not applied the first lock yet (`am instrument` usually force-stops the app before it finishes), and waits for the first lock that opens the PIN-free setup window. Device Owner rules hide, reveal and hide the test APK again. |
 | SOS and emergency access | Holding the child’s SOS button creates an incident in the parent API and a parent can mark it seen. The SOS emergency keypad opens. The public `placeCall` hands the exact 112, 911 and 114 addresses to `TelecomHandoff`, the single place where a call goes to Android's Telecom, and rejects an unapproved ordinary number. The test replaces only the last step of that hand-off with a recorder, so it places no calls. |
-| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. School time still blocks the app after the AOSP clock moves forward by 12 hours. |
+| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. Plainphone is not the default Home app in this flow, so Home opens Android's home-app chooser, as on a child's phone where no Home app was chosen; the guard has to close the window anyway. School time still blocks the app after the AOSP clock moves forward by 12 hours. |
 | Quick messages | The child taps a quick message and the test gateway answers HTTP 429. The virtual modem loops the outgoing message back only when addressed to its virtual phone number. The test checks the exact body and number in the inbox before the emulator console injects a separate parent reply. |
 
 The emulator covers the AOSP paths listed above. Hardware QR provisioning,

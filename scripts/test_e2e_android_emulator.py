@@ -134,7 +134,7 @@ class DiagnosticsTest(unittest.TestCase):
         sent = b"".join(console.commands)
         self.assertIn(b"dumpsys connectivity", sent)
         self.assertIn(b"dumpsys jobscheduler org.plainphone.app", sent)
-        self.assertIn(b"cmd activity broadcast -a androidx.work.diagnostics.REQUEST_DIAGNOSTICS -p org.plainphone.app", sent)
+        self.assertIn(b"su 0 cmd activity broadcast -a androidx.work.diagnostics.REQUEST_DIAGNOSTICS -p org.plainphone.app", sent)
 
     def test_uses_adb_while_it_works(self):
         result = subprocess.CompletedProcess(("adb",), 0, stdout="jobs\n")
