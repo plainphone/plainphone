@@ -30,6 +30,43 @@ def shell(*args):
     return adb("shell", *args, text=True, stdout=subprocess.PIPE).stdout
 
 
+# adb's server probes these emulator ports (ADB_LOCAL_TRANSPORT_MAX_PORT moves the end)
+# and sends its CNXN handshake to whatever answers, so the serial console must not use one.
+ADB_SCAN_PORTS = range(5555, int(os.environ.get("ADB_LOCAL_TRANSPORT_MAX_PORT", "5585")) + 1)
+DEFAULT_SERIAL_PORT = 5599
+
+
+def serial_port(environment=os.environ):
+    port = int(environment.get("E2E_SERIAL_PORT", DEFAULT_SERIAL_PORT))
+    if port in ADB_SCAN_PORTS:
+        raise RuntimeError(f"Serial console port {port} is in adb's emulator scan range "
+                           f"{ADB_SCAN_PORTS.start}-{ADB_SCAN_PORTS.stop - 1}; adb would write into the root shell")
+    return port
+
+
+def connect_console(port, attempts=30):
+    # The emulator opens the serial socket while it boots.
+    for attempt in range(attempts):
+        try:
+            return socket.create_connection(("127.0.0.1", port), timeout=10)
+        except OSError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(2)
+
+
+def probe_console(console, attempts=12, timeout=10):
+    # Prove that a shell answers on this socket before trusting it with the
+    # suite. The console service may still be starting, so resend until it answers.
+    for attempt in range(attempts):
+        try:
+            serial_shell(console, "true", timeout=timeout)
+            return
+        except TimeoutError:
+            if attempt == attempts - 1:
+                raise RuntimeError("No shell answered on the emulator serial console") from None
+
+
 def serial_shell(console, *args, timeout=30):
     # The Device Owner disables adb as part of the real lock. The disposable
     # emulator's separate root console remains available to the test harness.
@@ -45,12 +82,17 @@ def serial_shell(console, *args, timeout=30):
     started = False
     with console.makefile("rb") as stream:
         for line in stream:
+            if b"CNXN" in line:
+                raise RuntimeError("adb is connected to the serial console socket; "
+                                   "move -shell-serial outside adb's emulator ports")
             content = line.rstrip(b"\r\n")
             if content == start:
                 started = True
             elif started and content.startswith(end):
                 result = output.decode(errors="replace").replace("\r\n", "\n")
-                status = content[len(end):].decode()
+                status = content[len(end):].decode(errors="replace")
+                if not status.isdigit():
+                    raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
                 if status != "0":
                     raise RuntimeError(f"Emulator serial command failed: {args[0]} ({status})\n{result}")
                 return result
@@ -116,6 +158,7 @@ def run_flows(port, token, console):
         # needs the console label to open it. Keep SELinux enforcing.
         shell("su", "0", "chcon", "u:object_r:console_device:s0", "/dev/ttyS0")
         shell("su", "0", "start", "console")
+    probe_console(console)
     android = ROOT / "android"
     adb("install", "-g", str(android / "app/build/outputs/apk/debug/app-debug.apk"))
     adb("install", str(android / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"))
@@ -185,9 +228,8 @@ def inject_parent_sms(port, token, stop, serial, parent_number):
 def main():
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, PORT="0", PLAINPHONE_EMULATOR_E2E="1")
-    console_port = int(os.environ.get("E2E_SERIAL_PORT", "5557"))
     with (
-        socket.create_connection(("127.0.0.1", console_port), timeout=10) as console,
+        connect_console(serial_port()) as console,
         tempfile.TemporaryDirectory() as temp,
         (ARTIFACTS / "server.log").open("w") as log,
     ):

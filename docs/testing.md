@@ -2,8 +2,9 @@
 
 The `android-e2e` CI job runs on GitHub-hosted Linux with KVM and AOSP
 x86_64 system images for API 34 and API 29 (Android 10). It runs on main
-pushes and on pull requests that change the Android app, server, workflow,
-or emulator test inputs. Each leg has a 30-minute limit and restores a
+pushes, on pull requests that change the Android app, server, workflow,
+or emulator test inputs, and on demand (Actions → CI → Run workflow, which
+runs every check on the chosen branch). Each leg has a 30-minute limit and restores a
 pre-test emulator snapshot. The test run does not write back to that snapshot.
 
 ## Run locally
@@ -21,7 +22,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;36.1.0' platform-tools emulator
   'system-images;android-34;default;x86_64'
 avdmanager create avd -n plainphone-e2e-34 -k 'system-images;android-34;default;x86_64' -d pixel
 emulator -avd plainphone-e2e-34 -wipe-data -no-snapshot \
-  -feature ModemSimulator -shell-serial tcp:127.0.0.1:5557,server,nowait
+  -feature ModemSimulator -shell-serial tcp:127.0.0.1:5599,server,nowait
 ```
 
 Leave the emulator running, unlock it, and complete any Android welcome
@@ -40,6 +41,14 @@ PostgreSQL instance. To use your own PostgreSQL, set `DATABASE_URL` to a
 **disposable** database. The guest reaches the test server via the emulator’s
 host loopback alias (`10.0.2.2`). The local serial console carries instrumentation
 output after Device Owner policy disables ADB. The harness stops the server on exit.
+
+The serial console listens on TCP port 5599 (`E2E_SERIAL_PORT` changes it). Keep
+it outside 5555–5585: the adb server probes those ports for emulators and sends
+its `CNXN` handshake into whatever answers, which corrupts the root shell. The
+harness refuses such a port, checks that a shell answers on the socket before it
+enrolls Device Owner, and stops with a clear error if adb data shows up there.
+`python3 -m unittest scripts/test_e2e_android_emulator.py` tests this protocol
+without an emulator.
 
 On failure, look in `android/build/emulator-e2e/` or the CI artifact named
 `android-e2e-api-<level>` for the screenshot, logcat, server log and
