@@ -5,6 +5,29 @@ Plainphone keeps as little data as it can, for as short a time as it can
 the technical basis for the [privacy policy](https://plainphone.org/privacy/) on plainphone.org,
 which also covers the parent app and the server. Change the two together.
 
+## The hosted test service during the alpha
+
+`app.plainphone.org` is a test service while Plainphone is in alpha. Its data is kept
+during the alpha, with the retention times below. It is never wiped without at least 30 days'
+notice, by mail to every account holder and in
+[Discussions → Announcements](https://github.com/plainphone/plainphone/discussions/categories/announcements).
+The same applies if the test service closes. The notice says what will be deleted and when,
+what happens to the phones and how to get out:
+
+- A phone whose server record is gone gets `401 unknown device; pair again` on its next sync
+  ([phone-sync.md](phone-sync.md#never-looser-because-of-an-error)). It keeps the last rules,
+  including approved contacts and schedules, and 112 always works. The rules can no longer be
+  changed remotely.
+- Before a wipe: **Release the phone** in the dashboard. On a Myself phone the release waits
+  for the key (a delay of up to 72 hours, or the trusted person), so the notice period has to
+  cover it.
+- After a wipe: Maintenance on the phone with the setup PIN (**Release Device Owner** in strong
+  mode, **Switch Plainphone off** in light mode), or **Pair with a parent** for a new account.
+  Otherwise a recovery reset, as in the [help pages](https://plainphone.org/help/#recovery).
+
+The [terms of the test service](https://plainphone.org/terms/) say the same, in all five
+languages (`site/content/terms.mjs`). Change the two together.
+
 End-to-end encryption is under development. The hosted service is a test
 version, and the application server can read the contents described below.
 The [encryption specification](encryption.md) describes the planned storage
@@ -14,6 +37,10 @@ model and the metadata it will still expose.
 
 The server stores accounts, households and the rules for each phone in PostgreSQL.
 Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
+The sign-in request answers the same whether or not an address has an account, with one
+exception: on the hosted service, when the daily cap on new households is full, a new
+address is told to try again tomorrow while a known one gets a link
+([operations.md](operations.md#daily-cap-on-new-households)).
 
 | Data | For how long | Where it is set |
 |---|---|---|

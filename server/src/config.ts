@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { z } from "zod";
 
+/** The shortest review sign-in code accepted: guessing one within the rate limits is hopeless. */
+export const REVIEW_CODE_MIN = 32;
+
 /** Compose files pass unset variables as "": treat that as unset, so the default applies. */
 const unsetIfEmpty = <T extends z.ZodType>(t: T) => z.preprocess((v) => (v === "" ? undefined : v), t);
 
@@ -142,6 +145,19 @@ const schema = z.object({
   /** Shared secret in the Pub/Sub push URL for real-time developer notifications (?token=...). */
   PLAY_RTDN_TOKEN: unsetIfEmpty(z.string().min(24).optional()),
   /**
+   * Sign-in for app store review (docs/store-review.md): only this address can sign in with this
+   * code, in the dashboard and the parent app, and its household gets a demo phone. Unset (the
+   * default), the path does not exist. Both must be valid and the code at least 32 characters;
+   * otherwise the path stays off and /api/health reports why, without the values.
+   */
+  REVIEW_LOGIN_EMAIL: unsetIfEmpty(z.string().optional()),
+  REVIEW_LOGIN_CODE: unsetIfEmpty(z.string().optional()),
+  /**
+   * New households allowed per UTC day (docs/operations.md). Unset or 0: no cap, the self-hosting
+   * default. Existing accounts and people invited into a household are never stopped.
+   */
+  SIGNUP_DAILY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
+  /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.
    */
@@ -201,6 +217,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (sane.METRICS_TOKEN && sane.METRICS_TOKEN.length < 24) {
     delete sane.METRICS_TOKEN;
     warnings.other.push("metrics: invalid METRICS_TOKEN");
+  }
+  if (sane.REVIEW_LOGIN_EMAIL || sane.REVIEW_LOGIN_CODE) {
+    const address = z.string().trim().toLowerCase().pipe(z.email()).safeParse(sane.REVIEW_LOGIN_EMAIL ?? "");
+    const code = sane.REVIEW_LOGIN_CODE?.trim() ?? "";
+    if (address.success && code.length >= REVIEW_CODE_MIN && code.length <= 200) {
+      sane.REVIEW_LOGIN_EMAIL = address.data;
+      sane.REVIEW_LOGIN_CODE = code;
+    } else {
+      delete sane.REVIEW_LOGIN_EMAIL;
+      delete sane.REVIEW_LOGIN_CODE;
+      warnings.other.push("review: needs REVIEW_LOGIN_EMAIL and a REVIEW_LOGIN_CODE of 32 to 200 characters");
+    }
   }
   const parsed = schema.safeParse(sane);
   if (!parsed.success) {

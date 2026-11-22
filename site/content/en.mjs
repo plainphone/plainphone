@@ -214,6 +214,7 @@ export default {
         "Location, when it is on, is only the phone’s last known position. There is no history.",
         "The web filter does not keep a list of the sites a phone visits.",
         "We do not sell data, show ads or build profiles.",
+        `During the alpha we keep the data on the test service at app.plainphone.org. We never wipe it without at least 30 days’ notice.`,
       ],
     },
     sections: [
@@ -418,6 +419,16 @@ export default {
             },
           },
           "Like any web service, the web server in front of the app writes ordinary technical logs (IP address, time, the address asked for). We use them only to keep the service running and to stop abuse. The app itself holds IP addresses only in memory, for rate limits, and never writes them to its database.",
+        ],
+      },
+      {
+        id: "test-service",
+        title: `Data on the test service`,
+        body: [
+          `app.plainphone.org is a test service while Plainphone is in alpha. We keep its data during the alpha, and the times on this page still apply.`,
+          `We never wipe the test service without telling you at least 30 days before. The notice goes by mail to everyone with an account and is posted in <a href="https://github.com/plainphone/plainphone/discussions/categories/announcements">Discussions → Announcements</a> on GitHub. It says what will be deleted and when, what happens to your phones and how to get out. The same applies if the test service closes. The <a href="/terms/">terms of the test service</a> say the same.`,
+          `If the data is wiped, a phone keeps the last rules it received and keeps applying them without the server: 112 and approved contacts can still be called, and schedules still switch on time. The rules can then no longer be changed from the parent dashboard or the parent app.`,
+          `To get out before a wipe, release the phone in the parent dashboard. On an adult’s own phone the release waits for the key, so start in good time. After a wipe, open Maintenance on the phone with the PIN from setup and choose Release Device Owner in strong mode or Switch Plainphone off in light mode, or pair the phone again with a new account. If that does not work, the <a href="/help/#recovery">help page</a> explains a factory reset.`,
         ],
       },
       {

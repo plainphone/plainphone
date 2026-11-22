@@ -1435,9 +1435,29 @@ export interface paths {
         put?: never;
         /**
          * Mail a sign-in link
-         * @description Same answer for known and unknown addresses. `mailEnabled` is false on servers without mail settings.
+         * @description Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full. `mailEnabled` is false on servers without mail settings.
          */
         post: operations["postAuthRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with the store review code
+         * @description Only on servers with REVIEW_LOGIN_EMAIL and REVIEW_LOGIN_CODE set (docs/store-review.md); otherwise 404. Only that address with that code signs in. The first sign-in creates the account and household, and every sign-in gives the household its demo phone (or checks it in again). Rate limited.
+         */
+        post: operations["postAuthReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5514,6 +5534,21 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Too many login links, or (with `code` signup_cap_reached) today's cap on new households is reached (SIGNUP_DAILY_CAP). No mail is sent; `retryAt` is the next UTC midnight, also given as Retry-After. */
+        TooManyOrCapped: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    error: string;
+                    /** @enum {unknown} */
+                    code?: "signup_cap_reached";
+                    /** Format: date-time */
+                    retryAt?: string;
+                };
+            };
+        };
         /** @description Applied at once */
         Change: {
             headers: {
@@ -8769,8 +8804,61 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        ok?: boolean;
+                        mailEnabled?: boolean;
+                        /** @description Only for the store review address (REVIEW_LOGIN_EMAIL): no mail is sent; sign in with POST /auth/review instead. */
+                        codeSignIn?: boolean;
+                    };
+                };
             };
+            429: components["responses"]["TooManyOrCapped"];
+        };
+    };
+    postAuthReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    code: string;
+                    /** @enum {unknown} */
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
+                    /**
+                     * @description Native apps send `native` to get the session token in the body. The PWA only gets the HttpOnly cookie.
+                     * @default web
+                     * @enum {unknown}
+                     */
+                    client?: "web" | "native";
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in. Sets the `pp_session` cookie; `sessionToken` is only in the body for `client=native`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sessionToken?: string;
+                        user?: {
+                            id?: string;
+                            email?: string;
+                            locale?: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             429: components["responses"]["Error"];
         };
     };
@@ -8814,6 +8902,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+            429: components["responses"]["TooManyOrCapped"];
         };
     };
     postAuthLogout: {

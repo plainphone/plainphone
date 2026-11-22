@@ -21,7 +21,7 @@ const recoveryStatus = {
   de: "ob der letzte Bericht des Handys zeigt, dass der Schutz vor dem Zurücksetzen aktiv ist",
 };
 const lookupRoute = "apps/";
-const routes = ["", "setup/", "privacy/", "why/", "help/", lookupRoute, "press/"];
+const routes = ["", "setup/", "privacy/", "terms/", "delete-account/", "why/", "help/", lookupRoute, "press/"];
 const pagePaths = routes.map((page) =>
   Object.fromEntries(locales.map((lang) => [
     lang,
