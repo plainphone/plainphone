@@ -43,6 +43,8 @@ export function errorMessage(err: unknown, t: TFn): string {
     // Adding beyond the free plan (docs/billing.md). Explained, never sold: no store build links to a payment.
     const limit = planLimitOf(err.status, err.data);
     if (limit) return t(planLimitKey(limit), { max: limit.max });
+    // Today's new households are taken on the hosted service (SIGNUP_DAILY_CAP).
+    if (err.data.code === "signup_cap_reached") return `${t("signupCap.body")} ${t("signupCap.selfHost")}`;
     if (err.status === 429) return t("error.tooMany");
     if (err.status === 404) return t("error.notFound");
     if (err.status === 400 && err.issues.length) return t("error.form");

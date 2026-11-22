@@ -73,6 +73,29 @@ describe("logging in", () => {
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.session", "pp_s_review");
   });
 
+  it("explains calmly when the hosted service has taken today's new families", async () => {
+    const open = jest.spyOn(RNLinking, "openURL").mockResolvedValue(undefined);
+    try {
+      fakeApi({
+        "GET /health": { body: { ok: true, mail: "smtp" } },
+        "POST /auth/request": {
+          status: 429,
+          body: { error: "capped", code: "signup_cap_reached", retryAt: "2026-11-23T00:00:00.000Z" },
+        },
+      });
+      await renderRouter(routes, { initialUrl: "/login" });
+      await fireEvent.changeText(await screen.findByLabelText("Email address"), "new@example.org");
+      await fireEvent.press(screen.getByTestId("login-submit"));
+      expect(await screen.findByText("Full for today")).toBeTruthy();
+      expect(screen.getByText(/limited number of new families each day/)).toBeTruthy();
+      expect(screen.queryByText("Check your mail")).toBeNull();
+      await fireEvent.press(screen.getByRole("link", { name: /self-hosting/i }));
+      expect(open).toHaveBeenCalledWith("https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md");
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it("uses the selected server for sign-in and can return to the hosted service", async () => {
     const custom = "https://plainphone.example.org";
     const api = fakeApi({

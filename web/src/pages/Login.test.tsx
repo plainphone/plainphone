@@ -90,3 +90,28 @@ it("asks the review address for its code and signs in with it", async () => {
   expect(post).toHaveBeenLastCalledWith("/auth/review", { email: "review@example.test", code: "the-review-code", locale: "en" });
   expect(session.refresh).toHaveBeenCalled();
 });
+
+it("explains calmly when the hosted service has taken today's new families", async () => {
+  post.mockRejectedValue(new ApiError(429, "capped", [], { code: "signup_cap_reached", error: "capped" }));
+  await mount();
+  await type("email", "new@example.org");
+  await submit();
+  const notice = container.querySelector('[data-testid="signup-capped"]')!;
+  expect(notice.getAttribute("role")).toBe("status");
+  expect(notice.textContent).toContain("Full for today");
+  expect(notice.textContent).toContain("Try again tomorrow.");
+  expect(notice.querySelector("a")!.getAttribute("href")).toBe(
+    "https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md",
+  );
+  // Not the generic "too many" error, and no "check your mail".
+  expect(container.textContent).not.toContain("Check your mail");
+  expect(container.textContent).not.toContain("Too many");
+});
+
+it("still shows the usual error for other refusals", async () => {
+  post.mockRejectedValue(new ApiError(429, "slow down"));
+  await mount();
+  await type("email", "busy@example.org");
+  await submit();
+  expect(container.querySelector('[data-testid="signup-capped"]')).toBeNull();
+});

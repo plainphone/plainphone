@@ -112,6 +112,16 @@ describe("review sign-in switched on", () => {
     expect((await reviewSignIn({ email: EMAIL, code: CODE })).r.status).toBe(200);
   });
 
+  it("is never stopped by the daily signup cap", async () => {
+    enable({ REVIEW_LOGIN_EMAIL: EMAIL, REVIEW_LOGIN_CODE: CODE, SIGNUP_DAILY_CAP: "1" });
+    await signIn(h, "parent@example.test");
+    expect((await new Client(h).post("/api/auth/request", { email: "new@example.test" })).status).toBe(429);
+    const review = await new Client(h).post("/api/auth/request", { email: EMAIL });
+    expect(review.status).toBe(202);
+    expect(review.json.codeSignIn).toBe(true);
+    expect((await reviewSignIn({ email: EMAIL, code: CODE })).r.status).toBe(200);
+  });
+
   it("logs each attempt without the address or the code", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);

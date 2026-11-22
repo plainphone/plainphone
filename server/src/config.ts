@@ -153,6 +153,11 @@ const schema = z.object({
   REVIEW_LOGIN_EMAIL: unsetIfEmpty(z.string().optional()),
   REVIEW_LOGIN_CODE: unsetIfEmpty(z.string().optional()),
   /**
+   * New households allowed per UTC day (docs/operations.md). Unset or 0: no cap, the self-hosting
+   * default. Existing accounts and people invited into a household are never stopped.
+   */
+  SIGNUP_DAILY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
+  /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.
    */

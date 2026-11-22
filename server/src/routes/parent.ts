@@ -80,6 +80,7 @@ import { parentAgeRoutes } from "./age-agreement.js";
 import { parentBillingRoutes } from "./billing.js";
 import { cancelSubscriptions, isAllowed, planLimitBody, subscriptionsOfSoleHouseholds } from "../services/billing.js";
 import { offerFor } from "../services/early-unlock.js";
+import { recentLinks, SIGNUP_CAP_CODE, SignupCapError } from "../services/signup-cap.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -110,7 +111,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
   const loginIpLimit = new RateLimiter(20, 60 * 60_000);
-  const loginEmailLimit = new RateLimiter(5, 60 * 60_000);
+  // Per address, counted in the database so it holds across restarts and processes.
+  const LOGIN_LINKS_PER_ADDRESS_HOUR = 5;
   const verifyLimit = new RateLimiter(30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
@@ -121,6 +123,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
 
   // --- Auth -------------------------------------------------------------------
+
+  /** Today's new-household cap is reached (SIGNUP_DAILY_CAP). No mail was sent. */
+  function signupCapped(c: Context, err: SignupCapError) {
+    const seconds = Math.max(1, Math.ceil((err.retryAt.getTime() - ctx.now().getTime()) / 1000));
+    c.header("Retry-After", String(seconds));
+    return c.json({ error: err.message, code: SIGNUP_CAP_CODE, retryAt: err.retryAt.toISOString() }, 429);
+  }
 
   app.post("/auth/request", async (c) => {
     const ipAllowed = loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY));
@@ -136,10 +145,15 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     // The store review address signs in with its code (routes/review-login.ts): no mail is sent.
     const review = ipAllowed && isReviewAddress(ctx.cfg, input.email);
     if (review) return c.json({ ok: true, mailEnabled: ctx.mail.canSend, codeSignIn: true }, 202);
-    if (!ipAllowed || !loginEmailLimit.take(input.email)) {
+    if (!ipAllowed || (await recentLinks(ctx, input.email)) >= LOGIN_LINKS_PER_ADDRESS_HOUR) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
-    await requestMagicLink(ctx, input.email, toLocale(input.locale), input.client);
+    try {
+      await requestMagicLink(ctx, input.email, toLocale(input.locale), input.client);
+    } catch (err) {
+      if (err instanceof SignupCapError) return signupCapped(c, err);
+      throw err;
+    }
     // Same answer whether or not the address is known.
     return c.json({ ok: true, mailEnabled: ctx.mail.canSend }, 202);
   });
@@ -155,7 +169,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         client: z.enum(["web", "native"]).default("web"),
       }),
     );
-    const out = await verifyMagicLink(ctx, input.token, input.locale);
+    const out = await verifyMagicLink(ctx, input.token, input.locale).catch((err: unknown) => {
+      if (err instanceof SignupCapError) return err;
+      throw err;
+    });
+    if (out instanceof SignupCapError) return signupCapped(c, out);
     if (!out) return c.json({ error: "this link is expired or already used" }, 400);
     setCookie(c, SESSION_COOKIE, out.sessionToken, {
       httpOnly: true,

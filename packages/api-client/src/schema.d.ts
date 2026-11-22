@@ -1435,7 +1435,7 @@ export interface paths {
         put?: never;
         /**
          * Mail a sign-in link
-         * @description Same answer for known and unknown addresses. `mailEnabled` is false on servers without mail settings.
+         * @description Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full. `mailEnabled` is false on servers without mail settings.
          */
         post: operations["postAuthRequest"];
         delete?: never;
@@ -5534,6 +5534,21 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Too many login links, or (with `code` signup_cap_reached) today's cap on new households is reached (SIGNUP_DAILY_CAP). No mail is sent; `retryAt` is the next UTC midnight, also given as Retry-After. */
+        TooManyOrCapped: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    error: string;
+                    /** @enum {unknown} */
+                    code?: "signup_cap_reached";
+                    /** Format: date-time */
+                    retryAt?: string;
+                };
+            };
+        };
         /** @description Applied at once */
         Change: {
             headers: {
@@ -8798,7 +8813,7 @@ export interface operations {
                     };
                 };
             };
-            429: components["responses"]["Error"];
+            429: components["responses"]["TooManyOrCapped"];
         };
     };
     postAuthReview: {
@@ -8887,6 +8902,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+            429: components["responses"]["TooManyOrCapped"];
         };
     };
     postAuthLogout: {

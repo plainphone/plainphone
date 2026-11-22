@@ -10,6 +10,7 @@ import { platformEn } from "./platform";
 import { callbackEn } from "./callback";
 import { modesEn } from "./modes";
 import { extendedEn } from "./extended";
+import { signupCapEn } from "./signup-cap";
 import { statusEn } from "./status";
 
 const filterSummary = "The web filter makes it less likely that the phone shows websites in the categories you choose, but some can still get through.";
@@ -25,6 +26,7 @@ export const en = {
   ...platformEn,
   ...modesEn,
   ...extendedEn,
+  ...signupCapEn,
   ...callbackEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",

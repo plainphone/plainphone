@@ -87,6 +87,17 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    TooManyOrCapped:
+      description: Too many login links, or (with `code` signup_cap_reached) today's cap on new households is reached (SIGNUP_DAILY_CAP). No mail is sent; `retryAt` is the next UTC midnight, also given as Retry-After.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string }
+              code: { enum: [signup_cap_reached] }
+              retryAt: { type: string, format: date-time }
     Change:
       description: Applied at once
       content:
@@ -3914,7 +3925,7 @@ paths:
       security: []
       tags: [auth]
       summary: Mail a sign-in link
-      description: Same answer for known and unknown addresses. `mailEnabled` is false on servers without mail settings.
+      description: Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full. `mailEnabled` is false on servers without mail settings.
       requestBody:
         required: true
         content:
@@ -3942,7 +3953,7 @@ paths:
                   codeSignIn:
                     type: boolean
                     description: "Only for the store review address (REVIEW_LOGIN_EMAIL): no mail is sent; sign in with POST /auth/review instead."
-        "429": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/TooManyOrCapped" }
 
   /auth/review:
     post:
@@ -4025,6 +4036,7 @@ paths:
                       email: { type: string }
                       locale: { type: string }
         "400": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/TooManyOrCapped" }
 
   /auth/logout:
     post:
