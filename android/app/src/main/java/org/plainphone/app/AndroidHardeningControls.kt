@@ -118,9 +118,7 @@ class AndroidHardeningControls(private val context: Context) : HardeningControls
         }
     }
 
-    override fun grantOwnPermission(permission: String): Boolean = dpm.setPermissionGrantState(
-        admin, ownPackage, permission, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
-    )
+    override fun grantOwnPermission(permission: String): Boolean = dpm.grantByPolicy(admin, ownPackage, permission)
 
     private fun id(handle: UserHandle): Int = context.getSystemService(UserManager::class.java).getSerialNumberForUser(handle).toInt()
 
