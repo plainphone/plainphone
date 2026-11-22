@@ -583,7 +583,9 @@ object SyncScheduler {
         if (workName == NOW && !store.setupUndoPending) org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            // Before Android 12, expedited work runs as a foreground service and needs the
+            // worker's notification (getForegroundInfo). SyncWorker has none: the work would fail.
+            .apply { if (Build.VERSION.SDK_INT >= 31) setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST) }
             .setInputData(workDataOf(SyncWorker.KEY_REASON to reason))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(workName, policy, request)
