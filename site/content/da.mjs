@@ -200,7 +200,7 @@ export default {
     description:
       "Hvad Plainphone gemmer om dig og de telefoner, du styrer, hvor længe, hvem der ellers er involveret, og hvordan du beder os rette eller slette det.",
     h1: "Privatlivspolitik",
-    updated: "Sidst opdateret 20. november 2026",
+    updated: "Sidst opdateret 22. november 2026",
     lead:
       "Plainphone gemmer så lidt som muligt, så kort tid som muligt. Her står det, hvad det betyder i praksis. Siden er skrevet for at blive læst, ikke for at skjule noget.",
     status:
@@ -288,7 +288,7 @@ export default {
           "»Er du okay?« beder barnet svare inden for en tid, forælderen vælger. Svarer barnet, sendes der ingen position. Svarer ingen i tide, sender telefonen én position. »Ring telefonen« spiller en alarmlyd og vibrerer i højst fem minutter; den sender ingen position. Serveren gemmer en ringning eller et spørgsmål (tidspunkter og svaret og det godkendte nummer til »Ring til mig«) i et døgn efter, at det er slut, og sletter det så.",
           "Et barn kan sende SOS med tidspunkt, batteriniveau og én position, når placering er slået til. Forældre kan markere beskeden som set. SOS-historikken slettes efter 30 dage, eller når telefonen fjernes. Hvis serveren ikke svarer, kan en SMS indeholde et kortlink. Appens notifikationer leveres gennem Expo og Apple eller Google. Koordinaterne sendes til Google Maps, når en forælder åbner linket.",
           "Serveren gemmer kun den seneste position: koordinater, nøjagtighed og tidspunkt. Hver ny position erstatter den gamle, og der gemmes ingen historik. Slår du placering fra, eller fjerner du telefonen, bliver den gemte position slettet.",
-          "Dashboardet viser positionen på et kort. Kortfliserne kommer fra OpenFreeMap (tiles.openfreemap.org, data fra OpenStreetMap), så når de hentes, får OpenFreeMap at vide, cirka hvilket område der kigges på, og forælderens IP-adresse. Kortet hentes kun på placeringssiden. Forældreappen på en telefon bruger OpenStreetMaps egne fliseservere og først, når forælderen trykker Vis kort. Vælger en forælder »Kør derhen« med Google Maps eller Apple Kort, eller kopierer positionen, går koordinaterne til den app, og så gælder dens egen politik.",
+          "Dashboardet viser positionen på et kort. Kortfliserne kommer fra OpenFreeMap (tiles.openfreemap.org, data fra OpenStreetMap), så når de hentes, får OpenFreeMap at vide, cirka hvilket område der kigges på, og forælderens IP-adresse. Kortet hentes kun på placeringssiden. Appen Plainphone Parent viser intet kort, før forælderen trykker Vis kort, og husker derefter valget på den enhed, indtil forælderen trykker Skjul kort. Mens kortet vises, henter appen ni kortfliser omkring positionen fra OpenStreetMap Foundations fliseservere (tile.openstreetmap.org). Hver forespørgsel indeholder kun flisens zoomniveau og nummer, som afgrænser positionen til et kvadrat på cirka 170 m til 5 km afhængigt af, hvor præcis den er, sammen med forælderens IP-adresse og appens navn og version. Der sendes ingen kontooplysninger, navne eller præcise koordinater. OpenStreetMap Foundations privatlivspolitik gælder for de forespørgsler (osmfoundation.org/wiki/Privacy_Policy). Vælger en forælder »Kør derhen« med Google Maps eller Apple Kort, eller kopierer positionen, går koordinaterne til den app, og så gælder dens egen politik.",
         ],
       },
       {

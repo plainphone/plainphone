@@ -5,11 +5,17 @@ x86_64 system images for API 34 and API 29 (Android 10). It runs on main
 pushes, on pull requests that change the Android app, server, workflow,
 or emulator test inputs, and on demand (Actions → CI → Run workflow, which
 runs every check on the chosen branch). Each leg has a 30-minute limit
-and restores a pre-test emulator snapshot. A leg without a cached snapshot
-boots once and caches the snapshot right away, before any flow runs, so
-the test run never writes back to it. The flows step has its own 15-minute
-limit: a hang then fails the step and the artifact below is still uploaded,
-whereas a job that reaches its own limit is cancelled without one.
+and the API 34 leg restores a pre-test emulator snapshot. A leg without a
+cached snapshot boots once and caches the snapshot right away, before any flow
+runs, so the test run never writes back to it. The API 29 leg always cold-boots
+(`-no-snapshot`, no AVD cache): after a snapshot load on API 29,
+`sys.boot_completed` is 1 before the input service is published, so the
+emulator action's own `input keyevent 82` fails and its shutdown then hangs.
+The action has no input to skip that keyevent. A cold boot costs about a minute
+more than a snapshot load. The flows step has its own 10-minute limit: a hang
+then fails the step, the artifact below is still uploaded, and an always-run
+step kills any emulator left behind, whereas a job that reaches its own limit
+is cancelled without an artifact.
 
 ## Run locally
 

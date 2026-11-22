@@ -200,7 +200,7 @@ export default {
     description:
       "What Plainphone stores about you and the phones you manage, for how long, who else is involved, and how to ask us to correct or delete it.",
     h1: "Privacy policy",
-    updated: "Last updated 20 November 2026",
+    updated: "Last updated 22 November 2026",
     lead:
       "Plainphone keeps as little as it can, for as short a time as it can. This page says what that means in practice. It is written to be read, not to hide things.",
     status:
@@ -288,7 +288,7 @@ export default {
           "“Are you okay?” asks the child to answer within a time the parent picks. If the child answers, no position is sent. If nobody answers in time, the phone sends one position. “Ring the phone” plays an alarm sound and vibrates for at most five minutes; it sends no position. The server keeps a ring or a question (times and the answer, and the approved number for “Call me”) for a day after it ends, then deletes it.",
           "A child can send an SOS with a time, battery level and one location when location is enabled. Parents can acknowledge it. The SOS history, including acknowledgment and location, is deleted after 30 days or when the phone is removed. When the server is unreachable, a fallback text can include a map link. Native notifications are relayed through Expo and Apple or Google. Map coordinates are sent to Google Maps only when a parent opens the link.",
           "The server keeps only the latest position: coordinates, accuracy and time. Each new position replaces the old one, and no history is kept. Switching location off, or removing the phone, deletes the stored position.",
-          "The dashboard shows the position on a map. The map tiles come from OpenFreeMap (tiles.openfreemap.org, OpenStreetMap data), so loading them tells OpenFreeMap roughly which area is being looked at, along with the parent’s IP address. The map is only loaded on the location page. The parent app on a phone uses OpenStreetMap’s tile servers, and only after the parent taps Show map. If a parent chooses “Drive there” with Google Maps or Apple Maps, or copies the position, the coordinates go to that app, and its own policy applies from there.",
+          "The dashboard shows the position on a map. The map tiles come from OpenFreeMap (tiles.openfreemap.org, OpenStreetMap data), so loading them tells OpenFreeMap roughly which area is being looked at, along with the parent’s IP address. The map is only loaded on the location page. The Plainphone Parent app shows no map until the parent taps Show map, and then remembers that choice on that device until they tap Hide map. While the map is shown, the app fetches nine map tiles around the position from the OpenStreetMap Foundation’s tile servers (tile.openstreetmap.org). Each request contains only the tile’s zoom level and number, which narrows the position down to a square of roughly 170 m to 5 km across depending on how accurate it is, together with the parent’s IP address and the app’s name and version. No account details, names or exact coordinates are sent. The OpenStreetMap Foundation’s privacy policy applies to those requests (osmfoundation.org/wiki/Privacy_Policy). If a parent chooses “Drive there” with Google Maps or Apple Maps, or copies the position, the coordinates go to that app, and its own policy applies from there.",
         ],
       },
       {
