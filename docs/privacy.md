@@ -40,11 +40,16 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 The sign-in request answers the same whether or not an address has an account, with one
 exception: on the hosted service, when the daily cap on new households is full, a new
 address is told to try again tomorrow while a known one gets a link
-([operations.md](operations.md#daily-cap-on-new-households)).
+([operations.md](operations.md#daily-cap-on-new-households)). The same goes for a throwaway
+address (a known disposable mail service), which cannot start a new household
+([operations.md](operations.md#bot-and-spam-protection)).
 
 | Data | For how long | Where it is set |
 |---|---|---|
 | Account (email address, language) | until the user deletes it (Settings) | `DELETE /api/me` |
+| Rate-limit counters for sign-in, pairing and extended-family links: the limit's name, a keyed hash of the IP address (HMAC-SHA-256 with a server secret and the UTC date, so it changes every day; IPv6 cut to its /64 first), the window and a count. Never the address itself | until the window ends: at most 24 hours | `rate_limit_hits`, sweeper |
+| Solved bot challenges: the signature only, so each is used once | 10 minutes, until the challenge expires | `bot_challenges_spent`, sweeper |
+| Invitation mails per household: the household and the time, no address | 24 hours | `invite_mails`, sweeper |
 | Household, phones and their rules, apps, contacts, schedules, filter settings, key | until the phone is removed or the household's last member deletes their account | `DELETE /api/phones/{pid}`, `DELETE /api/me` |
 | The phone's latest status (battery, app version, lock state, DNS host) | each report replaces the last | `PUT /api/device/status` |
 | Reset protection (numeric Google account ID per parent and household, and when it was linked) | until the parent disconnects it in Household settings, deletes their Plainphone account, or the household is deleted. A former member's ID is excluded from rules as soon as they leave. Google email addresses and OAuth tokens are not stored for this feature | `frp_accounts`, `DELETE /api/households/{hid}/reset-protection/mine` |
@@ -103,7 +108,10 @@ While the dashboard or the parent app is open, it keeps a live connection to our
 request or message), never names, texts or positions, and they are not logged or stored; the
 last few minutes of them sit in memory so a dropped connection can catch up.
 
-IP addresses are only held in memory, for rate limits. The full rules for deletion,
+IP addresses are never stored. Rate limits that must survive a restart keep a keyed hash
+that changes every day (above); the others hold addresses in memory only. The bot challenge
+on the sign-in form is a small puzzle the dashboard or the app solves itself: no third party,
+no cookie, nothing about the device. The full rules for deletion,
 including what happens to a household with two parents, are in
 [account-deletion.md](account-deletion.md).
 

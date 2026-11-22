@@ -417,7 +417,7 @@ export default {
               ],
             },
           },
-          "Som vilken webbtjänst som helst, skriver webbservern framför appen vanliga tekniska loggar (IP-adress, tid, den efterfrågade adressen). Vi använder dem bara för att hålla tjänsten igång och för att stoppa missbruk. Appen själv håller endast IP-adresser i minnet, för hastighetsgränser, och skriver dem aldrig till sin databas.",
+          "Som vilken webbtjänst som helst, skriver webbservern framför appen vanliga tekniska loggar (IP-adress, tid, den efterfrågade adressen). Vi använder dem bara för att hålla tjänsten igång och för att stoppa missbruk. Appen själv skriver aldrig IP-adresser till sin databas. Gränser för hur ofta någon kan be om en inloggningslänk eller börja koppla en telefon räknas i stället med ett kodat fingeravtryck av adressen, gjort med en hemlig nyckel som byts varje dag. Det kan inte göras om till adressen eller kopplas till dagen innan, och det raderas inom ett dygn. Innan en inloggningslänk skickas löser instrumentpanelen eller appen själv en liten uppgift, så att skript inte kan skicka e-post i stora mängder. Kontrollen använder ingen extern tjänst och ingen cookie och berättar inget för oss om din enhet. En ny familj kan inte registrera sig med en tillfällig e-postadress.",
         ],
       },
       {

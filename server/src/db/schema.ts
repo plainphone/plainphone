@@ -1288,3 +1288,5 @@ export const latencySamples = pgTable("latency_samples", {
 
 // E2EE phase 0 prototype tables (docs/e2ee-prototype.md).
 export * from "./e2ee-schema.js";
+// Bot and spam protection (docs/operations.md, "Bot and spam protection").
+export * from "./anti-abuse-schema.js";

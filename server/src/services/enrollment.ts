@@ -144,6 +144,6 @@ export async function redeemEnrollment(
     await invalidateEnrollments(tx, phone.id, now);
     return { ...(await paired()), ownerId: e.createdBy };
   });
-  if ("ownerId" in result && result.ownerId) await sendInitialKeyInvite(ctx, input.key, result.ownerId);
+  if ("ownerId" in result && result.ownerId && result.status === 200) await sendInitialKeyInvite(ctx, input.key, result.ownerId, result.phoneId);
   return result;
 }

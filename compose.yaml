@@ -40,6 +40,11 @@ services:
       PUSH_EXTRA_HOSTS: ${PUSH_EXTRA_HOSTS:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:privacy@plainphone.org}
+      # Hours without contact before parents are told a phone is offline; 0 = off.
+      OFFLINE_ALERT_HOURS: ${OFFLINE_ALERT_HOURS:-12}
+      # iPhone pairing (docs/ios/architecture.md): off until the iOS app is released.
+      IOS_PAIRING_ENABLED: ${IOS_PAIRING_ENABLED:-false}
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
       MAIL_PROVIDER: ${MAIL_PROVIDER:-none}
       MAIL_FROM: ${MAIL_FROM:-Plainphone <no-reply@example.org>}
@@ -49,8 +54,20 @@ services:
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: ${DNS_HOST_SUFFIX:-dns.plainphone.org}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Apply database migrations at start. Leave it true unless you run them yourself.
+      MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
+      # Delivery timings (docs/latency.md); METRICS_TOKEN unset = /api/metrics answers 404.
+      LATENCY_STATS: ${LATENCY_STATS:-on}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       # New households per UTC day; 0 = no cap, the self-hosting default (docs/self-hosting.md).
       SIGNUP_DAILY_CAP: ${SIGNUP_DAILY_CAP:-0}
+      # Bot and spam protection on sign-in and invitations (docs/operations.md#bot-and-spam-protection).
+      BOT_CHALLENGE: ${BOT_CHALLENGE:-off}
+      BOT_CHALLENGE_DIFFICULTY: ${BOT_CHALLENGE_DIFFICULTY:-100000}
+      BOT_CHALLENGE_HMAC_KEY: ${BOT_CHALLENGE_HMAC_KEY:-}
+      SPAM_HONEYPOT: ${SPAM_HONEYPOT:-on}
+      BLOCK_DISPOSABLE_EMAIL: ${BLOCK_DISPOSABLE_EMAIL:-on}
+      INVITES_PER_HOUSEHOLD_DAILY: ${INVITES_PER_HOUSEHOLD_DAILY:-20}
       # App store review sign-in (docs/store-review.md). Unset = the path does not exist.
       REVIEW_LOGIN_EMAIL: ${REVIEW_LOGIN_EMAIL:-}
       REVIEW_LOGIN_CODE: ${REVIEW_LOGIN_CODE:-}
@@ -59,6 +76,7 @@ services:
       # Setup QR codes (docs/self-hosting.md): leave empty for the project's own app releases.
       APK_DOWNLOAD_URL: ${APK_DOWNLOAD_URL:-}
       APK_METADATA_URL: ${APK_METADATA_URL:-}
+      APK_RELEASES_REPO: ${APK_RELEASES_REPO:-}
       APK_SIGNATURE_CHECKSUM: ${APK_SIGNATURE_CHECKSUM:-}
       PROVISIONING_DNS_HOST: ${PROVISIONING_DNS_HOST:-}
     ports:

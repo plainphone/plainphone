@@ -81,6 +81,10 @@ import { parentBillingRoutes } from "./billing.js";
 import { cancelSubscriptions, isAllowed, planLimitBody, subscriptionsOfSoleHouseholds } from "../services/billing.js";
 import { offerFor } from "../services/early-unlock.js";
 import { recentLinks, SIGNUP_CAP_CODE, SignupCapError } from "../services/signup-cap.js";
+import { DbRateLimiter } from "../services/rate-limits.js";
+import { guardSignupRequest } from "../services/signup-guard.js";
+import { INVITE_CAP_CODE, takeInviteMail } from "../services/invite-cap.js";
+import { countAbuse } from "../services/abuse-metrics.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -110,17 +114,18 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const app = new Hono<ParentEnv>();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
-  const loginIpLimit = new RateLimiter(20, 60 * 60_000);
+  // Counted in the database as keyed hashes, never the address, so they hold across restarts and processes.
+  const loginIpLimit = new DbRateLimiter("auth-request-ip", 20, 60 * 60_000);
   // Per address, counted in the database so it holds across restarts and processes.
   const LOGIN_LINKS_PER_ADDRESS_HOUR = 5;
-  const verifyLimit = new RateLimiter(30, 15 * 60_000);
+  const verifyLimit = new DbRateLimiter("auth-verify-ip", 30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
   // "Update now" wakes the child's phone: a script must not wake it every second.
   const wakeLimit = new RateLimiter(30, 60 * 60_000);
   const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
-  const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
+  const inviteRecipientLimit = new DbRateLimiter("invite-recipient", 3, 24 * 60 * 60_000);
 
   // --- Auth -------------------------------------------------------------------
 
@@ -132,7 +137,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   }
 
   app.post("/auth/request", async (c) => {
-    const ipAllowed = loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY));
+    const ipAllowed = await loginIpLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY));
     const input = await body(
       c,
       z.object({
@@ -140,14 +145,23 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         locale: v.locale.default("en"),
         /** Native apps get a link the app opens (/auth/app) instead of the PWA's. */
         client: z.enum(["web", "native"]).default("web"),
+        /** A solved bot challenge (GET /api/auth/challenge), when the server asks for one. */
+        altcha: z.string().max(2000).optional(),
+        /** The honeypot: a hidden field a person leaves empty. */
+        website: z.string().max(500).optional(),
       }),
     );
+    if (!ipAllowed) countAbuse(ctx, "rate_limit");
     // The store review address signs in with its code (routes/review-login.ts): no mail is sent.
     const review = ipAllowed && isReviewAddress(ctx.cfg, input.email);
     if (review) return c.json({ ok: true, mailEnabled: ctx.mail.canSend, codeSignIn: true }, 202);
     if (!ipAllowed || (await recentLinks(ctx, input.email)) >= LOGIN_LINKS_PER_ADDRESS_HOUR) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
+    const guard = await guardSignupRequest(ctx, input);
+    if (guard.kind === "refuse") return c.json(guard.body, guard.status);
+    // A bot that filled in the hidden field learns nothing: the answer is the normal one.
+    if (guard.kind === "silent") return c.json({ ok: true, mailEnabled: ctx.mail.canSend }, 202);
     try {
       await requestMagicLink(ctx, input.email, toLocale(input.locale), input.client);
     } catch (err) {
@@ -159,7 +173,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.post("/auth/verify", async (c) => {
-    if (!verifyLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "slow down" });
+    if (!(await verifyLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "slow down" });
     const input = await body(
       c,
       z.object({
@@ -428,8 +442,12 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const hid = param(c, "hid");
     await requireMember(c, hid);
     const input = await body(c, z.object({ email: v.email, locale: v.locale.optional() }));
-    if (!inviteUserLimit.take(c.get("user").id) || !inviteRecipientLimit.take(`${hid}:${input.email}`)) {
+    if (!inviteUserLimit.take(c.get("user").id) || !(await inviteRecipientLimit.take(ctx, `${hid}:${input.email}`))) {
       throw new HTTPException(429, { message: "too many invitations; try again tomorrow" });
+    }
+    // INVITES_PER_HOUSEHOLD_DAILY: once the household's mails for today are used, nothing is stored or sent.
+    if (ctx.mail.canSend && !(await takeInviteMail(ctx, hid))) {
+      return c.json({ error: "this family has sent today's invitations; try again tomorrow", code: INVITE_CAP_CODE }, 429);
     }
     const token = randomToken("pp_i_");
     const expiresAt = new Date(ctx.now().getTime() + INVITE_DAYS * 86_400_000);
