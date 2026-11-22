@@ -2,7 +2,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { LoadGate, PageTitle, PickGroup, type PickOption, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import {
   api,
   ApiError,
@@ -24,11 +24,11 @@ import {
   type SettingSpec,
   settingName,
   stateFor,
-} from "../lib/settings";
+} from "@plainphone/shared/settings";
 import { usePhone } from "./Phone";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
-import type { PhoneLanguage } from "../lib/phone-language";
-import { intlLocale } from "../lib/format";
+import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
+import { intlLocale } from "@plainphone/shared/format";
 
 export function PhoneSettingsPage() {
   const { t } = useI18n();
@@ -229,7 +229,7 @@ function SetupUndoSetting() {
   const { t } = useI18n();
   const { phone, run } = usePhone();
   const id = useId();
-  const path = `/phones/${phone.id}/setup-undo`;
+  const path = `/phones/${phone.id}/setup-undo` as const;
   const res = useLoad(() => api.get<{ minutes: number; editable: boolean; undoUntil: string | null }>(path), [path]);
   const [saving, setSaving] = useState(false);
   const { data, loading, reload } = res;

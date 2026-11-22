@@ -4,7 +4,7 @@
 // asks for. Used by the request list and by the answer buttons on the notification.
 import { client, unwrap } from "../api/client";
 import type { TFn } from "../i18n/I18n";
-import { MORE_TIME_ANSWERS, type MoreTimeAnswer, type MoreTimeAnswerResult, resultOf } from "../shared/lib/more-time";
+import { MORE_TIME_ANSWERS, type MoreTimeAnswer, type MoreTimeAnswerResult, resultOf } from "@plainphone/shared/more-time";
 
 const ID = /^[0-9a-f-]{36}$/i;
 

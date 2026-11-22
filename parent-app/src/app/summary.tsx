@@ -15,7 +15,7 @@ import {
   summaryRange,
   summaryTime,
   type WeeklySummary,
-} from "../shared/lib/weekly-summary";
+} from "@plainphone/shared/weekly-summary";
 
 /** The last 8 weekly summaries (docs/weekly-summary.md). */
 function Summary() {

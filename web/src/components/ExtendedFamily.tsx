@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { ApiError, api, CONTACT_GROUPS, type ContactGroup } from "../lib/api";
 import {
   canRenewLink,
@@ -10,7 +10,7 @@ import {
   type ExtendedInvite,
   type ExtendedRoster,
   STATE_KEYS,
-} from "../lib/extended-family";
+} from "@plainphone/shared/extended-family";
 import { Field, useLoad } from "./ui";
 
 /**
@@ -19,7 +19,7 @@ import { Field, useLoad } from "./ui";
  */
 export function ExtendedFamily({ pid, paused = false }: { pid: string; paused?: boolean }) {
   const { t } = useI18n();
-  const path = `/phones/${pid}/extended`;
+  const path = `/phones/${pid}/extended` as const;
   const res = useLoad(() => api.get<ExtendedRoster>(path), [path]);
   const { reload, data } = res;
   const [name, setName] = useState("");

@@ -3,8 +3,8 @@ import { useState } from "react";
 import { errorMessage, type Notice } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type Phone } from "../lib/api";
-import { formatDateTime } from "../lib/format";
-import { diagnostics, helpUrl, releaseState } from "../lib/phoneSupport";
+import { formatDateTime } from "@plainphone/shared/format";
+import { diagnostics, helpUrl, releaseState } from "@plainphone/shared/phoneSupport";
 
 export function ReleaseNotice({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();

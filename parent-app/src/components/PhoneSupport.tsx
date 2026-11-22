@@ -5,8 +5,8 @@ import { client, unwrap } from "../api/client";
 import type { Phone } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { copyText } from "../lib/clipboard";
-import { formatDateTime } from "../shared/lib/format";
-import { diagnostics, helpUrl, releaseState } from "../shared/lib/phoneSupport";
+import { formatDateTime } from "@plainphone/shared/format";
+import { diagnostics, helpUrl, releaseState } from "@plainphone/shared/phoneSupport";
 import { usePhone } from "./PhoneContext";
 import { Button, Card, errorMessage, Notice, Stack, Switch, Text } from "./ui";
 

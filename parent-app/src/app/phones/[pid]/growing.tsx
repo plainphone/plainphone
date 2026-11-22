@@ -11,8 +11,8 @@ import { AgePicker, ReviewPicker } from "../../../components/AgeControls";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
-import { type AgePreset, type AgePresetId, type AgeState, presetName, suggestionText } from "../../../shared/lib/age";
-import { formatDateTime } from "../../../shared/lib/format";
+import { type AgePreset, type AgePresetId, type AgeState, presetName, suggestionText } from "@plainphone/shared/age";
+import { formatDateTime } from "@plainphone/shared/format";
 
 /** A local calendar date (YYYY-MM-DD) in a time zone, for the date field. */
 const dayIn = (at: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(at);

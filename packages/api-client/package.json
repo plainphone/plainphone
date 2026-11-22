@@ -1,0 +1,23 @@
+{
+  "name": "@plainphone/api-client",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Types generated from server/openapi.yaml and a small typed fetch wrapper",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.d.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../server/openapi.yaml -o src/schema.d.ts",
+    "check": "mkdir -p node_modules/.cache && openapi-typescript ../../server/openapi.yaml -o node_modules/.cache/schema.d.ts && diff -u src/schema.d.ts node_modules/.cache/schema.d.ts && echo 'src/schema.d.ts matches server/openapi.yaml'",
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm run typecheck",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.0"
+  }
+}

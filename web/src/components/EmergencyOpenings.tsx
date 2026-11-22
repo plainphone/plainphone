@@ -2,7 +2,7 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, type ChangeResult, type EmergencyOpening, type EmergencyOpenings, type EmergencySettings } from "../lib/api";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 import { usePhone } from "../pages/Phone";
 import { Field, LoadGate, Switch, useLoad } from "./ui";
 

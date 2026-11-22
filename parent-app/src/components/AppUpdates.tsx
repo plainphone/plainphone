@@ -3,7 +3,7 @@ import { useState } from "react";
 import { client, unwrap } from "../api/client";
 import type { Phone } from "../api/models";
 import { useI18n } from "../i18n/I18n";
-import { appUpdateLines, type AppUpdateWindow } from "../shared/lib/app-updates";
+import { appUpdateLines, type AppUpdateWindow } from "@plainphone/shared/app-updates";
 import { usePhone } from "./PhoneContext";
 import { Button, Card, errorMessage, Notice, Switch, Text } from "./ui";
 

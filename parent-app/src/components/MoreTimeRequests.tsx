@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Requests for more time on one phone: open ones with four answers, answered and expired ones
-// below as a quiet result. Same states and copy as the dashboard (src/shared/lib/more-time).
+// below as a quiet result. Same states and copy as the dashboard (@plainphone/shared/more-time).
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { View } from "react-native";
@@ -11,8 +11,8 @@ import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { answerMoreTime } from "../lib/moreTime";
 import { radius, space, useColors } from "../lib/theme";
-import { formatDateTime } from "../shared/lib/format";
-import { ANSWER_KEY, byKey, merge, MORE_TIME_ANSWERS, type MoreTimeAnswer, type MoreTimeRequest, resultOf } from "../shared/lib/more-time";
+import { formatDateTime } from "@plainphone/shared/format";
+import { ANSWER_KEY, byKey, merge, MORE_TIME_ANSWERS, type MoreTimeAnswer, type MoreTimeRequest, resultOf } from "@plainphone/shared/more-time";
 import { ItemRow } from "./parts";
 import { usePhone } from "./PhoneContext";
 import { Button, Card, errorMessage, Row, Stack as VStack, Switch, Text, useLoad } from "./ui";

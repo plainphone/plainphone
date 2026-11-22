@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { platformLine, ruleRowUnavailable, unsupportedOnIphone } from "./platform";
+import { platformLine, ruleRowUnavailable, unsupportedOnIphone } from "@plainphone/shared/platform";
 
 it("gives an iPhone a line for each rule its map does not fully support", () => {
   const phone = { platform: "ios" as const, capabilities: { contacts: "partial" as const, calmHome: "no" as const, apps: "yes" as const } };

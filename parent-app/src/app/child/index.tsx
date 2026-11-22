@@ -16,7 +16,7 @@ import { clearIdentity, deviceFetch, type DeviceIdentity, loadIdentity } from ".
 import { emptyMemory, type SyncResult, syncOnce } from "../../lib/iphone/sync";
 import { resetWizard } from "../../lib/iphone/wizard";
 import { useRole } from "../../lib/role-context";
-import { formatTimeOfDay } from "../../shared/lib/format";
+import { formatTimeOfDay } from "@plainphone/shared/format";
 
 const DEFAULT_POLL_SECONDS = 60;
 
