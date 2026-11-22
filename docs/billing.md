@@ -60,7 +60,7 @@ in the database and is never changed by a provider event.
 - **Web dashboard (sideloaded phones):** Stripe Checkout on the plan page (`/plan`), through
   Mahoje's Stripe account. The Stripe customer portal handles changes and cancellation.
 - **Play installs:** a Google Play subscription, bought in the Play build of the phone app
-  (`-PplainphonePlay=true`, see [ci-build.md](ci-build.md)). The purchase carries the household id
+  (the `play` flavor, see [ci-build.md](ci-build.md)). The purchase carries the household id
   as `obfuscatedAccountId`.
 - **The parent app** (App Store and Google Play) shows the plan read-only. It never shows a price
   to buy, a checkout, or a pointer to buying on the web (store rules). A test

@@ -24,18 +24,18 @@ APK with our signature. The recipe then lists the certificate in `AllowedAPKSign
 
 1. **A FOSS release APK.** Official APKs are built with `-PplainphoneFcm=true`
    ([push-setup.md](../push-setup.md)), which adds Firebase Cloud Messaging. F-Droid will not
-   build that ("NonFreeDep"). The default build (no FCM, no Play Billing) only *links* free
+   build that ("NonFreeDep"). The `github` flavor without FCM (no Play Billing) only *links* free
    libraries: Compose, AndroidX, WorkManager, Tink, Gson and json-canonicalization, all under open
    licences. But `android/app/build.gradle.kts` still *names* `firebase-messaging` and
-   `com.android.billingclient`, behind `if (fcmEnabled)` and `if (playEnabled)`, and F-Droid's
+   `com.android.billingclient`, behind `if (fcmEnabled)` and `"playImplementation"`, and F-Droid's
    scanner reads the build file as text, so it flags them anyway. The recipe therefore deletes
    those two lines in `prebuild` and removes the unused `src/fcm` and `src/play` source sets
    with `rm` (below), so nothing that imports Firebase or Play Billing is left. Both are inert in
-   the default build, so the APK should still match ours byte for byte; check that when testing
+   the `github` flavor, so the APK should still match ours byte for byte; check that when testing
    reproducibility. Moving the two dependencies to a separate Gradle file that only the FCM and
    Play builds apply would make the `prebuild` unnecessary.
    The FOSS build wakes up through UnifiedPush or polling. So each release would also publish
-   `plainphone-VERSION-foss.apk`, built without `-PplainphoneFcm` and `-PplainphonePlay`, signed
+   `plainphone-VERSION-foss.apk`, the `github` flavor built without `-PplainphoneFcm`, signed
    with the production key.
 2. **Determinism.** Things to check, by building the same tag twice on two machines and
    comparing with `diffoscope` or F-Droid's `apksigcopier`:
@@ -106,7 +106,7 @@ Builds:
       - android/app/src/play
     prebuild: sed -i -e '/firebase-messaging/d' -e '/billingclient/d' build.gradle.kts
     gradle:
-      - yes
+      - github
     binary: https://github.com/plainphone/plainphone/releases/download/v%v/plainphone-%v-foss.apk
 
 AllowedAPKSigningKeys: <SHA-256 of the production certificate, from the README>

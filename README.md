@@ -202,7 +202,14 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ./gradlew testGithubDebugUnitTest lintGithubDebug assembleGithubDebug
 ```
 
-The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+The app has two product flavors in the `distribution` dimension:
+
+| Flavor | For | What it is |
+|---|---|---|
+| `github` (default) | GitHub Releases, F-Droid, the emulator suite | The whole app: light and strong mode, Child and Myself, the self-updater |
+| `play` | Google Play | Light mode with the Child profile only, updated by Play, with the disclosures and the notice Play asks for. See [docs/play/play-edition.md](docs/play/play-edition.md) |
+
+Gradle task names carry the flavor: `assembleGithubDebug`, `testPlayDebugUnitTest`, `bundlePlayRelease`. The debug APK ends up in `android/app/build/outputs/apk/github/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Robolectric unit tests run offline. Gradle resolves the instrumented SDK jars before
 the test JVM starts and stages them in `android/.gradle/robolectric`. CI caches this
@@ -233,7 +240,7 @@ keyPassword=...
 PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleGithubRelease
 ```
 
-Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:
+Without `PLAINPHONE_SIGNING`, the `github` release build is signed with your local debug key, and the `play` release stays unsigned. The Play bundle (`./gradlew bundlePlayRelease`) is signed with the upload key from `PLAINPHONE_PLAY_UPLOAD` ([docs/play/play-edition.md](docs/play/play-edition.md#signing-and-upload)). Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:
 
 ```text
 8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215

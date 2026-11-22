@@ -53,15 +53,34 @@ are local to the workspace unless an encryption key is configured for CI
 transfer. The Android jobs cache the requested platform and build-tools
 directories when the hosted runner does not already have them.
 
-The Android app has two build properties instead of product flavours, so task
-names such as `assembleDebug` stay the same. `-PplainphoneFcm=true` adds Firebase
-push (docs/push-setup.md). `-PplainphonePlay=true` builds the Google Play
-edition: it compiles `app/src/play/java` and adds the Google Play Billing
-Library, which the paid early unlock needs (docs/billing.md). Without it the
-build compiles `app/src/direct/java`, has no billing dependency and never shows
-a paid offer. The default unit tests read `app/src/play` as text and fail if it
-mentions Stripe, a checkout URL, or finishes (acknowledges or consumes) a
-purchase itself, which only the server may do.
+The Android app has one flavor dimension, `distribution`, so every task name
+carries the flavor ([play/play-edition.md](play/play-edition.md)):
+
+- `github` (the default) is the app on GitHub Releases and F-Droid. The Android
+  job builds `assembleGithubDebug assembleGithubRelease`, runs
+  `testGithubDebugUnitTest lintGithubDebug lintGithubRelease` and smoke-tests the
+  minified release APK. Phone sync, the E2EE prototype check and the emulator
+  suite build this flavor too (`:app:assembleGithubDebug
+  :app:assembleGithubDebugAndroidTest`). It compiles `app/src/github`, has no
+  billing dependency and never shows a paid offer.
+- `play` is the Google Play edition. A second step in the same job builds
+  `assemblePlayRelease bundlePlayRelease` unsigned (CI has no upload key), runs
+  `testPlayDebugUnitTest lintPlayDebug`, and `scripts/smoke-play-apk.sh` checks the
+  APK: the manifest has no `QUERY_ALL_PACKAGES`, `REQUEST_INSTALL_PACKAGES`,
+  install watchdog or Device Owner provisioning, it declares `isMonitoringTool`
+  and `<queries>` for launcher apps, and the dex has no update check or link to
+  the APK download. It compiles `app/src/play`, which adds the Google Play
+  Billing Library the paid early unlock needs (docs/billing.md).
+
+Tests in `app/src/test` run for both flavors. `app/src/testGithub` holds the
+Myself setup screens, and `app/src/testPlay` the Play edition's own tests. A few
+self-updater tests in `app/src/test` are skipped on `play` with
+`assumeTrue(Distribution.SELF_UPDATES)`. `PlayStoreSourcesTest` reads
+`app/src/play` as text and fails if it mentions Stripe, a checkout URL, or
+finishes (acknowledges or consumes) a purchase itself, which only the server may
+do.
+
+`-PplainphoneFcm=true` adds Firebase push to either flavor (docs/push-setup.md).
 
 ## Baseline and comparison
 
