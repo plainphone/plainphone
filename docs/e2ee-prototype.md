@@ -21,6 +21,21 @@ the household roster.
 | Scripted demo, run in CI | `scripts/e2ee-prototype-demo.sh`, `server/test/e2e/e2ee-demo.ts` | Starts its own server with the switch on |
 | Test vectors | [`docs/encryption-test-vectors/mls-prototype.json`](encryption-test-vectors/mls-prototype.json) | |
 
+### When the CI job runs
+
+The `e2ee-prototype` job in `.github/workflows/ci.yml` is slow, so it runs
+only when something it covers changes (the `e2ee` filter in
+`.github/scripts/ci-changes.py`): `e2ee/**`, the `/api/e2ee` route, its
+library files (`server/src/lib/e2ee*`, `mls-*`) and its schema and migration,
+the E2EE tests, `packages/crypto*`, `docs/encryption-test-vectors/**`, the demo
+script, the Android binding (`src/debug` and `src/testDebug` E2EE files and
+`android/app/build.gradle.kts`, where the build flag lives) and the workflow
+or detection scripts themselves. It also runs every night on `main`
+(`schedule`), so dependency or toolchain drift shows up without a PR. When the
+filter does not match, the job still starts and passes after one "No relevant
+changes" step, like every other job in the workflow, so it never blocks an
+unrelated PR that requires the check.
+
 There is no per-phone toggle in the dashboard or the parent app, because there
 is nothing a family can switch on yet. The recommendation's design is "no new
 switch now": the future free-text toggle is per phone, off by default and

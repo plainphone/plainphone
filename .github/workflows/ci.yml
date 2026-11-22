@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Nightly run of the E2EE prototype on main only (docs/e2ee-prototype.md).
+  schedule:
+    - cron: "17 2 * * *"
 
 permissions:
   contents: read
@@ -40,6 +43,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
             # The first parent is the base of this run's PR merge commit.
             base=$(git rev-parse --verify "$GITHUB_SHA^1")
+          elif [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            base=nightly
           elif [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ && "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
             base=$PUSH_BEFORE
             if ! git cat-file -e "$base^{commit}" 2>/dev/null &&

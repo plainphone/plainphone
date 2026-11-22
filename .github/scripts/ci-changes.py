@@ -37,9 +37,13 @@ FILTERS = {
     ),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*", "server/catalog/??.json"),
-    # E2EE phase 0 prototype: the Rust core, its Android binding and the demo against the server.
-    "e2ee": WORKSPACE + CRYPTO_VECTORS + (
-        "e2ee/*", "server/*", "scripts/e2ee-prototype-demo.sh", "android/app/build.gradle.kts",
+    # E2EE phase 0 prototype: only what the Rust core, its Android binding and the demo touch.
+    "e2ee": CRYPTO_VECTORS + (
+        "e2ee/*", "packages/crypto*",
+        "server/src/routes/e2ee*", "server/src/lib/e2ee*", "server/src/lib/mls-*",
+        "server/src/services/e2ee*", "server/src/db/e2ee-schema.ts",
+        "server/drizzle/*e2ee*", "server/test/e2ee*", "server/test/e2e/e2ee-*",
+        "scripts/e2ee-prototype-demo.sh", "android/app/build.gradle.kts",
         "android/app/src/debug/java/org/plainphone/app/e2ee/*", "android/app/src/testDebug/*",
     ),
     "backup": (
@@ -51,7 +55,7 @@ FILTERS = {
 
 base, head = sys.argv[1:]
 # A push can lack a usable predecessor, for example after a force push.
-if base == "all":
+if base in ("all", "nightly"):
     paths = None
 else:
     diff = subprocess.check_output(
@@ -61,7 +65,11 @@ else:
 
 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
     for check, patterns in FILTERS.items():
-        changed = paths is None or any(
-            fnmatchcase(path, pattern) for path in paths for pattern in WORKFLOWS + patterns
-        )
+        if base == "nightly":
+            # The scheduled run on main covers only the prototype; the other checks run on every merge.
+            changed = check == "e2ee"
+        else:
+            changed = paths is None or any(
+                fnmatchcase(path, pattern) for path in paths for pattern in WORKFLOWS + patterns
+            )
         print(f"{check}={str(changed).lower()}", file=output)
