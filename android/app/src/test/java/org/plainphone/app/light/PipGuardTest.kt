@@ -195,26 +195,36 @@ class PipGuardTest {
         assertEquals(1, starts.count { it.component?.packageName == game })
     }
 
-    @Test fun `Android 10's picture-in-picture menu over the window does not hide whose window it is`() {
-        // Emulator run 45047940235 (API 29): once System UI's menu covered the pinned player, the window read
-        // as System UI ("pip: windows com.android.systemui#14@1"), so the blocked player floated on.
+    @Test fun `whose window it is when Android 10 does not say`() {
+        val known = mapOf(10 to game)
+        assertEquals(video, PipGuard.owner(video, 10, known, game, fine))
+        assertEquals("no root yet: the app the window showed", game, PipGuard.owner(null, 10, known, null, fine))
+        assertEquals(null, PipGuard.owner(null, 11, known, game, fine))
+        assertEquals("System UI answering for the app's window", game, PipGuard.owner(PipGuard.SYSTEM_UI, 10, known, video, fine))
+        assertEquals("System UI's menu window over it", video, PipGuard.owner(PipGuard.SYSTEM_UI, 14, known, video, fine))
+        assertEquals("never seen before: the app that was in front", fine, PipGuard.owner(PipGuard.SYSTEM_UI, 14, known, null, fine))
+    }
+
+    private fun android10Window(pkg: String?, pip: Boolean, id: Int) = AccessibilityWindowInfo().also {
+        Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+            rootNode = pkg?.let { p -> AccessibilityNodeInfo().apply { packageName = p } }
+            this.pip = pip
+            windowId = id
+        }
+    }
+
+    /** An allowed [game] in front goes into picture-in-picture through [pinned], then the parent blocks it. */
+    private fun assertStoppedOnceBlocked(vararg pinned: List<AccessibilityWindowInfo>) {
         installLauncher(game)
         service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit().putStringSet("blocked", emptySet()).commit()
-        fun win(pkg: String?, pip: Boolean, id: Int) = AccessibilityWindowInfo().also {
-            Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
-                rootNode = pkg?.let { p -> AccessibilityNodeInfo().apply { packageName = p } }
-                this.pip = pip
-                windowId = id
-            }
-        }
         org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected") // watches the plan
         service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply { packageName = game })
-        shadow.windowList = listOf(win(game, false, 10))
+        shadow.windowList = listOf(android10Window(game, false, 10))
         windowsChanged()
-        shadow.windowList = listOf(win(null, true, 10)) // entering picture-in-picture: no root yet
-        windowsChanged()
-        shadow.windowList = listOf(win("com.android.systemui", true, 14)) // the menu covers the app's window
-        windowsChanged()
+        pinned.forEach {
+            shadow.windowList = it
+            windowsChanged()
+        }
         val looper = shadowOf(android.os.Looper.getMainLooper())
         looper.idleFor(Duration.ofSeconds(2))
         assertEquals(null, shadowOf(service.application).nextStartedActivity)
@@ -224,8 +234,23 @@ class PipGuardTest {
         val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
         assertEquals("expanded once", 1, starts.count { it.component?.packageName == game })
         assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
-        // Home would stop app switches for 5 s on Android 10 and leave the window floating over the launcher.
+        // Home would hold back app starts for 5 s on Android 10 and leave the window floating over the launcher.
         assertEquals("the floating app is not treated as the app in front", 0, homeActions())
+    }
+
+    @Test fun `Android 10's menu over a floating window does not hide whose window it is`() {
+        // Emulator run 45047940235 (API 29): "pip: windows null#10@1", then "com.android.systemui#14@1",
+        // and the blocked player floated on.
+        assertStoppedOnceBlocked(listOf(android10Window(null, true, 10)), listOf(android10Window(PipGuard.SYSTEM_UI, true, 14)))
+    }
+
+    @Test fun `Android 10's System UI answering for a floating window does not hide whose window it is`() {
+        // Emulator run 45042386185 (main, issue #258): the first sighting was "com.android.systemui#10@1".
+        assertStoppedOnceBlocked(listOf(android10Window(PipGuard.SYSTEM_UI, true, 10)))
+    }
+
+    @Test fun `a floating window seen only as System UI belongs to the app that was in front`() {
+        assertStoppedOnceBlocked(listOf(android10Window(PipGuard.SYSTEM_UI, true, 21)))
     }
 
     @Test fun `the quiet window ends`() {

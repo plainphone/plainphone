@@ -56,17 +56,21 @@ object PipGuard {
     const val EXPAND_QUIET_MS = 5_000L
 
     /**
-     * Whose app a picture-in-picture window shows. Its root names the app, except on Android 10:
-     * the window has no root while it enters picture-in-picture, so the app is the one [known] for
-     * that window id; and System UI then lays its menu over the app's window, so the pinned window
-     * reads as System UI and the app is the one last seen pinned ([lastPinned]). Emulator run
-     * 45047940235 showed both: "pip: windows null#10@1", then "com.android.systemui#14@1".
+     * Whose app a picture-in-picture window shows. Its root names the app, except on Android 10,
+     * where System UI answers for a pinned window and lays its menu over it, so the window reads as
+     * System UI, and where a window can have no root while it enters picture-in-picture. The app is
+     * then the one [known] for that window id from before it floated; for System UI's own menu
+     * window, the app last seen floating ([lastPinned]); and failing both, the app that was
+     * [inFront], as only the app in front can enter picture-in-picture. Emulator runs 45042386185
+     * ("pip: windows com.android.systemui#10@1") and 45047940235 ("null#10@1", then
+     * "com.android.systemui#14@1") showed these.
      */
-    fun owner(rootPkg: String?, windowId: Int, known: Map<Int, String>, lastPinned: String?): String? = when (rootPkg) {
-        null -> known[windowId]
-        SYSTEM_UI -> lastPinned
-        else -> rootPkg
-    }
+    fun owner(rootPkg: String?, windowId: Int, known: Map<Int, String>, lastPinned: String?, inFront: String?): String? =
+        when (rootPkg) {
+            null -> known[windowId]
+            SYSTEM_UI -> known[windowId] ?: lastPinned ?: inFront
+            else -> rootPkg
+        }
 
     const val SYSTEM_UI = "com.android.systemui"
 

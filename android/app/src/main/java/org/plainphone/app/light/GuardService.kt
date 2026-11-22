@@ -344,10 +344,12 @@ class GuardService : AccessibilityService() {
             }
         }
         val pinnedAppNow = raw.filter { it.inPip && it.rootPkg != PipGuard.SYSTEM_UI }
-            .firstNotNullOfOrNull { PipGuard.owner(it.rootPkg, it.id, windowOwners, null) }
+            .firstNotNullOfOrNull { PipGuard.owner(it.rootPkg, it.id, windowOwners, null, null) }
         pinnedApp = pinnedAppNow ?: pinnedApp.takeIf { raw.any { it.inPip } }
+        val inFront = foreground?.takeIf { it != packageName }
         for (r in raw) {
-            val pkg = if (r.inPip) PipGuard.owner(r.rootPkg, r.id, windowOwners, pinnedApp) else null
+            val pkg = if (r.inPip) PipGuard.owner(r.rootPkg, r.id, windowOwners, pinnedApp, inFront) else null
+            if (r.inPip && pinnedApp == null && pkg != null) pinnedApp = pkg
             if (r.inPip && r.rootPkg != null && r.rootPkg != PipGuard.SYSTEM_UI) windowOwners[r.id] = r.rootPkg
             wins += PipGuard.Win(pkg, r.inPip)
             if (r.inPip) seen += if (pkg != r.rootPkg) "${r.label} as $pkg" else r.label
