@@ -67,6 +67,8 @@ services:
       OFFLINE_ALERT_HOURS: ${OFFLINE_ALERT_HOURS:-12}
       PUSH_EXTRA_HOSTS: ${PUSH_EXTRA_HOSTS:-}
       IOS_PAIRING_ENABLED: ${IOS_PAIRING_ENABLED:-false}
+      # New households per UTC day (docs/operations.md#daily-cap-on-new-households). 0 = no cap.
+      SIGNUP_DAILY_CAP: ${SIGNUP_DAILY_CAP:-0}
       # Traefik sits in front, so X-Forwarded-For is trustworthy here.
       TRUST_PROXY: "true"
     expose:

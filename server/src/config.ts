@@ -142,6 +142,11 @@ const schema = z.object({
   /** Shared secret in the Pub/Sub push URL for real-time developer notifications (?token=...). */
   PLAY_RTDN_TOKEN: unsetIfEmpty(z.string().min(24).optional()),
   /**
+   * New households allowed per UTC day (docs/operations.md). Unset or 0: no cap, the self-hosting
+   * default. Existing accounts and people invited into a household are never stopped.
+   */
+  SIGNUP_DAILY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
+  /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.
    */

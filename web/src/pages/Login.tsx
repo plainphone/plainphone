@@ -7,6 +7,8 @@ import { api, ApiError, serverHasMail } from "../lib/api";
 import { INVITE_KEY, NEXT_KEY, noteLinkAsked, takeNext, useSession } from "../lib/session";
 import { isHostedService, privacyUrl, termsUrl } from "../lib/site-links";
 
+const SELF_HOSTING_GUIDE = "https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md";
+
 function pendingReason(): "invite" | "pair" | null {
   try {
     if (sessionStorage.getItem(INVITE_KEY)) return "invite";
@@ -27,6 +29,8 @@ export function LoginPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | null>(null);
+  /** The hosted service has taken today's new households (SIGNUP_DAILY_CAP). */
+  const [capped, setCapped] = useState(false);
   const [mail, setMail] = useState<boolean | null>(null);
   const [reason] = useState(pendingReason);
 
@@ -51,6 +55,7 @@ export function LoginPage() {
     e.preventDefault();
     setFieldError(undefined);
     setFormError(null);
+    setCapped(false);
     const value = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       setFieldError(t("login.invalidEmail"));
@@ -65,6 +70,7 @@ export function LoginPage() {
       setSentTo(value);
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.fields().email) setFieldError(t("login.invalidEmail"));
+      else if (err instanceof ApiError && err.data.code === "signup_cap_reached") setCapped(true);
       else setFormError(errorMessage(err, t));
     } finally {
       setBusy(false);
@@ -95,7 +101,7 @@ export function LoginPage() {
               <details className="details details-lead">
                 <summary>{t("login.selfHost")}</summary>
                 <p>{t("login.selfHostHelp")}{" "}
-                  <a href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md">{t("login.selfHostGuide")}</a>
+                  <a href={SELF_HOSTING_GUIDE}>{t("login.selfHostGuide")}</a>
                 </p>
               </details>
             </div>
@@ -115,6 +121,13 @@ export function LoginPage() {
                 />
               )}
             </Field>
+            {capped && (
+              <div className="notice notice-info stack-sm" role="status" data-testid="signup-capped">
+                <p><strong>{t("signupCap.title")}</strong></p>
+                <p>{t("signupCap.body")}</p>
+                <p>{t("signupCap.selfHost")} <a href={SELF_HOSTING_GUIDE}>{t("login.selfHostGuide")}</a></p>
+              </div>
+            )}
             <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
             <div>
               <button type="submit" className="btn btn-primary" disabled={busy}>

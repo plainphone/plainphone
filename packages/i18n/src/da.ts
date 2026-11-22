@@ -7,6 +7,7 @@ import { platformDa } from "./platform";
 import { callbackDa } from "./callback";
 import { modesDa } from "./modes";
 import { extendedDa } from "./extended";
+import { signupCapDa } from "./signup-cap";
 import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
@@ -23,6 +24,7 @@ export const da: Messages = {
   ...platformDa,
   ...modesDa,
   ...extendedDa,
+  ...signupCapDa,
   ...callbackDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",

@@ -196,3 +196,67 @@ stopped self-test also alerts. Treat the push URL as a secret.
 
 Alerts from Kuma go through the notify relay to the operator. Self-hosters can
 use any Kuma notification channel.
+
+## Daily cap on new households
+
+`SIGNUP_DAILY_CAP` limits how many new households the server takes per UTC day. It is
+off (`0`) by default, which is right for self-hosting. The hosted test service turns it
+on so a busy launch day cannot flood its mail server: every sign-in from a new address
+sends one mail.
+
+How it counts:
+
+- Households made since 00:00 UTC, plus new addresses that hold a login link they have
+  not used yet (a link is valid for 15 minutes). So the cap limits mails as well as
+  households, and an expired, unused link frees its place again.
+- Everything is counted in the database, so the count survives restarts and holds across
+  more than one server process.
+- Never stopped: an address that already has an account, a parent with an open invitation
+  to a household, and a trusted person chosen by email for a phone. They take no place
+  either: their pending links are not counted, and the household of their own they get on
+  first sign-in does not count while they hold the invitation, have joined another
+  household as a parent, or are a trusted person on a phone.
+- When the cap is full, `POST /api/auth/request` answers `429` with
+  `code: "signup_cap_reached"`, `retryAt` (the next UTC midnight) and a `Retry-After`
+  header, and no mail is sent. The dashboard and the parent app show "Full for today",
+  ask the person to try again tomorrow, and link to the self-hosting guide.
+- Trade-off: while the cap is full, the answer for a new address differs from the answer
+  for a known one, so it tells whether an address has an account on that day only.
+
+Sign-in links also have a limit per address: 5 per hour, counted in the database. The
+check is not locked, so many requests at the very same moment can send a few more; the
+limit per IP address (20 per hour) stays in memory in each process, because IP addresses
+are not stored ([privacy.md](privacy.md)).
+
+### Change it on the hosted service
+
+1. Set `SIGNUP_DAILY_CAP` in the app's environment in Dokploy (the compose file passes
+   it through; unset means `0`). Change only this variable, not the whole environment.
+2. Redeploy the app. The value is read at start.
+3. Check `GET /api/health` answers, then ask for a login link with a new test address:
+   with the cap at `1` and one household made today, it should say "Full for today".
+
+Set `0` to switch the cap off again.
+
+### What to watch on launch day
+
+- **Households made today**, in the database:
+
+  ```sql
+  select count(*) from households where created_at >= date_trunc('day', now(), 'UTC');
+  ```
+
+- **Places held by unused links**:
+
+  ```sql
+  select count(distinct email) from magic_links m
+  where used_at is null and expires_at > now()
+    and not exists (select 1 from users u where u.email = m.email);
+  ```
+
+- **Refusals**: the rate of `429` on `/api/auth/request` in the Traefik numbers in Grafana.
+  A steady stream after midday UTC means the cap is full; raise it only if the mail server
+  keeps up.
+- **The mail server**: its queue and the provider's hourly and daily send limits. If mail
+  is slow, lower the cap rather than raise it.
+- **App health** in Uptime Kuma and memory against the container limit.
