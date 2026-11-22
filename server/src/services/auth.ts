@@ -48,31 +48,41 @@ export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
       .where(and(eq(magicLinks.tokenHash, sha256(token)), isNull(magicLinks.usedAt), gt(magicLinks.expiresAt, now)))
       .returning();
     if (!link) return null;
-
-    let [user] = await tx.select().from(users).where(eq(users.email, link.email));
-    if (!user) {
-      // Two login links opened at once (two tabs): the loser of the insert uses the winner's user.
-      [user] = await tx.insert(users).values({ email: link.email, locale }).onConflictDoNothing().returning();
-      if (user) {
-        const [household] = await tx.insert(households).values({ name: "Home", summarySince: now }).returning();
-        await tx.insert(householdMembers).values({ householdId: household!.id, userId: user.id, role: "owner" });
-      } else {
-        [user] = await tx.select().from(users).where(eq(users.email, link.email));
-      }
-    }
-    // A trusted person chosen by email before they had an account.
-    await tx
-      .update(selfKeys)
-      .set({ trustedUserId: user!.id })
-      .where(and(eq(selfKeys.trustedEmail, user!.email), isNull(selfKeys.trustedUserId)));
-
-    const sessionToken = randomToken(SESSION_PREFIX);
-    const expiresAt = new Date(now.getTime() + SESSION_DAYS * 86_400_000);
-    await tx.insert(sessions).values({ userId: user!.id, tokenHash: sha256(sessionToken), expiresAt });
+    const out = await startSession(tx, link.email, locale, now);
     // Housekeeping: old links are useless.
     await tx.delete(magicLinks).where(lt(magicLinks.expiresAt, new Date(now.getTime() - 86_400_000)));
-    return { user: user!, sessionToken, expiresAt };
+    return out;
   });
+}
+
+type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
+
+/**
+ * Opens a session for an address whose owner has proven it (a login link, or the review code in
+ * services/review-login.ts). Creates the user and a household on first login.
+ */
+export async function startSession(tx: Tx, email: string, locale: string, now: Date) {
+  let [user] = await tx.select().from(users).where(eq(users.email, email));
+  if (!user) {
+    // Two login links opened at once (two tabs): the loser of the insert uses the winner's user.
+    [user] = await tx.insert(users).values({ email, locale }).onConflictDoNothing().returning();
+    if (user) {
+      const [household] = await tx.insert(households).values({ name: "Home", summarySince: now }).returning();
+      await tx.insert(householdMembers).values({ householdId: household!.id, userId: user.id, role: "owner" });
+    } else {
+      [user] = await tx.select().from(users).where(eq(users.email, email));
+    }
+  }
+  // A trusted person chosen by email before they had an account.
+  await tx
+    .update(selfKeys)
+    .set({ trustedUserId: user!.id })
+    .where(and(eq(selfKeys.trustedEmail, user!.email), isNull(selfKeys.trustedUserId)));
+
+  const sessionToken = randomToken(SESSION_PREFIX);
+  const expiresAt = new Date(now.getTime() + SESSION_DAYS * 86_400_000);
+  await tx.insert(sessions).values({ userId: user!.id, tokenHash: sha256(sessionToken), expiresAt });
+  return { user: user!, sessionToken, expiresAt };
 }
 
 export async function resolveSession(ctx: Ctx, token: string) {
