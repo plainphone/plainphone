@@ -9,9 +9,12 @@ import socket
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
+
+import yaml
 
 spec = importlib.util.spec_from_file_location("harness", Path(__file__).with_name("e2e-android-emulator.py"))
 harness = importlib.util.module_from_spec(spec)
@@ -86,6 +89,22 @@ class SerialShellTest(unittest.TestCase):
                          "Success: Device owner set\n")
         self.assertIn(b"dpm set-device-owner x/.Y </dev/null", console.commands[0])
 
+    def test_joins_lines_split_across_reads(self):
+        # A serial console delivers a few bytes at a time; markers must still match whole lines.
+        ours, guest = socket.socketpair()
+        self.addCleanup(ours.close)
+
+        def trickle():
+            with guest:
+                marker = re.search(rb"'(plainphone-[0-9a-f]+)-start'", guest.makefile("rb").readline())[1]
+                reply = answer(b"Success")(marker)
+                for offset in range(0, len(reply), 5):
+                    guest.sendall(reply[offset:offset + 5])
+                    time.sleep(0.001)
+
+        threading.Thread(target=trickle, daemon=True).start()
+        self.assertEqual(harness.serial_shell(ours, "dpm", timeout=5), "Success\n")
+
     def test_raises_on_nonzero_status(self):
         with self.assertRaisesRegex(RuntimeError, r"failed: su \(1\)\nnot allowed"):
             self.run_command(FakeConsole(answer(b"not allowed", b"1")), "su", "0", "true")
@@ -105,6 +124,32 @@ class SerialShellTest(unittest.TestCase):
     def test_rejects_non_numeric_status(self):
         with self.assertRaisesRegex(RuntimeError, "Unexpected data"):
             self.run_command(FakeConsole(answer(b"", b"0push_mkdir")), "true")
+
+    def test_gives_up_at_the_deadline_while_the_console_keeps_talking(self):
+        # Run 45018411514: kernel messages kept a stuck command's console busy until the job limit.
+        ours, guest = socket.socketpair()
+        self.addCleanup(ours.close)
+        stop = threading.Event()
+
+        def chatter():
+            with guest:
+                line = guest.makefile("rb").readline()
+                marker = re.search(rb"'(plainphone-[0-9a-f]+)-start'", line)[1]
+                guest.sendall(b"\r\n" + marker + b"-start\r\n")
+                while not stop.wait(0.05):
+                    guest.sendall(b"[  42.0] binder: still waiting\r\n")
+                guest.settimeout(1)
+                self.received = guest.recv(64)
+
+        thread = threading.Thread(target=chatter, daemon=True)
+        thread.start()
+        began = time.monotonic()
+        with self.assertRaisesRegex(TimeoutError, r"am did not finish within 0.5 s"):
+            harness.serial_shell(ours, "am", "instrument", timeout=0.5)
+        self.assertLess(time.monotonic() - began, 2)
+        stop.set()
+        thread.join(timeout=5)
+        self.assertEqual(self.received, b"\x03", "the overrunning command must be interrupted")
 
     def test_reports_a_closed_console(self):
         ours, guest = socket.socketpair()
@@ -127,6 +172,82 @@ class ProbeConsoleTest(unittest.TestCase):
         self.addCleanup(console.close)
         with self.assertRaisesRegex(RuntimeError, "No shell answered"):
             harness.probe_console(console.harness, attempts=2, timeout=0.2)
+
+
+class ReadinessTest(unittest.TestCase):
+    def test_default_network(self):
+        self.assertEqual(harness.default_network("NetworkFactories:\n  Active default network: 100\n"),
+                         (True, "Active default network: 100"))
+        self.assertFalse(harness.default_network("Active default network: none\n")[0])
+        self.assertFalse(harness.default_network("dumpsys: service not ready\n")[0])
+
+    def test_voice_service_reads_the_current_state_not_the_event_log(self):
+        registry = ("Phone Id=0\n  mServiceState={mVoiceRegState=1(OUT_OF_SERVICE), mDataRegState=1(OUT_OF_SERVICE)}\n"
+                    "local logs:\n  notifyServiceStateForSubscriber: state={mVoiceRegState=0(IN_SERVICE), ...}\n")
+        self.assertEqual(harness.voice_service(registry), (False, "voice 1(OUT_OF_SERVICE)"))
+        self.assertTrue(harness.voice_service(registry.replace("=1(OUT_OF_SERVICE), mData", "=0(IN_SERVICE), mData"))[0])
+        self.assertFalse(harness.voice_service("")[0])
+
+    def test_wait_until_returns_once_ready(self):
+        answers = iter([(False, "booting"), OSError("refused"), (True, "up")])
+        self.assertEqual(harness.wait_until("thing", lambda: self.answer(answers), timeout=5, interval=0), "up")
+
+    @staticmethod
+    def answer(answers):
+        value = next(answers)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    def test_wait_until_names_the_last_sighting(self):
+        with self.assertRaisesRegex(RuntimeError, r"waiting for the modem; last seen: ConnectionRefusedError: down"):
+            harness.wait_until("the modem", lambda: self.answer(iter([ConnectionRefusedError("down")])),
+                               timeout=0, interval=0)
+
+    def test_ensure_server_reports_an_exited_server(self):
+        server = mock.Mock(returncode=1, **{"poll.return_value": 1})
+        with self.assertRaisesRegex(RuntimeError, "Test server exited with code 1"):
+            harness.ensure_server(server, 1, timeout=5)
+
+
+class WorkflowTest(unittest.TestCase):
+    # Parsed, not grepped: a raw-text check stayed green while a missing space after `uses:`
+    # made GitHub reject the whole file and run no jobs at all.
+    WORKFLOWS = Path(__file__).parents[1] / ".github/workflows"
+
+    def test_every_workflow_is_valid_yaml_with_well_formed_steps(self):
+        for path in sorted(self.WORKFLOWS.glob("*.yml")):
+            with self.subTest(workflow=path.name):
+                workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertIsInstance(workflow.get("jobs"), dict)
+                for name, job in workflow["jobs"].items():
+                    for step in job.get("steps", []):
+                        self.assertIsInstance(step, dict, f"{name}: {step!r}")
+                        self.assertTrue({"uses", "run"} & step.keys(), f"{name}: {step!r}")
+
+    def test_snapshot_is_cached_before_the_flows_and_a_hang_still_uploads(self):
+        workflow = yaml.safe_load((self.WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+        steps = workflow["jobs"]["android-e2e"]["steps"]
+        uses = [step.get("uses", "") for step in steps]
+        self.assertFalse([use for use in uses if use.startswith("actions/cache@")])
+        flows = [step.get("name") for step in steps].index("Run the device flows once")
+        save = next(i for i, use in enumerate(uses) if use.startswith("actions/cache/save@"))
+        upload = next(i for i, use in enumerate(uses) if use.startswith("actions/upload-artifact@"))
+        self.assertLess(save, flows)
+        self.assertLess(flows, upload)
+        self.assertTrue(uses[flows].startswith("reactivecircus/android-emulator-runner@"))
+        self.assertIsInstance(steps[flows].get("timeout-minutes"), int)
+
+    def test_both_flows_fit_the_flows_step_and_the_step_fits_the_job(self):
+        workflow = yaml.safe_load((self.WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+        job = workflow["jobs"]["android-e2e"]
+        steps = {step.get("name"): step for step in job["steps"]}
+        flows = steps["Run the device flows once"]["timeout-minutes"]
+        boot = steps["Boot and save a clean snapshot"]["timeout-minutes"]
+        # Light mode, then Device Owner: a flow that overruns fails in the harness, not by the step limit.
+        self.assertLess(2 * harness.INSTRUMENT_TIMEOUT, flows * 60)
+        # A step that overruns fails before the job is cancelled, so the artifact is still uploaded.
+        self.assertLess(boot + flows, job["timeout-minutes"])
 
 
 class DiagnosticsTest(unittest.TestCase):

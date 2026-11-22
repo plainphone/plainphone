@@ -4,11 +4,16 @@ The `android-e2e` CI job runs on GitHub-hosted Linux with KVM and AOSP
 x86_64 system images for API 34 and API 29 (Android 10). It runs on main
 pushes, on pull requests that change the Android app, server, workflow,
 or emulator test inputs, and on demand (Actions → CI → Run workflow, which
-runs every check on the chosen branch). Each leg has a 30-minute limit
-and restores a pre-test emulator snapshot. The test run does not write
-back to that snapshot. Each of the two flows (light mode, then Device Owner)
-must finish within 12 minutes. The light-mode flow includes one minute of
-app use for its time limit.
+runs every check on the chosen branch). Each leg has a 45-minute limit
+and restores a pre-test emulator snapshot. A leg without a cached snapshot
+boots once and caches the snapshot right away, before any flow runs, so
+the test run never writes back to it. The flows step has its own 25-minute
+limit: a hang then fails the step and the artifact below is still uploaded,
+whereas a job that reaches its own limit is cancelled without one. Each of
+the two flows (light mode, then Device Owner) must finish within 11 minutes.
+The light-mode flow includes one minute of app use for its time limit, and
+if it starts in the last six minutes of a day it first waits for midnight,
+so nothing it counts per day starts over mid-test.
 
 ## Run locally
 
@@ -74,6 +79,19 @@ routes only in emulator mode and only to the test parent, and both it and the ha
 nothing but an SMS or an incoming call from a number. `scripts/test_e2e_android_emulator.py`
 covers the harness side.
 
+A restored snapshot answers ADB before Android has its network and modem
+back. Before the first flow, the harness waits until `dumpsys connectivity`
+names a default network and `dumpsys telephony.registry` reports the modem
+`IN_SERVICE` (an SMS sent out of service is dropped without a loopback).
+Before each flow, it checks that the test server process is alive and answers
+`/api/health` on the host. Each flow then waits until the guest itself reaches
+`/api/health` through `10.0.2.2`. Every wait has a deadline and its error names the
+last thing it saw. Every command on the serial console has one deadline for the
+whole command, not one per read: kernel messages share the console and would
+otherwise keep a stuck command alive. A command that overruns gets a Ctrl-C, so
+the diagnostics after it still get a shell. On failure, the job log shows
+whether the server was still running and the end of its log.
+
 The test parent's number is the emulator's own SIM number, `+15555215554`
 (`E2E_MODEM_NUMBER` changes it; pass the same 11 digits to `-phone-number`).
 The modem simulator delivers an SMS back to the phone only when it is addressed
@@ -96,6 +114,9 @@ because the lock's `DISALLOW_DEBUGGING_FEATURES` makes Android refuse
 broadcasts from the shell user. A timed-out setup sync also lists every
 `SyncWorker` request with its state and stop reason in the test failure. Tests run once. Waiting for a UI or asynchronous
 delivery result is bounded and does not repeat the action under test.
+Where a flow has to scroll to a button, it drags and holds still before lifting.
+A quick swipe leaves a fling running, and a scrolling screen spends the next tap
+on stopping the fling, so the tap never reaches the button.
 
 ## Coverage
 

@@ -17,6 +17,8 @@ import android.provider.Telephony
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
 import android.util.Log
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Configurator
@@ -24,6 +26,7 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Duration
@@ -114,6 +117,7 @@ abstract class EmulatorFlow {
 
     protected fun enroll(mode: String, timezone: String = "UTC") {
         assertEquals(mode, Mode.name(context))
+        awaitServer()
         val config = ConfigStore(context)
         config.save(config.load().copy(serverUrl = server))
         val response = parent("POST", "/phones/enroll", 201, JSONObject()
@@ -207,6 +211,29 @@ abstract class EmulatorFlow {
         }
     }
 
+    /**
+     * The harness has checked the server on the host, but a snapshot-restored guest can still be
+     * bringing its network up (run 45015815784: ConnectException on the first request).
+     */
+    private fun awaitServer() {
+        var last: Exception? = null
+        await({ "the test server at $server from the emulator, last error: $last" }) {
+            try {
+                val connection = URL("$server/api/health").openConnection() as HttpURLConnection
+                try {
+                    connection.connectTimeout = 2_000
+                    connection.readTimeout = 5_000
+                    connection.responseCode == 200
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (e: IOException) {
+                last = e
+                false
+            }
+        }
+    }
+
     protected fun await(description: String, ready: () -> Boolean) = await({ description }, ready = ready)
 
     protected fun await(description: () -> String, timeoutMs: Long = 40_000, ready: () -> Boolean) {
@@ -238,6 +265,47 @@ abstract class EmulatorFlow {
         val point = "${bounds.centerX()} ${bounds.centerY()}"
         device.executeShellCommand("input swipe $point $point 3500")
     }
+
+    /**
+     * Drags the screen and holds still before lifting. A quick swipe leaves a fling running, and
+     * a scrolling screen spends the next tap on stopping it instead of on the button under it.
+     */
+    protected fun scrollWithoutFling(fromY: Int, toY: Int) {
+        val x = device.displayWidth / 2f
+        val downAt = SystemClock.uptimeMillis()
+        fun inject(action: Int, y: Int) {
+            val event = MotionEvent.obtain(downAt, SystemClock.uptimeMillis(), action, x, y.toFloat(), 0)
+            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            try {
+                check(instrumentation.uiAutomation.injectInputEvent(event, true)) { "Could not inject $event" }
+            } finally {
+                event.recycle()
+            }
+        }
+        inject(MotionEvent.ACTION_DOWN, fromY)
+        for (step in 1..20) inject(MotionEvent.ACTION_MOVE, fromY + (toY - fromY) * step / 20)
+        // Part of the gesture: the velocity tracker reads a finger at rest for this long as stopped.
+        SystemClock.sleep(200)
+        inject(MotionEvent.ACTION_MOVE, toY)
+        inject(MotionEvent.ACTION_UP, toY)
+    }
+
+    /** How often the phone asked the test gateway to send a quick message, for a failure message. */
+    protected fun gatewayRequests(): String =
+        runCatching { request("GET", "/e2e/quick-message-requests", 200).getInt("count").toString() }
+            .getOrElse { "unavailable (${it.javaClass.simpleName})" }
+
+    /** The modem's voice registration as Android sees it: an SMS sent out of service is dropped. */
+    @Suppress("MissingPermission")
+    protected fun voiceService(): String = runCatching {
+        when (val state = context.getSystemService(android.telephony.TelephonyManager::class.java)?.serviceState?.state) {
+            android.telephony.ServiceState.STATE_IN_SERVICE -> "in service"
+            android.telephony.ServiceState.STATE_OUT_OF_SERVICE -> "out of service"
+            android.telephony.ServiceState.STATE_EMERGENCY_ONLY -> "emergency only"
+            android.telephony.ServiceState.STATE_POWER_OFF -> "radio off"
+            else -> "unknown ($state)"
+        }
+    }.getOrElse { "unreadable: ${it.javaClass.simpleName}" }
 
     protected fun launchPlayer() {
         val result = device.executeShellCommand("am start -W -n $PLAYER_ACTIVITY")
@@ -361,14 +429,16 @@ class DeviceOwnerFlow : EmulatorFlow() {
         text(context.getString(R.string.sos_back)).click()
         text(context.getString(R.string.sos_title)).click()
         val message = device.wait(Until.findObject(By.text(MESSAGE)), 1_000) ?: run {
-            val width = device.displayWidth
             val height = device.displayHeight
-            device.swipe(width / 2, height * 3 / 4, width / 2, height / 4, 20)
+            scrollWithoutFling(height * 3 / 4, height / 4)
             text(MESSAGE)
         }
         message.click()
         // The emulator modem loops SMS addressed to its own number back into Android.
-        await({ "outbound quick message received via the emulator modem (parent $parentNumber, SIM ${simNumber()})" }) {
+        await({
+            "outbound quick message received via the emulator modem (parent $parentNumber, SIM ${simNumber()}, " +
+                "gateway requests: ${gatewayRequests()}, voice service: ${voiceService()})"
+        }) {
             inboxContains(MESSAGE, parentNumber)
         }
         assertEquals(1, request("GET", "/e2e/quick-message-requests", 200).getInt("count"))
@@ -633,10 +703,11 @@ class LightModeFlow : EmulatorFlow() {
 
     /**
      * Waits, only when the test starts in the last minutes of a day, until the trusted time has passed
-     * midnight in each of [zones], so nothing counted per day or month starts over mid-test.
+     * midnight in each of [zones], so nothing counted per day or month starts over mid-test. The margin
+     * covers the rest of the flow (about three minutes) and keeps the flow within the harness's limit.
      */
     private fun awaitClearOfMidnight(vararg zones: ZoneId) {
-        val margin = Duration.ofMinutes(10)
+        val margin = Duration.ofMinutes(6)
         fun clear(): Boolean {
             val now = TrustedClock.of(context).now().instant
             return zones.all { zone ->
