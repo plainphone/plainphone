@@ -41,7 +41,8 @@ FILTERS = {
         "web/src/lib/settings.ts",
     ),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
-    "site": ("site/*", "server/catalog/??.json"),
+    # site/scripts/privacy.test.mjs reads the parent app's tile host and map button labels.
+    "site": ("site/*", "server/catalog/??.json", "parent-app/src/i18n/app-??.ts", "parent-app/src/lib/tiles.ts"),
     # E2EE phase 0 prototype: only what the Rust core, its Android binding and the demo touch.
     "e2ee": CRYPTO_VECTORS + (
         "e2ee/*", "packages/crypto*",

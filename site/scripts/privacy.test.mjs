@@ -32,7 +32,9 @@ function locationText(lang, t) {
 }
 
 // The code fetches tiles from this host only; the policy must name it and the operator's policy.
-const tileHost = readFileSync(`${root}parent-app/src/lib/tiles.ts`, "utf8").match(/return `https:\/\/([a-z.]+)\//)[1];
+const tileUrl = readFileSync(`${root}parent-app/src/lib/tiles.ts`, "utf8").match(/return `https:\/\/([a-z.]+)\//);
+assert.ok(tileUrl, "no tile URL found in parent-app/src/lib/tiles.ts");
+const tileHost = tileUrl[1];
 
 for (const [lang, t] of Object.entries(LANGS)) {
   test(`${lang}: the privacy policy explains the parent app's OpenStreetMap tile requests`, () => {
@@ -45,8 +47,8 @@ for (const [lang, t] of Object.entries(LANGS)) {
       const label = appLabel(lang, key);
       assert.ok(text.includes(label), `does not use the app's own label "${label}" for ${key}`);
     }
-    // What a request carries: IP address plus app name and version; never exact coordinates.
-    assert.match(text, /170 m/, "does not give the smallest area a tile reveals");
-    assert.match(text, /5 km/, "does not give the largest area a tile reveals");
+    // How much a tile reveals: about 170 m at the closest zoom (17) to about 5 km at the widest (12).
+    assert.match(text, /\b170 m\b/, "does not give the smallest area a tile reveals");
+    assert.match(text, /\b5 km\b/, "does not give the largest area a tile reveals");
   });
 }
