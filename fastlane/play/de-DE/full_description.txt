@@ -1,0 +1,26 @@
+Plainphone macht ein Android-Handy zu einem ruhigen Handy für ein Kind: Anrufe, Nachrichten und die Apps, die die Familie auswählt. Die Regeln sind auf dem Handy zu sehen, damit das Kind weiß, was eingeschaltet ist und warum.
+
+Dies ist eine Alpha-Version. Sie funktioniert, ist aber neu und wird sich ändern. Probieren Sie sie auf einem Handy aus, mit dem Sie testen können, bevor Sie sich darauf verlassen.
+
+So funktioniert es
+• Ein Elternteil installiert Plainphone auf dem Handy des Kindes und verbindet es mit der Plainphone-Eltern-App oder dem Elternbereich.
+• Das Elternteil wählt aus, welche Apps sich öffnen lassen, wer anrufen und schreiben darf und wann Schulzeit und Schlafenszeit beginnen.
+• Das Kind sieht die Regeln: wie viel Zeit noch übrig ist, wann die Schlafenszeit beginnt und wie es um mehr Zeit oder eine neue App bitten kann.
+• 112, Notrufnummern und die Eltern sind immer erreichbar. Das lässt sich nicht ausschalten.
+• Alles andere lässt sich für jedes Handy ein- und ausschalten.
+
+Das sehen die Eltern
+Plainphone ist für Eltern und ihre Kinder gemacht. Die Eltern sehen, welche Apps installiert sind, die Minuten in Apps mit Zeitlimit (und eine Wochenübersicht, wenn sie sie einschalten), die Anfragen des Kindes, ob der Schutz von Plainphone eingeschaltet ist, den Akku und, wenn der Standort eingeschaltet ist, wo das Handy ist, wenn sie danach fragen. Das Kind sieht jedes Mal einen Hinweis. Anrufe, SMS und die Anrufliste bleiben auf dem Handy.
+
+Das nutzt Plainphone auf dem Handy
+• Standard-App für Telefon und SMS: Plainphone wird zur Telefon- und Nachrichten-App, damit Anrufe und SMS von Personen, die die Eltern nicht freigegeben haben, blockiert werden.
+• Bedienungshilfe (Plainphone-Schutz): sieht, welche App geöffnet ist, und schließt Apps, die nicht erlaubt sind oder deren Zeit abgelaufen ist. Sie liest außerdem den Text auf einigen Einstellungsseiten von Android, nur auf dem Handy, damit Plainphone nicht ohne ein Elternteil ausgeschaltet werden kann.
+• VPN: ein lokales VPN schickt nur die Abfragen von Website-Namen an den Webfilter von Plainphone, der die von den Eltern gewählten Kategorien sperrt. Nichts anderes läuft darüber, und es wird keine Liste besuchter Seiten gespeichert.
+• Standort, optional: um zu antworten, wenn ein Elternteil auf Suchen tippt, auch wenn Plainphone nicht geöffnet ist.
+• Nutzungszugriff: um die Zeit in Apps mit Tageslimit zu zählen.
+
+Das kann es nicht
+Plainphone macht es schwerer, die Regeln zu umgehen. Es ist kein Schloss und macht ein Handy nicht sicher. Ein Zurücksetzen auf Werkseinstellungen oder der abgesicherte Modus entfernt es, und die Eltern erfahren, wenn ein Schutz wegfällt. Der Webfilter erkennt nicht alles.
+
+Open Source und kostenlos
+Plainphone ist Open Source (Apache-2.0) und kostenlos, ohne Werbung und ohne Statistik, und nichts wird für andere Zwecke an uns gesendet. Sie können Ihren eigenen Server betreiben. Mehr auf plainphone.org.

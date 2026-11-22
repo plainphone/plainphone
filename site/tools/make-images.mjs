@@ -2,7 +2,7 @@
 // Dev-only: renders the OG share images and the PNG icons into src/ with Playwright,
 // in brand direction C (docs/brand/README.md). The output is committed, so the site
 // build needs no dependencies.
-//   NODE_PATH=<dir with playwright> node tools/make-images.mjs
+//   NODE_PATH=<dir with playwright> node tools/make-images.mjs [--press]
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +56,30 @@ svg{width:${size}px;height:${size}px;display:block}</style></head><body>${svg}</
 
 const browser = await chromium.launch({ chromiumSandbox: true });
 const page = await browser.newPage({ deviceScaleFactor: 1, colorScheme: "light" });
+
+// Press kit PNGs (`--press`): the lockups and marks on a transparent background, and the
+// full-bleed app icon. Written to src/press/ and only redone with the flag, so the share
+// images above are not re-rendered by accident.
+if (process.argv.includes("--press")) {
+  const out = join(src, "press");
+  const press = [
+    ["plainphone-logo.png", "lockup.svg", 1038, 256],
+    ["plainphone-logo-dark.png", "lockup-dark.svg", 1038, 256],
+    ["plainphone-mark.png", "mark.svg", 512, 512],
+    ["plainphone-mark-dark.png", "mark-dark.svg", 512, 512],
+    ["plainphone-app-icon.png", "app-icon.svg", 512, 512],
+  ];
+  for (const [name, file, width, height] of press) {
+    await page.setViewportSize({ width, height });
+    await page.setContent(`<!doctype html><html><head><style>html,body{margin:0;background:transparent}
+svg{width:${width}px;height:${height}px;display:block}</style></head><body>${brand(file)}</body></html>`);
+    writeFileSync(join(out, name), await page.screenshot({ type: "png", omitBackground: true }));
+  }
+  await browser.close();
+  console.log(`Wrote ${press.length} press kit PNGs`);
+  process.exit(0);
+}
+
 for (const t of [en, da, sv, nb, de]) {
   await page.setViewportSize({ width: 1200, height: 630 });
   await page.setContent(og(t));
