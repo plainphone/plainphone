@@ -415,7 +415,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [34, 29]
+        # snapshot: restore a cached clean boot. API 29 cold-boots instead: after a snapshot
+        # load, sys.boot_completed is 1 before the input service is published, so the
+        # emulator action's own `input keyevent 82` fails and its shutdown then hangs
+        # (runs 45018411514, 45026999548).
+        include:
+          - api: 34
+            snapshot: true
+          - api: 29
+            snapshot: false
     services:
       postgres:
         image: postgres:18
@@ -463,12 +471,13 @@ jobs:
       # flows below had written to it (Device Owner, adb disabled), not the clean boot.
       - name: Restore clean emulator snapshot
         id: avd
+        if: matrix.snapshot
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.android/avd
           key: plainphone-avd-v5-${{ runner.os }}-${{ runner.arch }}-aosp-${{ matrix.api }}
       - name: Boot and save a clean snapshot
-        if: steps.avd.outputs.cache-hit != 'true'
+        if: matrix.snapshot && steps.avd.outputs.cache-hit != 'true'
         timeout-minutes: 10
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -483,7 +492,7 @@ jobs:
             -feature ModemSimulator -phone-number 15555215554 -shell-serial tcp:127.0.0.1:5599,server,nowait
           script: adb shell getprop sys.boot_completed
       - name: Cache clean emulator snapshot
-        if: steps.avd.outputs.cache-hit != 'true'
+        if: matrix.snapshot && steps.avd.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.android/avd
@@ -491,9 +500,11 @@ jobs:
       - name: Run the device flows once
         # Ends a hang as a failure, so the artifact upload below still runs; a job that hits
         # its own limit is cancelled and uploads nothing (run 45018411514).
-        timeout-minutes: 15
+        timeout-minutes: 10
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
+          # Bounds the emulator's own graceful shutdown; the cleanup step below kills what is left.
+          ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: "10"
           DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2e
         with:
           api-level: ${{ matrix.api }}
@@ -503,9 +514,16 @@ jobs:
           force-avd-creation: false
           emulator-boot-timeout: 240
           emulator-options: >-
-            -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+            ${{ matrix.snapshot && '-no-snapshot-save' || '-no-snapshot' }} -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
             -feature ModemSimulator -phone-number 15555215554 -shell-serial tcp:127.0.0.1:5599,server,nowait
           script: python3 scripts/e2e-android-emulator.py
+      # The action's `emu kill` can hang after a failed start; the step timeout then stops the
+      # action but not the emulator, which would hold the runner until the job limit.
+      - name: Stop any emulator left running
+        if: always()
+        run: |
+          pkill -f qemu-system-x86_64 || true
+          adb kill-server || true
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
