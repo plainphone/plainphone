@@ -172,6 +172,9 @@ const schema = z.object({
     .transform((v) => v === "true"),
 });
 
+/** Every environment variable the server reads (test/env-wiring.test.ts checks the deploy files against it). */
+export const CONFIG_KEYS = Object.keys(schema.shape) as readonly (keyof z.infer<typeof schema>)[];
+
 export type Config = z.infer<typeof schema> & {
   /** Optional settings that were invalid and fell back to their default: "<area>: <reason>". */
   configWarnings: { push: string[]; other: string[] };
