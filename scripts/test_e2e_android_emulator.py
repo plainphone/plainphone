@@ -12,6 +12,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 spec = importlib.util.spec_from_file_location("harness", Path(__file__).with_name("e2e-android-emulator.py"))
 harness = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(harness)
@@ -207,14 +209,32 @@ class ReadinessTest(unittest.TestCase):
 
 
 class WorkflowTest(unittest.TestCase):
+    # Parsed, not grepped: a raw-text check stayed green while a missing space after `uses:`
+    # made GitHub reject the whole file and run no jobs at all.
+    WORKFLOWS = Path(__file__).parents[1] / ".github/workflows"
+
+    def test_every_workflow_is_valid_yaml_with_well_formed_steps(self):
+        for path in sorted(self.WORKFLOWS.glob("*.yml")):
+            with self.subTest(workflow=path.name):
+                workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertIsInstance(workflow.get("jobs"), dict)
+                for name, job in workflow["jobs"].items():
+                    for step in job.get("steps", []):
+                        self.assertIsInstance(step, dict, f"{name}: {step!r}")
+                        self.assertTrue({"uses", "run"} & step.keys(), f"{name}: {step!r}")
+
     def test_snapshot_is_cached_before_the_flows_and_a_hang_still_uploads(self):
-        workflow = (Path(__file__).parents[1] / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        job = workflow[workflow.index("  android-e2e:"):]
-        job = job[:job.index("\n  offsite-backup:")]
-        self.assertNotIn("uses: actions/cache@", job)
-        self.assertLess(job.index("uses: actions/cache/save@"), job.index("name: Run the device flows once"))
-        flows = job[job.index("name: Run the device flows once"):job.index("uses: actions/upload-artifact")]
-        self.assertRegex(flows, r"timeout-minutes: \d+")
+        workflow = yaml.safe_load((self.WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+        steps = workflow["jobs"]["android-e2e"]["steps"]
+        uses = [step.get("uses", "") for step in steps]
+        self.assertFalse([use for use in uses if use.startswith("actions/cache@")])
+        flows = [step.get("name") for step in steps].index("Run the device flows once")
+        save = next(i for i, use in enumerate(uses) if use.startswith("actions/cache/save@"))
+        upload = next(i for i, use in enumerate(uses) if use.startswith("actions/upload-artifact@"))
+        self.assertLess(save, flows)
+        self.assertLess(flows, upload)
+        self.assertTrue(uses[flows].startswith("reactivecircus/android-emulator-runner@"))
+        self.assertIsInstance(steps[flows].get("timeout-minutes"), int)
 
 
 class DiagnosticsTest(unittest.TestCase):

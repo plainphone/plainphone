@@ -92,7 +92,6 @@ def serial_shell(console, *args, timeout=30):
     # One deadline for the whole command: kernel messages share the console, so a timeout per
     # read never expires while a stuck command waits (run 45018411514 hung until the job limit).
     deadline = time.monotonic() + timeout
-    console.settimeout(timeout)
     # Android services cannot use a serial TTY passed through Binder.
     console.sendall(f"set -o pipefail; printf '\\n%s\\n' '{marker}-start'; "
                     f"{command} </dev/null 2>&1 | cat; printf '\\n%s %s\\n' '{marker}-end' \"$?\"\n".encode())

@@ -492,7 +492,7 @@ jobs:
         # Ends a hang as a failure, so the artifact upload below still runs; a job that hits
         # its own limit is cancelled and uploads nothing (run 45018411514).
         timeout-minutes: 15
-        uses:reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
           DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2e
         with:
