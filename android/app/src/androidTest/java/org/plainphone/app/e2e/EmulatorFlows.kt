@@ -608,9 +608,11 @@ class LightModeFlow : EmulatorFlow() {
             Lock.applyNow(context, "emulator wall-clock change")
             launchPlayer()
             assertPlayerStopped(LightPlan.Why.NOT_ALLOWED)
+            // School time also blocks the player now, so the plan lists it as not allowed. The lock's
+            // time-limit result, which the plan is built from, must still have it.
             assertTrue(
                 "the used minute must still count (${TimeGuard.snapshot(context)?.evaluation?.usedMs})",
-                PLAYER in TimeGuard.blockedNow(context) && PLAYER in LightLock.plan(context).timeBlocked,
+                PLAYER in Lock.effectiveConfig(context).timeBlocked,
             )
             assertEquals("no new Play window", InstallWindow.OpenResult.DAILY_LIMIT, InstallWindow.openForParent(context, CATALOG_APP))
             assertEquals("no new opening", 0, openingsLeft())

@@ -6,7 +6,9 @@ pushes, on pull requests that change the Android app, server, workflow,
 or emulator test inputs, and on demand (Actions → CI → Run workflow, which
 runs every check on the chosen branch). Each leg has a 30-minute limit
 and restores a pre-test emulator snapshot. The test run does not write
-back to that snapshot.
+back to that snapshot. Each of the two flows (light mode, then Device Owner)
+must finish within 12 minutes. The light-mode flow includes one minute of
+app use for its time limit.
 
 ## Run locally
 
@@ -63,6 +65,15 @@ enrolls Device Owner, and stops with a clear error if adb data shows up there.
 `python3 -m unittest scripts/test_e2e_android_emulator.py` tests this protocol
 without an emulator.
 
+Texts and calls from other numbers come from the emulator console (`adb emu sms send`,
+`adb emu gsm call`), which the modem then delivers to Android as a network would. The test
+asks for them over the test server: it posts the command to `/e2e/console`, the harness polls
+`/e2e/console/next`, runs it and posts the console's output back, and the test asserts the
+console answered `OK`. The test server (`server/test/e2e/phone-sync-server.ts`) offers these
+routes only in emulator mode and only to the test parent, and both it and the harness accept
+nothing but an SMS or an incoming call from a number. `scripts/test_e2e_android_emulator.py`
+covers the harness side.
+
 The test parent's number is the emulator's own SIM number, `+15555215554`
 (`E2E_MODEM_NUMBER` changes it; pass the same 11 digits to `-phone-number`).
 The modem simulator delivers an SMS back to the phone only when it is addressed
@@ -92,8 +103,11 @@ delivery result is bounded and does not repeat the action under test.
 | --- | --- |
 | Setup and rules | The Light setup screens confirm the child profile and PIN, and the Device Owner pairing activity redeems its pending token. Both flows must finish the sync the setup starts itself (reason `initial light setup` or `paired`, recorded through a test-only observer on `SyncRunner.run`) and have uploaded the first status and saved the first rules, before the test requests another sync. The 15-minute WorkManager sync registered during pairing does not satisfy this check. The fixture stages the pending QR token for the loopback server. Before the Device Owner pairing screen opens, the test replays the admin-enabled broadcast from `dpm set-device-owner` if that broadcast has not applied the first lock yet (`am instrument` usually force-stops the app before it finishes), and waits for the first lock that opens the PIN-free setup window. Device Owner rules hide, reveal and hide the test APK again. |
 | SOS and emergency access | Holding the child’s SOS button creates an incident in the parent API and a parent can mark it seen. The SOS emergency keypad opens. The public `placeCall` hands the exact 112, 911 and 114 addresses to `TelecomHandoff`, the single place where a call goes to Android's Telecom, and rejects an unapproved ordinary number. The test replaces only the last step of that hand-off with a recorder, so it places no calls. |
-| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. Plainphone is not the default Home app in this flow, so Home opens Android's home-app chooser, as on a child's phone where no Home app was chosen; the guard has to close the window anyway. School time still blocks the app after the AOSP clock moves forward by 12 hours. |
+| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. Plainphone is not the default Home app in this flow, so Home opens Android's home-app chooser, as on a child's phone where no Home app was chosen; the guard has to close the window anyway. |
+| Light mode after a date jump | The phone is set up in `Europe/Copenhagen`, where the app catalog exists. The test app uses up a one-minute limit, measured from Android's usage events (usage access is granted from the shell, as a parent does in Settings). Five Play windows for a catalog app open and close through `InstallWindow.openForParent`, the call the maintenance screen makes after the parent PIN, and a sixth is refused. One emergency opening is counted through the phone's real opening store and trusted clock with a Self rule of one a month; the flow's phone is a Child phone, so the Self setup and the stop screen's button are not part of it. Then the AOSP clock moves forward 35 days, into another day and month. School time still blocks the app, the used minute still counts, there is no sixth Play window and no new opening. If the run starts in the last 6 minutes before midnight (phone or system time zone), the flow first waits until midnight has passed, so these counts cannot start over for a real reason. |
 | Quick messages | The child taps a quick message and the test gateway answers HTTP 429. The modem simulator loops the outgoing message back only when it is addressed to the SIM's own number, which the emulator gets with `-phone-number`. The test checks the exact body and number in the inbox before the emulator console injects a separate parent reply. |
+| Calls and texts (Device Owner) | The keypad, opened with a `tel:` number as a link in another app opens it, refuses a number that is not approved, shows "Only approved contacts can be called" and hands nothing to Telecom. A call the shell places with `ACTION_CALL` (standing in for the maker's dialer or a contact card) is ended, logged and shows the "Call not allowed" notification. A stranger's SMS from the modem is logged as blocked, with no notification and nothing in the inbox. A contact saved in the dashboard as `+1 202 555 0123` texts from the national number `2025550123` (the emulator SIM is a US SIM) and the message is in the inbox under the contact's name. 114 is placed through the real Telecom (Android does not treat it as an emergency number on this SIM, which the test checks), hung up, and opens no call-back window: a stranger's call afterwards is still rejected and logged. The modem answers an outgoing call about a second after dialling, so the test cannot hold 114 before it connects; 114 must not open the window either way. |
+| Clock policy (Device Owner) | Automatic date and time are forced and `DISALLOW_CONFIG_DATE_TIME` is set. On Android 11 and later, automatic time zone is forced too, and Android's time and time zone detectors, which Settings → Date & time uses, refuse to turn automatic detection off or take a manual time or zone. Android 10 can only require automatic time. A privileged shell can still write the raw `auto_time` settings (Android does not refuse that, and a child has no shell); Plainphone's lock check puts them back. |
 
 The emulator covers the AOSP paths listed above. Hardware QR provisioning,
 vendor restrictions, Play services, carrier delivery, real calls, PiP
