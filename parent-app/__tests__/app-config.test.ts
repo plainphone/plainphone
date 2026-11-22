@@ -41,9 +41,10 @@ describe("native app identifiers", () => {
 
 describe("iOS privacy manifest", () => {
   // What the app sends to the server and the server keeps linked to the account
-  // (docs/privacy.md): the sign-in email address, and what the parent writes
-  // (phone names, rules, approved contacts, messages and requests). Nothing is
-  // used for tracking, and every item serves the app's own function.
+  // (docs/privacy.md): the sign-in email address, a number to call back, the approved
+  // contacts the parent enters for a phone, and what the parent writes (phone names,
+  // rules, messages, requests). Nothing is used for tracking, and every item serves
+  // the app's own function.
   const linked = (type: string) => ({
     NSPrivacyCollectedDataType: type,
     NSPrivacyCollectedDataTypeLinked: true,
@@ -57,6 +58,8 @@ describe("iOS privacy manifest", () => {
     expect(manifest?.NSPrivacyTrackingDomains).toEqual([]);
     expect(manifest?.NSPrivacyCollectedDataTypes).toEqual([
       linked("NSPrivacyCollectedDataTypeEmailAddress"),
+      linked("NSPrivacyCollectedDataTypePhoneNumber"),
+      linked("NSPrivacyCollectedDataTypeContacts"),
       linked("NSPrivacyCollectedDataTypeOtherUserContent"),
     ]);
   });

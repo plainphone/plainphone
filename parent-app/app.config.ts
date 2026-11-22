@@ -41,10 +41,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     privacyManifests: {
       NSPrivacyTracking: false,
       NSPrivacyTrackingDomains: [],
-      // Kept on the server and linked to the account (docs/privacy.md): the sign-in email,
-      // and what the parent writes (phone names, rules, approved contacts, messages).
+      // Kept on the server and linked to the account (docs/privacy.md): the sign-in email, a
+      // number to call back (check-ins, SOS), the approved contacts the parent enters for a
+      // phone, and what the parent writes (phone names, rules, messages, requests).
       NSPrivacyCollectedDataTypes: [
         "NSPrivacyCollectedDataTypeEmailAddress",
+        "NSPrivacyCollectedDataTypePhoneNumber",
+        "NSPrivacyCollectedDataTypeContacts",
         "NSPrivacyCollectedDataTypeOtherUserContent",
       ].map((type) => ({
         NSPrivacyCollectedDataType: type,
