@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The Plainphone authors
-"""Checks the emulator harness's serial-console protocol without an emulator."""
+"""Checks the emulator harness's serial-console and device console-command protocols without an emulator."""
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import importlib.util
+import json
 import re
 import socket
 import subprocess
@@ -165,6 +167,69 @@ class DiagnosticsTest(unittest.TestCase):
         with mock.patch.object(harness, "adb", side_effect=subprocess.CalledProcessError(1, "adb")):
             harness.collect_diagnostics(ours, settle=0)
         self.assertFalse((self.artifacts / "connectivity.txt").exists())
+
+
+class ConsoleCommandTest(unittest.TestCase):
+    def test_allows_an_sms_or_a_call_from_a_number(self):
+        self.assertEqual(harness.console_command(["sms", "send", "+12025550188", "Emulator stranger text"]),
+                         ("emu", "sms", "send", "+12025550188", "Emulator stranger text"))
+        self.assertEqual(harness.console_command(["gsm", "call", "2025550177"]), ("emu", "gsm", "call", "2025550177"))
+
+    def test_rejects_every_other_console_command(self):
+        for args in (["kill"], ["gsm", "cancel", "2025550177"], ["sms", "send", "+1; kill", "x"],
+                     ["sms", "send", "+12025550188", "a\nkill"], ["gsm", "call", "2025550177", "extra"]):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                harness.console_command(args)
+
+
+class ServeConsoleTest(unittest.TestCase):
+    def start_server(self, queue):
+        results = {}
+        stop = threading.Event()
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                assert self.headers["Authorization"] == "Bearer token"
+                if not queue:
+                    self.send_response(204)
+                    self.end_headers()
+                    return
+                body = json.dumps(queue.pop(0)).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_POST(self):
+                length = int(self.headers["Content-Length"])
+                results[self.path] = json.loads(self.rfile.read(length))["output"]
+                self.send_response(204)
+                self.end_headers()
+                if len(results) == 2:
+                    stop.set()
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return server.server_address[1], stop, results
+
+    def test_runs_queued_commands_and_reports_their_output(self):
+        port, stop, results = self.start_server([
+            {"id": 1, "args": ["sms", "send", "+15555215554", "Emulator parent reply"]},
+            {"id": 2, "args": ["avd", "stop"]},
+        ])
+        done = subprocess.CompletedProcess(("adb",), 0, stdout="OK\n")
+        with mock.patch.object(harness, "adb", return_value=done) as adb:
+            harness.serve_console(port, "token", stop, "emulator-5554", poll=0.01)
+        adb.assert_called_once()
+        self.assertEqual(adb.call_args.args, ("-s", "emulator-5554", "emu", "sms", "send", "+15555215554", "Emulator parent reply"))
+        self.assertEqual(results["/e2e/console/1"], "OK\n")
+        # Refused on the host as well: the device sees why and fails.
+        self.assertIn("harness error", results["/e2e/console/2"])
 
 
 if __name__ == "__main__":
