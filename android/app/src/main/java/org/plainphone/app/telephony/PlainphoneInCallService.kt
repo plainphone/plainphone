@@ -58,7 +58,7 @@ class PlainphoneInCallService : InCallService() {
         if (decision != null && !decision.allowed && !flaggedEmergency) {
             Log.i(TAG, "ending call: $decision")
             TelephonyLog(this).recordBlocked(Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
-            if (outgoing) endOutgoing(call) else call.reject(false, null)
+            if (outgoing) endCall(call) else call.reject(false, null)
             if (outgoing) CallNotifications.showBlockedCall(this, number, rulesUnreadable = rules == null)
             return
         }
@@ -88,27 +88,6 @@ class PlainphoneInCallService : InCallService() {
                 startActivity(Intent(this, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
-    }
-
-    /**
-     * Android 10's phone process crashes (a NullPointerException in ConnectionService.addConnection)
-     * when an outgoing call is ended while Telecom is still binding the SIM's connection service:
-     * Telecom aborts, then hands the aborted call over anyway. The radio restarts and the SIM is gone
-     * for seconds (emulator run 45043929153, API 29). There a call still connecting is ended the
-     * moment it starts dialling, before the other phone can ring; it is logged and announced at once.
-     */
-    private fun endOutgoing(call: Call) {
-        if (Build.VERSION.SDK_INT >= 30 || callState(call) != Call.STATE_CONNECTING) {
-            call.disconnect()
-            return
-        }
-        call.registerCallback(object : Call.Callback() {
-            override fun onStateChanged(call: Call, state: Int) {
-                if (state == Call.STATE_CONNECTING) return
-                call.unregisterCallback(this)
-                if (state != Call.STATE_DISCONNECTED && state != Call.STATE_DISCONNECTING) call.disconnect()
-            }
-        })
     }
 
     override fun onCallRemoved(call: Call) {

@@ -27,11 +27,12 @@ import org.robolectric.util.ReflectionHelpers.ClassParameter
 /**
  * A call another app places to a number that is not approved is ended by the in-call service. On
  * Android 10, ending it while Telecom is still connecting it crashes the phone process (emulator run
- * 45043929153), so there it is ended as soon as it dials.
+ * 45043929153), so there it is ended as soon as it dials. The same holds for the child's hang-up and SOS.
  */
 @RunWith(RobolectricTestRunner::class)
 class OutgoingCallEndTest {
     private val stranger = "+12025550102"
+    private val approved = "+12025550123"
     private val service = Robolectric.buildService(PlainphoneInCallService::class.java).create().get()
     private val ended = mutableListOf<String>()
 
@@ -40,7 +41,7 @@ class OutgoingCallEndTest {
         val admin = PlainphoneAdminReceiver.component(service)
         shadowOf(dpm).setActiveAdmin(admin)
         assertThat(shadowOf(dpm).setDeviceOwner(admin)).isTrue()
-        LocalContactPolicySource(service).seedIfEmpty(listOf(ApprovedContact("Approved", "+12025550123")))
+        LocalContactPolicySource(service).seedIfEmpty(listOf(ApprovedContact("Approved", approved)))
     }
 
     /** A real framework Call whose Telecom side records each hang-up. */
@@ -119,5 +120,67 @@ class OutgoingCallEndTest {
         strongPhone()
         service.onCallAdded(outgoingCall(stranger, Call.STATE_CONNECTING))
         assertThat(ended).containsExactly("TC@1")
+    }
+
+    /**
+     * The child's own hang-up, tapped right after dialling (run 45060357626, API 29: 114 hung up in
+     * state CONNECTING). Ended at once it crashed the phone process and left 114 live on the modem.
+     */
+    @Config(sdk = [29])
+    @Test fun `on Android 10 hanging up a connecting call waits until it dials`() {
+        strongPhone()
+        val call = outgoingCall(approved, Call.STATE_CONNECTING)
+        service.onCallAdded(call)
+        try {
+            CallManager.hangUp()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertThat(ended).isEmpty()
+            call.moveTo(Call.STATE_DIALING)
+            assertThat(ended).containsExactly("TC@1")
+        } finally {
+            service.onCallRemoved(call)
+        }
+    }
+
+    @Config(sdk = [29])
+    @Test fun `on Android 10 SOS ending a connecting call also waits until it dials`() {
+        strongPhone()
+        val call = outgoingCall(approved, Call.STATE_CONNECTING)
+        service.onCallAdded(call)
+        try {
+            CallManager.disconnect(CallManager.state.value.single().id)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertThat(ended).isEmpty()
+            call.moveTo(Call.STATE_DIALING)
+            assertThat(ended).containsExactly("TC@1")
+        } finally {
+            service.onCallRemoved(call)
+        }
+    }
+
+    @Config(sdk = [29, 34])
+    @Test fun `hanging up a dialling call ends it at once`() {
+        strongPhone()
+        val call = outgoingCall(approved, Call.STATE_DIALING)
+        service.onCallAdded(call)
+        try {
+            CallManager.hangUp()
+            assertThat(ended).containsExactly("TC@1")
+        } finally {
+            service.onCallRemoved(call)
+        }
+    }
+
+    @Config(sdk = [34])
+    @Test fun `on Android 14 hanging up a connecting call ends it at once`() {
+        strongPhone()
+        val call = outgoingCall(approved, Call.STATE_CONNECTING)
+        service.onCallAdded(call)
+        try {
+            CallManager.hangUp()
+            assertThat(ended).containsExactly("TC@1")
+        } finally {
+            service.onCallRemoved(call)
+        }
     }
 }
