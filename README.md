@@ -174,7 +174,7 @@ See [support tools and release troubleshooting](docs/support.md).
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
 | [`packages/`](packages) | Shared encryption test vectors |
-| [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and an end-to-end test of the phone sync |
+| [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and end-to-end tests for phone sync and the Android emulator |
 | [`docs/`](docs) | Design, evidence, policies and how-tos |
 
 ## Build the Android app
@@ -198,6 +198,8 @@ test SDK. Gradle needs Maven access on the first run if its dependency cache is 
 The Android location-budget tests use a simulated monotonic clock to exercise provider fallback and expiry without waiting for the phone's lookup deadline.
 
 The APK includes English, Danish, Swedish, Norwegian Bokmål and German resources. See [translation review status](docs/translations.md). The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
+
+See [Android emulator testing](docs/testing.md) for the on-device suite and local setup.
 
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 

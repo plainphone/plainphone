@@ -26,6 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "org.plainphone.app"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 29
         targetSdk = 37
         versionCode = 20
@@ -176,6 +177,9 @@ dependencies {
     implementation("com.google.crypto.tink:tink-android:1.24.0")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("io.github.erdtman:java-json-canonicalization:1.1")
+
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.86")
     testImplementation("junit:junit:4.13.2")
