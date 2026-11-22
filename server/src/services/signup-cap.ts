@@ -6,10 +6,10 @@
 // Everything is counted from the database, so the cap survives restarts and holds across
 // processes. A sign-up holds a place from the moment its login link is sent (the link is
 // pending for 15 minutes), so the cap limits mails as well as households. People who already
-// have an account, and people invited into an existing household, are never stopped.
+// have an account, and people invited into an existing household, are never stopped and take no place.
 
-import { and, count, countDistinct, eq, gt, gte, isNull, notExists, sql } from "drizzle-orm";
-import { householdInvites, households, magicLinks, selfKeys, users } from "../db/schema.js";
+import { and, count, countDistinct, eq, gt, gte, isNull, notExists, type SQL, sql } from "drizzle-orm";
+import { householdInvites, householdMembers, households, magicLinks, selfKeys, users } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 
 type Db = Ctx["db"];
@@ -61,13 +61,40 @@ async function isInvited(db: Db | Tx, email: string, now: Date): Promise<boolean
   return Boolean(trusted);
 }
 
-/** Households made since the start of today (UTC). */
+/**
+ * SQL: the address in `email` is invited into an existing household (an open invite or a trusted
+ * person waiting for an account). The same rule as isInvited, for use inside a count.
+ */
+function invitedSql(email: SQL, now: Date): SQL {
+  return sql`(exists (select 1 from ${householdInvites} where ${householdInvites.email} = ${email}
+      and ${householdInvites.acceptedAt} is null and ${householdInvites.expiresAt} > ${now.toISOString()}::timestamptz)
+    or exists (select 1 from ${selfKeys} where ${selfKeys.trustedEmail} = ${email}
+      and ${selfKeys.trustedUserId} is null))`;
+}
+
+/**
+ * Households made since the start of today (UTC) that took a place under the cap. An invited
+ * parent or a trusted person also gets a household of their own on first login, but they are
+ * never capped, so their household does not take a place from a new family. Such an owner is
+ * recognised by still holding the invite, having joined another household as a parent (invites
+ * are deleted on acceptance), or being a trusted person on a phone.
+ */
 async function householdsToday(db: Db | Tx, now: Date): Promise<number> {
-  const [row] = await db.select({ n: count() }).from(households).where(gte(households.createdAt, utcDayStart(now)));
+  const owner = sql`(select ${users.id} from ${householdMembers} join ${users} on ${users.id} = ${householdMembers.userId}
+    where ${householdMembers.householdId} = ${households.id} and ${householdMembers.role} = 'owner' limit 1)`;
+  const ownerEmail = sql`(select ${users.email} from ${users} where ${users.id} = ${owner})`;
+  const exempt = sql`(${invitedSql(ownerEmail, now)}
+    or exists (select 1 from ${householdMembers} where ${householdMembers.userId} = ${owner}
+      and ${householdMembers.role} = 'parent' and ${householdMembers.householdId} <> ${households.id})
+    or exists (select 1 from ${selfKeys} where ${selfKeys.trustedUserId} = ${owner}))`;
+  const [row] = await db
+    .select({ n: count() })
+    .from(households)
+    .where(and(gte(households.createdAt, utcDayStart(now)), sql`not ${exempt}`));
   return row?.n ?? 0;
 }
 
-/** Addresses without an account that hold a login link they have not used yet. */
+/** New addresses (no account, not invited) that hold a login link they have not used yet. */
 async function pendingSignups(db: Db | Tx, now: Date, except: string): Promise<number> {
   const [row] = await db
     .select({ n: countDistinct(magicLinks.email) })
@@ -78,6 +105,7 @@ async function pendingSignups(db: Db | Tx, now: Date, except: string): Promise<n
         gt(magicLinks.expiresAt, now),
         sql`${magicLinks.email} <> ${except}`,
         notExists(db.select({ one: sql`1` }).from(users).where(eq(users.email, magicLinks.email))),
+        sql`not ${invitedSql(sql`${magicLinks.email}`, now)}`,
       ),
     );
   return row?.n ?? 0;

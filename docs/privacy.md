@@ -14,6 +14,10 @@ model and the metadata it will still expose.
 
 The server stores accounts, households and the rules for each phone in PostgreSQL.
 Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
+The sign-in request answers the same whether or not an address has an account, with one
+exception: on the hosted service, when the daily cap on new households is full, a new
+address is told to try again tomorrow while a known one gets a link
+([operations.md](operations.md#daily-cap-on-new-households)).
 
 | Data | For how long | Where it is set |
 |---|---|---|

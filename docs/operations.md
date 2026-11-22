@@ -212,7 +212,10 @@ How it counts:
 - Everything is counted in the database, so the count survives restarts and holds across
   more than one server process.
 - Never stopped: an address that already has an account, a parent with an open invitation
-  to a household, and a trusted person chosen by email for a phone.
+  to a household, and a trusted person chosen by email for a phone. They take no place
+  either: their pending links are not counted, and the household of their own they get on
+  first sign-in does not count while they hold the invitation, have joined another
+  household as a parent, or are a trusted person on a phone.
 - When the cap is full, `POST /api/auth/request` answers `429` with
   `code: "signup_cap_reached"`, `retryAt` (the next UTC midnight) and a `Retry-After`
   header, and no mail is sent. The dashboard and the parent app show "Full for today",
@@ -221,6 +224,7 @@ How it counts:
   for a known one, so it tells whether an address has an account on that day only.
 
 Sign-in links also have a limit per address: 5 per hour, counted in the database. The
+check is not locked, so many requests at the very same moment can send a few more; the
 limit per IP address (20 per hour) stays in memory in each process, because IP addresses
 are not stored ([privacy.md](privacy.md)).
 

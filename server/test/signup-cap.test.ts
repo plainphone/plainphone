@@ -146,10 +146,50 @@ describe("daily cap on new households", () => {
     expect(v.json.code).toBe("signup_cap_reached");
     expect(await householdCount()).toBe(1);
 
-    // Tomorrow the same link would have expired; a new one works.
-    h.clock.now = new Date("2026-11-17T08:00:00Z");
-    await signIn(h, "racer@example.org");
+    // The refused link stays unused: with room again the same day, the same token signs in.
+    setCap(2);
+    const again = await c.post("/api/auth/verify", { token, client: "native" });
+    expect(again.status).toBe(200);
     expect(await householdCount()).toBe(2);
+  });
+
+  it("does not count an invited parent's own household against new families", async () => {
+    const owner = await signIn(h, "owner@example.org");
+    const hid = (await owner.get("/api/me")).json.households[0].id as string;
+    expect((await owner.post(`/api/households/${hid}/invites`, { email: "partner@example.org" })).status).toBe(201);
+    const inviteToken = lastToken(h);
+
+    // A stranger gets a link while one place is free.
+    expect((await request("stranger@example.org")).status).toBe(202);
+    const strangerToken = lastToken(h);
+    // The invited partner signs in (and gets a household of their own) before the stranger.
+    const partner = await signIn(h, "partner@example.org");
+    expect((await new Client(h).post("/api/auth/verify", { token: strangerToken })).status).toBe(200);
+    expect(await householdCount()).toBe(3);
+
+    // Still not counted once the invite is accepted (accepted invites are deleted).
+    expect((await partner.post("/api/invites/accept", { token: inviteToken })).json.householdId).toBe(hid);
+    expect((await request("third@example.org")).status).toBe(429);
+  });
+
+  it("does not let an invited parent's unused link hold a place", async () => {
+    setCap(2);
+    const owner = await signIn(h, "owner@example.org");
+    const hid = (await owner.get("/api/me")).json.households[0].id as string;
+    await owner.post(`/api/households/${hid}/invites`, { email: "partner@example.org" });
+    expect((await request("partner@example.org")).status).toBe(202);
+    expect((await request("stranger@example.org")).status).toBe(202);
+  });
+
+  it("does not count a trusted person's own household against new families", async () => {
+    const owner = await signIn(h, "self@example.org");
+    const { phoneId } = await pairPhone(h, owner, { profile: "self" });
+    await h.ctx.db
+      .insert(selfKeys)
+      .values({ phoneId, keyType: "trusted", trustedEmail: "friend@example.org" })
+      .onConflictDoUpdate({ target: selfKeys.phoneId, set: { keyType: "trusted", trustedEmail: "friend@example.org" } });
+    await signIn(h, "friend@example.org");
+    expect((await request("stranger@example.org")).status).toBe(202);
   });
 });
 
