@@ -409,7 +409,7 @@ def run(args: argparse.Namespace) -> int:
             obs[key] = (dev.shell(cmd) or "").strip()
         obs["setup_wizard"] = setup_apps(dev.shell("pm list packages -u") or "")
         log("device", setup_wizard=obs["setup_wizard"],
-            **{k: obs[k] for k in ("fingerprint", "sdk", "user_setup_complete", "play_store")})
+            **{k: obs[k] for k in ("fingerprint", "sdk", "user_setup_complete", "device_provisioned", "play_store")})
         if reason := no_qr_path(obs):
             obs["inconclusive"] = reason
             return finish(out, obs, release, dev, args)
@@ -568,7 +568,8 @@ def finish(out: Path, obs: dict, release: dict, dev: Device, args: argparse.Name
         **verdict,
         "release": {k: release.get(k) for k in ("tag", "sha256", "apk_url", "versionCode")},
         "image": args.image,
-        "device": {k: obs.get(k) for k in ("fingerprint", "sdk", "play_store", "play_services")},
+        "device": {k: obs.get(k) for k in ("fingerprint", "sdk", "play_store", "play_services",
+                                             "user_setup_complete", "device_provisioned")},
         "setup_wizard": obs.get("setup_wizard"),
         "play_protect": {"shown": obs["play_protect"] is not None, "kind": obs["play_protect"],
                          "bypassed_warning": obs["bypassed_warning"], "texts": obs["play_protect_texts"]},

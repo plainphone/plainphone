@@ -57,6 +57,10 @@ jobs:
           # workflow_call takes free strings: only a Google Play x86_64 image may reach sdkmanager.
           [[ "$API" =~ ^[0-9]+(\.[0-9]+)?(-ext[0-9]+)?$ ]] || { echo "::error::unexpected api: $API"; exit 1; }
           [[ "$IMAGE_TAG" =~ ^google_apis_playstore(_ps16k)?$ ]] || { echo "::error::unexpected image_tag: $IMAGE_TAG"; exit 1; }
+          # The 16 KB page-size images start at API 35 (see the SDK's sys-img2-4.xml).
+          if [[ "$IMAGE_TAG" == *_ps16k && "${API%%[.-]*}" -lt 35 ]]; then
+            echo "::error::$IMAGE_TAG exists only from API 35, not for api $API"; exit 1
+          fi
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

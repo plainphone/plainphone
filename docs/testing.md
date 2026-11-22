@@ -244,7 +244,8 @@ wizard, the images themselves were taken apart (November 2026: each
 `super` partition unpacked and its app folders listed with `dump.erofs`, or
 `debugfs` for API 34). Every Google Play x86_64 image checked has the same
 setup apps: API 34 (r14), 35 (r09), 36 (r07), 36 `ps16k` (r07) and 37.0 (r08).
-None has `SetupWizardPrebuilt`. Their only setup-wizard app is
+None has `SetupWizardPrebuilt`. API 36.1 (r04) was not unpacked; it is offered
+as an input so one CI run can check it. Their only setup-wizard app is
 `GoogleSdkSetup` (`com.google.android.googlesdksetup`, a Home activity in the
 `SETUP_WIZARD` category). It wraps the emulator's
 [`ProvisionActivity`](https://android.googlesource.com/device/generic/goldfish/+/refs/heads/main/provision/EmulatorProvisonLib/src/com/android/sdksetup/ProvisionActivity.java),
@@ -258,10 +259,17 @@ of images is in the SDK's
 | --- | --- | --- |
 | Put `device_provisioned` and `user_setup_complete` back to 0 and start `com.google.android.setupwizard` | Rejected | The package is not on the image, so there is nothing to start. Even on an image with the wizard it would not work: [`DevicePolicyManagerService`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java) keeps its own copy of "setup complete". `updateUserSetupCompleteAndPaired()` only ever sets it to true, and `checkDeviceOwnerProvisioningPreConditionLocked()` then answers `STATUS_USER_SETUP_COMPLETED` to managed provisioning. Only the test API `forceUpdateUserSetupComplete()` (permission `MANAGE_PROFILE_AND_DEVICE_OWNERS`) resets that copy, and that is no longer a factory-new phone |
 | `ro.setupwizard.mode`, an emulator `-prop`, or a `config.ini` setting | Rejected | The property only tells an installed Google wizard how to behave, and there is none. `ro.*` properties are read-only, and the Play images are `user` builds without `adb root` |
-| Another image tag or API level (`google_apis_playstore_ps16k`, API 34, 35, 36.1, 37.0) | Rejected after checking | Same setup apps on every image checked. The `api` and `image_tag` inputs stay, so a future image can be tried with one run; the probe reports `setup_wizard` straight after boot |
+| Another image tag or API level (`google_apis_playstore_ps16k`, API 34, 35, 37.0) | Rejected after checking | Same setup apps on every image checked. API 36.1 is not checked yet. The `api` and `image_tag` inputs stay, so 36.1 or a future image can be tried with one run; the probe reports `setup_wizard` straight after boot |
 | Installing Google's setup wizard APK | Rejected | It is a privileged system app. A `user` build without root cannot add privileged apps, and the APK may not be redistributed |
 | Re-enabling a disabled setup component with `pm enable` | Rejected | [Reported](https://stackoverflow.com/questions/72329296) to reboot to the home screen without a wizard on an Android 12 emulator, and here the wizard package is missing, not disabled |
 | `dpm set-device-owner`, `PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE`, `PROVISION_MANAGED_DEVICE`, NFC | Rejected | They skip the wizard's QR reader or Play Protect (see above) |
+
+The unpacking was done by hand and cannot be repeated from this repository.
+The probe repeats the decisive check on every run: it lists the image's
+packages after boot and records `setup_wizard` and `device_provisioned` in
+`result.json`, so one CI run per image confirms or overturns the table. Until
+an image with the Google wizard turns up, every run ends `inconclusive`
+(a red job) by design, and it does not answer #255.
 
 Issue #255 therefore needs a real phone with Google Play services: factory
 reset, six taps on the welcome screen, scan the dashboard's QR code, and note
