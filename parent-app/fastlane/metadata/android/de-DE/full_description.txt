@@ -1,0 +1,24 @@
+In Plainphone für Eltern legen Sie die Regeln für das Handy eines Kindes mit Plainphone fest. Sie wählen die Apps, wer anrufen und schreiben darf und wann Schulzeit und Schlafenszeit beginnen. Ihr Kind sieht dieselben Regeln auf seinem Handy.
+
+Dies ist eine Alpha-Version. Sie funktioniert, ist aber neu und wird sich ändern. Probieren Sie sie mit einem Handy aus, mit dem Sie testen können, bevor Sie sich darauf verlassen.
+
+Das können Sie tun
+• Auswählen, welche Apps sich öffnen lassen, und tägliche Zeitlimits setzen.
+• Freigeben, wer anrufen und schreiben darf. 112, Notrufnummern und Sie selbst sind immer erreichbar.
+• Schulzeit und Schlafenszeit festlegen.
+• Anfragen nach mehr Zeit, einer neuen App oder einem neuen Kontakt beantworten.
+• Sehen, wo das Handy ist, wenn Sie danach fragen. Ihr Kind sieht, dass Sie gefragt haben.
+• Das Handy klingeln lassen, "Alles okay?" fragen und SOS-Meldungen bekommen.
+• Jede Funktion für jedes Handy ein- und ausschalten.
+• Ein Handy mit dem anderen Elternteil im Haushalt teilen.
+
+Das Handy des Kindes braucht die Plainphone-App für das Handy. Sie verbinden beide, indem Sie den Code scannen, den das Handy zeigt. Wie Sie das Handy des Kindes einrichten, steht auf plainphone.org.
+
+Das ist es nicht
+Plainphone macht es schwerer, die Regeln zu umgehen. Es macht ein Handy nicht sicher, und der Webfilter erkennt nicht alles. Jede Einstellung sagt, was sie tut und was sie nicht kann.
+
+Ihre Daten
+Sie melden sich mit einem Link an, der an Ihre E-Mail-Adresse geschickt wird. Wir speichern Ihre E-Mail-Adresse, Ihren Haushalt und die Regeln für jedes Handy. Der größte Teil des Verlaufs wird nach 30 Tagen gelöscht. Sie können Ihr Konto in den Einstellungen löschen. Keine Werbung, keine Statistik, und nichts wird für andere Zwecke an uns gesendet.
+
+Open Source und kostenlos
+Plainphone ist Open Source (Apache-2.0) und kostenlos. Sie können Ihren eigenen Server betreiben. Mehr auf plainphone.org.
