@@ -779,7 +779,7 @@ export interface paths {
         };
         /**
          * Liveness, database and DNS service check
-         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well.
+         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well. `botChallenge` (`altcha` or `off`) says whether `/auth/request` needs a solved `/auth/challenge`, and `honeypot` whether the sign-in form's hidden field is checked.
          */
         get: operations["getHealth"];
         put?: never;
@@ -1435,7 +1435,7 @@ export interface paths {
         put?: never;
         /**
          * Mail a sign-in link
-         * @description Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full. `mailEnabled` is false on servers without mail settings.
+         * @description Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full, and 422 `disposable_email` for a throwaway address that would start a new household (BLOCK_DISPOSABLE_EMAIL). When `/health` says `botChallenge: altcha`, `altcha` must hold a solved challenge from `/auth/challenge`, each accepted once; without it the answer is 403 `bot_challenge_required`, with a wrong, expired or reused one 403 `bot_challenge_failed`. A filled-in `website` (the honeypot, SPAM_HONEYPOT) gets the normal 202 and nothing is sent. `mailEnabled` is false on servers without mail settings.
          */
         post: operations["postAuthRequest"];
         delete?: never;
@@ -1458,6 +1458,26 @@ export interface paths {
          * @description Only on servers with REVIEW_LOGIN_EMAIL and REVIEW_LOGIN_CODE set (docs/store-review.md); otherwise 404. Only that address with that code signs in. The first sign-in creates the account and household, and every sign-in gives the household its demo phone (or checks it in again). Rate limited.
          */
         post: operations["postAuthReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A bot challenge for the sign-in form
+         * @description An ALTCHA proof-of-work challenge (protocol v1): find `number` from 0 to `maxnumber` with SHA-256(`salt` + `number`) = `challenge`, then send it to `/auth/request` as `altcha`. Valid for 10 minutes; nothing is stored until it is used. 404 with `code` `bot_challenge_off` while the server asks for no challenge.
+         */
+        get: operations["getAuthChallenge"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5534,6 +5554,32 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The server asks for a solved bot challenge (`bot_challenge_required`) or the one sent did not pass (`bot_challenge_failed`). No mail is sent. */
+        BotChallenge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    error: string;
+                    /** @enum {unknown} */
+                    code: "bot_challenge_required" | "bot_challenge_failed";
+                };
+            };
+        };
+        /** @description A throwaway mail address cannot start a new household (BLOCK_DISPOSABLE_EMAIL). Accounts that exist and invited people are never refused. */
+        DisposableEmail: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    error: string;
+                    /** @enum {unknown} */
+                    code: "disposable_email";
+                };
+            };
+        };
         /** @description Too many login links, or (with `code` signup_cap_reached) today's cap on new households is reached (SIGNUP_DAILY_CAP). No mail is sent; `retryAt` is the next UTC midnight, also given as Retry-After. */
         TooManyOrCapped: {
             headers: {
@@ -8795,6 +8841,10 @@ export interface operations {
                      * @enum {unknown}
                      */
                     client?: "web" | "native";
+                    /** @description Base64 JSON `{algorithm, challenge, number, salt, signature}`: the solved challenge (ALTCHA protocol v1). */
+                    altcha?: string;
+                    /** @description The honeypot. A person never sees the field and leaves it empty. */
+                    website?: string;
                 };
             };
         };
@@ -8813,6 +8863,8 @@ export interface operations {
                     };
                 };
             };
+            403: components["responses"]["BotChallenge"];
+            422: components["responses"]["DisposableEmail"];
             429: components["responses"]["TooManyOrCapped"];
         };
     };
@@ -8858,6 +8910,35 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+        };
+    };
+    getAuthChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {unknown} */
+                        algorithm: "SHA-256";
+                        challenge: string;
+                        maxnumber: number;
+                        salt: string;
+                        signature: string;
+                    };
+                };
+            };
             404: components["responses"]["Error"];
             429: components["responses"]["Error"];
         };
@@ -9546,6 +9627,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Too many invitations, or (with `code` invite_cap_reached) the household has sent INVITES_PER_HOUSEHOLD_DAILY invitation mails in the last 24 hours. Nothing is stored or sent. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        /** @enum {unknown} */
+                        code?: "invite_cap_reached";
+                    };
+                };
             };
         };
     };
