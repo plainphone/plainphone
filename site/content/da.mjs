@@ -214,6 +214,7 @@ export default {
         "Placering er, når den er slået til, kun telefonens seneste kendte position. Der er ingen historik.",
         "Webfilteret gemmer ikke en liste over de sider, en telefon besøger.",
         "Vi sælger ikke oplysninger, viser ikke reklamer og laver ikke profiler.",
+        `I alfaperioden beholder vi dataene på testtjenesten på app.plainphone.org. Vi sletter dem aldrig uden mindst 30 dages varsel.`,
       ],
     },
     sections: [
@@ -418,6 +419,16 @@ export default {
             },
           },
           "Som enhver webtjeneste skriver den webserver, der står foran appen, almindelige tekniske logs (IP-adresse, tidspunkt, den adresse der bedes om). Vi bruger dem kun til at holde tjenesten kørende og til at stoppe misbrug. Selve appen har kun IP-adresser i hukommelsen, til grænser for hyppighed, og skriver dem aldrig i sin database.",
+        ],
+      },
+      {
+        id: "testtjeneste",
+        title: `Data på testtjenesten`,
+        body: [
+          `app.plainphone.org er en testtjeneste, mens Plainphone er en alfaversion. Vi beholder dataene i alfaperioden, og tiderne på denne side gælder stadig.`,
+          `Vi sletter aldrig testtjenesten uden at sige det mindst 30 dage før. Beskeden sendes med mail til alle med en konto og lægges i <a href="https://github.com/plainphone/plainphone/discussions/categories/announcements">Discussions → Announcements</a> på GitHub. Den fortæller, hvad der slettes og hvornår, hvad der sker med dine telefoner, og hvordan du kommer ud. Det samme gælder, hvis testtjenesten lukker. Det står også i <a href="/da/terms/">vilkårene for testtjenesten</a>.`,
+          `Hvis dataene slettes, beholder telefonen de seneste regler, den har fået, og bruger dem videre uden serveren: Man kan stadig ringe til 112 og til godkendte kontakter, og skemaerne slår stadig til og fra til tiden. Reglerne kan så ikke længere ændres fra forældrepanelet eller forældreappen.`,
+          `Vil du ud før en sletning, så frigiv telefonen i forældrepanelet. På en voksens egen telefon venter frigivelsen på nøglen, så begynd i god tid. Efter en sletning kan du åbne Vedligeholdelse på telefonen med pinkoden fra opsætningen og frigive telefonen i stærk tilstand eller vælge Slå Plainphone fra i let tilstand, eller parre telefonen igen med en ny konto. Virker det ikke, forklarer <a href="/da/help/#recovery">hjælpesiden</a>, hvordan du nulstiller telefonen.`,
         ],
       },
       {

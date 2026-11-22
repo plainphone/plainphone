@@ -24,6 +24,7 @@ class ChangeDetectionTests(unittest.TestCase):
             "docs/encryption-test-vectors/mls-prototype.json": {"android", "server", "e2ee"},
             "pnpm-lock.yaml": {"server", "e2e", "emulator", "parent"},
             "pnpm-workspace.yaml": {"server", "e2e", "emulator", "parent"},
+            "turbo.json": {"server", "parent"},
             "server/openapi.yaml": {"server", "e2e", "emulator", "parent"},
             "web/src/lib/api.ts": {"server"},
             "web/src/pages/Time.tsx": {"server"},

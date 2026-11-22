@@ -30,3 +30,6 @@ dns/tests/.certs/
 google-services.json
 *.p8
 site/.screenshots-tmp/
+
+# Turborepo local cache
+.turbo/

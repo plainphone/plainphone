@@ -21,6 +21,12 @@ vi.mock("../lib/api", async (original) => ({
   serverHasMail: async () => true,
 }));
 
+const hosted = vi.hoisted(() => ({ value: false }));
+vi.mock("../lib/site-links", async (original) => ({
+  ...(await original<typeof import("../lib/site-links")>()),
+  isHostedService: () => hosted.value,
+}));
+
 let root: Root;
 let container: HTMLElement;
 let post: ReturnType<typeof vi.spyOn>;
@@ -39,12 +45,31 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function mount() {
+async function render(locale: string) {
+  localStorage.setItem("pp.locale", locale);
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
   await act(async () => root.render(<MemoryRouter><I18nProvider><LoginPage /></I18nProvider></MemoryRouter>));
 }
+
+const mount = () => render("en");
+
+const links = () => [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+
+it("links the terms and the privacy policy on the hosted test service", async () => {
+  hosted.value = true;
+  await render("da");
+  expect(links()).toContain("https://plainphone.org/da/terms/");
+  expect(links()).toContain("https://plainphone.org/da/privacy/");
+  expect(container.textContent).toContain("Vilkår for testtjenesten");
+});
+
+it("shows no terms on a self-hosted server", async () => {
+  hosted.value = false;
+  await render("en");
+  expect(links().some((h) => h?.includes("/terms/"))).toBe(false);
+});
 
 async function type(name: string, value: string) {
   const input = container.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;

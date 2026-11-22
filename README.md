@@ -17,7 +17,7 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance. The groundwork is in the code but switched off, and a paywall never touches locking, release, SOS, 112 or getting a phone back: see [billing](docs/billing.md).
 
-> **Status: public alpha.** Everything below works together in test builds, but it has had little testing on real phones and no external security audit. Try it on a spare phone or an emulator. Do not make it the only phone a child relies on yet. The hosted service at app.plainphone.org is a test service, and it can read the data you put in it (see [Privacy and security](#privacy-and-security)). Releases from v0.1.10 use the production signing key; v0.1.9 and earlier used a test key.
+> **Status: public alpha.** Everything below works together in test builds, but it has had little testing on real phones and no external security audit. Try it on a spare phone or an emulator. Do not make it the only phone a child relies on yet. The hosted service at app.plainphone.org is a free test service, provided as is under its [terms](https://plainphone.org/terms/), and it can read the data you put in it (see [Privacy and security](#privacy-and-security)). Its data is kept during the alpha and is never wiped without at least 30 days' notice, by mail to account holders and in [Discussions → Announcements](https://github.com/plainphone/plainphone/discussions/categories/announcements); phones keep their last rules offline ([what happens and how to get out](docs/privacy.md#the-hosted-test-service-during-the-alpha)). Releases from v0.1.10 use the production signing key; v0.1.9 and earlier used a test key.
 
 <p align="center">
   <img src="site/src/img/home-en-light-2x.webp" width="200" alt="The phone's home screen: the time, school time until 14:00, four apps with 25 minutes left for Music, and Phone, Messages and SOS at the bottom.">
@@ -170,7 +170,8 @@ See [support tools and release troubleshooting](docs/support.md).
 
 ## Privacy and security
 
-- [docs/privacy.md](docs/privacy.md) says what is stored, for how long and why.
+- [docs/privacy.md](docs/privacy.md) says what is stored, for how long and why, and what happens to the test service's data during the alpha.
+- The [terms of the test service](https://plainphone.org/terms/) cover app.plainphone.org: an alpha, free, provided as is, with 30 days' notice before any wipe. The software itself is Apache-2.0.
 - [docs/encryption.md](docs/encryption.md) specifies end-to-end encryption between the phone and the parent's devices. It is a specification under development and **not implemented yet**; a [phase 0 prototype](docs/e2ee-prototype.md) runs on test data only. Today the hosted service stores readable data in its application database.
 - **Plainphone has not had an external security audit.**
 - A way around the lock is a security bug. Report it privately as described in [SECURITY.md](SECURITY.md).
@@ -203,6 +204,15 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ```
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The JavaScript parts (server, web app, parent app and `packages/`) build and test from the repository root:
+
+```sh
+pnpm install
+pnpm build      # also: pnpm typecheck, pnpm lint, pnpm test
+```
+
+These root scripts run through [Turborepo](https://turborepo.dev) (`turbo.json`). It runs each package's script in dependency order and replays a task from its local cache in `.turbo/cache` when none of its inputs changed. There is no remote cache. `pnpm --filter <package> <script>` still runs a single package's script directly.
 
 Robolectric unit tests run offline. Gradle resolves the instrumented SDK jars before
 the test JVM starts and stages them in `android/.gradle/robolectric`. CI caches this
