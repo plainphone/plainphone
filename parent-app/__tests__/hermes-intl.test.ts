@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Hermes, the engine in the native builds, has Intl.DateTimeFormat, NumberFormat and Collator,
-// but no Intl.RelativeTimeFormat or Intl.ListFormat, and its NumberFormat ignores style "unit"
-// (250 m came out as "0,25 km", 1.25 km as "0.777mi" on an iOS 27 simulator).
+// but no Intl.RelativeTimeFormat or Intl.ListFormat, and with style "unit" its NumberFormat
+// converts the unit itself (250 m came out as "0,25 km", 1.25 km as "0.777mi" on an iOS 27 simulator).
 // Jest runs on Node, which has all of it, so these tests take the missing parts away.
 import { formatAccountTypes, formatList, formatMeters, formatRelative, intlLocale } from "../src/shared/lib/format";
 import { languages } from "../src/shared/lib/phone-language";
 
-const realRtf = Intl.RelativeTimeFormat;
-const realLf = Intl.ListFormat;
 const RealNf = Intl.NumberFormat;
+const saved = (["RelativeTimeFormat", "ListFormat", "NumberFormat"] as const).map(
+  (name) => [name, Object.getOwnPropertyDescriptor(Intl, name)!] as const,
+);
 
 function hideMissingHermesApis() {
   // @ts-expect-error simulating Hermes
@@ -19,7 +20,7 @@ function hideMissingHermesApis() {
 }
 
 afterEach(() => {
-  Object.assign(Intl, { RelativeTimeFormat: realRtf, ListFormat: realLf, NumberFormat: RealNf });
+  for (const [name, descriptor] of saved) Object.defineProperty(Intl, name, descriptor);
 });
 
 const NOW = Date.UTC(2026, 10, 22, 12, 0, 0);
@@ -81,7 +82,7 @@ describe("formatMeters", () => {
       styles.push(options?.style);
       return new RealNf(locales, options);
     } as unknown as typeof Intl.NumberFormat;
-    Object.assign(Intl, { NumberFormat: Spy });
+    Object.defineProperty(Intl, "NumberFormat", { ...saved[2][1], value: Spy });
     formatMeters(250, "da");
     formatMeters(1260, "en");
     expect(styles.length).toBeGreaterThan(0);
