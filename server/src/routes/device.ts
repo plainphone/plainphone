@@ -24,6 +24,7 @@ import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, enrollmentMatches, lockEnrollment, redeemEnrollment } from "../services/enrollment.js";
 import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
 import { issueTrustedInvite } from "../services/trusted-invites.js";
+import { DbRateLimiter } from "../services/rate-limits.js";
 import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import { selfFavouriteInput, suggestContacts, suggestedContactsInput } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
@@ -79,11 +80,12 @@ const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k,
 
 export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<Env>) => void) {
   const app = new Hono<Env>();
-  const pairStartLimit = new RateLimiter(10, 60 * 60_000);
+  // Counted in the database (keyed hashes, never the address): holds across restarts and processes.
+  const pairStartLimit = new DbRateLimiter("pairing-start-ip", 10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(320, 60 * 60_000);
   // Per address as well, since a client can mint ids: sized for several phones pairing behind one carrier NAT.
   const pairPollIpLimit = new RateLimiter(3000, 60 * 60_000);
-  const enrollLimit = new RateLimiter(20, 60 * 60_000);
+  const enrollLimit = new DbRateLimiter("enroll-ip", 20, 60 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const suggestionLimit = new RateLimiter(30, 60 * 60_000);
   const favouriteLimit = new RateLimiter(30, 60 * 60_000);
@@ -98,7 +100,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // --- Pairing (no device token yet) -------------------------------------------
 
   app.post("/pairings", async (c) => {
-    if (!pairStartLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many pairings" });
+    if (!(await pairStartLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many pairings" });
     const input = await body(
       c,
       z.object({ mode: z.enum(["strong", "light"]).default("strong"), deviceInfo: deviceInfo.optional(), profile: z.enum(["child", "self"]).optional(), confirmOnPhone: z.boolean().optional(), platform: z.enum(PLATFORMS).default("android") }),
@@ -205,13 +207,13 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (result.status === 202) return c.json(result.details ? { status: "confirm", ...result.details } : { status: "waiting" }, 202);
     if (result.sync) {
       await syncDns(ctx, result.phoneId);
-      await sendInitialKeyInvite(ctx, decision?.key, result.ownerId);
+      await sendInitialKeyInvite(ctx, decision?.key, result.ownerId, result.phoneId);
     }
     return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.setupUndoMinutes != null && { setupUndoMinutes: result.setupUndoMinutes }), ...(result.account && { account: result.account }) }, 200);
   });
 
   app.post("/enrollment-review", async (c) => {
-    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    if (!(await enrollLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many attempts" });
     const input = await body(c, z.object({
       token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
       mode: z.enum(["light", "strong"]),
@@ -242,7 +244,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // A phone with a setup link can copy rules into that same draft before connecting.
   app.post("/enrollment-template", async (c) => {
-    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    if (!(await enrollLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many attempts" });
     const input = await body(c, z.object({
       token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
       template: templateCode,
@@ -267,7 +269,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Pairing by the one-time token from a dashboard-made provisioning QR code (no code to type).
   app.post("/enroll", async (c) => {
-    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    if (!(await enrollLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many attempts" });
     const input = await body(
       c,
       z.object({

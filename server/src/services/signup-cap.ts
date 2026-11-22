@@ -40,13 +40,13 @@ async function lockCap(tx: Tx) {
 }
 
 /** Has an account already: never capped. */
-async function hasAccount(db: Db | Tx, email: string): Promise<boolean> {
+export async function hasAccount(db: Db | Tx, email: string): Promise<boolean> {
   const [row] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
   return Boolean(row);
 }
 
 /** Invited into an existing household, as a parent or a trusted person: never capped. */
-async function isInvited(db: Db | Tx, email: string, now: Date): Promise<boolean> {
+export async function isInvited(db: Db | Tx, email: string, now: Date): Promise<boolean> {
   const [invite] = await db
     .select({ id: householdInvites.id })
     .from(householdInvites)

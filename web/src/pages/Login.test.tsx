@@ -21,6 +21,12 @@ vi.mock("../lib/api", async (original) => ({
   serverHasMail: async () => true,
 }));
 
+// The bot and spam protection has its own tests (LoginProtection.test.tsx).
+vi.mock("../lib/bot-check", async (original) => ({
+  ...(await original<typeof import("../lib/bot-check")>()),
+  signInProtection: async () => ({ botChallenge: false, honeypot: false }),
+}));
+
 const hosted = vi.hoisted(() => ({ value: false }));
 vi.mock("../lib/site-links", async (original) => ({
   ...(await original<typeof import("../lib/site-links")>()),

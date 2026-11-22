@@ -10,7 +10,10 @@ import { loadConfig } from "../src/config.js";
 // app (org.plainphone.parent) in apple-app-site-association or enable Android app links.
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 const defaults = loadConfig({ DATABASE_URL: "unused", PUBLIC_URL: "https://app.example.test", NODE_ENV: "test" });
-const KEYS = ["APPLE_APP_IDS", "ANDROID_APP_PACKAGE", "ANDROID_APP_CERT_SHA256", "SIGNUP_DAILY_CAP"] as const;
+const KEYS = [
+  "APPLE_APP_IDS", "ANDROID_APP_PACKAGE", "ANDROID_APP_CERT_SHA256", "SIGNUP_DAILY_CAP",
+  "BOT_CHALLENGE", "BOT_CHALLENGE_DIFFICULTY", "SPAM_HONEYPOT", "BLOCK_DISPOSABLE_EMAIL", "INVITES_PER_HOUSEHOLD_DAILY",
+] as const;
 
 /** The lines of the `app` service's `environment:` map, by indentation (no YAML parser in the repo). */
 function appEnvironment(compose: string): string[] {

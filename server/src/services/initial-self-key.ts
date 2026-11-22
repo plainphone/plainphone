@@ -7,6 +7,7 @@ import { inviteMail } from "../lib/mail-templates.js";
 import { toLocale } from "../lib/locale.js";
 import { email } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
+import { takeInviteMail } from "./invite-cap.js";
 
 const waitHours = z.union([z.literal(1), z.literal(6), z.literal(12), z.literal(24), z.literal(48), z.literal(72)]);
 export const initialSelfKey = z.discriminatedUnion("keyType", [
@@ -45,9 +46,12 @@ export async function setInitialSelfKey(tx: Tx, phone: typeof phones.$inferSelec
 }
 
 
-export async function sendInitialKeyInvite(ctx: Ctx, choice: InitialSelfKey | undefined, ownerId: string | null) {
+export async function sendInitialKeyInvite(ctx: Ctx, choice: InitialSelfKey | undefined, ownerId: string | null, phoneId: string) {
   if (choice?.keyType !== "trusted" || !ctx.mail.canSend) return;
   try {
+    // The key is set either way; over the household's daily invitation cap only the mail is skipped.
+    const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
+    if (!phone || !(await takeInviteMail(ctx, phone.householdId))) return;
     const [owner] = ownerId ? await ctx.db.select({ locale: users.locale }).from(users).where(eq(users.id, ownerId)) : [];
     await ctx.mail.send(inviteMail(choice.trustedEmail, toLocale(owner?.locale), ctx.cfg.PUBLIC_URL,
       `${ctx.cfg.PUBLIC_URL}/login`, "trusted", 30));

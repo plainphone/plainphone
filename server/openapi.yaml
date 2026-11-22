@@ -87,6 +87,26 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    BotChallenge:
+      description: The server asks for a solved bot challenge (`bot_challenge_required`) or the one sent did not pass (`bot_challenge_failed`). No mail is sent.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, code]
+            properties:
+              error: { type: string }
+              code: { enum: [bot_challenge_required, bot_challenge_failed] }
+    DisposableEmail:
+      description: A throwaway mail address cannot start a new household (BLOCK_DISPOSABLE_EMAIL). Accounts that exist and invited people are never refused.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, code]
+            properties:
+              error: { type: string }
+              code: { enum: [disposable_email] }
     TooManyOrCapped:
       description: Too many login links, or (with `code` signup_cap_reached) today's cap on new households is reached (SIGNUP_DAILY_CAP). No mail is sent; `retryAt` is the next UTC midnight, also given as Retry-After.
       content:
@@ -2932,7 +2952,7 @@ paths:
       operationId: getHealth
       security: []
       summary: Liveness, database and DNS service check
-      description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well.'
+      description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well. `botChallenge` (`altcha` or `off`) says whether `/auth/request` needs a solved `/auth/challenge`, and `honeypot` whether the sign-in form''s hidden field is checked.'
       responses:
         "200": { description: "OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}`" }
         "503": { description: "Database down" }
@@ -3925,7 +3945,7 @@ paths:
       security: []
       tags: [auth]
       summary: Mail a sign-in link
-      description: Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full. `mailEnabled` is false on servers without mail settings.
+      description: "Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full, and 422 `disposable_email` for a throwaway address that would start a new household (BLOCK_DISPOSABLE_EMAIL). When `/health` says `botChallenge: altcha`, `altcha` must hold a solved challenge from `/auth/challenge`, each accepted once; without it the answer is 403 `bot_challenge_required`, with a wrong, expired or reused one 403 `bot_challenge_failed`. A filled-in `website` (the honeypot, SPAM_HONEYPOT) gets the normal 202 and nothing is sent. `mailEnabled` is false on servers without mail settings."
       requestBody:
         required: true
         content:
@@ -3940,6 +3960,14 @@ paths:
                   enum: [web, native]
                   default: web
                   description: "`native` mails a link to /auth/app, which the native parent app opens (universal/app link)."
+                altcha:
+                  type: string
+                  maxLength: 2000
+                  description: "Base64 JSON `{algorithm, challenge, number, salt, signature}`: the solved challenge (ALTCHA protocol v1)."
+                website:
+                  type: string
+                  maxLength: 500
+                  description: The honeypot. A person never sees the field and leaves it empty.
       responses:
         "202":
           description: Accepted
@@ -3953,6 +3981,8 @@ paths:
                   codeSignIn:
                     type: boolean
                     description: "Only for the store review address (REVIEW_LOGIN_EMAIL): no mail is sent; sign in with POST /auth/review instead."
+        "403": { $ref: "#/components/responses/BotChallenge" }
+        "422": { $ref: "#/components/responses/DisposableEmail" }
         "429": { $ref: "#/components/responses/TooManyOrCapped" }
 
   /auth/review:
@@ -3996,6 +4026,30 @@ paths:
                       email: { type: string }
                       locale: { type: string }
         "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /auth/challenge:
+    get:
+      operationId: getAuthChallenge
+      security: []
+      tags: [auth]
+      summary: A bot challenge for the sign-in form
+      description: "An ALTCHA proof-of-work challenge (protocol v1): find `number` from 0 to `maxnumber` with SHA-256(`salt` + `number`) = `challenge`, then send it to `/auth/request` as `altcha`. Valid for 10 minutes; nothing is stored until it is used. 404 with `code` `bot_challenge_off` while the server asks for no challenge."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [algorithm, challenge, maxnumber, salt, signature]
+                properties:
+                  algorithm: { enum: [SHA-256] }
+                  challenge: { type: string }
+                  maxnumber: { type: integer }
+                  salt: { type: string }
+                  signature: { type: string }
         "404": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
 
@@ -4439,6 +4493,16 @@ paths:
                 locale: { enum: [en, da, sv, nb, de] }
       responses:
         "201": { description: "Invited" }
+        "429":
+          description: Too many invitations, or (with `code` invite_cap_reached) the household has sent INVITES_PER_HOUSEHOLD_DAILY invitation mails in the last 24 hours. Nothing is stored or sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+                  code: { enum: [invite_cap_reached] }
   /households/{hid}/invites/{iid}:
     delete:
       operationId: deleteHouseholdsInvites

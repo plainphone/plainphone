@@ -417,7 +417,7 @@ export default {
               ],
             },
           },
-          "Som en hvilken som helst nettjeneste, skriver nettserveren foran appen vanlige tekniske logger (IP-adresse, klokkeslett, adressen som er bedt om). Vi bruker dem kun for å holde tjenesten i gang og for å stoppe misbruk. Selve appen holder kun IP-adresser i minnet, for hastighetsgrenser, og skriver dem aldri til databasen.",
+          "Som en hvilken som helst nettjeneste, skriver nettserveren foran appen vanlige tekniske logger (IP-adresse, klokkeslett, adressen som er bedt om). Vi bruker dem kun for å holde tjenesten i gang og for å stoppe misbruk. Selve appen skriver aldri IP-adresser til databasen. Grenser for hvor ofte noen kan be om en innloggingslenke eller starte oppsett av en telefon, telles i stedet med et kodet fingeravtrykk av adressen, laget med en hemmelig nøkkel som byttes hver dag. Det kan ikke gjøres om til adressen eller kobles med dagen før, og det slettes innen et døgn. Før en innloggingslenke sendes, løser dashbordet eller appen selv en liten oppgave, så skript ikke kan sende e-post i store mengder. Sjekken bruker ingen ekstern tjeneste og ingen informasjonskapsel og forteller oss ingenting om enheten din. En ny familie kan ikke registrere seg med en midlertidig e-postadresse.",
         ],
       },
       {
