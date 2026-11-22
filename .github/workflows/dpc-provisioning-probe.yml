@@ -9,8 +9,13 @@ on:
       api:
         description: Google Play system image API level
         type: choice
-        options: ["36", "35", "37.0"]
+        options: ["36", "35", "34", "36.1", "37.0"]
         default: "36"
+      image_tag:
+        description: System image tag (ps16k is the 16 KB page-size variant, from API 35)
+        type: choice
+        options: ["google_apis_playstore", "google_apis_playstore_ps16k"]
+        default: google_apis_playstore
       tag:
         description: Release tag, e.g. v0.1.20 (empty means the newest release)
         type: string
@@ -20,6 +25,9 @@ on:
       api:
         type: string
         default: "36"
+      image_tag:
+        type: string
+        default: google_apis_playstore
       tag:
         type: string
         default: ""
@@ -34,7 +42,8 @@ jobs:
     env:
       API: ${{ inputs.api }}
       TAG: ${{ inputs.tag }}
-      IMAGE: system-images;android-${{ inputs.api }};google_apis_playstore;x86_64
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE: system-images;android-${{ inputs.api }};${{ inputs.image_tag }};x86_64
       WORK: ${{ github.workspace }}/probe-work
       OUT: ${{ github.workspace }}/probe-artifacts
     steps:
@@ -43,6 +52,11 @@ jobs:
           persist-credentials: false
       - name: Probe tests
         run: python3 -m unittest scripts/test_dpc_provisioning_probe.py
+      - name: Check the image inputs
+        run: |
+          # workflow_call takes free strings: only a Google Play x86_64 image may reach sdkmanager.
+          [[ "$API" =~ ^[0-9]+(\.[0-9]+)?(-ext[0-9]+)?$ ]] || { echo "::error::unexpected api: $API"; exit 1; }
+          [[ "$IMAGE_TAG" =~ ^google_apis_playstore(_ps16k)?$ ]] || { echo "::error::unexpected image_tag: $IMAGE_TAG"; exit 1; }
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -96,6 +110,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: dpc-provisioning-probe-api-${{ inputs.api }}
+          name: dpc-provisioning-probe-api-${{ inputs.api }}-${{ inputs.image_tag }}
           path: probe-artifacts/
           retention-days: 30

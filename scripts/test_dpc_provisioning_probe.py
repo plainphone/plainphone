@@ -134,6 +134,45 @@ class ScreenTest(unittest.TestCase):
         self.assertFalse(probe.owners_include_plainphone("User 10: admin=org.plainphone.app/.X,Profile Owner\n"))
 
 
+class SetupWizardTest(unittest.TestCase):
+    # What `pm list packages -u` prints on an SDK Google Play image (API 34 to 37 all look like this).
+    SDK_IMAGE = ("package:com.android.managedprovisioning\npackage:com.google.android.googlesdksetup\n"
+                 "package:com.google.android.partnersetup\npackage:com.android.vending\n")
+    PHONE = SDK_IMAGE.replace("googlesdksetup", "setupwizard")
+
+    def obs(self, packages, user_setup_complete="0", owners="no owners"):
+        return {"setup_wizard": probe.setup_apps(packages), "user_setup_complete": user_setup_complete,
+                "owners_before": owners}
+
+    def test_lists_the_setup_apps(self):
+        self.assertEqual(probe.setup_apps(self.SDK_IMAGE), {
+            "google_setup_wizard": False,
+            "setup_packages": ["com.google.android.googlesdksetup", "com.google.android.partnersetup"]})
+        self.assertTrue(probe.setup_apps(self.PHONE)["google_setup_wizard"])
+        self.assertIsNone(probe.setup_apps("")["google_setup_wizard"])
+
+    def test_an_image_without_googles_wizard_has_no_qr_path(self):
+        reason = probe.no_qr_path(self.obs(self.SDK_IMAGE))
+        self.assertIn("no Google setup wizard", reason)
+        self.assertIn("com.google.android.googlesdksetup", reason)
+        self.assertIn("real phone", reason)
+        # Checked before the setting: without the wizard, resetting setup would not help.
+        self.assertIn("no Google setup wizard", probe.no_qr_path(self.obs(self.SDK_IMAGE, "1")))
+
+    def test_unknown_packages_are_not_read_as_missing(self):
+        self.assertIn("could not list", probe.no_qr_path(self.obs("")))
+
+    def test_a_wizard_image_can_try_only_before_setup_completes(self):
+        self.assertIsNone(probe.no_qr_path(self.obs(self.PHONE)))
+        self.assertIn("does not undo", probe.no_qr_path(self.obs(self.PHONE, "1")))
+        owner = "User  0: admin=org.plainphone.app/.PlainphoneAdminReceiver,DeviceOwner"
+        self.assertIn("before the scan", probe.no_qr_path(self.obs(self.PHONE, owners=owner)))
+
+    def test_no_qr_path_fails_the_job(self):
+        reason = probe.no_qr_path(self.obs(self.SDK_IMAGE))
+        self.assertEqual(probe.conclude({"inconclusive": reason})["conclusion"], "inconclusive")
+
+
 class ConclusionTest(unittest.TestCase):
     def test_only_a_real_answer_passes(self):
         cases = [
@@ -188,11 +227,18 @@ class WorkflowTest(unittest.TestCase):
         api = ci[True]["workflow_dispatch"]["inputs"]["dpc_probe_api"]
         own = probe_workflow[True]["workflow_dispatch"]["inputs"]["api"]
         self.assertEqual((api["type"], api["options"]), ("choice", own["options"]))
+        image_tag = ci[True]["workflow_dispatch"]["inputs"]["dpc_probe_image_tag"]
+        own_tag = probe_workflow[True]["workflow_dispatch"]["inputs"]["image_tag"]
+        self.assertEqual((image_tag["type"], image_tag["options"]), ("choice", own_tag["options"]))
+        self.assertTrue(all(t.startswith("google_apis_playstore") for t in own_tag["options"]))
+        self.assertEqual(caller["with"]["image_tag"], "${{ inputs.dpc_probe_image_tag }}")
 
     def test_probe_job_uses_a_play_image_and_always_uploads(self):
         job = yaml.safe_load((WORKFLOWS / "dpc-provisioning-probe.yml").read_text(encoding="utf-8"))["jobs"]["probe"]
         text = json.dumps(job)
-        self.assertIn("google_apis_playstore", text)
+        self.assertEqual(job["env"]["IMAGE"], "system-images;android-${{ inputs.api }};${{ inputs.image_tag }};x86_64")
+        check = next(s for s in job["steps"] if s.get("name") == "Check the image inputs")
+        self.assertIn("google_apis_playstore(_ps16k)?$", check["run"])
         self.assertIn("dpc-provisioning-probe.py fetch", text)
         self.assertIn("dpc-provisioning-probe.py run", text)
         upload = next(s for s in job["steps"] if s.get("uses", "").startswith("actions/upload-artifact@"))

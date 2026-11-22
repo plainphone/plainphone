@@ -7,6 +7,8 @@ Boots a Google Play emulator image straight into the setup wizard, opens the QR 
 six taps on the welcome screen, and lets the wizard scan the same QR code a parent would show.
 The back camera renders the QR image (`-camera-back imagefile:`), so the scan, the download of
 the release APK, Play Protect's check and Android's managed provisioning are the real ones.
+It first checks that the image has Google's setup wizard at all: the SDK's Google Play images
+checked so far (API 34 to 37) do not, and then the run stops without a conclusion.
 See docs/testing.md, "DPC provisioning probe", for what differs from a real phone.
 
   fetch --out DIR [--tag vX.Y.Z]   download the newest release APK and check it against .apk.json
@@ -34,6 +36,10 @@ from pathlib import Path
 
 PACKAGE = "org.plainphone.app"
 REPO = os.environ.get("GITHUB_REPOSITORY", "plainphone/plainphone")
+# The six-tap QR reader is part of Google's setup wizard. SDK emulator images ship the emulator's
+# own setup stub (com.google.android.googlesdksetup) instead, which marks the device provisioned at
+# first boot and has no QR reader (docs/testing.md, "Why the emulator has no QR path").
+GOOGLE_SETUP_WIZARD = "com.google.android.setupwizard"
 
 # Conclusions that answer the question. Anything else fails the job.
 CONCLUSIVE = {"provisioned", "provisioned_after_warning", "blocked_by_play_protect"}
@@ -226,6 +232,35 @@ def owners_include_plainphone(dpm_output: str) -> bool:
     return any(PACKAGE in line and "deviceowner" in line.replace(" ", "").lower() for line in dpm_output.splitlines())
 
 
+def setup_apps(packages: str) -> dict:
+    """Which setup app the image has, from `pm list packages -u`. None when nothing was listed."""
+    names = {line.removeprefix("package:").strip() for line in packages.splitlines() if line.startswith("package:")}
+    if not names:
+        return {"google_setup_wizard": None, "setup_packages": []}
+    return {"google_setup_wizard": GOOGLE_SETUP_WIZARD in names,
+            "setup_packages": sorted(n for n in names if "setup" in n.lower() or n.endswith(".provision"))}
+
+
+def no_qr_path(obs: dict) -> str | None:
+    """Why this boot cannot reach the wizard's QR reader, or None if it can try."""
+    wizard = obs["setup_wizard"]
+    if wizard["google_setup_wizard"] is None:
+        return "could not list the image's packages, so it is unknown whether it has a setup wizard"
+    if not wizard["google_setup_wizard"]:
+        return (f"the image has no Google setup wizard ({GOOGLE_SETUP_WIZARD} is not installed; setup apps: "
+                f"{', '.join(wizard['setup_packages']) or 'none'}). The six-tap QR reader is part of that wizard, "
+                "so this image has no QR path; SDK emulator images mark the device provisioned at first boot "
+                "instead. Test on a real phone (docs/testing.md)")
+    if obs["user_setup_complete"] == "1":
+        # DevicePolicyManagerService caches "setup complete" and only ever sets it, so putting the
+        # setting back to 0 would not make ManagedProvisioning accept a Device Owner again.
+        return ("the image skipped the setup wizard (user_setup_complete=1), so there is no QR path; Android's "
+                "device policy service has recorded setup as complete, which resetting the setting does not undo")
+    if owners_include_plainphone(obs["owners_before"]):
+        return "Plainphone was Device Owner before the scan"
+    return None
+
+
 def conclude(obs: dict) -> dict:
     """Turns what the run saw into the answer. Only CONCLUSIVE values pass the job."""
     pp = obs.get("play_protect")
@@ -372,12 +407,11 @@ def run(args: argparse.Namespace) -> int:
                          "play_services": "dumpsys package com.google.android.gms | grep -m1 versionName",
                          "screen": "wm size"}.items():
             obs[key] = (dev.shell(cmd) or "").strip()
-        log("device", **{k: obs[k] for k in ("fingerprint", "sdk", "user_setup_complete", "play_store")})
-        if obs["user_setup_complete"] == "1":
-            obs["inconclusive"] = "the image skipped the setup wizard (user_setup_complete=1), so there is no QR path"
-            return finish(out, obs, release, dev, args)
-        if owners_include_plainphone(obs["owners_before"]):
-            obs["inconclusive"] = "Plainphone was Device Owner before the scan"
+        obs["setup_wizard"] = setup_apps(dev.shell("pm list packages -u") or "")
+        log("device", setup_wizard=obs["setup_wizard"],
+            **{k: obs[k] for k in ("fingerprint", "sdk", "user_setup_complete", "play_store")})
+        if reason := no_qr_path(obs):
+            obs["inconclusive"] = reason
             return finish(out, obs, release, dev, args)
         m = re.search(r"(\d+)x(\d+)", obs["screen"])
         width, height = (int(m[1]), int(m[2])) if m else (1080, 2400)
@@ -535,6 +569,7 @@ def finish(out: Path, obs: dict, release: dict, dev: Device, args: argparse.Name
         "release": {k: release.get(k) for k in ("tag", "sha256", "apk_url", "versionCode")},
         "image": args.image,
         "device": {k: obs.get(k) for k in ("fingerprint", "sdk", "play_store", "play_services")},
+        "setup_wizard": obs.get("setup_wizard"),
         "play_protect": {"shown": obs["play_protect"] is not None, "kind": obs["play_protect"],
                          "bypassed_warning": obs["bypassed_warning"], "texts": obs["play_protect_texts"]},
         "provisioning_finished": finished,
@@ -550,6 +585,7 @@ def finish(out: Path, obs: dict, release: dict, dev: Device, args: argparse.Name
     (out / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     summary = (f"## DPC provisioning probe: {verdict['conclusion']}\n\n{verdict['reason']}\n\n"
                f"- Release: {release.get('tag')} (sha256 `{release.get('sha256')}`)\n- Image: {args.image}\n"
+               f"- Google setup wizard: {(obs.get('setup_wizard') or {}).get('google_setup_wizard')}\n"
                f"- Play Protect: {result['play_protect']['kind'] or 'no screen'}"
                f"{' (passed with Install anyway)' if obs['bypassed_warning'] else ''}\n"
                f"- Device Owner: {obs['device_owner']}\n- Screens: {len(result['screens'])}\n")

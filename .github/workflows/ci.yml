@@ -17,8 +17,13 @@ on:
       dpc_probe_api:
         description: Google Play image API level for the probe
         type: choice
-        options: ["36", "35", "37.0"]
+        options: ["36", "35", "34", "36.1", "37.0"]
         default: "36"
+      dpc_probe_image_tag:
+        description: System image tag for the probe
+        type: choice
+        options: ["google_apis_playstore", "google_apis_playstore_ps16k"]
+        default: google_apis_playstore
 
 permissions:
   contents: read
@@ -558,6 +563,7 @@ jobs:
     uses: ./.github/workflows/dpc-provisioning-probe.yml
     with:
       api: ${{ inputs.dpc_probe_api }}
+      image_tag: ${{ inputs.dpc_probe_image_tag }}
 
   offsite-backup:
     needs: changes
