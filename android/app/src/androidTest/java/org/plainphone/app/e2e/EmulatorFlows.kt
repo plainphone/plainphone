@@ -653,8 +653,9 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * controlled here; for 114 neither may open the window. A stranger's call is then still rejected.
      *
      * Hung up while Telecom was still connecting, Android 10 crashed its phone process and left 114
-     * live on the modem with nothing in Telecom; the stranger's call was then dropped by Android before
-     * any app saw it (run 45060357626). So the modem itself must be idle before the stranger calls.
+     * live on the modem with nothing in Telecom. When the phone process came back, Telecom handed the
+     * stranger's ringing call over as a call of unknown direction, and Plainphone ended it but logged it
+     * as outgoing (run 45060357626). So the modem itself must be idle before the stranger calls.
      */
     private fun assertNonUrgentCallOpensNoCallBackWindow() {
         step("114 and a stranger's call")

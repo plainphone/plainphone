@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
+import android.app.NotificationManager
 import android.app.admin.DevicePolicyManager
 import android.net.Uri
 import android.os.Looper
@@ -45,7 +46,7 @@ class OutgoingCallEndTest {
     }
 
     /** A real framework Call whose Telecom side records each hang-up. */
-    private fun outgoingCall(number: String, state: Int): Call {
+    private fun outgoingCall(number: String, state: Int, direction: Int = Call.Details.DIRECTION_OUTGOING): Call {
         val adapterType = Class.forName("com.android.internal.telecom.IInCallAdapter")
         val telecom = Proxy.newProxyInstance(adapterType.classLoader, arrayOf(adapterType)) { _, method, args ->
             if (method.name == "disconnectCall") ended += args[0] as String
@@ -65,7 +66,7 @@ class OutgoingCallEndTest {
         ReflectionHelpers.setField(details, "mTelecomCallId", "TC@1")
         ReflectionHelpers.setField(details, "mHandle", Uri.fromParts("tel", number, null))
         ReflectionHelpers.setField(details, "mHandlePresentation", TelecomManager.PRESENTATION_ALLOWED)
-        ReflectionHelpers.setField(details, "mCallDirection", Call.Details.DIRECTION_OUTGOING)
+        ReflectionHelpers.setField(details, "mCallDirection", direction)
         ReflectionHelpers.setField(call, "mDetails", details)
         setState(call, state)
         return call
@@ -169,6 +170,32 @@ class OutgoingCallEndTest {
         } finally {
             service.onCallRemoved(call)
         }
+    }
+
+    /**
+     * Run 45060357626, API 29: the phone process restarted with a stranger ringing, and Telecom handed
+     * the call over with an unknown direction. It was logged as an outgoing call the child never made.
+     */
+    @Config(sdk = [29, 34])
+    @Test fun `a stranger's call of unknown direction is ended and logged as incoming, with no message to the child`() {
+        strongPhone()
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_NEW, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.channel to it.direction })
+            .containsExactly(Channel.CALL to Direction.INCOMING)
+        assertThat(shadowOf(service.getSystemService(NotificationManager::class.java)).allNotifications).isEmpty()
+    }
+
+    @Config(sdk = [29])
+    @Test fun `an emergency or approved call of unknown direction is kept`() {
+        strongPhone()
+        for (number in listOf("112", approved)) {
+            val call = outgoingCall(number, Call.STATE_NEW, Call.Details.DIRECTION_UNKNOWN)
+            service.onCallAdded(call)
+            service.onCallRemoved(call)
+        }
+        assertThat(ended).isEmpty()
+        assertThat(TelephonyLog(service).blocked()).isEmpty()
     }
 
     @Config(sdk = [34])

@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
+import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Decision
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.EmergencyNumbers
@@ -42,10 +43,13 @@ class PlainphoneInCallService : InCallService() {
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
         val details = call.details
-        val outgoing = details.callDirection != Call.Details.DIRECTION_INCOMING
+        // Telecom does not know the direction of a call it finds already on the modem, for example after
+        // the phone process restarted with a call ringing (run 45060357626, API 29).
+        val unknown = details.callDirection == Call.Details.DIRECTION_UNKNOWN
+        val outgoing = details.callDirection == Call.Details.DIRECTION_OUTGOING
         val number = PlainphoneCallScreeningService.callerNumber(details)
             // Outgoing calls always have a number; take it even if presentation says otherwise.
-            ?: if (outgoing) details.handle?.schemeSpecificPart else null
+            ?: if (outgoing || unknown) details.handle?.schemeSpecificPart else null
 
         // Calls Android itself flags as emergency (network-identified emergency, callback mode) are never touched.
         val flaggedEmergency = details.hasProperty(Call.Details.PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL) ||
@@ -53,12 +57,19 @@ class PlainphoneInCallService : InCallService() {
         val rules = runCatching { ContactPolicySources.strictRules(this) }.getOrNull()
         // Rules that cannot be read: outgoing calls go only to the parents and emergency numbers (UnreadableRules).
         val decision = rules?.let {
-            contactPolicy().decide(it, Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
+            if (unknown) decideUnknownDirection(it, number)
+            else contactPolicy().decide(it, Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
         } ?: if (outgoing) runCatching { UnreadableRules.outgoingCall(this, number) }.getOrDefault(Decision.Allow("rules unreadable")) else null
         if (decision != null && !decision.allowed && !flaggedEmergency) {
             Log.i(TAG, "ending call: $decision")
+            // A call of unknown direction is logged as incoming and the child gets no "Call not allowed"
+            // message: they did not dial it.
             TelephonyLog(this).recordBlocked(Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
-            if (outgoing) endCall(call) else call.reject(false, null)
+            when {
+                outgoing -> endCall(call)
+                unknown -> call.disconnect() // Not offered as ringing, so there is nothing to reject.
+                else -> call.reject(false, null)
+            }
             if (outgoing) CallNotifications.showBlockedCall(this, number, rulesUnreadable = rules == null)
             return
         }
@@ -88,6 +99,15 @@ class PlainphoneInCallService : InCallService() {
                 startActivity(Intent(this, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
+    }
+
+    /**
+     * A call of unknown direction may be the child's own (also to an emergency number) or one ringing
+     * in. It is kept if either would be allowed, so an emergency or a parent's call is never cut off.
+     */
+    private fun decideUnknownDirection(rules: ContactRules, number: String?): Decision {
+        val asOutgoing = contactPolicy().decide(rules, Channel.CALL, Direction.OUTGOING, number)
+        return if (asOutgoing.allowed) asOutgoing else contactPolicy().decide(rules, Channel.CALL, Direction.INCOMING, number)
     }
 
     override fun onCallRemoved(call: Call) {
