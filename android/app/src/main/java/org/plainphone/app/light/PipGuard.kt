@@ -60,8 +60,8 @@ object PipGuard {
      * where System UI answers for a pinned window and lays its menu over it, so the window reads as
      * System UI, and where a window can have no root while it enters picture-in-picture. The app is
      * then the one [known] for that window id from before it floated; for System UI's own menu
-     * window, the app last seen floating ([lastPinned]); and failing both, the app that was
-     * [inFront], as only the app in front can enter picture-in-picture. Emulator runs 45042386185
+     * window, the app last seen floating ([lastPinned]); and failing both, the last app [inFront]
+     * that was not Home, as only the app in front can enter picture-in-picture. Emulator runs 45042386185
      * ("pip: windows com.android.systemui#10@1") and 45047940235 ("null#10@1", then
      * "com.android.systemui#14@1") showed these.
      */

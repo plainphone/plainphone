@@ -33,6 +33,15 @@ class GuardService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var foreground: String? = null
+        set(value) {
+            field = value
+            if (value != null && value != packageName && !isOverlay(value) && value !in homePackages()) lastApp = value
+        }
+    /**
+     * The last app in front that was not Home, an overlay or Plainphone: the only app that can have
+     * entered picture-in-picture, even when Home's window event came before the pinned window.
+     */
+    private var lastApp: String? = null
     private var watchingContent = false
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
@@ -45,7 +54,7 @@ class GuardService : AccessibilityService() {
     private val pipExpandedAt = mutableMapOf<String, Long>()
     private var lastPipSeen = ""
     /** Window id to the app it showed, recent windows only: Android 10 pins a window before its root is readable. */
-    private val windowOwners = object : LinkedHashMap<Int, String>() {
+    private val windowOwners = object : LinkedHashMap<Int, String>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>?) = size > WINDOW_OWNERS_KEPT
     }
     /** The app last seen in picture-in-picture, while a pinned window is listed (see [PipGuard.owner]). */
@@ -80,7 +89,8 @@ class GuardService : AccessibilityService() {
     /** A block dropped by the rate limit: look at the app in front again once the gap is over. */
     private val reguard = Runnable {
         if (!canGuardApps()) return@Runnable
-        foreground?.let { guard(it, force = true) }
+        // The live window first: a stop screen's late event can name Plainphone while the app is back.
+        appInFront()?.let { guard(it, force = true) }
         guardPip()
     }
 
@@ -90,7 +100,7 @@ class GuardService : AccessibilityService() {
      * with Plainphone in front while the app is (emulator run 45047940235, API 34: 40 s unchecked).
      */
     private val settle = Runnable {
-        if (!canGuardApps() || inCall()) return@Runnable
+        if (!canGuardApps()) return@Runnable
         appInFront(live = true)?.let { guard(it) }
     }
 
@@ -346,7 +356,8 @@ class GuardService : AccessibilityService() {
         val pinnedAppNow = raw.filter { it.inPip && it.rootPkg != PipGuard.SYSTEM_UI }
             .firstNotNullOfOrNull { PipGuard.owner(it.rootPkg, it.id, windowOwners, null, null) }
         pinnedApp = pinnedAppNow ?: pinnedApp.takeIf { raw.any { it.inPip } }
-        val inFront = foreground?.takeIf { it != packageName }
+        // Not the app in front by the events: Home's event can come before the pinned window does.
+        val inFront = lastApp
         for (r in raw) {
             val pkg = if (r.inPip) PipGuard.owner(r.rootPkg, r.id, windowOwners, pinnedApp, inFront) else null
             if (r.inPip && pinnedApp == null && pkg != null) pinnedApp = pkg
@@ -521,8 +532,10 @@ class GuardService : AccessibilityService() {
             // Dropped for now, not forgotten: a quick switch back to the app would otherwise keep it open.
             // The retry repeats the app check only. A dropped Settings or VPN-dialog block is left to the
             // Settings watch: its next content event, scheduled re-check or VPN retry runs it again.
-            main.removeCallbacks(reguard)
-            main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))
+            if (reason != BlockedActivity.Reason.PROTECTION) {
+                main.removeCallbacks(reguard)
+                main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))
+            }
             return false
         }
         lastBlockAt = now
@@ -562,6 +575,21 @@ class GuardService : AccessibilityService() {
 
     /** The shade, the keyboard and the launcher are not "an app in front". */
     private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg in keyboardPackages()
+
+    private var homes: Set<String> = emptySet()
+    private var homesAt = 0L
+
+    /** Packages of the Home apps (launchers). Cached: it is a binder call. */
+    private fun homePackages(): Set<String> {
+        val now = SystemClock.elapsedRealtime()
+        if (homesAt == 0L || now - homesAt > KEYBOARD_CACHE_MS) {
+            val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            homes = runCatching { packageManager.queryIntentActivities(home, 0).mapNotNull { it.activityInfo?.packageName }.toSet() }
+                .getOrNull().orEmpty()
+            homesAt = now
+        }
+        return homes
+    }
 
     private var keyboards: Set<String> = emptySet()
     private var keyboardsAt = 0L

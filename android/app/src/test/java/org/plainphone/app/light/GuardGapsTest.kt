@@ -90,7 +90,9 @@ class GuardGapsTest {
             ReflectionHelpers.setField(this, "mWindowChangeTypes", AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
         })
         front(service.packageName) // the stop screen's event, late
-        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        // Within a second: the focus event's rate-limited block is retried on the live window, before
+        // the stop screen's own settle check (1.5 s) would look.
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         assertEquals("the game is stopped again", 2, homeActions())
     }
 
@@ -118,6 +120,48 @@ class GuardGapsTest {
         ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")
         shadowOf(android.os.Looper.getMainLooper()).idle()
         assertEquals(0, homeActions())
+    }
+
+    @Test fun `a floating window seen only as System UI after Home came first is not taken for the launcher`() {
+        // Android 10: the video app enters picture-in-picture from Home, the launcher's window event comes
+        // before the window list changes, and the pinned window reads as System UI under an id never seen
+        // in full screen. The window is the video app's, not the launcher's, so new rules stop it.
+        val video = "com.example.video"
+        val launcher = "com.example.launcher"
+        shadowOf(service.packageManager).addResolveInfoForIntent(
+            android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME),
+            android.content.pm.ResolveInfo().apply {
+                activityInfo = android.content.pm.ActivityInfo().apply { packageName = launcher; name = "Home" }
+            },
+        )
+        front(video)
+        front(launcher)
+        shadow.windowList = listOf(AccessibilityWindowInfo().also {
+            Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+                rootNode = AccessibilityNodeInfo().apply { packageName = "com.android.systemui" }
+                windowId = 14
+                pip = true
+            }
+        })
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED).apply {
+            ReflectionHelpers.setField(this, "mWindowChangeTypes", AccessibilityEvent.WINDOWS_CHANGE_PIP)
+        })
+        assertEquals("the floating app is the video app", video, ReflectionHelpers.getField<String?>(service, "pinnedApp"))
+        assertEquals(0, homeActions())
+
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit()
+            .putStringSet("blocked", setOf(game, video)).apply()
+        // The next window-list change, after Home's own windows settled (the guard's plan watch is not connected here).
+        front(launcher)
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED).apply {
+            ReflectionHelpers.setField(this, "mWindowChangeTypes", AccessibilityEvent.WINDOWS_CHANGE_PIP)
+        })
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        // Its System UI root takes no dismiss, so the app is expanded and covered by the stop screen
+        // without a Home press (see guardPip).
+        val stop = shadowOf(service.application).nextStartedActivity
+        assertTrue("stop screen for $video: $stop", stop?.component?.className == BlockedActivity::class.java.name)
+        assertEquals(video, stop?.getStringExtra("package"))
     }
 
     @Test fun `an app the new rules block is stopped at once, also while it floats in picture-in-picture`() {
