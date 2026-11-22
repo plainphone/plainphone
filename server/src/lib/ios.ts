@@ -60,7 +60,9 @@ export type IosStatus = z.infer<typeof iosStatusInput>;
 /**
  * Whether an iPhone's lock is intact. It has no Device Owner or light-mode protections: the lock
  * holds while Family Controls is approved, nothing failed and no maintenance runs. The server only
- * ever makes the phone's own answer stricter.
+ * ever makes the phone's own answer stricter. It never expects the school, bedtime or limits
+ * stores: phase 1 iPhones do not enforce those rules and do not report them
+ * (`IosEnforcement.enforcesSchedules` in the Swift core, docs/ios/architecture.md).
  */
 export function iosLockIntact(input: {
   lockIntact: boolean;

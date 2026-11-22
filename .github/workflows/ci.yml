@@ -23,6 +23,7 @@ jobs:
       parent: ${{ steps.filter.outputs.parent }}
       dns: ${{ steps.filter.outputs.dns }}
       site: ${{ steps.filter.outputs.site }}
+      ios: ${{ steps.filter.outputs.ios }}
       backup: ${{ steps.filter.outputs.backup }}
     steps:
       - uses: actions/checkout@v7
@@ -54,13 +55,13 @@ jobs:
           import os
           from pathlib import Path
 
-          keys = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
+          keys = {"android", "e2e", "server", "parent", "dns", "site", "backup", "ios"}
           lines = Path(os.environ["GITHUB_OUTPUT"]).read_text(encoding="utf-8").splitlines()
           outputs = dict(line.split("=", 1) for line in lines)
           if len(lines) != len(keys) or outputs.keys() != keys or any(
               value not in {"true", "false"} for value in outputs.values()
           ):
-              raise SystemExit("::error::Expected one boolean output for each of the seven CI checks.")
+              raise SystemExit("::error::Expected one boolean output for each of the eight CI checks.")
           PYTHON
 
   android:
@@ -415,6 +416,59 @@ jobs:
       - name: Export the JS bundles (iOS, Android, web)
         if: needs.changes.outputs.parent == 'true'
         run: pnpm exec expo export --platform all --output-dir dist
+
+  # The iPhone's Swift code (docs/ios/architecture.md): generate the Xcode project with xcodegen,
+  # build the dev host and its extensions for the simulator, and run the unit tests. Unsigned.
+  # Only takes a macOS runner when ios/ or the Swift module changed.
+  ios:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.changes.outputs.ios == 'true' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    env:
+      XCODEGEN_VERSION: "2.46.0"
+      XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.ios == 'false'
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.ios == 'true'
+        with:
+          persist-credentials: false
+      - name: Use the newest Xcode 26
+        if: needs.changes.outputs.ios == 'true'
+        run: |
+          # Highest released Xcode 26 by version number; betas are skipped.
+          xcode=$(python3 -c 'import glob, re; c = [p for p in glob.glob("/Applications/Xcode_26*.app") if "beta" not in p.lower()]; print(max(c, key=lambda p: [int(n) for n in re.findall(r"\d+", p)]) if c else "")')
+          if [[ -z "$xcode" ]]; then echo "::error::No Xcode 26 on this runner."; exit 1; fi
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - name: Install xcodegen (pinned release, checked)
+        if: needs.changes.outputs.ios == 'true'
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Simulator picker tests
+        if: needs.changes.outputs.ios == 'true'
+        run: python3 -m unittest discover -s ios/scripts -p 'test_*.py'
+      - name: Build for the simulator and run the unit tests
+        if: needs.changes.outputs.ios == 'true'
+        run: ios/scripts/ci.sh
+      - uses: actions/upload-artifact@v7
+        if: failure() && needs.changes.outputs.ios == 'true'
+        with:
+          name: ios-test-results
+          path: ios/build/PlainphoneDev.xcresult
+          retention-days: 7
 
   dns:
     needs: changes

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { availableRoles, loadRole, needsRoleChoice, resolveRole, ROLE_FLAGS, saveRole } from "../src/lib/roles";
+import { availableRoles, CHILD_MIN_IOS_MAJOR, childRoleOffered, loadRole, needsRoleChoice, resolveRole, ROLE_FLAGS, saveRole } from "../src/lib/roles";
 
 const ios = { child: true, myself: true };
 
@@ -9,6 +9,23 @@ it("offers only Parent while the iOS roles are switched off", () => {
   expect(resolveRole("child")).toBe("parent");
   expect(resolveRole("myself")).toBe("parent");
   expect(needsRoleChoice(null)).toBe(false);
+});
+
+it("offers the Child role only on iOS 26 or later, in a build that has it", () => {
+  expect(CHILD_MIN_IOS_MAJOR).toBe(26);
+  expect(childRoleOffered("ios", "26.0", true)).toBe(true);
+  expect(childRoleOffered("ios", "26.2 beta 3", true)).toBe(true);
+  expect(childRoleOffered("ios", "27.1", true)).toBe(true);
+  // A parent's older iPhone keeps the app, without "Whose phone is this?".
+  expect(childRoleOffered("ios", "18.6.2", true)).toBe(false);
+  expect(childRoleOffered("ios", "16.4", true)).toBe(false);
+  expect(childRoleOffered("ios", "", true)).toBe(false);
+  expect(childRoleOffered("ios", "26.1", false)).toBe(false);
+  expect(childRoleOffered("android", 35, true)).toBe(false);
+  const older = { child: childRoleOffered("ios", "18.6", true), myself: false };
+  expect(availableRoles(older)).toEqual(["parent"]);
+  expect(needsRoleChoice(null, older)).toBe(false);
+  expect(resolveRole("child", older)).toBe("parent");
 });
 
 it("keeps Parent reachable whatever the flags say", () => {

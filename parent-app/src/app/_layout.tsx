@@ -7,6 +7,7 @@ import { I18nProvider, useI18n } from "../i18n/I18n";
 import { SosAlert } from "../components/SosAlert";
 import { LiveProvider } from "../lib/live";
 import { useNotificationRouting } from "../lib/notifications";
+import { RoleProvider, useRoleRouting } from "../lib/role-context";
 import { SessionProvider, useSession } from "../lib/session";
 import { useStackOptions } from "../lib/stackOptions";
 
@@ -16,6 +17,7 @@ function AppStack() {
   const scheme = useColorScheme();
   const { state } = useSession();
   useNotificationRouting(state.status, t);
+  useRoleRouting();
   return (
     <>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
@@ -32,6 +34,9 @@ function AppStack() {
         <Stack.Screen name="summary" options={{ title: t("summary.title") }} />
         <Stack.Screen name="settings" options={{ title: t("native.settings") }} />
         <Stack.Screen name="phones/[pid]" options={{ headerShown: false }} />
+        <Stack.Screen name="role" options={{ title: t("iphone.role.title"), headerShown: false }} />
+        <Stack.Screen name="child/index" options={{ title: t("iphone.child.title"), headerShown: false }} />
+        <Stack.Screen name="child/setup" options={{ title: t("iphone.setup.title"), headerShown: false }} />
       </Stack>
       <SosAlert />
     </>
@@ -43,9 +48,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <I18nProvider>
         <SessionProvider>
-          <LiveProvider>
-            <AppStack />
-          </LiveProvider>
+          <RoleProvider>
+            <LiveProvider>
+              <AppStack />
+            </LiveProvider>
+          </RoleProvider>
         </SessionProvider>
       </I18nProvider>
     </SafeAreaProvider>
