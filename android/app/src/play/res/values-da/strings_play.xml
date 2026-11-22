@@ -9,7 +9,7 @@
     <string name="disclosure_guard_declined">Uden vagten kan Plainphone ikke lukke apps, din forælder ikke har tilladt. Opsætningen venter her, til du er klar.</string>
 
     <string name="disclosure_location_title">Placering til Find</string>
-    <string name="disclosure_location_body">Plainphone indsamler placeringsdata, så Find, “Er du okay?” og SOS-knappen virker, også når appen er lukket eller ikke er i brug.\n\nHver gang din forælder spørger, hvor telefonen er, får du besked. Kun den seneste position gemmes.</string>
+    <string name="disclosure_location_body">Plainphone indsamler placeringsdata, så Find, “Er du okay?” og SOS-knappen virker, også når appen er lukket eller ikke er i brug.\n\nHver gang din forælder spørger, hvor telefonen er, får du besked. Din forælder kan også dele den hvert 5. minut i en valgt periode, højst en uge; så står en besked fremme hele tiden. Kun den seneste position gemmes.</string>
     <string name="disclosure_location_agree">Tillad placering</string>
 
     <string name="monitoring_channel">Plainphone er slået til</string>

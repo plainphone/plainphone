@@ -9,7 +9,7 @@
     <string name="disclosure_guard_declined">Ohne den Schutz kann Plainphone keine Apps schließen, die dein Elternteil nicht erlaubt hat. Die Einrichtung wartet hier, bis du bereit bist.</string>
 
     <string name="disclosure_location_title">Standort für die Suche</string>
-    <string name="disclosure_location_body">Plainphone erfasst Standortdaten, damit die Suche, „Geht es dir gut?“ und die SOS-Taste funktionieren, auch wenn die App geschlossen ist oder nicht verwendet wird.\n\nJedes Mal, wenn dein Elternteil fragt, wo das Handy ist, siehst du einen Hinweis. Nur die letzte Position wird gespeichert.</string>
+    <string name="disclosure_location_body">Plainphone erfasst Standortdaten, damit die Suche, „Geht es dir gut?“ und die SOS-Taste funktionieren, auch wenn die App geschlossen ist oder nicht verwendet wird.\n\nJedes Mal, wenn dein Elternteil fragt, wo das Handy ist, siehst du einen Hinweis. Dein Elternteil kann den Standort auch für eine gewählte Zeit alle 5 Minuten teilen, höchstens eine Woche; dann bleibt die ganze Zeit ein Hinweis sichtbar. Nur die letzte Position wird gespeichert.</string>
     <string name="disclosure_location_agree">Standort erlauben</string>
 
     <string name="monitoring_channel">Plainphone ist an</string>

@@ -272,7 +272,7 @@ For self-hosting, tests and phones without an account there is a script with the
 
 ```sh
 scripts/provisioning-qr.py \
-  --apk android/app/build/outputs/apk/release/app-release.apk \
+  --apk android/app/build/outputs/apk/github/release/app-github-release.apk \
   --apk-url https://example.org/plainphone.apk \
   --ask-pin --out dist/provisioning-qr
 ```

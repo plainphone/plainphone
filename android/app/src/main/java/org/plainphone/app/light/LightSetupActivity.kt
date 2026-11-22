@@ -682,6 +682,7 @@ class LightSetupActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         SyncScheduler.ensurePeriodic(app)
                         Sync.runner(app).run("initial light setup")
+                        org.plainphone.app.distribution.Distribution.onStateChanged(app)
                     }
                 }
                 failed = store.isPaired && !LightSetup.hasDashboardRules(store)

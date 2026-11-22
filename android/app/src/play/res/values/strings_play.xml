@@ -10,7 +10,7 @@
     <string name="disclosure_guard_declined">Without the guard, Plainphone cannot close apps your parent has not allowed. Setup waits here until you are ready.</string>
 
     <string name="disclosure_location_title">Location for Find</string>
-    <string name="disclosure_location_body">Plainphone collects location data to enable Find, “Are you okay?” and the SOS button even when the app is closed or not in use.\n\nEach time your parent asks where the phone is, you see a notice. Only the latest position is kept.</string>
+    <string name="disclosure_location_body">Plainphone collects location data to enable Find, “Are you okay?” and the SOS button even when the app is closed or not in use.\n\nEach time your parent asks where the phone is, you see a notice. Your parent can also share it every 5 minutes for a set time, at most a week; then a notice stays on the whole time. Only the latest position is kept.</string>
     <string name="disclosure_location_agree">Allow location</string>
 
     <string name="monitoring_channel">Plainphone is on</string>

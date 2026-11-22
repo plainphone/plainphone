@@ -9,7 +9,7 @@
     <string name="disclosure_guard_declined">Uten vakten kan ikke Plainphone lukke apper forelderen din ikke har tillatt. Oppsettet venter her til du er klar.</string>
 
     <string name="disclosure_location_title">Plassering for Finn</string>
-    <string name="disclosure_location_body">Plainphone samler inn posisjonsdata slik at Finn, «Har du det bra?» og SOS-knappen virker, også når appen er lukket eller ikke er i bruk.\n\nHver gang forelderen din spør hvor telefonen er, får du beskjed. Bare den siste posisjonen lagres.</string>
+    <string name="disclosure_location_body">Plainphone samler inn posisjonsdata slik at Finn, «Har du det bra?» og SOS-knappen virker, også når appen er lukket eller ikke er i bruk.\n\nHver gang forelderen din spør hvor telefonen er, får du beskjed. Forelderen din kan også dele den hvert 5. minutt i en valgt periode, høyst en uke; da vises en beskjed hele tiden. Bare den siste posisjonen lagres.</string>
     <string name="disclosure_location_agree">Tillat plassering</string>
 
     <string name="monitoring_channel">Plainphone er på</string>

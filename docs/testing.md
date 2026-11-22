@@ -41,7 +41,7 @@ prompts without adding an account. In a separate terminal, from the repo root:
 ```sh
 export ANDROID_SERIAL=emulator-5554
 (cd android && ./gradlew --no-daemon --max-workers=2 \
-  :app:assembleDebug :app:assembleDebugAndroidTest :e2e-fixture:assembleDebug)
+  :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest :e2e-fixture:assembleDebug)
 python3 scripts/e2e-android-emulator.py
 ```
 
