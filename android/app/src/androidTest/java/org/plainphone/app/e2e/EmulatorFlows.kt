@@ -14,6 +14,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
 import java.io.IOException
@@ -45,6 +46,7 @@ import org.plainphone.app.light.Mode
 import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncRunner
+import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.SyncWorker
 import org.plainphone.app.time.TrustedClock
@@ -56,6 +58,15 @@ private const val PLAYER = "org.plainphone.fixture"
 private const val PLAYER_ACTIVITY = "$PLAYER/.PlayerActivity"
 private const val MESSAGE = "I am at the test stop"
 private const val REPLY = "Emulator parent reply"
+
+private const val NOW_SLOT = SyncScheduler.NOW
+
+/** SyncScheduler's unique slots for SyncWorker, in the order a timeout message lists them. */
+private val SYNC_SLOTS = listOf(
+    NOW_SLOT, "plainphone-sync-soon", "plainphone-sync-periodic", "plainphone-sync-vpn-ready",
+    "plainphone-push-wake", "plainphone-sync-app-updates", "plainphone-sync-lock-state",
+    "plainphone-push-registration", "plainphone-sync-finish-undo",
+)
 
 /** One sync run seen during setup, with the phone id of the rules saved when it finished. */
 private data class SetupRun(val reason: String, val outcome: SyncRunner.Outcome, val rulesPhoneId: String?)
@@ -86,11 +97,9 @@ abstract class EmulatorFlow {
         // Begin at the setup screen's existing pending-QR entry point. The fixture uses HTTP
         // on the emulator loopback, whereas the public setup link parser requires HTTPS.
         store.saveEnrollToken(response.getJSONObject("enrollment").getString("token"))
-        // Wait for the real condition: a finished sync that left this phone's rules saved. Not
-        // for a reason label. Device Owner setup may apply the rules in the pairing screen's own
-        // "setup finished" sync, and the queued "paired" sync shares one KEEP slot with every
-        // other immediate sync, so it can run under another reason or after the rules are in
-        // (#236). Each run is recorded with the rules' phone id as that run left them.
+        // Wait for the rules from this pairing, whichever run saved them: Device Owner setup
+        // saves them in the pairing screen's direct "setup finished" sync, before the queued
+        // "paired" sync starts. Each run is recorded with the rules' phone id as it left them.
         val runs = CopyOnWriteArrayList<SetupRun>()
         SyncRunner.runObserverForTest = { reason, outcome -> runs.add(SetupRun(reason, outcome, store.rules()?.phoneId)) }
         try {
@@ -108,6 +117,12 @@ abstract class EmulatorFlow {
             // Built at the timeout: the runs and the work as they are then, not when the wait began.
             await({ "a setup sync that saved this phone's rules ($id), runs seen: $runs, sync work: ${syncWork()}" }) {
                 runs.any { it.outcome is SyncRunner.Outcome.Synced && it.rulesPhoneId == id }
+            }
+            // The immediate sync slot must also drain. Pairing queues "paired" there, and the slot
+            // keeps its first job, so a job stuck in it (#236: one stayed ENQUEUED with 0 attempts)
+            // would swallow every later immediate sync: screen on, ring answered, network change.
+            await({ "the immediate sync slot ($NOW_SLOT) to finish, runs seen: $runs, sync work: ${syncWork()}" }) {
+                nowSlotDrained(requireRun = mode == Mode.STRONG)
             }
         } finally {
             SyncRunner.runObserverForTest = null
@@ -204,16 +219,36 @@ abstract class EmulatorFlow {
         throw AssertionError("Timed out waiting for ${description()}")
     }
 
-    /** Every SyncWorker request: state, attempts and WorkManager's stop reason (7: connectivity lost). */
+    /**
+     * True once no job waits or runs in the immediate sync slot. With [requireRun], one must also
+     * have succeeded: Device Owner pairing always queues "paired" there.
+     */
+    private fun nowSlotDrained(requireRun: Boolean): Boolean {
+        val jobs = WorkManager.getInstance(context).getWorkInfosForUniqueWork(NOW_SLOT).get(5, TimeUnit.SECONDS)
+        return jobs.all { it.state.isFinished } && (!requireRun || jobs.any { it.state == WorkInfo.State.SUCCEEDED })
+    }
+
+    /**
+     * Every SyncWorker request by its unique slot, then any left: state, attempts, WorkManager's stop
+     * reason (7: connectivity lost) and initial delay. The slot tells "paired" (now) from the
+     * follow-up a finished sync schedules while the screen is on (soon, 60 s delay).
+     */
     private fun syncWork(): String = runCatching {
-        WorkManager.getInstance(context)
-            .getWorkInfos(WorkQuery.fromTags(listOf(SyncWorker::class.java.name)))
-            .get(5, TimeUnit.SECONDS)
-            .map { work ->
-                val kind = if (work.periodicityInfo != null) "periodic" else "once"
-                "$kind ${work.state} attempts=${work.runAttemptCount} stopReason=${work.stopReason} " +
-                    "delayMs=${work.initialDelayMillis}"
-            }.toString()
+        val work = WorkManager.getInstance(context)
+        fun describe(info: WorkInfo): String {
+            val kind = if (info.periodicityInfo != null) "periodic" else "once"
+            return "$kind ${info.state} attempts=${info.runAttemptCount} stopReason=${info.stopReason} " +
+                "delayMs=${info.initialDelayMillis}"
+        }
+        val seen = mutableSetOf<java.util.UUID>()
+        val slots = SYNC_SLOTS.mapNotNull { slot ->
+            val jobs = work.getWorkInfosForUniqueWork(slot).get(5, TimeUnit.SECONDS)
+            seen += jobs.map { it.id }
+            jobs.takeIf { it.isNotEmpty() }?.let { "${slot.removePrefix("plainphone-")}: ${it.map(::describe)}" }
+        }
+        val other = work.getWorkInfos(WorkQuery.fromTags(listOf(SyncWorker::class.java.name)))
+            .get(5, TimeUnit.SECONDS).filter { it.id !in seen }.map(::describe)
+        (slots + listOfNotNull(other.takeIf { it.isNotEmpty() }?.let { "other: $it" })).toString()
     }.getOrElse { "unavailable (${it.javaClass.simpleName})" }
 
     protected fun text(label: String) = checkNotNull(device.wait(Until.findObject(By.text(label)), 15_000)) {
