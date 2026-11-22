@@ -200,7 +200,7 @@ export default {
     description:
       "Vad Plainphone lagrar om dig och de telefoner du hanterar, hur länge, vilka mer som är inblandade och hur man ber oss korrigera eller radera det.",
     h1: "Integritetspolicy",
-    updated: "Senast uppdaterad 20 november 2026",
+    updated: "Senast uppdaterad 22 november 2026",
     lead:
       "Plainphone håller så lite den kan, under så kort tid som den kan. Den här sidan säger vad det betyder i praktiken. Den är skriven för att läsas, inte för att dölja saker.",
     status:
@@ -287,7 +287,7 @@ export default {
           "Telefonen är öppen med det. Varje gång den skickar en enstaka position (Hitta eller ett obesvarat \"Är du okej?\"), visar den ett kort meddelande som säger det. När platsen alltid är på visar telefonen det hela tiden, i ett meddelande och på Plainphones egen skärm. Barnet kan öppna \"Vad kan mina föräldrar se?\" på telefonen: den förklarar den aktuella inställningen och listar varje gång positionen skickades under de senaste 30 dagarna. Den listan ligger kvar på telefonen.",
           "\"Är du okej?\" ber barnet att svara inom en tid som föräldern väljer. Om barnet svarar skickas ingen position. Om ingen svarar i tid skickar telefonen en position. \"Ring the phone\" spelar ett alarmljud och vibrerar i högst fem minuter; den skickar ingen position. Servern behåller en ringsignal eller en fråga (tider och svaret och det godkända numret för \"Ring mig\") i en dag efter det att den slutar och raderar den sedan.",
           "Servern behåller endast den senaste positionen: koordinater, noggrannhet och tid. Varje ny position ersätter den gamla och ingen historik sparas. Om du stänger av plats eller tar bort telefonen raderas den lagrade positionen.",
-          "Instrumentpanelen visar positionen på en karta. Kartbrickorna kommer från OpenFreeMap (tiles.openfreemap.org, OpenStreetMap-data), så att ladda dem berättar för OpenFreeMap ungefär vilket område som tittas på, tillsammans med förälderns IP-adress. Kartan laddas endast på platssidan. Föräldraappen på en telefon använder OpenStreetMaps kakelservrar, och först efter att föräldern trycker på Visa karta. Om en förälder väljer \"Kör dit\" med Google Maps eller Apple Maps, eller kopierar positionen, går koordinaterna till den appen och dess egen policy gäller därifrån.",
+          "Instrumentpanelen visar positionen på en karta. Kartbrickorna kommer från OpenFreeMap (tiles.openfreemap.org, OpenStreetMap-data), så när de laddas får OpenFreeMap veta ungefär vilket område som visas, tillsammans med förälderns IP-adress. Kartan laddas endast på platssidan. Appen Plainphone Parent visar ingen karta förrän föräldern trycker på Visa karta, och kommer sedan ihåg valet på den enheten tills föräldern trycker på Göm kartan. Medan kartan visas hämtar appen nio kartbrickor runt positionen från OpenStreetMap Foundations brickservrar (tile.openstreetmap.org). Varje förfrågan innehåller bara brickans zoomnivå och nummer, som avgränsar positionen till en kvadrat på ungefär 170 m till 5 km beroende på hur exakt den är, tillsammans med förälderns IP-adress och appens namn och version. Inga kontouppgifter, namn eller exakta koordinater skickas. OpenStreetMap Foundations integritetspolicy gäller för de förfrågningarna (osmfoundation.org/wiki/Privacy_Policy). Om en förälder väljer \"Kör dit\" med Google Maps eller Apple Maps, eller kopierar positionen, går koordinaterna till den appen och dess egen policy gäller därifrån.",
         ],
       },
       {
