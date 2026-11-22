@@ -1,0 +1,63 @@
+name: Phone test report
+description: Results from trying Plainphone on a real phone or an emulator, including the bypass checklist.
+labels: [test-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing. Reports from real phones are the most useful feedback during the alpha.
+
+        **Found a new way around the lock?** Do not post it here. Report it privately as described in [SECURITY.md](https://github.com/plainphone/plainphone/blob/main/SECURITY.md). This form is for results, including attempts that were blocked as expected, and for limits the docs already list.
+
+        Leave out names, phone numbers, addresses and other personal data, including in screenshots.
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Strong mode (factory reset, QR code)
+        - Light mode (phone already in use)
+        - Open mode (Myself)
+        - Emulator
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone
+      description: Model, Android version and security patch level.
+      placeholder: e.g. Pixel 7, Android 16, patch 2026-10-05
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plainphone version
+      placeholder: e.g. v0.1.19
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: Server
+      options:
+        - app.plainphone.org
+        - My own server
+        - No server (not paired)
+  - type: textarea
+    id: results
+    attributes:
+      label: What you tried and what happened
+      description: 'Use the IDs from the [bypass checklist](https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md) where they apply, for example "A3 blocked as expected" or "N2 failed: …".'
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup and getting out again
+      description: Optional. Anything confusing during setup, Undo setup, release or recovery reset.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Optional. Logs or screenshots, with personal data removed.

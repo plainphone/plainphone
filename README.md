@@ -17,7 +17,30 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance. The groundwork is in the code but switched off, and a paywall never touches locking, release, SOS, 112 or getting a phone back: see [billing](docs/billing.md).
 
-> **Status: early, pre-release.** Releases from v0.1.10 use the production signing key. Earlier pre-releases (v0.1.9 and below) used a test key. Some features still need testing on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
+> **Status: public alpha.** Everything below works together in test builds, but it has had little testing on real phones and no external security audit. Try it on a spare phone or an emulator. Do not make it the only phone a child relies on yet. The hosted service at app.plainphone.org is a test service, and it can read the data you put in it (see [Privacy and security](#privacy-and-security)). Releases from v0.1.10 use the production signing key; v0.1.9 and earlier used a test key.
+
+<p align="center">
+  <img src="site/src/img/home-en-light-2x.webp" width="200" alt="The phone's home screen: the time, school time until 14:00, four apps with 25 minutes left for Music, and Phone, Messages and SOS at the bottom.">
+  <img src="site/src/img/blocked-en-light-2x.webp" width="200" alt="The stop screen when Music has used its time for today: it opens again tomorrow, calls and messages still work, with Ask for more time and Call or message a parent.">
+  <img src="site/src/img/dashboard-en-light-2x.webp" width="300" alt="A phone in the parent dashboard: Rules confirmed, with switches for school time and bedtime, web filter, asking for more time, location and weekly summary.">
+</p>
+
+## Try it
+
+**On a spare phone, without a factory reset (light mode, about 5 minutes):**
+
+1. Sign in at [app.plainphone.org](https://app.plainphone.org) with your email address. The sign-in link arrives by mail.
+2. Choose **Add phone → It is already in use**, pick **Myself** (or **Child**) and create a setup link.
+3. Open the link in Chrome on the spare phone, install the APK and follow the steps. [Light mode](docs/light-mode.md#installing-it-no-reset) explains each one.
+4. Getting out: **Undo setup** works without a PIN for the first ten minutes. After that, use **Release the phone** in the dashboard or the maintenance PIN on the phone, then uninstall Plainphone.
+
+**On an emulator:** an Android 10 or newer image with Chrome should work the same way, though CI only runs strong mode on emulators ([emulator tests](docs/testing.md)). You can also install the APK from the [releases](https://github.com/plainphone/plainphone/releases) with `adb install plainphone-VERSION.apk`, open Plainphone so it shows a pairing code, and enter it in the dashboard under **Add phone → I have a code from the phone**.
+
+**Strong mode** needs a phone you can factory reset. Follow [Set up a test phone](docs/setup-test-phone.md), which also covers [getting out again](docs/setup-test-phone.md#5-getting-out-again), then try the [bypass checklist](docs/bypass-checklist.md).
+
+**Check the APK.** All releases are still marked as pre-releases; take the newest. Compare `sha256sum plainphone-VERSION.apk` with the SHA-256 in the release notes (and in the `.apk.json` file, from v0.1.19), and the signer certificate with the digest under [Signing](#signing).
+
+**Tell us how it went.** Bugs and [phone test reports](https://github.com/plainphone/plainphone/issues/new/choose) go in issues. Questions go to [Discussions](https://github.com/plainphone/plainphone/discussions/categories/q-a). A way around the lock is a security bug: report it privately as described in [SECURITY.md](SECURITY.md).
 
 ## Why
 
