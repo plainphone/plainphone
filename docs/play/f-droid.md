@@ -97,9 +97,9 @@ RepoType: git
 Repo: https://github.com/plainphone/plainphone.git
 
 Builds:
-  - versionName: 0.1.20
-    versionCode: 21
-    commit: v0.1.20
+  - versionName: 0.1.21
+    versionCode: 22
+    commit: v0.1.21
     subdir: android/app
     rm:
       - android/app/src/fcm
@@ -113,8 +113,8 @@ AllowedAPKSigningKeys: <SHA-256 of the production certificate, from the README>
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
-CurrentVersion: 0.1.20
-CurrentVersionCode: 21
+CurrentVersion: 0.1.21
+CurrentVersionCode: 22
 ```
 
 The version numbers are an example: the first release with a FOSS APK. Submit as a merge request
