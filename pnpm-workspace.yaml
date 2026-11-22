@@ -4,6 +4,9 @@ packages:
   - parent-app
   - packages/*
 allowBuilds:
+  '@embedded-postgres/darwin-arm64': true
+  '@embedded-postgres/darwin-x64': true
+  '@embedded-postgres/linux-arm64': true
   '@embedded-postgres/linux-x64': true
   '@parcel/watcher': false
   esbuild: true
