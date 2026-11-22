@@ -214,6 +214,7 @@ export default {
         "Plats, när den är på, är bara telefonens senast kända position. Det finns ingen historia.",
         "Webbfiltret för inte en lista över de webbplatser en telefon besöker.",
         "Vi säljer inte data, visar inte annonser eller bygger profiler.",
+        `Under alfaperioden behåller vi uppgifterna i testtjänsten på app.plainphone.org. Vi raderar dem aldrig utan minst 30 dagars varsel.`,
       ],
     },
     sections: [
@@ -417,6 +418,16 @@ export default {
             },
           },
           "Som vilken webbtjänst som helst, skriver webbservern framför appen vanliga tekniska loggar (IP-adress, tid, den efterfrågade adressen). Vi använder dem bara för att hålla tjänsten igång och för att stoppa missbruk. Appen själv håller endast IP-adresser i minnet, för hastighetsgränser, och skriver dem aldrig till sin databas.",
+        ],
+      },
+      {
+        id: "test-service",
+        title: `Uppgifter i testtjänsten`,
+        body: [
+          `app.plainphone.org är en testtjänst medan Plainphone är en alfaversion. Vi behåller uppgifterna under alfaperioden, och tiderna på den här sidan gäller fortfarande.`,
+          `Vi raderar aldrig testtjänsten utan att säga till minst 30 dagar innan. Meddelandet skickas med mejl till alla som har ett konto och publiceras i <a href="https://github.com/plainphone/plainphone/discussions/categories/announcements">Discussions → Announcements</a> på GitHub. Det säger vad som raderas och när, vad som händer med dina telefoner och hur du tar dig ur. Detsamma gäller om testtjänsten stängs. Det står också i <a href="/sv/terms/">villkoren för testtjänsten</a>.`,
+          `Om uppgifterna raderas behåller telefonen de senaste reglerna den har fått och fortsätter att använda dem utan servern: det går fortfarande att ringa 112 och godkända kontakter, och scheman slås fortfarande på och av i tid. Reglerna kan då inte längre ändras från föräldrapanelen eller föräldraappen.`,
+          `Vill du ta dig ur före en radering, släpp telefonen i föräldrapanelen. På en vuxens egen telefon väntar det på nyckeln, så börja i god tid. Efter en radering kan du öppna Underhåll på telefonen med PIN-koden från installationen och frigöra telefonen i starkt läge eller stänga av Plainphone i lätt läge, eller koppla telefonen igen till ett nytt konto. Om det inte fungerar förklarar <a href="/sv/help/#recovery">hjälpsidan</a> hur du återställer telefonen.`,
         ],
       },
       {
