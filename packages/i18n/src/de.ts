@@ -8,6 +8,7 @@ import { platformDe } from "./platform";
 import { callbackDe } from "./callback";
 import { modesDe } from "./modes";
 import { extendedDe } from "./extended";
+import { signupCapDe } from "./signup-cap";
 import { statusEn } from "./status";
 
 export const de: Messages = {
@@ -18,6 +19,7 @@ export const de: Messages = {
   ...platformDe,
   ...modesDe,
   ...extendedDe,
+  ...signupCapDe,
   ...callbackDe,
   "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",
@@ -47,6 +49,7 @@ export const de: Messages = {
   "nav.logoutFailed": "Sie sind noch angemeldet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "nav.language": "Sprache",
   "nav.privacy": "Datenschutz",
+  "nav.terms": "Nutzungsbedingungen",
   "nav.status": "Status",
 
   "error.generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
@@ -69,6 +72,8 @@ export const de: Messages = {
   "login.selfHost": "Betreiben Sie Ihren eigenen Server?",
   "login.selfHostHelp": "Legen Sie MAIL_PROVIDER und SMTP_URL wie in der Anleitung beschrieben fest.",
   "login.selfHostGuide": "Anleitung für den eigenen Server",
+  "login.testService": "Plainphone ist eine Alphaversion. Der Testdienst ist kostenlos und wird ohne Gewähr bereitgestellt.",
+  "login.terms": "Nutzungsbedingungen des Testdienstes",
   "login.invalidEmail": "Geben Sie eine gültige E-Mail-Adresse ein, z. B. name@example.com.",
   "login.inviteNote": "Melden Sie sich an, um die Einladung zu einem Haushalt anzunehmen.",
   "login.pairNote": "Melden Sie sich an, um das Telefon hinzuzufügen. Ihr Code wird gespeichert, bis Sie zurück sind.",

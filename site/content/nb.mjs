@@ -214,6 +214,7 @@ export default {
         "Plassering, når den er på, er bare telefonens siste kjente posisjon. Det er ingen historie.",
         "Nettfilteret fører ikke en liste over nettstedene en telefon besøker.",
         "Vi selger ikke data, viser annonser eller bygger profiler.",
+        `I alfaperioden beholder vi dataene på testtjenesten på app.plainphone.org. Vi sletter dem aldri uten minst 30 dagers varsel.`,
       ],
     },
     sections: [
@@ -417,6 +418,16 @@ export default {
             },
           },
           "Som en hvilken som helst nettjeneste, skriver nettserveren foran appen vanlige tekniske logger (IP-adresse, klokkeslett, adressen som er bedt om). Vi bruker dem kun for å holde tjenesten i gang og for å stoppe misbruk. Selve appen holder kun IP-adresser i minnet, for hastighetsgrenser, og skriver dem aldri til databasen.",
+        ],
+      },
+      {
+        id: "test-service",
+        title: `Data på testtjenesten`,
+        body: [
+          `app.plainphone.org er en testtjeneste mens Plainphone er en alfaversjon. Vi beholder dataene i alfaperioden, og tidene på denne siden gjelder fortsatt.`,
+          `Vi sletter aldri testtjenesten uten å si fra minst 30 dager før. Meldingen sendes på e-post til alle som har en konto, og legges ut i <a href="https://github.com/plainphone/plainphone/discussions/categories/announcements">Discussions → Announcements</a> på GitHub. Den sier hva som slettes og når, hva som skjer med telefonene dine og hvordan du kommer deg ut. Det samme gjelder hvis testtjenesten stenger. Det står også i <a href="/nb/terms/">vilkårene for testtjenesten</a>.`,
+          `Hvis dataene slettes, beholder telefonen de siste reglene den har fått, og fortsetter å bruke dem uten serveren: Det går fortsatt an å ringe 112 og godkjente kontakter, og tidsplanene slår seg fortsatt av og på til riktig tid. Reglene kan da ikke lenger endres fra foreldrepanelet eller foreldreappen.`,
+          `Vil du ut før en sletting, slipp telefonen i foreldrepanelet. På en voksens egen telefon venter dette på nøkkelen, så begynn i god tid. Etter en sletting kan du åpne Vedlikehold på telefonen med PIN-koden fra oppsettet og frigjøre telefonen i sterk modus eller slå av Plainphone i lett modus, eller koble telefonen til en ny konto. Virker ikke det, forklarer <a href="/nb/help/#recovery">hjelpesiden</a> hvordan du tilbakestiller telefonen.`,
         ],
       },
       {

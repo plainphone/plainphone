@@ -8,6 +8,7 @@ import { platformNb } from "./platform";
 import { callbackNb } from "./callback";
 import { modesNb } from "./modes";
 import { extendedNb } from "./extended";
+import { signupCapNb } from "./signup-cap";
 import { statusEn } from "./status";
 
 export const nb: Messages = {
@@ -18,6 +19,7 @@ export const nb: Messages = {
   ...platformNb,
   ...modesNb,
   ...extendedNb,
+  ...signupCapNb,
   ...callbackNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",
@@ -47,6 +49,7 @@ export const nb: Messages = {
   "nav.logoutFailed": "Du er fortsatt logget inn. Sjekk tilkoblingen og prøv igjen.",
   "nav.language": "Språk",
   "nav.privacy": "Personvern",
+  "nav.terms": "Vilkår",
   "nav.status": "Status",
 
   "error.generic": "Noe gikk galt. Prøv igjen.",
@@ -69,6 +72,8 @@ export const nb: Messages = {
   "login.selfHost": "Driver du din egen server?",
   "login.selfHostHelp": "Angi MAIL_PROVIDER og SMTP_URL som beskrevet i veiledningen.",
   "login.selfHostGuide": "Veiledning for egen server",
+  "login.testService": "Plainphone er en alfaversjon. Testtjenesten er gratis og leveres som den er.",
+  "login.terms": "Vilkår for testtjenesten",
   "login.invalidEmail": "Skriv inn en gyldig e-postadresse, for eksempel navn@example.com.",
   "login.inviteNote": "Logg på for å godta invitasjonen til en husstand.",
   "login.pairNote": "Logg på for å legge til telefonen. Koden din lagres til du er tilbake.",

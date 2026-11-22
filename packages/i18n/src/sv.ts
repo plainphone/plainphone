@@ -8,6 +8,7 @@ import { platformSv } from "./platform";
 import { callbackSv } from "./callback";
 import { modesSv } from "./modes";
 import { extendedSv } from "./extended";
+import { signupCapSv } from "./signup-cap";
 import { statusEn } from "./status";
 
 export const sv: Messages = {
@@ -18,6 +19,7 @@ export const sv: Messages = {
   ...platformSv,
   ...modesSv,
   ...extendedSv,
+  ...signupCapSv,
   ...callbackSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",
   "status.never.title": "Ännu inte ansluten",
@@ -47,6 +49,7 @@ export const sv: Messages = {
   "nav.logoutFailed": "Du är fortfarande inloggad. Kontrollera anslutningen och försök igen.",
   "nav.language": "Språk",
   "nav.privacy": "Privatliv",
+  "nav.terms": "Villkor",
   "nav.status": "Status",
 
   "error.generic": "Något gick fel. Försök igen.",
@@ -69,6 +72,8 @@ export const sv: Messages = {
   "login.selfHost": "Kör du din egen server?",
   "login.selfHostHelp": "Ställ in MAIL_PROVIDER och SMTP_URL enligt beskrivningen i guiden.",
   "login.selfHostGuide": "Guide för egen server",
+  "login.testService": "Plainphone är en alfaversion. Testtjänsten är gratis och tillhandahålls i befintligt skick.",
+  "login.terms": "Villkor för testtjänsten",
   "login.invalidEmail": "Ange en giltig e-postadress, som namn@exempel.com.",
   "login.inviteNote": "Logga in för att acceptera inbjudan till ett hushåll.",
   "login.pairNote": "Logga in för att lägga till telefonen. Din kod sparas tills du är tillbaka.",

@@ -26,6 +26,12 @@ New in the alpha review (November 2026), written without a native speaker: the a
 notice on the front page (`alpha` in `site/content/home.mjs`), the status label and the
 iPhone answer in the FAQ, and the whole press kit page (`site/content/press.mjs`).
 
+New for the public alpha (22 November 2026), also without a native speaker: the terms of the
+test service (`site/content/terms.mjs`), the "Data on the test service" section and the last
+point of the short version in the privacy policy, and the test-service note on the dashboard's
+login page (`login.testService`, `login.terms`, `nav.terms` in `web/src/i18n`). The terms are
+a short legal text, so read them for meaning as well as tone.
+
 Website copy lives in `site/content/`. See the [site README](../site/README.md)
 for build and check commands.
 

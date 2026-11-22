@@ -30,6 +30,8 @@ export default function LoginScreen() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | null>(null);
+  /** The hosted service has taken today's new households (SIGNUP_DAILY_CAP). */
+  const [capped, setCapped] = useState(false);
   const [mail, setMail] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function LoginScreen() {
     if (pending.current || serverChanging) return;
     setFieldError(undefined);
     setFormError(null);
+    setCapped(false);
     const value = email.trim();
     if (!EMAIL_RE.test(value)) {
       setFieldError(t("login.invalidEmail"));
@@ -95,6 +98,7 @@ export default function LoginScreen() {
       setSentTo(r?.mailEnabled === false ? null : value);
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.fields().email) setFieldError(t("login.invalidEmail"));
+      else if (err instanceof ApiError && err.data.code === "signup_cap_reached") setCapped(true);
       else setFormError(errorMessage(err, t));
     } finally {
       pending.current = false;
@@ -152,6 +156,21 @@ export default function LoginScreen() {
               returnKeyType="send"
               onSubmitEditing={() => void submit()}
             />
+            {capped ? (
+              <View testID="signup-capped">
+                <Notice tone="info" text={t("signupCap.title")}>
+                  <Text>{t("signupCap.body")}</Text>
+                  <Text>{t("signupCap.selfHost")}</Text>
+                  <Pressable
+                    onPress={() => void Linking.openURL(SELF_HOSTING_GUIDE).catch(() => undefined)}
+                    accessibilityRole="link"
+                    style={{ minHeight: touch, justifyContent: "center" }}
+                  >
+                    <Text style={{ color: colors.accent, textDecorationLine: "underline" }}>{t("login.selfHostGuide")}</Text>
+                  </Pressable>
+                </Notice>
+              </View>
+            ) : null}
             <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
             <Button
               testID="login-submit"

@@ -214,6 +214,7 @@ export default {
         "Wenn die Funktion „Standort“ aktiviert ist, wird nur die letzte bekannte Position des Telefons angezeigt. Wir speichern keinen Verlauf.",
         "Der Webfilter führt keine Liste der Websites, die ein Telefon besucht.",
         "Wir verkaufen keine Daten, schalten keine Werbung und erstellen keine Profile.",
+        `Während der Alphaphase behalten wir die Daten im Testdienst auf app.plainphone.org. Wir löschen sie nie ohne mindestens 30 Tage Vorankündigung.`,
       ],
     },
     sections: [
@@ -417,6 +418,16 @@ export default {
             },
           },
           "Wie bei jedem Webdienst schreibt der Webserver vor der App normale technische Protokolle (IP-Adresse, Uhrzeit, angeforderte Adresse). Wir verwenden sie nur, um den Dienst am Laufen zu halten und Missbrauch zu verhindern. Die App selbst speichert IP-Adressen aus Gründen der Geschwindigkeitsbegrenzung nur im Speicher und schreibt sie niemals in ihre Datenbank.",
+        ],
+      },
+      {
+        id: "test-service",
+        title: `Daten im Testdienst`,
+        body: [
+          `app.plainphone.org ist ein Testdienst, solange Plainphone eine Alphaversion ist. Wir behalten die Daten während der Alphaphase, und die Fristen auf dieser Seite gelten weiter.`,
+          `Wir löschen den Testdienst nie, ohne es mindestens 30 Tage vorher anzukündigen. Die Ankündigung geht per E-Mail an alle mit einem Konto und erscheint unter <a href="https://github.com/plainphone/plainphone/discussions/categories/announcements">Discussions → Announcements</a> auf GitHub. Sie sagt, was wann gelöscht wird, was mit Ihren Telefonen passiert und wie Sie herauskommen. Dasselbe gilt, wenn der Testdienst eingestellt wird. So steht es auch in den <a href="/de/terms/">Nutzungsbedingungen des Testdienstes</a>.`,
+          `Werden die Daten gelöscht, behält das Telefon die letzten Regeln, die es bekommen hat, und wendet sie ohne den Server weiter an: 112 und freigegebene Kontakte sind weiter erreichbar, und Zeitpläne schalten weiter pünktlich. Die Regeln lassen sich dann nicht mehr über das Dashboard oder die Eltern-App ändern.`,
+          `Wenn Sie vor einer Löschung aussteigen wollen, geben Sie das Telefon im Dashboard frei. Bei einem eigenen Telefon eines Erwachsenen wartet die Freigabe auf den Schlüssel, fangen Sie also rechtzeitig an. Nach einer Löschung öffnen Sie die Wartung auf dem Telefon mit der PIN aus der Einrichtung und geben das Telefon im starken Modus frei oder schalten Plainphone im leichten Modus aus, oder Sie koppeln das Telefon mit einem neuen Konto. Wenn das nicht klappt, erklärt die <a href="/de/help/#recovery">Hilfeseite</a>, wie Sie das Telefon zurücksetzen.`,
         ],
       },
       {

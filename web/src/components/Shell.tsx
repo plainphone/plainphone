@@ -6,12 +6,10 @@ import { api, type Approval } from "../lib/api";
 import { clearNextIf, useSession } from "../lib/session";
 import { LiveProvider } from "../lib/live";
 import { isLanguage, languageNames, languages } from "@plainphone/i18n/phone-language";
+import { isHostedService, privacyUrl, termsUrl } from "../lib/site-links";
 import { LiveIndicator } from "./LiveIndicator";
 import { LiveSosAlert } from "./LiveSosAlert";
 import { Mark } from "./Mark";
-
-/** The privacy policy lives on the website, in the language of the app. */
-const privacyUrl = (locale: string) => `https://plainphone.org${locale === "en" ? "" : `/${locale}`}/privacy/`;
 
 /** The public status page, served by Uptime Kuma. */
 const STATUS_URL = "https://status.plainphone.org";
@@ -121,6 +119,11 @@ export function Shell() {
         <a href={privacyUrl(locale)} target="_blank" rel="noopener noreferrer">
           {t("nav.privacy")}
         </a>
+        {isHostedService(window.location.origin) && (
+          <a href={termsUrl(locale)} target="_blank" rel="noopener noreferrer">
+            {t("nav.terms")}
+          </a>
+        )}
         <a href={STATUS_URL} target="_blank" rel="noopener noreferrer">
           {t("nav.status")}
         </a>
