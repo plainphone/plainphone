@@ -147,6 +147,39 @@ def capture(console, label):
         print(f"Unable to collect {label}: {exc}", flush=True)
 
 
+# What decides whether a sync can run: the network's capabilities (VALIDATED, private DNS)
+# and the app's jobs with their unsatisfied constraints and stop reasons.
+DIAGNOSTICS = {
+    "connectivity.txt": ("dumpsys", "connectivity"),
+    "jobscheduler.txt": ("dumpsys", "jobscheduler", PACKAGE),
+}
+# WorkManager's DiagnosticsReceiver logs every work request's state to logcat (WM-DiagnosticsWrkr).
+# `cmd activity` is native, so it also works from the serial console without the ART classpaths.
+WORK_DIAGNOSTICS = ("cmd", "activity", "broadcast", "-a", "androidx.work.diagnostics.REQUEST_DIAGNOSTICS", "-p", PACKAGE)
+
+
+def device_command(console, *command, timeout=20):
+    # Device Owner policy disables adb; the serial console still answers.
+    try:
+        return adb("shell", *command, text=True, stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT, timeout=timeout).stdout
+    except (OSError, subprocess.SubprocessError):
+        return serial_shell(console, *command, timeout=timeout)
+
+
+def collect_diagnostics(console, settle=3):
+    for label, command in DIAGNOSTICS.items():
+        try:
+            (ARTIFACTS / label).write_text(device_command(console, *command), encoding="utf-8")
+        except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+            print(f"Unable to collect {label}: {exc}", flush=True)
+    try:
+        device_command(console, *WORK_DIAGNOSTICS)
+        time.sleep(settle)  # The diagnostics worker logs asynchronously; logcat is captured next.
+    except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"Unable to request WorkManager diagnostics: {exc}", flush=True)
+
+
 def run_flows(port, token, console):
     if shell("getprop", "ro.kernel.qemu").strip() != "1":
         raise RuntimeError("Select a disposable Android emulator")
@@ -257,6 +290,7 @@ def main():
             except Exception as error:
                 print(error, flush=True)
                 capture(console, "screen.png")
+                collect_diagnostics(console)
                 capture(console, "logcat.txt")
                 raise
             finally:

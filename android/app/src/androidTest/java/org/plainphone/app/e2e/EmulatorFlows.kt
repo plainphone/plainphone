@@ -12,12 +12,15 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import androidx.work.WorkManager
+import androidx.work.WorkQuery
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -40,6 +43,7 @@ import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncRunner
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.SyncWorker
 import org.plainphone.app.time.TrustedClock
 import org.plainphone.app.ui.PairingActivity
 import org.plainphone.app.ui.TelecomHandoff
@@ -78,10 +82,11 @@ abstract class EmulatorFlow {
         // Pairing also registers the 15-minute WorkManager sync, which could deliver the first
         // status and rules by itself. Wait for the sync the setup starts under its own reason.
         val setupSync = if (mode == Mode.LIGHT) "initial light setup" else "paired"
-        if (mode == Mode.STRONG) awaitFirstDeviceOwnerLock()
+        // Record every run from here on, before anything can pair the phone.
         val runs = CopyOnWriteArrayList<Pair<String, SyncRunner.Outcome>>()
         SyncRunner.runObserverForTest = { reason, outcome -> runs.add(reason to outcome) }
         try {
+            if (mode == Mode.STRONG) awaitFirstDeviceOwnerLock()
             val setup = if (mode == Mode.LIGHT) LightSetupActivity.intent(context) else PairingActivity.setupIntent(context)
             context.startActivity(setup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             if (mode == Mode.LIGHT) {
@@ -92,7 +97,8 @@ abstract class EmulatorFlow {
                 fields.forEach { it.text = "924681" }
                 text(context.getString(R.string.light_confirm_link_action)).click()
             }
-            await("the setup's own first sync ($setupSync), runs seen: $runs") {
+            // Built at the timeout: the runs and the work as they are then, not when the wait began.
+            await({ "the setup's own first sync ($setupSync), runs seen: $runs, sync work: ${syncWork()}" }) {
                 runs.any { (reason, outcome) -> reason == setupSync && outcome is SyncRunner.Outcome.Synced }
             }
         } finally {
@@ -156,14 +162,27 @@ abstract class EmulatorFlow {
         }
     }
 
-    protected fun await(description: String, ready: () -> Boolean) {
+    protected fun await(description: String, ready: () -> Boolean) = await({ description }, ready)
+
+    protected fun await(description: () -> String, ready: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 40_000
         while (SystemClock.elapsedRealtime() < deadline) {
             if (ready()) return
             SystemClock.sleep(250)
         }
-        throw AssertionError("Timed out waiting for $description")
+        throw AssertionError("Timed out waiting for ${description()}")
     }
+
+    /** Every SyncWorker request: state, attempts and WorkManager's stop reason (7: connectivity lost). */
+    private fun syncWork(): String = runCatching {
+        WorkManager.getInstance(context)
+            .getWorkInfos(WorkQuery.fromTags(listOf(SyncWorker::class.java.name)))
+            .get(5, TimeUnit.SECONDS)
+            .map { work ->
+                val kind = if (work.periodicityInfo != null) "periodic" else "once"
+                "$kind ${work.state} attempts=${work.runAttemptCount} stopReason=${work.stopReason}"
+            }.toString()
+    }.getOrElse { "unavailable (${it.javaClass.simpleName})" }
 
     protected fun text(label: String) = checkNotNull(device.wait(Until.findObject(By.text(label)), 15_000)) {
         "Missing visible text: $label"

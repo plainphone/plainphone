@@ -65,7 +65,14 @@ without an emulator.
 
 On failure, look in `android/build/emulator-e2e/` or the CI artifact named
 `android-e2e-api-<level>` for the screenshot, logcat, server log and
-instrumentation output. Tests run once. Waiting for a UI or asynchronous
+instrumentation output. `connectivity.txt` (`dumpsys connectivity`: is the
+network `VALIDATED`, which private DNS host is in force) and `jobscheduler.txt`
+(`dumpsys jobscheduler org.plainphone.app`: the app's jobs, their unmet
+constraints and stop reasons) show why a sync did not run. Before it saves the
+logcat, the harness asks WorkManager to log every work request's state
+(`WM-DiagnosticsWrkr` lines). These come over the serial console once Device
+Owner policy has disabled ADB. A timed-out setup sync also lists every
+`SyncWorker` request with its state and stop reason in the test failure. Tests run once. Waiting for a UI or asynchronous
 delivery result is bounded and does not repeat the action under test.
 
 ## Coverage

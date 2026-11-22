@@ -4,9 +4,12 @@
 import importlib.util
 import re
 import socket
+import subprocess
+import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location("harness", Path(__file__).with_name("e2e-android-emulator.py"))
 harness = importlib.util.module_from_spec(spec)
@@ -108,6 +111,46 @@ class ProbeConsoleTest(unittest.TestCase):
         self.addCleanup(console.close)
         with self.assertRaisesRegex(RuntimeError, "No shell answered"):
             harness.probe_console(console.harness, attempts=2, timeout=0.2)
+
+
+class DiagnosticsTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.artifacts = Path(temp.name)
+        patch = mock.patch.object(harness, "ARTIFACTS", self.artifacts)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_falls_back_to_the_serial_console_when_adb_is_disabled(self):
+        # The Device Owner lock turns off adb, which is when a failed sync needs these dumps.
+        console = FakeConsole(answer(b"NetworkAgentInfo{... VALIDATED ...}"))
+        self.addCleanup(console.close)
+        refused = subprocess.CalledProcessError(1, "adb")
+        with mock.patch.object(harness, "adb", side_effect=refused):
+            harness.collect_diagnostics(console.harness, settle=0)
+        self.assertEqual((self.artifacts / "connectivity.txt").read_text(), "NetworkAgentInfo{... VALIDATED ...}\n")
+        self.assertTrue((self.artifacts / "jobscheduler.txt").exists())
+        sent = b"".join(console.commands)
+        self.assertIn(b"dumpsys connectivity", sent)
+        self.assertIn(b"dumpsys jobscheduler org.plainphone.app", sent)
+        self.assertIn(b"cmd activity broadcast -a androidx.work.diagnostics.REQUEST_DIAGNOSTICS -p org.plainphone.app", sent)
+
+    def test_uses_adb_while_it_works(self):
+        result = subprocess.CompletedProcess(("adb",), 0, stdout="jobs\n")
+        with mock.patch.object(harness, "adb", return_value=result) as adb:
+            harness.collect_diagnostics(None, settle=0)
+        self.assertEqual((self.artifacts / "jobscheduler.txt").read_text(), "jobs\n")
+        self.assertEqual([call.args[1:] for call in adb.call_args_list],
+                         [*harness.DIAGNOSTICS.values(), harness.WORK_DIAGNOSTICS])
+
+    def test_a_dead_console_does_not_hide_the_original_failure(self):
+        ours, guest = socket.socketpair()
+        self.addCleanup(ours.close)
+        guest.close()
+        with mock.patch.object(harness, "adb", side_effect=subprocess.CalledProcessError(1, "adb")):
+            harness.collect_diagnostics(ours, settle=0)
+        self.assertFalse((self.artifacts / "connectivity.txt").exists())
 
 
 if __name__ == "__main__":
