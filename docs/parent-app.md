@@ -20,6 +20,11 @@ the pairing code. See [ios/architecture.md](ios/architecture.md).
 
 Login links for the app look like `https://app.plainphone.org/auth/app#token=…`. The app asks for them with `client: "native"` on `POST /api/auth/request`; the web app keeps getting `/auth/callback` links. The token sits in the URL fragment, so it never reaches a server log, and the app sends it with `POST /api/auth/verify` and `client: "native"` to get a session token. The session token is kept in the iOS Keychain or Android Keystore and sent as `Authorization: Bearer pp_s_…`. The app never uses cookies.
 
+The store review address is the one exception to login links: on a server with
+`REVIEW_LOGIN_EMAIL` and `REVIEW_LOGIN_CODE`, `POST /api/auth/request` answers that address with
+`codeSignIn: true` and sends no mail, and the app shows a code field that signs in with
+`POST /api/auth/review`. No other address ever sees it ([store-review.md](store-review.md)).
+
 The app claims three paths on the server's host:
 
 - `/auth/app`: login links

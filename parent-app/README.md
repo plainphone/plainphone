@@ -7,12 +7,13 @@ Danish, Swedish, Norwegian Bokmål and German. See [translation review status](.
 
 The native parent app for iOS and Android. It does the same as the parent web app in [`../web`](../web), on the same API ([`../server/openapi.yaml`](../server/openapi.yaml)):
 
-- log in with a link from your mail (the link opens the app)
+- log in with a link from your mail (the link opens the app); the store review address logs in with a code instead ([docs/store-review.md](../docs/store-review.md))
 - phones: add one by scanning its QR code or typing its code, rename, remove
 - apps, approved contacts, web filter, school time, bedtime and daily screen time (one cap for all apps, caps for single apps, weekday overrides, 15 extra minutes today)
 - the phone's last position on a map, with Find, "Drive there", ringing the phone, "Are you okay?" and when the phone may send its position
 - the Self profile's key, changes waiting for the key, and approvals for a trusted person
 - household: other parents and invitations
+- delete your account in Settings ([docs/account-deletion.md](../docs/account-deletion.md))
 - live updates while the app is open: an SOS, requests, positions and inbox messages show at once ([docs/live-updates.md](../docs/live-updates.md))
 
 English and Danish, light and dark mode, screen readers and large text. No analytics, crash reporting or other tracking SDKs.
