@@ -217,6 +217,12 @@ abstract class EmulatorFlow {
         assertEquals(emergencyNumbers.map { Uri.fromParts("tel", it, null) }, handedToTelecom.toList())
     }
 
+    /** The emulator SIM's own number as Android read it (the default SMS app may read it). */
+    @Suppress("DEPRECATION", "MissingPermission")
+    protected fun simNumber(): String = runCatching {
+        context.getSystemService(android.telephony.TelephonyManager::class.java)?.line1Number
+    }.getOrElse { "unreadable: ${it.javaClass.simpleName}" } ?: "unknown"
+
     protected fun inboxContains(body: String, sender: String): Boolean =
         context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS),
@@ -287,7 +293,9 @@ class DeviceOwnerFlow : EmulatorFlow() {
         }
         message.click()
         // The emulator modem loops SMS addressed to its own number back into Android.
-        await("outbound quick message received via the emulator modem") { inboxContains(MESSAGE, parentNumber) }
+        await({ "outbound quick message received via the emulator modem (parent $parentNumber, SIM ${simNumber()})" }) {
+            inboxContains(MESSAGE, parentNumber)
+        }
         assertEquals(1, request("GET", "/e2e/quick-message-requests", 200).getInt("count"))
         request("POST", "/e2e/sms-observed", 204)
         await("approved parent's injected SMS in Android inbox") { inboxContains(REPLY, parentNumber) }

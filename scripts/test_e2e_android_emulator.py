@@ -59,6 +59,20 @@ class SerialPortTest(unittest.TestCase):
                 harness.serial_port({"E2E_SERIAL_PORT": port})
 
 
+class ModemNumberTest(unittest.TestCase):
+    def test_default_matches_the_number_ci_gives_the_emulator(self):
+        # The modem simulator delivers an SMS to itself only for the SIM's own number.
+        workflow = (Path(__file__).parents[1] / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertEqual(harness.modem_number({}), harness.DEFAULT_MODEM_NUMBER)
+        self.assertEqual(workflow.count("-feature ModemSimulator"), 2)
+        self.assertEqual(workflow.count(f"-feature ModemSimulator -phone-number {harness.DEFAULT_MODEM_NUMBER} "), 2)
+
+    def test_rejects_numbers_the_simulator_would_not_loop_back(self):
+        for number in ("+15555215554", "5554", "1555521555", "15555216520", "15555216527"):
+            with self.subTest(number=number), self.assertRaisesRegex(RuntimeError, "E2E_MODEM_NUMBER"):
+                harness.modem_number({"E2E_MODEM_NUMBER": number})
+
+
 class SerialShellTest(unittest.TestCase):
     def run_command(self, console, *args, timeout=5):
         self.addCleanup(console.close)

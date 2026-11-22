@@ -44,6 +44,23 @@ def serial_port(environment=os.environ):
     return port
 
 
+# With -feature ModemSimulator the modem loops an SMS back only when it is addressed to the SIM's
+# own number, and answers "sent" for any other number without delivering it. That number is not
+# derived from the console port: the simulator's default SIM profile holds +15551234567. The
+# emulator is therefore started with `-phone-number` set to this number (docs/testing.md).
+DEFAULT_MODEM_NUMBER = "15555215554"
+
+
+def modem_number(environment=os.environ):
+    number = environment.get("E2E_MODEM_NUMBER", DEFAULT_MODEM_NUMBER)
+    # Eleven digits: the simulator reads the last four of such a number as a port, and only
+    # 6520-6527 are sent on to another instance instead of being compared with the SIM's number.
+    if not re.fullmatch(r"[0-9]{11}", number) or 6520 <= int(number[7:]) <= 6527:
+        raise RuntimeError(f"E2E_MODEM_NUMBER must be the 11 digits given to -phone-number "
+                           f"and must not end in 6520-6527: {number}")
+    return number
+
+
 def connect_console(port, attempts=30):
     # The emulator opens the serial socket while it boots.
     for attempt in range(attempts):
@@ -152,6 +169,8 @@ def capture(console, label):
 DIAGNOSTICS = {
     "connectivity.txt": ("dumpsys", "connectivity"),
     "jobscheduler.txt": ("dumpsys", "jobscheduler", PACKAGE),
+    # Outgoing and incoming SMS are logged only in the radio buffer.
+    "radio.txt": ("logcat", "-b", "radio", "-d", "-v", "threadtime", "-t", "5000"),
 }
 # WorkManager's DiagnosticsReceiver logs every work request's state to logcat (WM-DiagnosticsWrkr).
 # `cmd activity` is native, so it also works from the serial console without the ART classpaths.
@@ -189,8 +208,8 @@ def run_flows(port, token, console):
     match = re.fullmatch(r"emulator-(5[0-9]{3})", serial)
     if not match:
         raise RuntimeError("Select an emulator by its console-port serial")
-    # AOSP derives the virtual modem's phone number from the emulator console port.
-    parent_number = f"+1555521{match[1]}"
+    # The parent's number is the emulator's own SIM number, so the child's SMS loops back.
+    parent_number = f"+{modem_number()}"
     if shell("getprop", "init.svc.console").strip() != "running":
         # Android 10 labels the emulator UART as a generic serial device; init
         # needs the console label to open it. Keep SELinux enforcing.
