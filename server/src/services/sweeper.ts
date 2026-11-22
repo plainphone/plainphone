@@ -20,6 +20,9 @@ import { sweepCallbackRequests } from "./callback-requests.js";
 import { sweepSummaries } from "./weekly-summary.js";
 import { sweepReviewReminders } from "./age-review.js";
 import { sweepEarlyUnlocks } from "./early-unlock.js";
+import { sweepRateLimits } from "./rate-limits.js";
+import { sweepBotChallenges } from "./bot-challenge.js";
+import { sweepInviteMails } from "./invite-cap.js";
 
 const DAY = 86_400_000;
 /** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
@@ -147,6 +150,10 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   await sweepSummaries(ctx);
   await sweepReviewReminders(ctx);
   await sweepMoreTime(ctx);
+  // Bot and spam protection: expired rate-limit windows, spent challenges, old invitation counts.
+  await sweepRateLimits(ctx);
+  await sweepBotChallenges(ctx);
+  await sweepInviteMails(ctx);
   return { applied, dns, dnsDeleted, offlineAlerts, alwaysEnded: ended.length, deleted };
 }
 
