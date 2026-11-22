@@ -72,7 +72,10 @@ stop screen. Then a second take with **Not now** and the step still open on the 
 | Permission | Core functionality |
 |---|---|
 | `READ_SMS`, `RECEIVE_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`, `SEND_SMS` | Default SMS handler |
-| `READ_CALL_LOG`, `WRITE_CALL_LOG`, `CALL_PHONE`, `ANSWER_PHONE_CALLS` | Default Phone handler |
+| `READ_CALL_LOG`, `WRITE_CALL_LOG` | Default Phone handler |
+
+`CALL_PHONE` and `ANSWER_PHONE_CALLS` belong to the Phone permission group, which the form does
+not cover; they need no declaration.
 
 **Description for the form:**
 
@@ -169,6 +172,32 @@ in the status bar → open a blocked site in Chrome → it does not load → ope
 | `shortService` | `sos/SosSendService` | Sends an SOS the child started, with a notification, and stops when it has been delivered |
 | `systemExempted` | `update/InstallWatchdogService` | Not in the Play edition (self-updates and strong mode only) |
 
+## Battery optimisation exemption
+
+**Form:** none. Put this in Play Console → App content → App access → instructions (the review
+notes), because reviewers check `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` against Android's
+acceptable use cases.
+
+> Plainphone asks once, in the "Keep Plainphone running" setup step and after explaining why, to be exempt
+> from battery optimisation. Its core function runs in the background on the child's phone:
+> blocking calls and messages from numbers the parent has not approved, closing apps when their
+> time is up, starting school time and bedtime on schedule, and answering when a parent asks
+> where the phone is. The Play edition does not use FCM, so it learns about rule changes by
+> polling, which Doze and App Standby delay or stop. This is a family app in the "apps that
+> keep their users and their families safe" use case. The parent can see whether the exemption
+> is on; nothing else is done with it.
+
+**Video:** not asked for. If a reviewer asks, record the "Keep Plainphone running" step, the explanation and
+Android's dialog.
+
+## Device admin
+
+Not in the Play edition, so there is nothing to declare. Play's Malware policy names "device admin
+features to block uninstallation", which is what light mode's device admin is for
+([policy-review.md](policy-review.md#device-admin)). If it is ever kept, the review notes need the
+same honest wording as the setup step: it only makes uninstalling one step longer, the child can
+switch it off, and the parent is told.
+
 ## Full-screen intent
 
 **Form:** Play Console → App content → Full-screen intent. Answer: the app's core functionality is
@@ -180,4 +209,4 @@ automatically.
 Not a form, but checked in review: the Play edition's manifest needs
 `<meta-data android:name="isMonitoringTool" android:value="child_monitoring" />`, and the
 store description must say what the parent can see. The drafted listings in
-`fastlane/metadata/android/` have a paragraph for this, for the guard and for the VPN.
+`fastlane/play/` have a paragraph for this, for the guard and for the VPN.

@@ -18,10 +18,9 @@ Das nutzt Plainphone auf dem Handy
 • VPN: ein lokales VPN schickt nur die Abfragen von Website-Namen an den Webfilter von Plainphone, der die von den Eltern gewählten Kategorien sperrt. Nichts anderes läuft darüber, und es wird keine Liste besuchter Seiten gespeichert.
 • Standort, optional: um zu antworten, wenn ein Elternteil auf Suchen tippt, auch wenn Plainphone nicht geöffnet ist.
 • Nutzungszugriff: um die Zeit in Apps mit Tageslimit zu zählen.
-• Geräteadministrator: damit Plainphone erst ausgeschaltet werden muss, bevor es deinstalliert werden kann.
 
 Das kann es nicht
 Plainphone macht es schwerer, die Regeln zu umgehen. Es ist kein Schloss und macht ein Handy nicht sicher. Ein Zurücksetzen auf Werkseinstellungen oder der abgesicherte Modus entfernt es, und die Eltern erfahren, wenn ein Schutz wegfällt. Der Webfilter erkennt nicht alles.
 
 Open Source und kostenlos
-Plainphone ist Open Source (Apache-2.0) und kostenlos, ohne Werbung und ohne Tracking. Sie können Ihren eigenen Server betreiben. Mehr auf plainphone.org.
+Plainphone ist Open Source (Apache-2.0) und kostenlos, ohne Werbung und ohne Statistik, und nichts wird für andere Zwecke an uns gesendet. Sie können Ihren eigenen Server betreiben. Mehr auf plainphone.org.

@@ -233,12 +233,12 @@ pages, risks and the recommendation (light mode on Play only as a reduced editio
 |---|---|---|
 | `VpnService` DNS filter | VpnService policy: only for apps whose core purpose needs it; parental control is an accepted use | VPN declaration in Play Console, privacy policy describing the DNS-only tunnel |
 | Accessibility service (guard) | Accessibility API policy: non-accessibility uses must be disclosed and consented in the app, and declared | Prominent in-app disclosure (the guard step does this), Play Console declaration, review |
-| Device admin (`LightAdminReceiver`) | Device Admin policy: allowed for parental control apps; deprecated policies are refused for ordinary apps on Android 10+ (hence only `force-lock`) | Declaration; explain why |
+| Device admin (`LightAdminReceiver`) | Malware policy: "don't use device admin features to block uninstallation"; no parental control exception found (deprecated policies are also refused for ordinary apps on Android 10+, hence only `force-lock`) | Leave it out of a Play build; the guard protects the settings pages under the accessibility exception |
 | Phone and SMS roles | SMS and Call Log permissions policy: only the default phone or SMS app, or a listed exception | Permissions declaration form; default handler is the qualifying use |
 | Background location | Location permissions policy: a clear in-app disclosure and a feature the user expects | Declaration form, a short video of "Find" |
 | `QUERY_ALL_PACKAGES` | Package visibility policy: permitted uses are device search, antivirus, file managers and browsers; parental control is not listed | Replace with a `<queries>` element for launcher apps in a Play build |
 | `PACKAGE_USAGE_STATS` | Usage access is a special permission granted by the user | Disclosure in the time-limits step |
-| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Allowed only when the app's core function breaks otherwise | Justification (filtering calls and rules in the background) |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Allowed only when the app's core function breaks otherwise; "safety app" for families is an acceptable use | Justification in the review notes (filtering calls and rules in the background, no FCM) |
 | Family | Families policy and the "parental control" app category | Teacher Approved is not needed; ads are none anyway |
 | Monitoring (Stalkerware policy) | Apps that send a child's data to parents must declare `isMonitoringTool` and show a persistent notification | Manifest flag and notification in a Play build |
 | Self-updates | Device and Network Abuse policy: a Play app may only update through Play | Leave the self-updater out of a Play build |

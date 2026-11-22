@@ -18,10 +18,9 @@ Det här använder Plainphone på telefonen
 • VPN: ett lokalt VPN skickar bara uppslag av webbplatsnamn till Plainphones webbfilter, som blockerar de kategorier föräldrarna valt. Inget annat går genom det, och ingen lista över besökta sidor sparas.
 • Plats, valfritt: för att svara när en förälder trycker på Hitta, även när Plainphone inte är öppen.
 • Användningsåtkomst: för att räkna tiden i appar med en daglig gräns.
-• Enhetsadministratör: så att Plainphone måste stängas av innan den kan avinstalleras.
 
 Det här kan den inte
 Plainphone gör det svårare att ta sig runt reglerna. Den är inget lås och gör inte en telefon säker. En fabriksåterställning eller felsäkert läge tar bort den, och föräldrarna får veta när ett skydd försvinner. Webbfiltret fångar inte allt.
 
 Öppen källkod och gratis
-Plainphone är öppen källkod (Apache-2.0) och gratis, utan reklam och utan spårning. Du kan köra din egen server. Läs mer på plainphone.org.
+Plainphone är öppen källkod (Apache-2.0) och gratis, utan reklam och utan statistik, och inget skickas till oss för andra syften. Du kan köra din egen server. Läs mer på plainphone.org.

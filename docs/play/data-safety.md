@@ -66,8 +66,10 @@ can be switched off, except reaching 112 and the parents.
 | Approximate location | Yes (same reports) | App functionality | Optional | As above |
 | Installed apps (App activity): the list of launchable apps with names, so the parent can allow them | Yes | App functionality | Required | Until the phone is removed |
 | App interactions (App activity): minutes per app and day for apps with a time limit, and for the weekly summary when it is on | Yes | App functionality | Optional | 21 days (summary input); weekly summaries 8 weeks |
-| Other actions (App activity): requests for an app, a contact or more time, with the optional reason the child writes | Yes | App functionality | Optional | 30 days after they are decided |
+| Other actions (App activity): requests for an app, a contact or more time, with the optional reason the child writes (a contact's name and number are declared under Personal info below) | Yes | App functionality | Optional | 30 days after they are decided |
 | Contacts (Contacts): names and numbers from the phone's address book, only if the parent turns on contact suggestions | Yes | App functionality | Optional, off by default | Pending until reviewed or switched off; reviewed numbers until the phone is removed |
+| Name and Phone number (Personal info): the name and number of a contact the child asks the parents to approve (a request for a contact), and approved SOS parent numbers and the child's SOS callback number | Yes | App functionality | Optional | Contact requests 30 days after they are decided; SOS numbers until removed or the phone is removed |
+| Other user-generated content (Messages): the text of a hidden SOS code word, stored with the SOS event | Yes | App functionality | Optional, off unless the code word is set up | With the SOS event: 30 days |
 | Other in-app messages (Messages): quick messages, family inbox, check-in answers, messages to extended family | Yes | App functionality | Optional | Newest 50, at most 30 days |
 | SMS or MMS messages, call log | **No**: they stay on the phone | | | |
 | Web browsing history | **No**: the DNS filter keeps no query log; counters only, without IP addresses, for 24 hours. Enter lookups as ephemeral if the form asks | | | |
@@ -83,4 +85,4 @@ can be switched off, except reaching 112 and the parents.
   used on the phone and never sent.
 - The VPN declaration says the tunnel carries DNS only and that DNS names are not stored.
 - The listing states that the phone reports its position and app use to the parents
-  (Stalkerware rules). The drafted full descriptions in `fastlane/metadata/android/` do.
+  (Stalkerware rules). The drafted full descriptions in `fastlane/play/` do.

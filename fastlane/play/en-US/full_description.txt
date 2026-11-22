@@ -18,10 +18,9 @@ What Plainphone uses on the phone
 • VPN: a local VPN sends only website name lookups to Plainphone's web filter, which blocks the categories the parents chose. Nothing else goes through it, and no list of visited sites is kept.
 • Location, optional: to answer when a parent taps Find, also when Plainphone is not open.
 • Usage access: to count time in apps with a daily limit.
-• Device admin: so Plainphone has to be switched off before it can be uninstalled.
 
 What it cannot do
 Plainphone adds friction. It is not a lock and does not make a phone safe. A factory reset or safe mode removes it, and the parents are told when a protection goes away. The web filter does not catch everything.
 
 Open source and free
-Plainphone is open source (Apache-2.0) and free, with no ads and no tracking. You can run your own server. More at plainphone.org.
+Plainphone is open source (Apache-2.0) and free, with no ads and no analytics, and nothing is sent to us for any other purpose. You can run your own server. More at plainphone.org.

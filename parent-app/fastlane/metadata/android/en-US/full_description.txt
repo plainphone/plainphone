@@ -12,13 +12,13 @@ What you can do
 • Switch each feature on or off for each phone.
 • Share a phone with the other parent in your household.
 
-The child's phone needs the Plainphone phone app. You pair them by scanning the code the phone shows.
+The child's phone needs the Plainphone phone app. You pair them by scanning the code the phone shows. How to set up the child's phone is at plainphone.org.
 
 What it is not
 Plainphone adds friction. It does not make a phone safe, and the web filter does not catch everything. Each setting says what it does and what it cannot do.
 
 Your data
-You sign in with a link sent to your email. We keep your email address, your household and the rules for each phone. Most history is deleted after 30 days. You can delete your account in Settings. No ads, no tracking, no analytics.
+You sign in with a link sent to your email. We keep your email address, your household and the rules for each phone. Most history is deleted after 30 days. You can delete your account in Settings. No ads, no analytics, and nothing is sent to us for any other purpose.
 
 Open source and free
 Plainphone is open source (Apache-2.0) and free. You can run your own server. More at plainphone.org.

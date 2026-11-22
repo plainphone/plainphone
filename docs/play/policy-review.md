@@ -20,13 +20,14 @@ them again before submitting. Quotes are from those pages on that date.
 
 | App | Recommendation | Why, in one line |
 |---|---|---|
-| Parent app | **Play** (closed test first, then open testing as the alpha) | Two ordinary permissions (camera, notifications), no ads, no restricted APIs. The blockers are paperwork and a reviewer login |
+| Parent app | **Play** (closed test first, then open testing as the alpha) | Two ordinary permissions (camera, notifications), no ads, no restricted APIs. The blockers are paperwork, a reviewer login, and a demo household with a paired phone, because the phone app itself is not on Play ([below](#a-parent-app-whose-phone-app-is-not-on-play)) |
 | Phone app, light mode | **Play with a reduced feature set, later.** For the public alpha: GitHub Releases as today, and F-Droid when the build is reproducible ([f-droid.md](f-droid.md)) | Every part can qualify as a parental control app, but only after product changes (below), five declarations with videos and a review that can take weeks. None of it is ready, and a rejection or suspension costs the developer account |
 | Phone app, strong mode | **GitHub Releases / F-Droid only** | An app installed from Play cannot become Device Owner. QR provisioning downloads the APK from our own URL, and the listing may not point to an APK outside Play. Separately, Android Enterprise now blocks unapproved DPCs during QR setup ([below](#device-owner-and-qr-provisioning)) |
 
 The reduced Play edition of the phone app would be: light mode only, the **Child** profile only,
-no self-updater, the `isMonitoringTool` flag, a persistent notification, separate disclosures for
-the guard and for location, and `<queries>` instead of `QUERY_ALL_PACKAGES`. The list of changes is in
+no self-updater, no device admin, the `isMonitoringTool` flag, a persistent notification,
+separate disclosures for the guard and for location, a stated reason for the battery exemption,
+and `<queries>` instead of `QUERY_ALL_PACKAGES`. The list of changes is in
 [What the phone app needs before Play](#what-the-phone-app-needs-before-play).
 
 ## Policy by policy
@@ -204,6 +205,77 @@ Risk is our own estimate of a rejection on first review if the app is submitted 
   bundled; it has no `expo-updates`, so nothing is downloaded.
 - **Risk:** **certain rejection** with the updater, **none** without it.
 
+### Battery optimisation exemption
+
+- **Policy page:** [Optimize for Doze and App Standby, "Acceptable use cases for exemption"](https://developer.android.com/training/monitoring-device-state/doze-standby#exemption-cases).
+- **What it says:** "Google Play policies prohibit apps from requesting direct exemption from
+  Power Management features [...] unless the core function of the app is adversely affected."
+  In general an app does not qualify "unless Doze or App Standby breaks the core function of the
+  app or there is a technical reason why your app can't use FCM". The table lists "Safety app.
+  Apps that keep their users and their families safe" as acceptable, and chat apps that can use
+  FCM as not acceptable. There is no Play Console form; reviewers check it against this page.
+- **Plainphone:** the manifest declares `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, and light mode's
+  "Keep Plainphone running" setup step (`LightSetup`, `Step.RUNNING`) opens the direct dialog
+  (`batteryExemptionRequest`, with `@SuppressLint("BatteryLife")`). Strong mode uses it for the
+  install watchdog, which is not in the Play edition. In light mode the reason is real: rules,
+  time limits, call filtering and the answer to Find and SOS run in the background, and the Play
+  edition should not ship FCM (Families, below), so it wakes by polling or UnifiedPush, which
+  Doze delays. Plainphone fits "apps that keep their families safe" by category, although its
+  own texts never promise safety.
+- **Needed:** a justification in the review notes (text in
+  [permission-declarations.md](permission-declarations.md#battery-optimisation-exemption)), and
+  the step must keep explaining why before the dialog opens. If a reviewer refuses it, the
+  fallback is `ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS` (the settings list, no direct
+  dialog), which needs no permission; the setup step already has an "Open battery settings" button
+  for phone makers that need more than the dialog.
+- **Risk:** **medium-low.**
+
+### Device admin
+
+- **Policy pages:** [Malware, sections Privilege Escalation and Ransomware](https://support.google.com/googleplay/android-developer/answer/9888380),
+  [Use of the AccessibilityService API](https://support.google.com/googleplay/android-developer/answer/10964491).
+- **What they say:** the Malware page lists "Apps that abuse features to prevent them from being
+  uninstalled or stopped", and under Ransomware: "Don't use device admin features to block
+  uninstallation" and "Provide a clear and easy way for users to remove your app". We found no
+  parental control exception for device admin on Play. The exception that does exist is in the
+  Accessibility policy: preventing uninstall is allowed when "authorized by a parent or
+  guardian through a parental control app".
+- **Plainphone:** light mode asks to become device admin (`LightAdminReceiver`, the "Protect
+  Plainphone" step) with one non-deprecated policy (`force-lock`), and its only purpose is that
+  Plainphone must be switched off as admin before it can be uninstalled. That is exactly the use
+  the Malware page names. The admin does not block anything by itself (the child can switch it
+  off and the parent is told), but a reviewer reads the purpose, not the mechanism.
+- **Needed:** leave the device admin step and `LightAdminReceiver` out of the Play edition. The
+  guard still protects Plainphone's own settings pages under the accessibility parental control
+  exception, and the parent still hears when Plainphone is removed (the phone stops checking
+  in). The Play listing no longer mentions device admin. Keep it in GitHub and F-Droid builds.
+- **Risk:** **high** with device admin, **none** without it.
+
+### A parent app whose phone app is not on Play
+
+- **Policy pages:** [Spam and Minimum Functionality](https://support.google.com/googleplay/android-developer/answer/9898783),
+  [Requirements for providing sign in details for review](https://support.google.com/googleplay/android-developer/answer/15748846),
+  [Malware, section Stalkerware](https://support.google.com/googleplay/android-developer/answer/9888380).
+- **The problem:** the parent app does nothing until a phone is paired, and under the
+  recommendation above the phone app is not on Play. A reviewer who installs the parent app
+  cannot get the phone app from Play, sees an empty overview and may reject it for minimum
+  functionality or because the app cannot be reviewed. A user reading the listing cannot follow
+  it either if it does not say where the phone app comes from.
+- **Needed:**
+  - the review account has a **demo household with an already paired phone** that sends
+    realistic, invented data (apps, time used, a request waiting, a position), so every screen
+    works without a second device. That needs a simulated phone on the server for the review
+    account only (part of the review sign-in, [Reviewer access](#reviewer-access)), plus a
+    sentence in the review notes that the phone app is distributed outside Play and why;
+  - the listing says where the phone app comes from without linking to an APK: "How to set up
+    the child's phone is at plainphone.org." The site's front page, not `/download/`. The
+    Stalkerware rule against links "to a non-compliant APK hosted outside Google Play" is
+    written for the monitoring app itself; the parent app is not installed on the monitored
+    phone, but it is the receiving end, so a reviewer may still apply it. Keep the link to the
+    home page, never to an APK or the download page, also inside the app.
+- **Risk:** **medium.** The demo household removes the functional objection. What remains is a
+  reviewer's reading of a companion app to a monitoring app that is not on Play.
+
 ### Families policy and target audience
 
 - **Policy page:** [Google Play Families Policies](https://support.google.com/googleplay/android-developer/answer/9893335).
@@ -242,7 +314,9 @@ Risk is our own estimate of a rejection on first review if the app is submitted 
   A reviewer cannot use that. Both apps need a review sign-in: for example a server setting that
   lets one review account sign in with a fixed code, off by default and only on the hosted
   service. The phone app's reviewer also needs a phone entry to pair with, so the review account
-  should already have a household with a pairing code ready.
+  should already have a household with a pairing code ready. The parent app's reviewer has no
+  phone at all, so the same account also needs a simulated phone that is already paired
+  ([below](#a-parent-app-whose-phone-app-is-not-on-play)).
 - **Risk:** **certain rejection** without it.
 
 ### Foreground services, full-screen intents and alarms
@@ -296,10 +370,15 @@ Product changes, each one a separate issue. None of them are made in this change
 9. Play App Signing: upload the existing production key ("use my own key") so Play builds,
    GitHub APKs and an F-Droid build share one signature. Otherwise a phone cannot move between
    them without uninstalling.
+10. Leave the device admin step and `LightAdminReceiver` out of the Play edition
+    ([Device admin](#device-admin)).
+11. Keep the "Keep Plainphone running" step's explanation before the battery dialog, and put the
+    justification in the review notes ([Battery optimisation exemption](#battery-optimisation-exemption)).
 
 ## What the parent app needs before Play
 
-1. The review sign-in (above).
+1. The review sign-in (above), with a demo household whose phone is already paired and sends
+   invented data ([A parent app whose phone app is not on Play](#a-parent-app-whose-phone-app-is-not-on-play)).
 2. A web page for account deletion, or an anchor on the privacy page whose first lines are about
    it.
 3. The Android push file (`PLAINPHONE_PARENT_GOOGLE_SERVICES_FILE`) for the Play build, as for

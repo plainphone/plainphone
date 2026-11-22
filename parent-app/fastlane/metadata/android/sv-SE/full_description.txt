@@ -12,13 +12,13 @@ Det här kan du göra
 • Slå på och av varje funktion för varje telefon.
 • Dela en telefon med den andra föräldern i hushållet.
 
-Barnets telefon behöver Plainphones telefonapp. Du kopplar ihop dem genom att skanna koden som telefonen visar.
+Barnets telefon behöver Plainphones telefonapp. Du kopplar ihop dem genom att skanna koden som telefonen visar. Hur du ställer in barnets telefon står på plainphone.org.
 
 Det här är den inte
 Plainphone gör det svårare att ta sig runt reglerna. Den gör inte en telefon säker, och webbfiltret fångar inte allt. Varje inställning säger vad den gör och vad den inte kan.
 
 Dina uppgifter
-Du loggar in med en länk som skickas till din e-post. Vi sparar din e-postadress, ditt hushåll och reglerna för varje telefon. Det mesta av historiken raderas efter 30 dagar. Du kan radera ditt konto under Inställningar. Ingen reklam, ingen spårning, ingen statistik.
+Du loggar in med en länk som skickas till din e-post. Vi sparar din e-postadress, ditt hushåll och reglerna för varje telefon. Det mesta av historiken raderas efter 30 dagar. Du kan radera ditt konto under Inställningar. Ingen reklam, ingen statistik, och inget skickas till oss för andra syften.
 
 Öppen källkod och gratis
 Plainphone är öppen källkod (Apache-2.0) och gratis. Du kan köra din egen server. Läs mer på plainphone.org.

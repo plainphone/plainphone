@@ -24,9 +24,17 @@ APK with our signature. The recipe then lists the certificate in `AllowedAPKSign
 
 1. **A FOSS release APK.** Official APKs are built with `-PplainphoneFcm=true`
    ([push-setup.md](../push-setup.md)), which adds Firebase Cloud Messaging. F-Droid will not
-   build that ("NonFreeDep"). The default build (no FCM, no Play Billing) is already free:
-   Compose, AndroidX, WorkManager, Tink, Gson and json-canonicalization, all under open licences.
-   It wakes up through UnifiedPush or polling. So each release would also publish
+   build that ("NonFreeDep"). The default build (no FCM, no Play Billing) only *links* free
+   libraries: Compose, AndroidX, WorkManager, Tink, Gson and json-canonicalization, all under open
+   licences. But `android/app/build.gradle.kts` still *names* `firebase-messaging` and
+   `com.android.billingclient`, behind `if (fcmEnabled)` and `if (playEnabled)`, and F-Droid's
+   scanner reads the build file as text, so it flags them anyway. The recipe therefore deletes
+   those two lines in `prebuild` and removes the unused `src/fcm` and `src/play` source sets
+   with `rm` (below), so nothing that imports Firebase or Play Billing is left. Both are inert in
+   the default build, so the APK should still match ours byte for byte; check that when testing
+   reproducibility. Moving the two dependencies to a separate Gradle file that only the FCM and
+   Play builds apply would make the `prebuild` unnecessary.
+   The FOSS build wakes up through UnifiedPush or polling. So each release would also publish
    `plainphone-VERSION-foss.apk`, built without `-PplainphoneFcm` and `-PplainphonePlay`, signed
    with the production key.
 2. **Determinism.** Things to check, by building the same tag twice on two machines and
@@ -52,15 +60,14 @@ APK with our signature. The recipe then lists the certificate in `AllowedAPKSign
 
 ## Metadata
 
-F-Droid reads `fastlane/metadata/android/<locale>/` from the repository. The texts there today
-are written for the **Play edition** (light mode, Child profile, no APK links), which is narrower
-than what an F-Droid build can do. Two options:
-
-- keep F-Droid's own texts in `fdroiddata` (`metadata/org.plainphone.app/<locale>/`), describing
-  both modes and the Myself profile; confirm with the F-Droid reviewers that these override the
-  repository's files, or
-- move the Play texts to `fastlane/play/` once the F-Droid listing exists, and let
-  `fastlane/metadata/android/` describe the full app.
+F-Droid reads `fastlane/metadata/android/<locale>/` from the repository. That folder is kept
+for F-Droid: the Play edition's texts (light mode, Child profile, no APK links) are in
+`fastlane/play/` instead, so an F-Droid listing never shows "on Google Play" or leaves out strong
+mode and the Myself profile. Before submitting to F-Droid, write `title.txt`,
+`short_description.txt`, `full_description.txt` and a changelog per locale in
+`fastlane/metadata/android/<locale>/` for the full app: both modes, both profiles, and that
+strong-mode phones update from GitHub Releases. The folder does not exist yet; without it the
+recipe needs its own `Summary` and `Description`.
 
 Screenshots for F-Droid go in `fastlane/metadata/android/<locale>/images/phoneScreenshots/`; F-Droid
 has no fixed aspect ratio, so the existing 1179×2556 renders fit as they are
@@ -94,6 +101,10 @@ Builds:
     versionCode: 21
     commit: v0.1.20
     subdir: android/app
+    rm:
+      - android/app/src/fcm
+      - android/app/src/play
+    prebuild: sed -i -e '/firebase-messaging/d' -e '/billingclient/d' build.gradle.kts
     gradle:
       - yes
     binary: https://github.com/plainphone/plainphone/releases/download/v%v/plainphone-%v-foss.apk

@@ -23,10 +23,10 @@ been submitted, and no Play Console account or app entry has been created from h
 
 ## Store listings
 
-Texts in en-US, da-DK, sv-SE, nb-NO and de-DE, in the layout fastlane `supply` and F-Droid read:
+Texts in en-US, da-DK, sv-SE, nb-NO and de-DE, in the layout fastlane `supply` reads:
 
 ```
-fastlane/metadata/android/<locale>/              phone app (org.plainphone.app), Play edition
+fastlane/play/<locale>/                          phone app (org.plainphone.app), Play edition
 parent-app/fastlane/metadata/android/<locale>/   parent app (org.plainphone.parent)
   title.txt                 30 characters at most
   short_description.txt     80 at most
@@ -35,11 +35,14 @@ parent-app/fastlane/metadata/android/<locale>/   parent app (org.plainphone.pare
 ```
 
 The phone app's texts describe the Play edition only (no strong mode, no links to the APK),
-because Play's monitoring rules forbid pointing to an APK outside Play. F-Droid reads the same
-folder; see [f-droid.md](f-droid.md#metadata) for how to keep a fuller F-Droid description.
+because Play's monitoring rules forbid pointing to an APK outside Play. They are in
+`fastlane/play/` and not in `fastlane/metadata/android/` on purpose: F-Droid reads that folder
+automatically, and the F-Droid build is the full app (both modes, both profiles). See
+[f-droid.md](f-droid.md#metadata).
 
 Each full description says it is an alpha, what the parents can see, and what the app uses on the
-phone (default phone and SMS app, accessibility, VPN, location, usage access, device admin),
+phone (default phone and SMS app, accessibility, VPN, location, usage access; device admin is
+not in the Play edition),
 because the accessibility, VPN and monitoring policies require that in the listing. No text
 promises safety; the brand voice is in [docs/brand/README.md](../brand/README.md#voice-and-tone).
 
@@ -50,6 +53,8 @@ repeat.
 To upload texts without a build, once the Play app exists and a service account is set up:
 
 ```sh
+fastlane supply --package_name org.plainphone.app --metadata_path fastlane/play \
+  --skip_upload_apk --skip_upload_aab --skip_upload_images --skip_upload_screenshots
 fastlane supply --package_name org.plainphone.parent --metadata_path parent-app/fastlane/metadata/android \
   --skip_upload_apk --skip_upload_aab --skip_upload_images --skip_upload_screenshots
 ```

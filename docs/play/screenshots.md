@@ -82,9 +82,12 @@ emulator, 1080 × 1920, in all five languages, light and dark:
 Fastlane `supply` reads images from `images/` next to the texts:
 
 ```
-fastlane/metadata/android/<locale>/images/icon.png
-fastlane/metadata/android/<locale>/images/featureGraphic.png
-fastlane/metadata/android/<locale>/images/phoneScreenshots/1.png … 8.png
+fastlane/play/<locale>/images/icon.png
+fastlane/play/<locale>/images/featureGraphic.png
+fastlane/play/<locale>/images/phoneScreenshots/1.png … 8.png
 ```
+
+(the phone app's Play images; F-Droid's go in `fastlane/metadata/android/<locale>/images/`, see
+[f-droid.md](f-droid.md#metadata))
 
 and the same under `parent-app/fastlane/metadata/android/<locale>/` for the parent app.
