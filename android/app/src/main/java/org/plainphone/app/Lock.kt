@@ -12,6 +12,8 @@ import android.util.Log
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.quiet.BedtimeDnd
 import org.plainphone.app.quiet.DndOutcome
@@ -54,7 +56,10 @@ object Lock {
      */
     internal fun awaitIdleForTests(idle: () -> Unit = {}) {
         val queued = listOf(executor, installRecoveryExecutor).map { it.submit {} }
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
         while (!queued.all { it.isDone }) {
+            // A stall (a stuck apply or a recovery blocked on a lock) fails the test instead of hanging CI.
+            if (System.nanoTime() > deadline) throw TimeoutException("Lock executors still busy after 30 s")
             idle()
             Thread.sleep(1)
         }

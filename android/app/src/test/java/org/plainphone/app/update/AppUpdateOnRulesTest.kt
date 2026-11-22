@@ -39,7 +39,11 @@ class AppUpdateOnRulesTest {
     @After
     fun stopWatchdog() {
         settle()
-        if (startId > 0) service.destroy()
+        if (startId > 0) {
+            service.destroy()
+            // onDestroy queues a forced install recovery while lease markers remain.
+            settle()
+        }
     }
 
     /**
