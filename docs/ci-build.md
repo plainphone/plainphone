@@ -1,6 +1,8 @@
 # CI and build
 
-The CI workflow starts on every pull request and push to main. One job
+The CI workflow starts on every pull request and push to main, and nightly at
+02:17 UTC on main. The nightly run enables only the `e2ee-prototype` check (the
+detector's `nightly` mode), and every other job reports success without work. One job
 computes the tree diff for the run. On pull requests it compares the checked-out
 merge commit with its first parent, so reruns use the same changed files even
 after the pull request moves. On pushes it compares the previous and current

@@ -1285,3 +1285,6 @@ export const latencySamples = pgTable("latency_samples", {
   index("latency_samples_open_wake_idx").on(t.phoneId).where(sql`${t.ms} is null`),
   index("latency_samples_hour_idx").on(t.path, t.hour),
 ]);
+
+// E2EE phase 0 prototype tables (docs/e2ee-prototype.md).
+export * from "./e2ee-schema.js";

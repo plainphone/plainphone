@@ -3470,6 +3470,187 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/e2ee/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The household's active MLS devices (prototype; clients trust the household log, not this list) */
+        get: operations["listE2eeDevices"];
+        put?: never;
+        /**
+         * Register an MLS client for the caller (prototype)
+         * @description A parent's app (session) becomes an `admin` device in `householdId`; a child phone
+         *     (device token) becomes the `child` device of its own household. Every `/e2ee` route
+         *     answers 404 unless `E2EE_PROTOTYPE_ENABLED` is true, which production refuses.
+         */
+        post: operations["registerE2eeDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/devices/{did}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an MLS device; delivery to it stops at once (prototype) */
+        delete: operations["revokeE2eeDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/key-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish MLS key packages, and optionally replace the last-resort one (prototype) */
+        post: operations["publishE2eeKeyPackages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/key-packages/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** An admin device claims one key package per device to add (prototype) */
+        post: operations["claimE2eeKeyPackages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a conversation for an MLS group created on the caller's device (prototype) */
+        post: operations["createE2eeGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/groups/{gid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's epoch and declared members; a client behind it syncs before sending (prototype) */
+        get: operations["getE2eeGroup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/groups/{gid}/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a commit (and its Welcome) for the current epoch (prototype)
+         * @description The server reads the commit's clear header and accepts exactly one commit per epoch.
+         *     Old members (also removed ones) get the commit, added members the Welcome. Adding or
+         *     removing members needs an admin device.
+         */
+        post: operations["postE2eeCommit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/groups/{gid}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send an application message to every other member (prototype) */
+        post: operations["postE2eeMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Waiting MLS messages for one device, in its delivery order (prototype) */
+        get: operations["getE2eeInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/e2ee/inbox/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete delivered items up to a cursor (prototype) */
+        post: operations["ackE2eeInbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -12437,6 +12618,450 @@ export interface operations {
                 content?: never;
             };
             409: components["responses"]["Error"];
+        };
+    };
+    listE2eeDevices: {
+        parameters: {
+            query?: {
+                householdId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Devices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        devices: {
+                            /** Format: uuid */
+                            deviceId: string;
+                            /** @enum {unknown} */
+                            role: "admin" | "child";
+                            mlsSignPub: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Prototype off */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    registerE2eeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description A random lowercase UUIDv4 the client picks; its MLS credential carries it
+                     */
+                    deviceId: string;
+                    /**
+                     * Format: uuid
+                     * @description Required for parents
+                     */
+                    householdId?: string;
+                    /** @description 32-byte Ed25519 MLS leaf key */
+                    mlsSignPub: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Registered */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        deviceId: string;
+                        /** @enum {unknown} */
+                        role: "admin" | "child";
+                    };
+                };
+            };
+            /** @description Prototype off */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many devices for the caller */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revokeE2eeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                did: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked; its key packages and waiting deliveries are deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Prototype off */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    publishE2eeKeyPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    deviceId: string;
+                    keyPackages?: string[];
+                    lastResort?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        stored: number;
+                    };
+                };
+            };
+            /** @description Not a key package for cipher suite 1 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description More than 50 key packages waiting */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    claimE2eeKeyPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    deviceId: string;
+                    deviceIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description One key package per device. A normal one is used up; the last-resort one is reused. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keyPackages: {
+                            /** Format: uuid */
+                            deviceId: string;
+                            keyPackage: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Only a parent device adds members */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A device has no key package */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createE2eeGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    deviceId: string;
+                    /** @description The random MLS group ID, 16 to 64 bytes, base64url */
+                    mlsGroupId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created at epoch 0 with the caller as the only member */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        groupId: string;
+                        epoch: number;
+                    };
+                };
+            };
+            /** @description Only a parent device starts a conversation */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The conversation exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getE2eeGroup: {
+        parameters: {
+            query: {
+                deviceId: string;
+            };
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        groupId: string;
+                        epoch: number;
+                        members: string[];
+                    };
+                };
+            };
+            /** @description Not a member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postE2eeCommit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    deviceId: string;
+                    /** @description MLS PrivateMessage with a commit, at most 64 KiB */
+                    commit: string;
+                    /** @description MLS Welcome, at most 64 KiB; only with added members */
+                    welcome?: string;
+                    /** @description Device IDs after the commit */
+                    members: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        epoch: number;
+                    };
+                };
+            };
+            /** @description Not a commit for this conversation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only a parent device adds or removes members */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postE2eeMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    deviceId: string;
+                    /** @description MLS PrivateMessage with application content, at most 8 KiB */
+                    message: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Queued for every other member */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an application message for this conversation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    getE2eeInbox: {
+        parameters: {
+            query: {
+                deviceId: string;
+                after?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to 200 items after the cursor */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            cursor: number;
+                            /** Format: uuid */
+                            groupId: string;
+                            /** @enum {unknown} */
+                            kind: "welcome" | "commit" | "application";
+                            epoch: number;
+                            payload: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    ackE2eeInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    deviceId: string;
+                    upTo: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Deleted; messages nobody still needs are deleted too */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }
