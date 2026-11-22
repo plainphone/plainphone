@@ -10,7 +10,7 @@ import {
   type ExtendedInvite,
   type ExtendedRoster,
   STATE_KEYS,
-} from "../lib/extended-family";
+} from "@plainphone/shared/extended-family";
 import { Field, useLoad } from "./ui";
 
 /**

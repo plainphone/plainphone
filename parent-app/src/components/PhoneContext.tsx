@@ -13,8 +13,8 @@ import type { App, ChangeResult, Locale, PendingChange, Phone } from "../api/mod
 import { type TFn, useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { radius, space, useColors } from "../lib/theme";
-import { formatDateTime, formatDuration } from "../shared/lib/format";
-import { describeOp } from "../shared/lib/ops";
+import { formatDateTime, formatDuration } from "@plainphone/shared/format";
+import { describeOp } from "@plainphone/shared/ops";
 import { Button, ErrorState, errorMessage, LiveStatus, Loading, type NoticeValue, Row, Screen, Text, useLoad, useNow } from "./ui";
 
 export interface PhoneCtx {

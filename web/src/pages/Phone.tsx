@@ -8,7 +8,7 @@ import { CallbackRequests } from "../components/CallbackRequests";
 import { SosOptions } from "../components/SosOptions";
 import { SosPanel } from "../components/SosPanel";
 import { PhoneSwitch } from "../components/BedtimeSettings";
-import { type Decision, outcomeKey, outcomeOf } from "../lib/approval-state";
+import { type Decision, outcomeKey, outcomeOf } from "@plainphone/shared/approval-state";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import type { MessageKey, T } from "@plainphone/i18n/translate";
@@ -24,24 +24,24 @@ import {
   PROTECTIONS,
   type Protection,
 } from "../lib/api";
-import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, formatTimeOfDay, installWindowOverrunSeconds } from "../lib/format";
-import { liftedNotice } from "../lib/liftedPolicies";
-import { lockStepLabel } from "../lib/lock-steps";
-import { filterStatusKey } from "../lib/filter-status";
-import { describeOp } from "../lib/ops";
+import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, formatTimeOfDay, installWindowOverrunSeconds } from "@plainphone/shared/format";
+import { liftedNotice } from "@plainphone/shared/liftedPolicies";
+import { lockStepLabel } from "@plainphone/shared/lock-steps";
+import { filterStatusKey } from "@plainphone/shared/filter-status";
+import { describeOp } from "@plainphone/shared/ops";
 import { Chevron } from "./Phones";
-import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
-import { isRemoteReleaseTooOld } from "../lib/phoneSupport";
+import { BATTERY_EXEMPTION_POLICY } from "@plainphone/shared/failedPolicies";
+import { isRemoteReleaseTooOld } from "@plainphone/shared/phoneSupport";
 import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
 import { ServerMoveToggle } from "../components/ServerMoveToggle";
 import { MoreTimeSection } from "../components/MoreTimeSection";
 import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 import { AppUpdates } from "../components/AppUpdates";
-import { appUpdateReceiptLine } from "../lib/app-updates";
-import { healthRows, receiptText } from "../lib/phone-health";
+import { appUpdateReceiptLine } from "@plainphone/shared/app-updates";
+import { healthRows, receiptText } from "@plainphone/shared/phone-health";
 import { AlertSpeed } from "../components/AlertSpeed";
-import { isIphone, platformLine, ruleRowUnavailable } from "../lib/platform";
+import { isIphone, platformLine, ruleRowUnavailable } from "@plainphone/shared/platform";
 
 interface PhoneCtx {
   phone: Phone;

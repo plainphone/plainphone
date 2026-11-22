@@ -3,13 +3,14 @@
 // Thin client for the parent API. The session lives in an HttpOnly cookie (path /api),
 // so the app never sees or stores a token.
 
-import type { AgePreset, AgePresetId, AgeState, Agreement } from "./age";
-import type { EarlyUnlockOffer } from "./billing";
-import type { Language, PhoneLanguage } from "@plainphone/i18n/phone-language";
+import type { AgePreset, AgePresetId, AgeState, Agreement } from "@plainphone/shared/age";
+import type { EarlyUnlockOffer } from "@plainphone/shared/billing";
+import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
+import type { DnsCategory, FilterMethod, Home, KeyInput, Limit, Op, OpenCategory, PhoneSetting, ScheduleInput, SettingKey } from "@plainphone/shared/models";
 
-export type Locale = Language;
+export type { DnsCategory, FilterMethod, Home, KeyInput, Limit, Locale, Op, OpenCategory, PhoneSetting, ScheduleInput, ScheduleKind, SettingKey, SettingMode, SettingValue } from "@plainphone/shared/models";
+
 export type Profile = "child" | "self";
-export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
 
 export interface User {
@@ -24,8 +25,6 @@ export interface Me {
   /** This server pairs iPhones (IOS_PAIRING_ENABLED): offer "Add an iPhone". Missing on old servers. */
   iosPairing?: boolean;
 }
-/** What the phone last reported about itself (`PUT /device/status`). */
-export type FilterMethod = "vpn" | "privateDns";
 /** What an iPhone reports besides the common fields (docs/ios/architecture.md). */
 export interface IosStatus {
   iosVersion: string;
@@ -41,6 +40,7 @@ export interface IosSelectionState {
   source: "parent" | "phone" | null;
   updatedAt: string | null;
 }
+/** What the phone last reported about itself (`PUT /device/status`). */
 export interface PhoneStatus {
   ios?: IosStatus;
   pushProvider?: "none" | "fcm" | "unifiedpush";
@@ -86,7 +86,7 @@ export interface PhoneStatus {
   /** Minutes used today per limited package; "*" is the total. */
   timeUsed?: Record<string, number>;
   /** The last app update window in strong mode (docs/policies.md, "App updates"). */
-  appUpdates?: import("./app-updates").AppUpdateWindow;
+  appUpdates?: import("@plainphone/shared/app-updates").AppUpdateWindow;
   /** When the server received the report. */
   reportedAt: string;
 }
@@ -178,10 +178,10 @@ export interface Phone {
   appUpdatesEnabled?: boolean;
   appUpdatesRequestedAt?: string | null;
   /** iPhone support (docs/ios/architecture.md). Missing on old servers: an Android phone. */
-  platform?: import("./platform").Platform;
+  platform?: import("@plainphone/shared/platform").Platform;
   tier?: "strong" | "light" | "family_controls" | "supervised";
-  capabilities?: Partial<Record<string, import("./platform").Support>>;
-  ruleReceipt?: import("./phone-health").RuleReceipt | null;
+  capabilities?: Partial<Record<string, import("@plainphone/shared/platform").Support>>;
+  ruleReceipt?: import("@plainphone/shared/phone-health").RuleReceipt | null;
 }
 
 export interface PushSubscriptionInfo {
@@ -233,17 +233,10 @@ export interface App {
   blockedBy?: OpenCategory;
   core: boolean;
 }
-/** Open mode: every app is allowed except the block list (docs/open-mode.md). */
-export type OpenCategory = "social" | "gambling" | "adult";
 export interface OpenModeState {
   enabled: boolean;
   categories: { category: OpenCategory; blocked: boolean; hasApps: boolean }[];
   blockedApps: { packageName: string; label: string }[];
-}
-/** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). */
-export interface Limit {
-  minutes: number;
-  days: Partial<Record<string, number>>;
 }
 export interface Bonus {
   packageName: string;
@@ -288,14 +281,6 @@ export interface DnsState {
   blockedCategories: DnsCategory[];
   allowDomains: string[];
   blockDomains: string[];
-}
-export type ScheduleKind = "school" | "bedtime";
-export interface ScheduleInput {
-  kind: ScheduleKind;
-  days: number[];
-  startMinute: number;
-  endMinute: number;
-  allowedPackages: string[];
 }
 export interface Schedule extends ScheduleInput {
   id: string;
@@ -386,15 +371,6 @@ export interface LocationState {
   ring: Ring | null;
   checkin: Checkin | null;
 }
-export interface KeyInput {
-  qrInvite?: boolean;
-  keyType: "delay" | "trusted";
-  delayHours: number;
-  trustedEmail: string | null;
-  payUnlockEnabled: boolean;
-  payUnlockAmount: number;
-  payUnlockRecipient: "plainphone";
-}
 export type KeyLevel = "mild" | "firm" | "strict" | "custom";
 /** Emergency openings of a Self phone: off by default, light mode only. */
 export interface EmergencySettings {
@@ -423,66 +399,9 @@ export interface SelfKey extends KeyInput {
   emergency?: EmergencySettings;
 }
 
-export type SettingKey =
-  | "bluetooth"
-  | "wifi"
-  | "mobileNetworks"
-  | "roaming"
-  | "tethering"
-  | "nfc"
-  | "airplaneMode"
-  | "screenTimeout"
-  | "brightness"
-  | "volume"
-  | "wallpaper"
-  | "location"
-  | "camera"
-  | "screenCapture"
-  | "language";
-/** `free`: the child (or the Self user) decides. `preset`: set once. `locked`: set and kept. */
-export type SettingMode = "free" | "preset" | "locked";
-export type SettingValue = string | number;
-export interface PhoneSetting {
-  mode: SettingMode;
-  /** Only for `preset` and `locked`, and only for settings that have a value. */
-  value?: SettingValue;
-}
 /** Every setting, `free` filled in. */
 export type PhoneSettings = Record<SettingKey, PhoneSetting>;
-export interface Home {
-  layout: "list" | "grid";
-  theme: "system" | "light" | "dark";
-  palette: "grey" | "sage" | "sand";
-  /** Package names on the front page, in order. At most 8. */
-  apps: string[];
-}
 
-export type Op =
-  | { type: "app.set"; packageName: string; allowed: boolean }
-  | { type: "contact.add"; name: string; number: string }
-  | { type: "contact.remove"; contactId: string }
-  | { type: "contact.schedule"; restricted: boolean }
-  | { type: "dns.method"; method: FilterMethod }
-  | { type: "dns.category"; category: DnsCategory; blocked: boolean }
-  | { type: "openMode.set"; enabled: boolean }
-  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
-  | { type: "dns.allowDomain"; domain: string; present: boolean }
-  | { type: "dns.blockDomain"; domain: string; present: boolean }
-  | { type: "schedule.create"; schedule: ScheduleInput }
-  | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
-  | { type: "schedule.delete"; scheduleId: string }
-  | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
-  | { type: "home.set"; home: Home }
-  | { type: "key.set"; key: KeyInput }
-  | { type: "emergency.set"; enabled: boolean; allowance: number }
-  | { type: "phone.remove"; dnsClientId: string }
-  | { type: "phone.release" }
-  | { type: "move.allow"; allowed: boolean }
-  | { type: "move.start"; exportId: string; serverUrl: string }
-  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
-  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
-  | { type: "catalog.add"; packageName: string; label: string }
-  | { type: "catalog.remove"; packageName: string };
 
 export type ApprovalSummary = Record<"en" | "da", string>;
 

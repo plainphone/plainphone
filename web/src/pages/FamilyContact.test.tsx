@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "@plainphone/i18n/translate";
-import type { ContactView } from "../lib/extended-family";
+import type { ContactView } from "@plainphone/shared/extended-family";
 import { CONTACT_SESSION_KEY } from "../lib/family-contact";
 import { FamilyContactPage } from "./FamilyContact";
 

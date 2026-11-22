@@ -5,8 +5,8 @@ import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { T } from "@plainphone/i18n/translate";
 import { api, type App, type ChangeResult, type Limit, type Locale, type TimeLimits } from "../lib/api";
-import { formatMinutes, limitOn, todayIn, weekdayName } from "../lib/format";
-import { minuteWords } from "../lib/ops";
+import { formatMinutes, limitOn, todayIn, weekdayName } from "@plainphone/shared/format";
+import { minuteWords } from "@plainphone/shared/ops";
 import { usePhone } from "./Phone";
 
 /** The durations offered in the pickers. Few, round choices. */

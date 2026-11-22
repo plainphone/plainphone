@@ -14,7 +14,7 @@ import {
   type QuickMessages as QuickMessageList,
   type SosSettings,
   starterMessages,
-} from "../shared/lib/sos-options";
+} from "@plainphone/shared/sos-options";
 import { useLiveRefresh } from "../lib/live";
 import { Button, Card, Field, Row, Stack as VStack, Switch, Text, useLoad } from "./ui";
 

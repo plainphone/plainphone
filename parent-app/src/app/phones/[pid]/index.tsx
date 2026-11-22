@@ -3,7 +3,7 @@ import { languageNames, messageLanguage, type PhoneLanguage } from "@plainphone/
 import { CallbackRequests } from "../../../components/CallbackRequests";
 import { SosOptions } from "../../../components/SosOptions";
 import { SosPanel } from "../../../components/SosPanel";
-import { filterStatusKey } from "../../../shared/lib/filter-status";
+import { filterStatusKey } from "@plainphone/shared/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
@@ -22,17 +22,17 @@ import { Button, Card, Choice, errorMessage, Field, LinkRow, LoadGate, Notice, P
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
-import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, formatTimeOfDay, installWindowOverrunSeconds } from "../../../shared/lib/format";
-import { liftedNotice } from "../../../shared/lib/liftedPolicies";
+import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, formatTimeOfDay, installWindowOverrunSeconds } from "@plainphone/shared/format";
+import { liftedNotice } from "@plainphone/shared/liftedPolicies";
 import { phoneStateText } from "../../../lib/phoneStateText";
-import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
-import { lockStepLabel } from "../../../shared/lib/lock-steps";
-import { HOME_PALETTES } from "../../../shared/lib/settings";
-import { describeOp } from "../../../shared/lib/ops";
-import { appUpdateReceiptLine } from "../../../shared/lib/app-updates";
-import { healthRows, receiptText } from "../../../shared/lib/phone-health";
-import { isIphone, platformLine, ruleRowUnavailable } from "../../../shared/lib/platform";
-import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
+import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "@plainphone/shared/failedPolicies";
+import { lockStepLabel } from "@plainphone/shared/lock-steps";
+import { HOME_PALETTES } from "@plainphone/shared/settings";
+import { describeOp } from "@plainphone/shared/ops";
+import { appUpdateReceiptLine } from "@plainphone/shared/app-updates";
+import { healthRows, receiptText } from "@plainphone/shared/phone-health";
+import { isIphone, platformLine, ruleRowUnavailable } from "@plainphone/shared/platform";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "@plainphone/shared/phoneUpdate";
 
 function PendingList() {
   const { t, locale } = useI18n();

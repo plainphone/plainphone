@@ -4,8 +4,8 @@ import { errorMessage, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "@plainphone/i18n/translate";
 import { api, type PhoneStatus } from "../lib/api";
-import { updateBatteryExemptionMessage } from "../lib/failedPolicies";
-import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, type LatestVersion } from "../lib/phoneUpdate";
+import { updateBatteryExemptionMessage } from "@plainphone/shared/failedPolicies";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, type LatestVersion } from "@plainphone/shared/phoneUpdate";
 
 const errorMessages: Readonly<Record<string, MessageKey>> = {
   network: "phone.updateNetwork",

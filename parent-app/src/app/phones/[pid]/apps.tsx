@@ -9,7 +9,7 @@ import { useI18n } from "../../../i18n/I18n";
 import type { MessageKey } from "@plainphone/i18n/translate";
 import { space } from "../../../lib/theme";
 import { IphoneApps } from "../../../components/IphoneApps";
-import { isIphone } from "../../../shared/lib/platform";
+import { isIphone } from "@plainphone/shared/platform";
 
 function AppsList() {
   const { t, locale } = useI18n();

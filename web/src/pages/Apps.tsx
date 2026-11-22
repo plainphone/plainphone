@@ -9,7 +9,7 @@ import { usePhone } from "./Phone";
 import { Chevron } from "./Phones";
 import { OpenModePanel } from "./OpenMode";
 import { IphoneApps } from "../components/IphoneApps";
-import { isIphone } from "../lib/platform";
+import { isIphone } from "@plainphone/shared/platform";
 
 export function AppsPage() {
   const { phone } = usePhone();

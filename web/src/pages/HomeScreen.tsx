@@ -4,8 +4,8 @@ import { Field, LoadGate, PageTitle, PickGroup, type PickOption, Switch, useLoad
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "@plainphone/i18n/translate";
 import { api, ApiError, type App, getHome, type Home, putHome, setHomeFreePromise } from "../lib/api";
-import { formatClock, intlLocale } from "../lib/format";
-import { HOME_LAYOUTS, HOME_MAX_APPS, HOME_PALETTES, HOME_THEMES, moveItem } from "../lib/settings";
+import { formatClock, intlLocale } from "@plainphone/shared/format";
+import { HOME_LAYOUTS, HOME_MAX_APPS, HOME_PALETTES, HOME_THEMES, moveItem } from "@plainphone/shared/settings";
 import { usePhone } from "./Phone";
 
 interface Data {

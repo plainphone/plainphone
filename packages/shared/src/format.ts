@@ -2,7 +2,7 @@
 //
 // Formatting helpers. Everything locale-dependent goes through Intl.
 
-import type { Locale } from "./api";
+import type { Locale } from "./models";
 
 export const intlLocale = (l: Locale) => (l === "en" ? "en-GB" : l);
 

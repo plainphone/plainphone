@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // The requests a trusted person was asked to answer: open ones first, answered ones below with
-// their result in place. Same states and copy as the dashboard (src/shared/lib/approval-state).
+// their result in place. Same states and copy as the dashboard (@plainphone/shared/approval-state).
 import { type ComponentRef, useEffect, useRef } from "react";
 import { AccessibilityInfo, findNodeHandle, Platform, View } from "react-native";
 import type { Approval } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { radius, space, useColors } from "../lib/theme";
-import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "../shared/lib/approval-state";
-import { formatDateTime } from "../shared/lib/format";
+import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "@plainphone/shared/approval-state";
+import { formatDateTime } from "@plainphone/shared/format";
 import { messageLanguage } from "@plainphone/i18n/phone-language";
 import { ItemRow } from "./parts";
 import { Button, Row, Stack as VStack, Text } from "./ui";

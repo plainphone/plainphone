@@ -2,7 +2,7 @@
 import { useId, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api } from "../lib/api";
-import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "../lib/sos-options";
+import { DEFAULT_SOS_SETTINGS, PRESS_CHOICES, type SosSettings } from "@plainphone/shared/sos-options";
 import { CallbackSettings } from "./CallbackSettings";
 import { FamilyInbox } from "./FamilyInbox";
 import { QuickMessages } from "./QuickMessages";

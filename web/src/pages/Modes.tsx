@@ -24,7 +24,7 @@ import {
   setModesEnabled,
   updateMode,
 } from "../lib/api";
-import { crossesMidnight, formatClock, formatList, hhmmToMinutes, minutesToHHMM, weekdayName } from "../lib/format";
+import { crossesMidnight, formatClock, formatList, hhmmToMinutes, minutesToHHMM, weekdayName } from "@plainphone/shared/format";
 import { usePhone } from "./Phone";
 
 export function modeName(m: Pick<Mode, "name" | "preset">, t: T): string {

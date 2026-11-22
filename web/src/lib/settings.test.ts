@@ -4,7 +4,7 @@ import { da } from "@plainphone/i18n/da";
 import { en } from "@plainphone/i18n/en";
 import { makeT } from "@plainphone/i18n/translate";
 import type { Op, SettingKey } from "./api";
-import { describeOp } from "./ops";
+import { describeOp } from "@plainphone/shared/ops";
 import {
   DEFAULT_HOME,
   formatSettingValue,
@@ -19,7 +19,7 @@ import {
   SETTING_SPECS,
   specFor,
   stateFor,
-} from "./settings";
+} from "@plainphone/shared/settings";
 
 const tEn = makeT("en");
 const tDa = makeT("da");

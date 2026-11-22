@@ -13,7 +13,7 @@ import { clearLocalNotifications, syncNativePush, watchNativePush } from "./noti
 import { logoutNativeSession } from "./push-registration";
 import { clearPendingInvite, forgetAcceptedInvites, loadPendingInvite } from "./pendingInvite";
 import { forgetHouseholdChoice, getHouseholdChoice, loadHouseholdChoice, subscribeHouseholdChoice } from "./household-choice";
-import { pickHousehold } from "../shared/lib/household";
+import { pickHousehold } from "@plainphone/shared/household";
 import { rememberLogout, retryPendingLogouts, signOutOnServer } from "./pending-logout";
 import { getItem, removeItem, setItem } from "./storage";
 

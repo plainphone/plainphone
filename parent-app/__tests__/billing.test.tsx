@@ -6,7 +6,7 @@
 import * as SecureStore from "expo-secure-store";
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { makeT } from "@plainphone/i18n/translate";
-import { formatDateTime } from "../src/shared/lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 const routes = "./src/app";

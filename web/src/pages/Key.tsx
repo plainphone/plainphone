@@ -8,7 +8,7 @@ import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type ChangeResult, type KeyInput, type SelfKey } from "../lib/api";
 import { EmergencySection } from "../components/EmergencyOpenings";
 import { EarlyUnlockReceipt } from "../components/EarlyUnlock";
-import { formatPrice, type Plan } from "../lib/billing";
+import { formatPrice, type Plan } from "@plainphone/shared/billing";
 import type { MessageKey } from "@plainphone/i18n/translate";
 import { useMe } from "../lib/session";
 import { usePhone } from "./Phone";

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { MessageKey, T } from "@plainphone/i18n/translate";
-import type { Locale } from "./api";
+import type { Locale } from "./models";
 import { formatRelative } from "./format";
 import { filterStatusKey } from "./filter-status";
 import { phoneState, type PhoneStateInput } from "./phone-state";

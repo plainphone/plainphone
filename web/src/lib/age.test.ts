@@ -10,7 +10,7 @@ import {
   parseLines,
   presetLines,
   suggestionText,
-} from "./age";
+} from "@plainphone/shared/age";
 
 const preset: AgePreset = {
   id: "10-11",

@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
 import { acknowledgeSos, api } from "../lib/api";
-import { type SosTrigger, triggerLabel } from "../lib/sos-options";
+import { type SosTrigger, triggerLabel } from "@plainphone/shared/sos-options";
 import { useLoad } from "./ui";
 
 interface SosEvent {

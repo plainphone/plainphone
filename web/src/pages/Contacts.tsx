@@ -5,7 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "@plainphone/i18n/translate";
 import { api, ApiError, type ChangeResult, CONTACT_GROUPS, type Contact, type ContactGroup, setContactGroup } from "../lib/api";
 import { ContactSuggestions } from "./ContactSuggestions";
-import { isIphone } from "../lib/platform";
+import { isIphone } from "@plainphone/shared/platform";
 import { usePhone } from "./Phone";
 
 /** Same rule as the server: + and 7 to 15 digits, spaces, dashes and brackets ignored. */

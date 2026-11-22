@@ -4,8 +4,8 @@
 // it ends and a plain OpenStreetMap link; after that only the line. Same copy as the dashboard.
 import { Linking, View } from "react-native";
 import { useI18n } from "../i18n/I18n";
-import { coordinateText, type LocationSnapshot, snapshotUntil } from "../shared/lib/extended-family";
-import { osmUrl } from "../shared/lib/format";
+import { coordinateText, type LocationSnapshot, snapshotUntil } from "@plainphone/shared/extended-family";
+import { osmUrl } from "@plainphone/shared/format";
 import { copyText } from "../lib/clipboard";
 import { Button, Text } from "./ui";
 

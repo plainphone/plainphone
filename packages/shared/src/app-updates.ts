@@ -5,7 +5,7 @@
 
 import type { MessageKey } from "@plainphone/i18n/translate";
 import { formatDateTime, intlLocale } from "./format";
-import type { Locale } from "./api";
+import type { Locale } from "./models";
 
 /** The phone's report of its last app update window (`status.appUpdates`). */
 export interface AppUpdateWindow {

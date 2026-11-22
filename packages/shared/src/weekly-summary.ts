@@ -4,7 +4,7 @@
 // the dashboard and the parent app show for each phone. Shared with the parent app.
 
 import type { MessageKey, T } from "@plainphone/i18n/translate";
-import type { Locale } from "./api";
+import type { Locale } from "./models";
 import { formatMinutes, intlLocale, weekdayName } from "./format";
 
 export type ChangeCategory = "time" | "apps" | "contacts" | "web" | "schedules" | "other";

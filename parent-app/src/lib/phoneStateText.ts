@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Locale } from "../api/models";
 import type { T } from "@plainphone/i18n/translate";
-import { formatRelative } from "../shared/lib/format";
-import { phoneState, type PhoneStateInput } from "../shared/lib/phone-state";
+import { formatRelative } from "@plainphone/shared/format";
+import { phoneState, type PhoneStateInput } from "@plainphone/shared/phone-state";
 
 /** The one-line state and the sentence behind it, worded like the dashboard. */
 export function phoneStateText(phone: PhoneStateInput, now: number, t: T, locale: Locale) {

@@ -5,7 +5,7 @@
 // final word and answers 400 to anything else.
 
 import type { MessageKey, T } from "@plainphone/i18n/translate";
-import type { Home, PhoneSetting, SettingKey, SettingMode, SettingValue } from "./api";
+import type { Home, PhoneSetting, SettingKey, SettingMode, SettingValue } from "./models";
 
 export type ValueMode = Exclude<SettingMode, "free">;
 export type SettingGroup = "connections" | "screen" | "privacy";

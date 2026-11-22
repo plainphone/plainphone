@@ -7,8 +7,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "@plainphone/i18n/translate";
 import { api, type EmergencyOpenings, type SelfKey } from "../lib/api";
-import { formatPrice, type Plan } from "../lib/billing";
-import { formatDateTime } from "../lib/format";
+import { formatPrice, type Plan } from "@plainphone/shared/billing";
+import { formatDateTime } from "@plainphone/shared/format";
 import { KeyPage } from "./Key";
 
 const t = makeT("en");

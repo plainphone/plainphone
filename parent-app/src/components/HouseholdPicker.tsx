@@ -2,7 +2,7 @@
 import { useI18n } from "../i18n/I18n";
 import { chooseHousehold } from "../lib/household-choice";
 import { useActiveHousehold, useMe } from "../lib/session";
-import { householdOptionLabel } from "../shared/lib/household";
+import { householdOptionLabel } from "@plainphone/shared/household";
 import { Choice } from "./ui";
 
 /** Shown only to a parent who is in more than one household: which one this screen is about. */

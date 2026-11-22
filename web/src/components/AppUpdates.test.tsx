@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "@plainphone/i18n/translate";
 import { api, type Phone, type PhoneStatus } from "../lib/api";
-import { appUpdateLines, appUpdateReceiptLine, type AppUpdateWindow } from "../lib/app-updates";
+import { appUpdateLines, appUpdateReceiptLine, type AppUpdateWindow } from "@plainphone/shared/app-updates";
 import { AppUpdates } from "./AppUpdates";
 
 const t = makeT("en");

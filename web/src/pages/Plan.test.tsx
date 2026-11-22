@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "@plainphone/i18n/translate";
 import { api, ApiError } from "../lib/api";
-import { formatPrice, type Plan } from "../lib/billing";
+import { formatPrice, type Plan } from "@plainphone/shared/billing";
 import { PairPage } from "./Pair";
 import { PlanPage } from "./Plan";
 import { SettingsPage } from "./Settings";

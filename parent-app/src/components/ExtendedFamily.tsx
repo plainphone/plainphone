@@ -15,7 +15,7 @@ import {
   type ExtendedInvite,
   type ExtendedRoster,
   STATE_KEYS,
-} from "../shared/lib/extended-family";
+} from "@plainphone/shared/extended-family";
 import { Button, Card, Field, Row, Segmented, Stack as VStack, Text, useLoad } from "./ui";
 
 const GROUPS: ContactGroupId[] = ["family", "friends", "others"];

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
 import { makeT } from "@plainphone/i18n/translate";
-import { healthRows, receiptText } from "./phone-health";
+import { healthRows, receiptText } from "@plainphone/shared/phone-health";
 
 const now = Date.parse("2026-11-19T12:00:00Z");
 const at = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString();

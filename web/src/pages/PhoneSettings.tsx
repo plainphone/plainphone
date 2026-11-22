@@ -24,11 +24,11 @@ import {
   type SettingSpec,
   settingName,
   stateFor,
-} from "../lib/settings";
+} from "@plainphone/shared/settings";
 import { usePhone } from "./Phone";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
 import type { PhoneLanguage } from "@plainphone/i18n/phone-language";
-import { intlLocale } from "../lib/format";
+import { intlLocale } from "@plainphone/shared/format";
 
 export function PhoneSettingsPage() {
   const { t } = useI18n();

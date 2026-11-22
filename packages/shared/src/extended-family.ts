@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Extended family contacts and location snapshots (docs/extended-family.md). Platform-free, so the
-// parent app gets a copy through `pnpm sync:shared`.
+// Extended family contacts and location snapshots (docs/extended-family.md). Platform-free, shared by
+// the web dashboard and the parent app.
 
 import type { MessageKey } from "@plainphone/i18n/en";
 

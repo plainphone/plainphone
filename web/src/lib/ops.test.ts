@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
 import { makeT } from "@plainphone/i18n/translate";
-import { describeOp } from "./ops";
+import { describeOp } from "@plainphone/shared/ops";
 
 describe("describeOp", () => {
   it("says what releasing a phone does, in both languages", () => {

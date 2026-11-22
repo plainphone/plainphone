@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Live updates (docs/live-updates.md): the client side of GET /api/events, shared by the PWA and
-// the parent app (copied into parent-app/src/shared by `pnpm sync:shared`). Platform-free: the
+// the parent app (@plainphone/shared). Platform-free: the
 // PWA plugs in EventSource, the app a small XMLHttpRequest reader. This file holds what both do
 // the same way: the event names, the stream parser, reconnecting with backoff, noticing a dead
 // connection, and telling the views what to refetch. Events carry ids only; views refetch

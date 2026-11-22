@@ -5,7 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import { ApiError, api } from "../lib/api";
 import {
   type CallbackList, type CallbackRequest, callbackRefusalKey, callbackStateKey, isOpenCallback,
-} from "../lib/sos-options";
+} from "@plainphone/shared/sos-options";
 import { useLoad } from "./ui";
 
 /**

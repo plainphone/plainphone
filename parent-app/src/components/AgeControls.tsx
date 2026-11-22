@@ -2,7 +2,7 @@
 //
 // The pieces shared by setup and the phone's screens: the age picker, the review reminder and the
 // family agreement text boxes (docs/age-presets.md, docs/family-agreement.md). Same copy as the
-// dashboard (src/shared). All controlled, so setup can hold the choices until the phone exists.
+// dashboard (@plainphone/shared). All controlled, so setup can hold the choices until the phone exists.
 import { useI18n } from "../i18n/I18n";
 import {
   AGE_PRESET_IDS,
@@ -16,7 +16,7 @@ import {
   presetLines,
   presetName,
   REVIEW_INTERVALS,
-} from "../shared/lib/age";
+} from "@plainphone/shared/age";
 import { Choice, Field, Segmented, Stack, Switch } from "./ui";
 
 /** Pick an age (or none): each choice says what it sets, before anything is changed. */

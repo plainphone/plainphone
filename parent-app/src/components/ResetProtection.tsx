@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AppState, Linking, Platform } from "react-native";
 import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
-import { formatDateTime } from "../shared/lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 import type { paths } from "../api/schema";
 import { Button, Card, errorMessage, LiveStatus, LoadGate, Notice, type NoticeValue, Row, Text, useLoad } from "./ui";
 

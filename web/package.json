@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@plainphone/i18n": "workspace:*",
+    "@plainphone/shared": "workspace:*",
     "jsqr": "1.4.0",
     "maplibre-gl": "6.18.0",
     "react": "^19.3.1",

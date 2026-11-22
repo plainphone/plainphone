@@ -4,7 +4,7 @@
 // app. Pure helpers only: no React, no requests. Nothing here is shown while `billing` is false.
 
 import type { MessageKey } from "@plainphone/i18n/translate";
-import type { Locale } from "./api";
+import type { Locale } from "./models";
 import { formatDateTime, intlLocale } from "./format";
 
 export type PlanName = "unlimited" | "grandfathered" | "free" | "plus";

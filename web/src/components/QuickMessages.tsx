@@ -11,7 +11,7 @@ import {
   type QuickMessages as QuickMessageList,
   type SosSettings,
   starterMessages,
-} from "../lib/sos-options";
+} from "@plainphone/shared/sos-options";
 import { Field, Switch, useLoad } from "./ui";
 
 function MessageForm({ initial, submitLabel, busy, onSubmit, onCancel }: {

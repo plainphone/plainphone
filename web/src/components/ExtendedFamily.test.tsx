@@ -6,8 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "@plainphone/i18n/translate";
 import { api } from "../lib/api";
-import { type ExtendedContact, type ExtendedRoster, snapshotUntil } from "../lib/extended-family";
-import { DEFAULT_SOS_SETTINGS, type FamilyInboxThread, type SosSettings } from "../lib/sos-options";
+import { type ExtendedContact, type ExtendedRoster, snapshotUntil } from "@plainphone/shared/extended-family";
+import { DEFAULT_SOS_SETTINGS, type FamilyInboxThread, type SosSettings } from "@plainphone/shared/sos-options";
 import { FamilyInbox } from "./FamilyInbox";
 
 const t = makeT("en");

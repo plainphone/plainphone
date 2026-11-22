@@ -15,7 +15,7 @@ import { I18nProvider, useI18n } from "../src/i18n/I18n";
 import type { Phone } from "../src/lib/api";
 import { req } from "../src/lib/more-time-fixtures";
 import { isLanguage } from "@plainphone/i18n/phone-language";
-import { FIXTURE_NOW } from "../src/lib/status-fixtures";
+import { FIXTURE_NOW } from "@plainphone/shared/status-fixtures";
 import "../src/styles.css";
 
 const params = new URLSearchParams(window.location.search);
