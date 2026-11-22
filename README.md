@@ -30,9 +30,11 @@ Plainphone is free today. Running it on your own server and keeping one fully pr
 **On a spare phone, without a factory reset (light mode, about 5 minutes):**
 
 1. Sign in at [app.plainphone.org](https://app.plainphone.org) with your email address. The sign-in link arrives by mail.
-2. Choose **Add phone → It is already in use**, pick **Myself** (or **Child**) and create a setup link.
+2. Choose **Add phone → It is already in use**, pick **Child** and create a setup link. Child is the quickest profile to try and to leave again.
 3. Open the link in Chrome on the spare phone, install the APK and follow the steps. [Light mode](docs/light-mode.md#installing-it-no-reset) explains each one.
-4. Getting out: **Undo setup** works without a PIN for the first ten minutes. After that, use **Release the phone** in the dashboard or the maintenance PIN on the phone, then uninstall Plainphone.
+4. Getting out: **Undo setup** works without a PIN for the first ten minutes, and a reboot closes that window. After that, use **Release the phone** in the dashboard (it takes effect at once for a Child phone) or the maintenance PIN on the phone, then uninstall Plainphone.
+
+Trying **Myself** instead? Releasing a Myself phone loosens it, so it waits for the key you picked during setup: 1 to 72 hours, or a trusted person's approval. Its undo window can be off or as short as 5 minutes. See [Myself setup and trusted keys](docs/self-keys.md) before you start.
 
 **On an emulator:** an Android 10 or newer image with Chrome should work the same way, though CI only runs strong mode on emulators ([emulator tests](docs/testing.md)). You can also install the APK from the [releases](https://github.com/plainphone/plainphone/releases) with `adb install plainphone-VERSION.apk`, open Plainphone so it shows a pairing code, and enter it in the dashboard under **Add phone → I have a code from the phone**.
 

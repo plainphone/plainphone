@@ -17,8 +17,16 @@ body:
       options:
         - Strong mode (factory reset, QR code)
         - Light mode (phone already in use)
-        - Open mode (Myself)
         - Emulator
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      options:
+        - Child
+        - Myself
     validations:
       required: true
   - type: input
