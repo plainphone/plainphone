@@ -527,19 +527,28 @@ class UpdateAlarmTest {
     }
 
     @Test fun updateEnrollmentAndPolicyRecoverBeforeTheirEarlyReturns() {
-        val recoveries = listOf<() -> Unit>(
-            {
+        val recoveries = listOfNotNull<() -> Unit>(
+            // The Play edition has no self-updater: its UpdateWorker returns at once.
+            ({
                 PrefsUpdateStateStore(context).lastCheckMs = System.currentTimeMillis()
                 TestListenableWorkerBuilder<UpdateWorker>(context).build().doWork()
-            },
+                Unit
+            }).takeIf { Distribution.SELF_UPDATES },
             { TestListenableWorkerBuilder<org.plainphone.app.sync.EnrollWorker>(context).build().doWork() },
             { Lock.applyIfNeeded(context, "test policy run", Long.MAX_VALUE) },
         )
         for (recover in recoveries) {
             openSelfUpdate()
-            reachDeadlineWithoutAlarm()
-            recover()
-            assertRecovered()
+            // Hold the watchdog's deadline timer, so only the run under test can restore the restriction.
+            val watchdog = shadowOf(service.get().timerLooper)
+            watchdog.pause()
+            try {
+                reachDeadlineWithoutAlarm()
+                recover()
+                assertRecovered()
+            } finally {
+                watchdog.unPause()
+            }
         }
     }
 
