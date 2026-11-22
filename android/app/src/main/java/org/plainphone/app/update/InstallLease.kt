@@ -19,7 +19,11 @@ import org.plainphone.app.catalog.CatalogAccounts
 class InstallLease(
     private val store: Store,
     private val env: Env,
-    private val relockNow: (() -> Unit)? = null,
+    /**
+     * Puts the install restriction back. Runs under LOCK, so it must not apply the policy: Lock's
+     * apply takes its own lock and then LOCK, and the reverse order here could deadlock (#229).
+     */
+    private val relockNow: () -> Unit,
     private val restrictionLifted: () -> Boolean = { false },
     private val tracksOverruns: () -> Boolean = { false },
     private val onRecovered: (Boolean) -> Unit = {},
@@ -27,7 +31,7 @@ class InstallLease(
     private val onCatalogAccountsClosed: (String, Boolean) -> Unit = { _, _ -> },
     /** Android 10: takes Force stop away while a lease is open, so the watchdog survives (ForceStopGuard). */
     private val guardWindow: (open: Boolean) -> Unit = {},
-    /** Opens the restriction through the normal policy path. */
+    /** Opens the restriction through the normal policy path. Never called under LOCK. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
     data class Lease(
@@ -272,10 +276,7 @@ class InstallLease(
         }
 
         try {
-            if (open.isEmpty()) {
-                if (relockNow == null) applyLock(reason, CATALOG in closing)
-                else relockNow.invoke()
-            }
+            if (open.isEmpty()) relockNow()
         } finally {
             if (CATALOG in closing || CATALOG_ACCOUNTS in closing) relockCatalogAccounts()
         }
@@ -469,7 +470,8 @@ class InstallLease(
                     if (catalogChanged && !lock.isInMaintenanceWindow(app)) {
                         lock.applyIfNeededAsync(app, "catalog install window ended") {}
                     }
-                    if (catalogChanged) runCatching { AppUpdateWindow.onLeaseClosed(app) }
+                    // Not on this thread: it can hold Lock's apply lock, which AppUpdateWindow.open waits for (#229).
+                    if (catalogChanged) AppUpdateWindow.onLeaseClosedAsync(app)
                 },
             ) { reason, catalogChanged -> lock.applyForInstall(app, reason, catalogChanged) }
         }

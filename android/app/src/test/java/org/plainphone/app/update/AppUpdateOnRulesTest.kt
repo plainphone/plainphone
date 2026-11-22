@@ -17,6 +17,7 @@ import org.junit.Before
 import org.robolectric.Robolectric
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.Lock
 import org.plainphone.app.PlainphoneAdminReceiver
 import org.plainphone.app.sync.AppUpdateRules
 import org.plainphone.app.sync.SyncStore
@@ -37,8 +38,19 @@ class AppUpdateOnRulesTest {
 
     @After
     fun stopWatchdog() {
-        if (startId > 0) service.destroy()
+        settle()
+        if (startId > 0) {
+            service.destroy()
+            // onDestroy queues a forced install recovery while lease markers remain.
+            settle()
+        }
     }
+
+    /**
+     * Lock's executors are process-wide: work a step queued (apply, install recovery) must finish
+     * before the next step or test starts, or it runs against the next test's state and lock order.
+     */
+    private fun settle() = Lock.awaitIdleForTests { shadowOf(Looper.getMainLooper()).idle() }
 
     /** open() arms the watchdog off the main thread; this thread plays the foreground service's side. */
     private fun <T> offMain(block: () -> T): T {
@@ -55,6 +67,7 @@ class AppUpdateOnRulesTest {
             Thread.sleep(5)
         }
         worker.join(1_000)
+        settle()
         return result.get()
     }
 
@@ -114,6 +127,7 @@ class AppUpdateOnRulesTest {
         assertThat(AppUpdateWindow.log(context).current()?.trigger).isEqualTo(AppUpdateLog.Trigger.PARENT)
 
         AppUpdateWindow.close(context, "test")
+        settle()
         assertThat(AppUpdateWindow.isOpen(context)).isFalse()
         onRules()
         assertThat(AppUpdateWindow.isOpen(context)).isFalse()
@@ -163,6 +177,7 @@ class AppUpdateOnRulesTest {
         assertThat(open(AppUpdateLog.Trigger.NIGHT)).isEqualTo(AppUpdateWindow.OpenResult.OPENED)
         val log = AppUpdateWindow.log(context)
         AppUpdateWindow.close(context, "test")
+        settle()
         AppUpdateWindow.onLeaseClosed(context)
         assertThat(AppUpdateWindow.closeReportPending(context)).isTrue()
 
@@ -180,6 +195,7 @@ class AppUpdateOnRulesTest {
         assertThat(open(AppUpdateLog.Trigger.NIGHT)).isEqualTo(AppUpdateWindow.OpenResult.OPENED)
         val log = AppUpdateWindow.log(context)
         AppUpdateWindow.close(context, "test")
+        settle()
         AppUpdateWindow.onLeaseClosed(context)
         val closed = checkNotNull(log.report(System.currentTimeMillis(), leaseOpen = false))
         assertThat(AppUpdateWindow.closeReportPending(context)).isTrue()
