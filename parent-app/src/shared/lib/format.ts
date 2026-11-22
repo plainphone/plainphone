@@ -93,23 +93,86 @@ export function formatDuration(ms: number, w: DurationWords): string {
   return fill(w.m, 0, m);
 }
 
+// Hermes (the native builds) has no Intl.RelativeTimeFormat or Intl.ListFormat. Where they are
+// missing, these tables give the same text as ICU for the units and values formatRelative uses.
+type RelUnit = "minute" | "hour" | "day";
+interface RelWords {
+  now: string;
+  past: (n: string, unit: string) => string;
+  future: (n: string, unit: string) => string;
+  units: Record<RelUnit, [one: string, other: string]>;
+  days: Record<number, string>;
+}
+
+const relWords: Record<Locale, RelWords> = {
+  en: {
+    now: "now",
+    past: (n, u) => `${n} ${u} ago`,
+    future: (n, u) => `in ${n} ${u}`,
+    units: { minute: ["minute", "minutes"], hour: ["hour", "hours"], day: ["day", "days"] },
+    days: { [-1]: "yesterday", 1: "tomorrow" },
+  },
+  da: {
+    now: "nu",
+    past: (n, u) => `for ${n} ${u} siden`,
+    future: (n, u) => `om ${n} ${u}`,
+    units: { minute: ["minut", "minutter"], hour: ["time", "timer"], day: ["dag", "dage"] },
+    days: { [-2]: "i forgårs", [-1]: "i går", 1: "i morgen", 2: "i overmorgen" },
+  },
+  sv: {
+    now: "nu",
+    past: (n, u) => `för ${n} ${u} sedan`,
+    future: (n, u) => `om ${n} ${u}`,
+    units: { minute: ["minut", "minuter"], hour: ["timme", "timmar"], day: ["dag", "dagar"] },
+    days: { [-2]: "i förrgår", [-1]: "i går", 1: "i morgon", 2: "i övermorgon" },
+  },
+  nb: {
+    now: "nå",
+    past: (n, u) => `for ${n} ${u} siden`,
+    future: (n, u) => `om ${n} ${u}`,
+    units: { minute: ["minutt", "minutter"], hour: ["time", "timer"], day: ["døgn", "døgn"] },
+    days: { [-2]: "i forgårs", [-1]: "i går", 1: "i morgen", 2: "i overmorgen" },
+  },
+  de: {
+    now: "jetzt",
+    past: (n, u) => `vor ${n} ${u}`,
+    future: (n, u) => `in ${n} ${u}`,
+    units: { minute: ["Minute", "Minuten"], hour: ["Stunde", "Stunden"], day: ["Tag", "Tagen"] },
+    days: { [-2]: "vorgestern", [-1]: "gestern", 1: "morgen", 2: "übermorgen" },
+  },
+};
+
+function formatRelativeUnit(value: number, unit: RelUnit | "second", locale: Locale): string {
+  if (typeof Intl.RelativeTimeFormat === "function") {
+    return new Intl.RelativeTimeFormat(intlLocale(locale), { numeric: "auto" }).format(value, unit);
+  }
+  const w = relWords[locale];
+  if (unit === "second") return w.now;
+  if (unit === "day" && w.days[value]) return w.days[value];
+  const n = Math.abs(value);
+  const word = w.units[unit][n === 1 ? 0 : 1];
+  const num = new Intl.NumberFormat(intlLocale(locale)).format(n);
+  return value < 0 ? w.past(num, word) : w.future(num, word);
+}
+
 /** "5 minutes ago", "yesterday" and so on. */
 export function formatRelative(iso: string, now: number, locale: Locale): string {
   const diffSec = Math.round((new Date(iso).getTime() - now) / 1000);
-  const rtf = new Intl.RelativeTimeFormat(intlLocale(locale), { numeric: "auto" });
   const abs = Math.abs(diffSec);
-  if (abs < 60) return rtf.format(0, "second");
-  if (abs < 3600) return rtf.format(Math.round(diffSec / 60), "minute");
-  if (abs < 86_400) return rtf.format(Math.round(diffSec / 3600), "hour");
-  return rtf.format(Math.round(diffSec / 86_400), "day");
+  if (abs < 60) return formatRelativeUnit(0, "second", locale);
+  if (abs < 3600) return formatRelativeUnit(Math.round(diffSec / 60), "minute", locale);
+  if (abs < 86_400) return formatRelativeUnit(Math.round(diffSec / 3600), "hour", locale);
+  return formatRelativeUnit(Math.round(diffSec / 86_400), "day", locale);
 }
 
+/**
+ * "250 m" or "1.3 km". Not NumberFormat's style "unit": Hermes on iOS converts the unit itself
+ * (250 m became "0,25 km", 1.25 km became "0.777mi"). "m" and "km" read the same in every app language.
+ */
 export function formatMeters(m: number, locale: Locale): string {
-  return new Intl.NumberFormat(intlLocale(locale), {
-    style: "unit",
-    unit: m >= 1000 ? "kilometer" : "meter",
-    maximumFractionDigits: m >= 1000 ? 1 : 0,
-  }).format(m >= 1000 ? m / 1000 : m);
+  const km = m >= 1000;
+  const n = new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: km ? 1 : 0 }).format(km ? m / 1000 : m);
+  return `${n} ${km ? "km" : "m"}`;
 }
 
 export function formatMoney(minor: number, currency: string, locale: Locale): string {
@@ -122,8 +185,15 @@ export function installWindowOverrunSeconds(policy: string): string | undefined 
   return /^install window overran: (\d+)s$/.exec(policy)?.[1];
 }
 
+const listAnd: Record<Locale, string> = { en: "and", da: "og", sv: "och", nb: "og", de: "und" };
+
+/** "a, b and c". Falls back to the same text where Intl.ListFormat is missing (Hermes). */
 export function formatList(items: string[], locale: Locale): string {
-  return new Intl.ListFormat(intlLocale(locale), { style: "long", type: "conjunction" }).format(items);
+  if (typeof Intl.ListFormat === "function") {
+    return new Intl.ListFormat(intlLocale(locale), { style: "long", type: "conjunction" }).format(items);
+  }
+  if (items.length < 2) return items.join("");
+  return `${items.slice(0, -1).join(", ")} ${listAnd[locale]} ${items[items.length - 1]}`;
 }
 
 export function formatCoord(n: number, locale: Locale): string {

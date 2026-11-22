@@ -9,17 +9,19 @@ export interface Call {
   path: string;
   body: unknown;
   auth: string | null;
+  headers: Record<string, string>;
 }
-type Handler = (call: Call) => { status?: number; body?: unknown } | undefined;
+type Reply = { status?: number; body?: unknown; headers?: Record<string, string> };
+type Handler = (call: Call) => Reply | undefined;
 
-export function fakeApi(routes: Record<string, Handler | { status?: number; body?: unknown }>) {
+export function fakeApi(routes: Record<string, Handler | Reply>) {
   const calls: Call[] = [];
   const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const req = input instanceof Request ? input : new Request(String(input), init);
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/api/, "");
     const text = req.method === "GET" ? "" : await req.text();
-    const call: Call = { method: req.method, origin: url.origin, path, body: text ? JSON.parse(text) : undefined, auth: req.headers.get("authorization") };
+    const call: Call = { method: req.method, origin: url.origin, path, body: text ? JSON.parse(text) : undefined, auth: req.headers.get("authorization"), headers: Object.fromEntries(req.headers.entries()) };
     calls.push(call);
     const key = `${req.method} ${path}`;
     const route = routes[key];
@@ -28,7 +30,7 @@ export function fakeApi(routes: Record<string, Handler | { status?: number; body
     const status = out.status ?? 200;
     return new Response(out.body === undefined ? null : JSON.stringify(out.body), {
       status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...out.headers },
     });
   };
   globalThis.fetch = fetchImpl as typeof fetch;

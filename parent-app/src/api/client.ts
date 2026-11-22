@@ -59,7 +59,8 @@ const auth: Middleware = {
       const sent = request.headers.get("authorization");
       onUnauthorized?.(sent?.startsWith("Bearer ") ? sent.slice(7) : null);
     }
-    return response;
+    // Return nothing: openapi-fetch only accepts a returned `instanceof Response`, and
+    // expo/fetch (the global fetch since Expo SDK 58) returns its own Response class.
   },
 };
 

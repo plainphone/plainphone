@@ -124,7 +124,20 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
 
 Enable Associated Domains (`applinks:app.plainphone.org`), Push Notifications and Time Sensitive Notifications for the App ID in the Apple developer account. The `expo-notifications` plugin adds the `aps-environment` entitlement. Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
+The privacy manifest (`ios.privacyManifests` in `app.config.ts`) declares the sign-in email address, a number to call back (check-ins, SOS), the approved contacts a parent enters for a phone and the content a parent writes (phone names, rules, messages, requests) as collected, linked to the account, used only for the app's function and never for tracking, as described in [privacy.md](privacy.md). Keep it, the App Store privacy answers and privacy.md in step.
+
 EAS Build is optional for compiling and signing. Push does not need an Expo account: the app registers its APNs or FCM token with your server.
+
+The iOS build links the local Expo module `modules/plainphone-screentime` (Family Controls,
+ManagedSettings, DeviceActivity). The Parent role never calls it. Its Swift bridge file is only
+compiled by an Expo build, not by CI, so build once on a Mac after changing it. A build with
+`PLAINPHONE_IOS_CHILD=1` also offers the Child role ("Whose phone is this?" on the first launch,
+then the setup on the iPhone) on iPhones with iOS 26 or later, checked at run time; parents on
+older iPhones (from iOS 16.4) get the same build as Parent only. The Child role needs the Family
+Controls entitlement and the App Group
+`group.org.plainphone.app`, and the extension targets are not part of the Expo build yet
+([docs/ios/architecture.md](ios/architecture.md#what-exists-now-phase-1-skeleton)). Leave it off for
+App Store builds until phase 1 has run on a real iPhone.
 
 ## Your own server
 

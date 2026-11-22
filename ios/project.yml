@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# xcodegen spec for the iPhone native code (docs/ios/architecture.md). Generate with
+# `xcodegen generate` in this directory; the .xcodeproj is not committed.
+#
+# The Plainphone app itself is the Expo app in parent-app/, which links the same Swift sources
+# through the local Expo module parent-app/modules/plainphone-screentime. This project builds
+# that Swift code on its own: the PlainphoneCore framework and its unit tests, the extension
+# targets, and a small dev host app that embeds them. No signing settings and no team ID here:
+# CI builds unsigned for the simulator; on a Mac, pick the team in Xcode.
+name: PlainphoneDev
+
+options:
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+
+settings:
+  base:
+    PP_BUNDLE_ID: org.plainphone.app.dev
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+targets:
+  PlainphoneCore:
+    type: framework
+    platform: iOS
+    sources:
+      - path: ../parent-app/modules/plainphone-screentime/ios/Core
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).core
+        # Swift 5 mode, like the Expo pod (PlainphoneScreenTime.podspec) that ships this code.
+        # The Apple-free parts also build in Swift 6 mode with warnings as errors (ios/README.md).
+        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: YES
+
+  PlainphoneCoreTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/PlainphoneCoreTests
+    dependencies:
+      - target: PlainphoneCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).core-tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  ActivityMonitor:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../parent-app/modules/plainphone-screentime/targets/activity-monitor
+    dependencies:
+      - target: PlainphoneCore
+        embed: false
+      - sdk: DeviceActivity.framework
+      - sdk: ManagedSettings.framework
+    info:
+      path: Generated/ActivityMonitor-Info.plist
+      properties:
+        CFBundleDisplayName: Plainphone Activity Monitor
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.deviceactivity.monitor-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ActivityMonitorExtension
+    entitlements:
+      path: Generated/ActivityMonitor.entitlements
+      properties: &extensionEntitlements
+        com.apple.developer.family-controls: true
+        com.apple.security.application-groups: [group.org.plainphone.app]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).activity-monitor
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/Frameworks @executable_path/../../Frameworks
+
+  ShieldConfiguration:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../parent-app/modules/plainphone-screentime/targets/shield-configuration
+    dependencies:
+      - target: PlainphoneCore
+        embed: false
+      - sdk: ManagedSettings.framework
+      - sdk: ManagedSettingsUI.framework
+    info:
+      path: Generated/ShieldConfiguration-Info.plist
+      properties:
+        CFBundleDisplayName: Plainphone Shield
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettingsUI.shield-configuration-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShieldConfigurationExtension
+    entitlements:
+      path: Generated/ShieldConfiguration.entitlements
+      properties: *extensionEntitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).shield-configuration
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/Frameworks @executable_path/../../Frameworks
+
+  ShieldAction:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../parent-app/modules/plainphone-screentime/targets/shield-action
+    dependencies:
+      - target: PlainphoneCore
+        embed: false
+      - sdk: ManagedSettings.framework
+    info:
+      path: Generated/ShieldAction-Info.plist
+      properties:
+        CFBundleDisplayName: Plainphone Shield Action
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettings.shield-action-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShieldActionExtension
+    entitlements:
+      path: Generated/ShieldAction.entitlements
+      properties: *extensionEntitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID).shield-action
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/Frameworks @executable_path/../../Frameworks
+
+  PlainphoneDev:
+    type: application
+    platform: iOS
+    sources:
+      - path: Host
+      - path: Tests/Fixtures/ios-rules.json
+        buildPhase: resources
+    dependencies:
+      - target: PlainphoneCore
+      - target: ActivityMonitor
+      - target: ShieldConfiguration
+      - target: ShieldAction
+    info:
+      path: Generated/PlainphoneDev-Info.plist
+      properties:
+        CFBundleDisplayName: Plainphone Dev
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    entitlements:
+      path: Generated/PlainphoneDev.entitlements
+      properties: *extensionEntitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PP_BUNDLE_ID)
+
+schemes:
+  PlainphoneDev:
+    build:
+      targets:
+        PlainphoneDev: all
+        PlainphoneCoreTests: [test]
+    test:
+      targets:
+        - PlainphoneCoreTests
+      gatherCoverageData: false

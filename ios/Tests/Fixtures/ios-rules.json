@@ -1,0 +1,156 @@
+{
+  "phoneId": "00000000-0000-4000-8000-000000000001",
+  "allowServerMove": true,
+  "profile": "child",
+  "timezone": "Europe/Copenhagen",
+  "language": null,
+  "rulesRevision": 0,
+  "pollSeconds": 60,
+  "pendingChanges": [],
+  "changeReceiptsEnabled": true,
+  "healthBoardEnabled": true,
+  "weeklySummaryEnabled": true,
+  "silentBedtime": true,
+  "pinApprovalEnabled": true,
+  "timeLimits": {
+    "total": {
+      "minutes": 90,
+      "days": {}
+    },
+    "bonuses": [
+      {
+        "date": "2026-11-16",
+        "minutes": 15
+      }
+    ]
+  },
+  "contacts": [],
+  "sos": {
+    "name": "Test iPhone",
+    "parents": [],
+    "callback": {
+      "enabled": false
+    },
+    "hidden": {
+      "power": false,
+      "presses": 4,
+      "clock": false,
+      "feedback": "vibrate"
+    },
+    "quickMessages": {
+      "enabled": false,
+      "suggest": false,
+      "items": []
+    }
+  },
+  "schedules": [
+    {
+      "id": "00000000-0000-4000-8000-000000000101",
+      "kind": "school",
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "start": "08:00",
+      "end": "14:30"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000102",
+      "kind": "bedtime",
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "start": "21:00",
+      "end": "07:00"
+    }
+  ],
+  "dns": {
+    "host": "fixture.dns.plainphone.org",
+    "ready": true,
+    "blockedCategories": [
+      "adult",
+      "dating",
+      "gambling",
+      "games",
+      "social",
+      "video"
+    ]
+  },
+  "dnsRevision": "fixture-dns-revision",
+  "fallbackDnsHost": "family.adguard-dns.com",
+  "location": {
+    "enabled": true,
+    "mode": "checkin",
+    "alwaysUntil": null,
+    "intervalMinutes": 1440,
+    "requestedAt": null
+  },
+  "ring": null,
+  "checkIn": null,
+  "release": false,
+  "supportEnabled": true,
+  "releaseWarningsEnabled": true,
+  "askMoreTimeEnabled": true,
+  "limitWarningEnabled": true,
+  "platform": "ios",
+  "tier": "family_controls",
+  "capabilities": {
+    "apps": "partial",
+    "appNames": "partial",
+    "installBlock": "yes",
+    "uninstallProtection": "yes",
+    "factoryResetBlock": "no",
+    "resetProtection": "yes",
+    "accountLock": "yes",
+    "usbBlock": "no",
+    "vpnBlock": "no",
+    "webFilter": "partial",
+    "adultFilter": "yes",
+    "safeSearch": "partial",
+    "systemLanguage": "no",
+    "openMode": "yes",
+    "schoolTime": "yes",
+    "bedtimeApps": "yes",
+    "bedtimeSilence": "partial",
+    "timeLimits": "yes",
+    "limitWarning": "yes",
+    "moreTime": "partial",
+    "contacts": "partial",
+    "callScreening": "no",
+    "callLog": "no",
+    "helpLines": "partial",
+    "sos": "yes",
+    "location": "yes",
+    "ring": "partial",
+    "checkin": "yes",
+    "pinApproval": "yes",
+    "receipts": "yes",
+    "health": "partial",
+    "updateAlarm": "partial",
+    "weeklySummary": "partial",
+    "calmHome": "no",
+    "release": "yes",
+    "maintenance": "yes",
+    "selfKeys": "partial",
+    "phoneSettings": "no",
+    "pickAppsOnParent": "partial",
+    "pickAppsOnPhone": "yes"
+  },
+  "iosApps": {
+    "open": false,
+    "selection": {
+      "revision": "7A86fPni1C0YT_9_B0Pd9L",
+      "source": "phone",
+      "updatedAt": "2026-11-16T12:00:00.000Z"
+    }
+  }
+}

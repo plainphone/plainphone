@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 DETECTOR = Path(__file__).with_name("ci-changes.py")
-CHECKS = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
+CHECKS = {"android", "e2e", "server", "parent", "dns", "site", "backup", "ios"}
 
 
 class ChangeDetectionTests(unittest.TestCase):
@@ -35,6 +35,10 @@ class ChangeDetectionTests(unittest.TestCase):
             "deploy/backup.Dockerfile": {"backup"},
             "scripts/backup-test/storage.py": {"backup"},
             "compose.yaml": {"backup"},
+            "ios/project.yml": {"ios"},
+            "ios/Tests/Fixtures/ios-rules.json": {"ios", "server"},
+            "parent-app/modules/plainphone-screentime/ios/Core/RulesCompiler.swift": {"ios", "parent"},
+            "parent-app/src/app/index.tsx": {"parent"},
             "README.md": set(),
             ".github/scripts/ci-changes.py": CHECKS,
         }

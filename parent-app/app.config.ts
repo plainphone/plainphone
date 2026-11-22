@@ -41,7 +41,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     privacyManifests: {
       NSPrivacyTracking: false,
       NSPrivacyTrackingDomains: [],
-      NSPrivacyCollectedDataTypes: [],
+      // Kept on the server and linked to the account (docs/privacy.md): the sign-in email, a
+      // number to call back (check-ins, SOS), the approved contacts the parent enters for a
+      // phone, and what the parent writes (phone names, rules, messages, requests).
+      NSPrivacyCollectedDataTypes: [
+        "NSPrivacyCollectedDataTypeEmailAddress",
+        "NSPrivacyCollectedDataTypePhoneNumber",
+        "NSPrivacyCollectedDataTypeContacts",
+        "NSPrivacyCollectedDataTypeOtherUserContent",
+      ].map((type) => ({
+        NSPrivacyCollectedDataType: type,
+        NSPrivacyCollectedDataTypeLinked: true,
+        NSPrivacyCollectedDataTypeTracking: false,
+        NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],
+      })),
     },
   },
   android: {
@@ -133,5 +146,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   ],
   experiments: { typedRoutes: true },
-  extra: { serverUrl: SERVER_URL },
+  // iosChildRole: the iPhone build offers "A child's phone" (docs/ios/architecture.md, phase 1).
+  // Off unless built with PLAINPHONE_IOS_CHILD=1; then the app needs iOS 26 and Family Controls.
+  extra: { serverUrl: SERVER_URL, iosChildRole: process.env.PLAINPHONE_IOS_CHILD === "1" },
 });
