@@ -123,6 +123,8 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
 
 Enable Associated Domains (`applinks:app.plainphone.org`), Push Notifications and Time Sensitive Notifications for the App ID in the Apple developer account. The `expo-notifications` plugin adds the `aps-environment` entitlement. Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
+The privacy manifest (`ios.privacyManifests` in `app.config.ts`) declares the sign-in email address, a number to call back (check-ins, SOS), the approved contacts a parent enters for a phone and the content a parent writes (phone names, rules, messages, requests) as collected, linked to the account, used only for the app's function and never for tracking, as described in [privacy.md](privacy.md). Keep it, the App Store privacy answers and privacy.md in step.
+
 EAS Build is optional for compiling and signing. Push does not need an Expo account: the app registers its APNs or FCM token with your server.
 
 ## Your own server
