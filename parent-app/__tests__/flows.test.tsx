@@ -391,6 +391,47 @@ describe("signed in", () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
   });
 
+  it("deletes the account from settings after the address is typed", async () => {
+    let deleted = false;
+    const api = fakeApi({
+      "GET /me": () => (deleted ? { status: 401, body: { error: "sign in first" } } : { body: ME }),
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "DELETE /me": () => {
+        deleted = true;
+        return { body: { status: "deleted", householdsDeleted: 1, phonesRemoved: 1 } };
+      },
+      "POST /auth/logout": { status: 401, body: { error: "sign in first" } },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    await fireEvent.press(await screen.findByTestId("delete-account"));
+    expect(screen.getByText("Your account is deleted immediately and can’t be recovered.")).toBeTruthy();
+    // Nothing happens until the own address is typed.
+    await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+    expect(api.calls.some((c) => c.method === "DELETE" && c.path === "/me")).toBe(false);
+    await fireEvent.changeText(screen.getByLabelText("Type your email address to confirm"), ` ${ME.user.email.toUpperCase()} `);
+    await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+    expect(api.calls.find((c) => c.method === "DELETE" && c.path === "/me")!.body).toEqual({ confirmEmail: ME.user.email.toUpperCase() });
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
+  });
+
+  it("names the phones that must be removed before the account can go", async () => {
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "GET /phones": { body: { phones: [{ ...PHONE, id: "self-1", name: "My phone" }] } },
+      "DELETE /me": { status: 409, body: { error: "remove the Self phones first", selfPhoneIds: ["self-1"] } },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    await fireEvent.press(await screen.findByTestId("delete-account"));
+    await fireEvent.changeText(screen.getByLabelText("Type your email address to confirm"), ME.user.email);
+    await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+    expect(await screen.findByText("First remove these phones. They have a key, so removing them waits for it. Then you can delete the account.")).toBeTruthy();
+    expect(screen.getByText("My phone")).toBeTruthy();
+    expect(screen).toHavePathname("/settings");
+    expect(api.calls.filter((c) => c.path === "/auth/logout")).toHaveLength(0);
+  });
+
   it("keeps login disabled when a switch from settings is still being saved", async () => {
     const custom = "https://plainphone.example.org";
     const api = fakeApi({

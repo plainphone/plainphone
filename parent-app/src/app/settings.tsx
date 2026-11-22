@@ -8,6 +8,7 @@ import { Button, Card, Choice, Notice, Screen, Switch, Text } from "../component
 import { useLive } from "../lib/live";
 import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
+import { DeleteAccount } from "../components/DeleteAccount";
 import { ServerChoice } from "../components/ServerChoice";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { openSosChannelSettings, syncNativePush, type PushState } from "../lib/notifications";
@@ -100,6 +101,7 @@ function Settings() {
         testID="logout"
         onPress={() => void logout()}
       />
+      <DeleteAccount />
     </Screen>
   );
 }
