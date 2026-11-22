@@ -48,6 +48,19 @@ object Lock {
     private val executor = Executors.newSingleThreadExecutor()
     private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
 
+    /**
+     * Tests: returns once the work queued on both background executors has run. The executors are
+     * process-wide, so a Robolectric test that leaves work queued hands it to the next test.
+     */
+    internal fun awaitIdleForTests(idle: () -> Unit = {}) {
+        val queued = listOf(executor, installRecoveryExecutor).map { it.submit {} }
+        while (!queued.all { it.isDone }) {
+            idle()
+            Thread.sleep(1)
+        }
+        queued.forEach { it.get() }
+    }
+
     fun applier(context: Context, onInstallsAllowed: () -> Unit = {}): PolicyApplier {
         val app = context.applicationContext
         val device = AndroidDeviceControls(app)
