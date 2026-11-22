@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { client, unwrap } from "../api/client";
 import type { AgreementDraft } from "../components/AgeControls";
-import { type AgePresetId, parseLines } from "../shared/lib/age";
+import { type AgePresetId, parseLines } from "@plainphone/shared/age";
 
 export interface AgeChoices {
   preset: AgePresetId | null;

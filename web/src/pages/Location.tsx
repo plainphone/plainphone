@@ -18,7 +18,7 @@ import {
   type Ring,
 } from "../lib/api";
 import { useLiveRefresh } from "../lib/live";
-import { formatDateTime, formatMeters, formatRelative } from "../lib/format";
+import { formatDateTime, formatMeters, formatRelative } from "@plainphone/shared/format";
 import { isAppleMobile, positionText, routeLinks } from "../lib/maps";
 import { usePhone } from "./Phone";
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { byKey, merge, resultOf } from "./more-time";
+import { byKey, merge, resultOf } from "@plainphone/shared/more-time";
 import { req } from "./more-time-fixtures";
 
 

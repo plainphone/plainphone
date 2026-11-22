@@ -8,7 +8,7 @@ import { client, unwrap } from "../api/client";
 import type { ChangeResult, EmergencyOpening, EmergencyOpenings, EmergencySettings } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { space } from "../lib/theme";
-import { formatDateTime } from "../shared/lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 import { Button, LoadGate, Segmented, Stack as VStack, Switch, Text, useLoad } from "./ui";
 import { usePhone } from "./PhoneContext";
 

@@ -10,8 +10,8 @@ import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, Choice, errorMessage, Field, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { crossesMidnight, hhmmToMinutes, minutesToHHMM, weekdayName } from "../../../shared/lib/format";
-import { formatDays, formatWindow, kindLabel } from "../../../shared/lib/ops";
+import { crossesMidnight, hhmmToMinutes, minutesToHHMM, weekdayName } from "@plainphone/shared/format";
+import { formatDays, formatWindow, kindLabel } from "@plainphone/shared/ops";
 
 interface Data {
   schedules: Schedule[];

@@ -14,7 +14,7 @@ import { deviceFetch, loadIdentity, saveIdentity } from "../../lib/iphone/device
 import { pairingReducer, POLL_MS, pollPairing, startPairing } from "../../lib/iphone/pairing";
 import { answerAppleSettings, currentStep, loadWizardFlags, markStarted, progress, type WizardFacts, type WizardStep } from "../../lib/iphone/wizard";
 import { useRole } from "../../lib/role-context";
-import { formatTimeOfDay } from "../../shared/lib/format";
+import { formatTimeOfDay } from "@plainphone/shared/format";
 
 export default function ChildSetupScreen() {
   const { role } = useRole();

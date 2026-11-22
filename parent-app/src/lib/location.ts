@@ -5,7 +5,7 @@
 // "Are you okay?" are polled while something is still open on the phone.
 import type { Checkin, Locale, LocationState, Ring } from "../api/models";
 import type { TFn } from "../i18n/I18n";
-import { formatClock, formatDateTime, intlLocale } from "../shared/lib/format";
+import { formatClock, formatDateTime, intlLocale } from "@plainphone/shared/format";
 
 export const POLL_MS = 5000;
 export const FIND_TIMEOUT_MS = 90_000;

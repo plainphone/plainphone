@@ -17,7 +17,7 @@ import {
   presetLines,
   presetName,
   REVIEW_INTERVALS,
-} from "../lib/age";
+} from "@plainphone/shared/age";
 import { Field, Switch } from "./ui";
 
 /** Pick an age (or none): each choice says what it sets, before anything is changed. */

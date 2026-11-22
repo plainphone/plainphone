@@ -8,6 +8,6 @@ module.exports = defineConfig([
   // eslint-plugin-react cannot detect the React version under ESLint 10; name it.
   { settings: { react: { version: "19.3" } } },
   {
-    ignores: ["dist/*", "android/*", "ios/*", "src/api/schema.d.ts", "src/shared/**"],
+    ignores: ["dist/*", "android/*", "ios/*"],
   },
 ]);

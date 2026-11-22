@@ -13,6 +13,9 @@
     "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
+    "@plainphone/api-client": "workspace:*",
+    "@plainphone/i18n": "workspace:*",
+    "@plainphone/shared": "workspace:*",
     "jsqr": "1.4.0",
     "maplibre-gl": "6.18.0",
     "react": "^19.3.1",

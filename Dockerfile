@@ -7,6 +7,10 @@ RUN npm install -g pnpm@12.21.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY server/package.json server/
 COPY web/package.json web/
+# The workspace packages the PWA imports. The parent app and packages/crypto stay out.
+COPY packages/i18n/package.json packages/i18n/
+COPY packages/shared/package.json packages/shared/
+COPY packages/api-client/package.json packages/api-client/
 RUN pnpm install --frozen-lockfile
 
 # Keep the production dependency layer reusable across source-only changes.
@@ -16,6 +20,9 @@ RUN pnpm --filter @plainphone/server deploy --prod --legacy /out
 FROM dependencies AS build
 COPY server server
 COPY web web
+COPY packages/i18n packages/i18n
+COPY packages/shared packages/shared
+COPY packages/api-client packages/api-client
 RUN pnpm -r build \
  && node server/precompress-pwa.mjs web/dist/assets
 

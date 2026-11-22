@@ -12,7 +12,7 @@ interface Exported {
 
 export function HouseholdMove({ householdId }: { householdId: string }) {
   const { t } = useI18n();
-  const base = `/households/${householdId}/server-move`;
+  const base = `/households/${householdId}/server-move` as const;
   const [open, setOpen] = useState(false);
   const [phones, setPhones] = useState<Phone[]>([]);
   const [source, setSource] = useState("");
@@ -34,7 +34,7 @@ export function HouseholdMove({ householdId }: { householdId: string }) {
   }
 
   async function download() {
-    const reply = await api.post<Exported>(base + "/export", { ticket: JSON.parse(ticket), ...(phoneId && { phoneId }) });
+    const reply = await api.post<Exported>(`${base}/export`, { ticket: JSON.parse(ticket), ...(phoneId && { phoneId }) });
     const url = URL.createObjectURL(new Blob([reply.bundle], { type: "application/octet-stream" }));
     const link = document.createElement("a");
     link.href = url;
@@ -49,7 +49,7 @@ export function HouseholdMove({ householdId }: { householdId: string }) {
     <details className="section panel" onToggle={(event) => {
       if (!event.currentTarget.open || open) return;
       setOpen(true);
-      void run(async () => setPhones((await api.get<{ phones: Phone[] }>(base + "/phones")).phones));
+      void run(async () => setPhones((await api.get<{ phones: Phone[] }>(`${base}/phones`)).phones));
     }}>
       <summary>{t("move.title")}</summary>
       <p>{t("move.openBoth")}</p>
@@ -57,14 +57,14 @@ export function HouseholdMove({ householdId }: { householdId: string }) {
       <ol>
         <li>
           <button type="button" className="btn btn-secondary" disabled={busy}
-            onClick={() => void run(async () => setSource(JSON.stringify(await api.get(base + "/source"))))}>{t("move.source")}</button>
+            onClick={() => void run(async () => setSource(JSON.stringify(await api.get(`${base}/source`))))}>{t("move.source")}</button>
           <Field label={t("move.sourceCode")}>
             {(props) => <textarea {...props} rows={3} value={source} onChange={(e) => setSource(e.target.value)} autoComplete="off" />}
           </Field>
         </li>
         <li>
           <button type="button" className="btn btn-secondary" disabled={busy || !source}
-            onClick={() => void run(async () => setTicket(JSON.stringify(await api.post(base + "/prepare", JSON.parse(source)))))}>{t("move.prepare")}</button>
+            onClick={() => void run(async () => setTicket(JSON.stringify(await api.post(`${base}/prepare`, JSON.parse(source)))))}>{t("move.prepare")}</button>
           <Field label={t("move.invitation")}>
             {(props) => <textarea {...props} rows={3} value={ticket} onChange={(e) => setTicket(e.target.value)} autoComplete="off" />}
           </Field>
@@ -86,7 +86,7 @@ export function HouseholdMove({ householdId }: { householdId: string }) {
           <button type="button" className="btn btn-secondary" disabled={busy || !ticket || !file}
             onClick={() => void run(async () => {
               if (!file || file.size > 8 * 1024 * 1024) throw new SyntaxError();
-              await api.post(base + "/import", { ticketId: JSON.parse(ticket).id, bundle: (await file.text()).trim() });
+              await api.post(`${base}/import`, { ticketId: JSON.parse(ticket).id, bundle: (await file.text()).trim() });
               setNotice({ tone: "success", text: t("move.imported") });
             })}>{t("move.import")}</button>
         </li>

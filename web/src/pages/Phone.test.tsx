@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import type { Phone } from "../lib/api";
 import { PhoneSettingsPage } from "./PhoneSettings";
 import { SetupPhonePage } from "./AddPhone";
