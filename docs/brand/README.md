@@ -74,7 +74,7 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 | Android | `res/drawable/ic_notification.xml` as `setSmallIcon` in `telephony/CallNotifications.kt`, `safety/RingService.kt`, `safety/Safety.kt`, `update/AndroidUpdateHost.kt`, `update/UpdateBatteryExemption.kt` | Done: white switch outline on transparent (checked in `BrandIconsScreenshotTest`) |
 | Android | `ui/Tokens.kt`, `ui/Theme.kt`, `MaintenanceStyle.kt`, `res/font/`, `home/HomeColors.kt` | Done: C tokens, Schibsted Grotesk and IBM Plex Mono, ink call buttons. The grey (Graphite) launcher palette is C graphite and the default; sage and sand stay as softer choices |
 | README | `README.md` | Done: badge in `141414`. The hero image is `site/src/og-en.png` (site redesign) |
-| Store listing | none in the repo | No Play Store graphics yet (feature graphic 1024×500, icon 512) |
+| Store listing | `fastlane/metadata/android/`, `parent-app/fastlane/metadata/android/` | Texts in five languages; no graphics yet (feature graphic 1024×500, icon 512). Plan: [docs/play/screenshots.md](../play/screenshots.md) |
 
 The rollout (`feat/brand-rollout-switch`) replaced every non-site row above with direction C. Every generated file is rendered from the SVGs in [`directions/c/`](directions/c/), and the fonts come from `tools/product-fonts.py` at the same pinned google/fonts commit as `render.mjs`. Tokens: [`docs/design-tokens.md`](../design-tokens.md). Screenshots before and after: [`docs/screenshots/brand-rollout-switch/`](../screenshots/brand-rollout-switch/).
 

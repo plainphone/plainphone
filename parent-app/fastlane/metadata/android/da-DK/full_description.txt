@@ -1,0 +1,24 @@
+Plainphone for forældre er der, hvor du sætter reglerne for et barns telefon med Plainphone. Du vælger apps, hvem der kan ringe og skrive, og hvornår skoletid og sengetid begynder. Dit barn kan se de samme regler på sin telefon.
+
+Det her er en alfaversion. Den virker, men den er ny og vil ændre sig. Prøv den med en telefon, du kan teste med, før du regner med den.
+
+Det kan du
+• Vælge, hvilke apps der kan åbnes, og sætte daglige tidsgrænser.
+• Godkende, hvem der kan ringe og skrive. 112, alarmnumre og dig selv kan altid nås.
+• Sætte skoletid og sengetid.
+• Svare på anmodninger om mere tid, en ny app eller en ny kontakt.
+• Se, hvor telefonen er, når du spørger. Dit barn kan se, at du har spurgt.
+• Få telefonen til at ringe, spørge "Er du okay?" og få SOS-beskeder.
+• Slå hver funktion til og fra for hver telefon.
+• Dele en telefon med den anden forælder i husstanden.
+
+Barnets telefon skal have Plainphone-appen til telefonen. Du forbinder dem ved at scanne den kode, telefonen viser.
+
+Det er den ikke
+Plainphone gør det sværere at komme uden om reglerne. Den gør ikke en telefon sikker, og webfilteret fanger ikke alt. Hver indstilling siger, hvad den gør, og hvad den ikke kan.
+
+Dine data
+Du logger ind med et link, der bliver sendt til din mail. Vi gemmer din mailadresse, din husstand og reglerne for hver telefon. Det meste historik slettes efter 30 dage. Du kan slette din konto under Indstillinger. Ingen reklamer, ingen sporing, ingen statistik.
+
+Åben kildekode og gratis
+Plainphone er åben kildekode (Apache-2.0) og gratis. Du kan køre din egen server. Læs mere på plainphone.org.

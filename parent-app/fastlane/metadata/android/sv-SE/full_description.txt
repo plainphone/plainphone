@@ -1,0 +1,24 @@
+Plainphone för föräldrar är där du bestämmer reglerna för ett barns telefon med Plainphone. Du väljer appar, vem som kan ringa och skriva, och när skoltid och läggdags börjar. Ditt barn ser samma regler på sin telefon.
+
+Det här är en alfaversion. Den fungerar, men den är ny och kommer att ändras. Prova den med en telefon du kan testa med innan du förlitar dig på den.
+
+Det här kan du göra
+• Välja vilka appar som kan öppnas och sätta dagliga tidsgränser.
+• Godkänna vem som kan ringa och skriva. 112, larmnummer och du själv går alltid att nå.
+• Sätta skoltid och läggdags.
+• Svara på förfrågningar om mer tid, en ny app eller en ny kontakt.
+• Se var telefonen är när du frågar. Ditt barn ser att du har frågat.
+• Få telefonen att ringa, fråga "Är du okej?" och få SOS-larm.
+• Slå på och av varje funktion för varje telefon.
+• Dela en telefon med den andra föräldern i hushållet.
+
+Barnets telefon behöver Plainphones telefonapp. Du kopplar ihop dem genom att skanna koden som telefonen visar.
+
+Det här är den inte
+Plainphone gör det svårare att ta sig runt reglerna. Den gör inte en telefon säker, och webbfiltret fångar inte allt. Varje inställning säger vad den gör och vad den inte kan.
+
+Dina uppgifter
+Du loggar in med en länk som skickas till din e-post. Vi sparar din e-postadress, ditt hushåll och reglerna för varje telefon. Det mesta av historiken raderas efter 30 dagar. Du kan radera ditt konto under Inställningar. Ingen reklam, ingen spårning, ingen statistik.
+
+Öppen källkod och gratis
+Plainphone är öppen källkod (Apache-2.0) och gratis. Du kan köra din egen server. Läs mer på plainphone.org.

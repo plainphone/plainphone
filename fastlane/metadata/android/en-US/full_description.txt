@@ -1,0 +1,27 @@
+Plainphone turns an Android phone into a calm phone for a child: calls, messages and the apps your family chooses. The rules are visible on the phone, so the child knows what is on and why.
+
+This is an alpha. It works, but it is new and will change. Try it on a phone you can test with before you rely on it.
+
+How it works
+• A parent installs Plainphone on the child's phone and pairs it with the Plainphone parent app or the parent dashboard.
+• The parent chooses which apps open, who can call and text, and when school time and bedtime start.
+• The child sees the rules: time left, when bedtime starts, and a way to ask for more time or a new app.
+• 112, emergency numbers and the parents can always be reached. That cannot be switched off.
+• Every other feature can be switched on or off for each phone.
+
+What the parents can see
+Plainphone is made for parents and their children. The parents can see which apps are installed, minutes used in apps with a time limit (and a weekly summary if they switch it on), the child's requests, whether Plainphone's protections are on, the battery and, if location is switched on, where the phone is when they ask. The child sees a notice each time. Calls, text messages and the call log stay on the phone.
+
+What Plainphone uses on the phone
+• Default phone and SMS app: Plainphone becomes the phone and messages app, so calls and texts from people the parents have not approved are blocked.
+• Accessibility service (Plainphone guard): sees which app is open and closes apps that are not allowed or out of time. It also reads the text on some Android settings pages, on the phone only, so Plainphone cannot be switched off without a parent.
+• VPN: a local VPN sends only website name lookups to Plainphone's web filter, which blocks the categories the parents chose. Nothing else goes through it, and no list of visited sites is kept.
+• Location, optional: to answer when a parent taps Find, also when Plainphone is not open.
+• Usage access: to count time in apps with a daily limit.
+• Device admin: so Plainphone has to be switched off before it can be uninstalled.
+
+What it cannot do
+Plainphone adds friction. It is not a lock and does not make a phone safe. A factory reset or safe mode removes it, and the parents are told when a protection goes away. The web filter does not catch everything.
+
+Open source and free
+Plainphone is open source (Apache-2.0) and free, with no ads and no tracking. You can run your own server. More at plainphone.org.

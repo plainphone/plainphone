@@ -65,4 +65,4 @@ CI runs all of them in [`.github/workflows/parent-app.yml`](../.github/workflows
 
 Enable SOS notifications from Settings. Active alerts appear above the phone list and SOS history is on each Child phone's overview. [SOS setup](../docs/sos.md).
 
-Building for the stores, app links and push: [docs/parent-app.md](../docs/parent-app.md).
+Building for the stores, app links and push: [docs/parent-app.md](../docs/parent-app.md). Google Play listing texts are in [`fastlane/metadata/android/`](fastlane/metadata/android); policy review, Data safety answers and submission steps in [docs/play/](../docs/play/README.md).

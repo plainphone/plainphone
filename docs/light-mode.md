@@ -225,7 +225,9 @@ See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 
 ## Google Play policies per part
 
-Not submitted (needs the organisation verification and Mads' go). What each part would need:
+Not submitted (needs the organisation verification and Mads' go). The full review, with the policy
+pages, risks and the recommendation (light mode on Play only as a reduced edition, later), is in
+[play/policy-review.md](play/policy-review.md). In short, what each part would need:
 
 | Part | Play policy | Needed |
 |---|---|---|
@@ -234,10 +236,12 @@ Not submitted (needs the organisation verification and Mads' go). What each part
 | Device admin (`LightAdminReceiver`) | Device Admin policy: allowed for parental control apps; deprecated policies are refused for ordinary apps on Android 10+ (hence only `force-lock`) | Declaration; explain why |
 | Phone and SMS roles | SMS and Call Log permissions policy: only the default phone or SMS app, or a listed exception | Permissions declaration form; default handler is the qualifying use |
 | Background location | Location permissions policy: a clear in-app disclosure and a feature the user expects | Declaration form, a short video of "Find" |
-| `QUERY_ALL_PACKAGES` | Package visibility policy: parental control is a permitted use | Declaration |
+| `QUERY_ALL_PACKAGES` | Package visibility policy: permitted uses are device search, antivirus, file managers and browsers; parental control is not listed | Replace with a `<queries>` element for launcher apps in a Play build |
 | `PACKAGE_USAGE_STATS` | Usage access is a special permission granted by the user | Disclosure in the time-limits step |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Allowed only when the app's core function breaks otherwise | Justification (filtering calls and rules in the background) |
 | Family | Families policy and the "parental control" app category | Teacher Approved is not needed; ads are none anyway |
+| Monitoring (Stalkerware policy) | Apps that send a child's data to parents must declare `isMonitoringTool` and show a persistent notification | Manifest flag and notification in a Play build |
+| Self-updates | Device and Network Abuse policy: a Play app may only update through Play | Leave the self-updater out of a Play build |
 
 R3 in the spec stays: a review can take weeks and may be refused, which is why the APK path ships
 first.

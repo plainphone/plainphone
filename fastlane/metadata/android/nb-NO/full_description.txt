@@ -1,0 +1,27 @@
+Plainphone gjør en Android-telefon til en rolig telefon for et barn: samtaler, meldinger og appene familien velger. Reglene vises på telefonen, så barnet vet hva som er slått på og hvorfor.
+
+Dette er en alfaversjon. Den virker, men den er ny og kommer til å endre seg. Prøv den på en telefon du kan teste med før du stoler på den.
+
+Slik virker det
+• En forelder installerer Plainphone på barnets telefon og kobler den til Plainphone-foreldreappen eller foreldrepanelet.
+• Forelderen velger hvilke apper som kan åpnes, hvem som kan ringe og sende meldinger, og når skoletid og leggetid begynner.
+• Barnet ser reglene: hvor mye tid som er igjen, når leggetid begynner, og hvordan man ber om mer tid eller en ny app.
+• 112, nødnumre og foreldrene kan alltid nås. Det kan ikke slås av.
+• Alt annet kan slås av og på for hver telefon.
+
+Dette kan foreldrene se
+Plainphone er laget for foreldre og barna deres. Foreldrene kan se hvilke apper som er installert, minutter brukt i apper med tidsgrense (og en ukeoppsummering hvis de slår den på), barnets forespørsler, om Plainphones beskyttelse er på, batteriet og, hvis posisjon er slått på, hvor telefonen er når de spør. Barnet ser en melding hver gang. Samtaler, SMS og anropsloggen blir på telefonen.
+
+Dette bruker Plainphone på telefonen
+• Standardapp for telefon og SMS: Plainphone blir telefonens telefon- og meldingsapp, så anrop og SMS fra folk foreldrene ikke har godkjent, blir blokkert.
+• Tilgjengelighetstjeneste (Plainphone vakt): ser hvilken app som er åpen, og lukker apper som ikke er tillatt eller der tiden er brukt opp. Den leser også teksten på noen av Androids innstillingssider, bare på telefonen, så Plainphone ikke kan slås av uten en forelder.
+• VPN: et lokalt VPN sender bare oppslag av nettstednavn til Plainphones nettfilter, som blokkerer kategoriene foreldrene har valgt. Ingenting annet går gjennom det, og ingen liste over besøkte sider blir lagret.
+• Posisjon, valgfritt: for å svare når en forelder trykker på Finn, også når Plainphone ikke er åpen.
+• Brukstilgang: for å telle tiden i apper med daglig grense.
+• Enhetsadministrator: så Plainphone må slås av før den kan avinstalleres.
+
+Dette kan den ikke
+Plainphone gjør det vanskeligere å komme rundt reglene. Den er ikke en lås og gjør ikke en telefon trygg. En tilbakestilling til fabrikkinnstillinger eller sikkermodus fjerner den, og foreldrene får beskjed når en beskyttelse forsvinner. Nettfilteret fanger ikke alt.
+
+Åpen kildekode og gratis
+Plainphone er åpen kildekode (Apache-2.0) og gratis, uten reklame og uten sporing. Du kan kjøre din egen server. Les mer på plainphone.org.
