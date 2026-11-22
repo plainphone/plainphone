@@ -131,7 +131,7 @@ class InstallLeaseTest {
     @Test fun catalogAccountClosePreservesSuccessWhileAnotherClearFinishes() {
         val f = Fixture()
         val outcomes = mutableListOf<Pair<String, Boolean>>()
-        val lease = InstallLease(f, f, onCatalogAccountsClosed = { id, success ->
+        val lease = InstallLease(f, f, relockNow = { f.relock() }, onCatalogAccountsClosed = { id, success ->
             outcomes.add(id to success)
         }) { _, _ -> error("Unexpected full policy apply") }
         lease.begin(CATALOG, 60_000)
@@ -270,7 +270,9 @@ class InstallLeaseTest {
     @Test fun recoveryNeverWaitsForTheApplyLockWhileHoldingTheLeaseLock() {
         val f = Fixture()
         val applyLock = Any()
-        val lease = InstallLease(f, f) { _, _ -> synchronized(applyLock) { f.restricted = true } }
+        val lease = InstallLease(f, f, relockNow = { f.relock() }) { _, _ ->
+            synchronized(applyLock) { f.restricted = true }
+        }
         lease.begin(SELF_UPDATE, 1_000)
         f.restricted = false
         f.now += 2_000
