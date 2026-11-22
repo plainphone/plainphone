@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
 import { useI18n } from "../i18n/I18n";
-import { coordinateText, type LocationSnapshot, snapshotUntil } from "../lib/extended-family";
-import { osmUrl } from "../lib/format";
+import { coordinateText, type LocationSnapshot, snapshotUntil } from "@plainphone/shared/extended-family";
+import { osmUrl } from "@plainphone/shared/format";
 
 /**
  * A shared location in a conversation (docs/extended-family.md). While it is live: the time it

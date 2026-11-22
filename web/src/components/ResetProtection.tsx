@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { api, type ResetProtectionState } from "../lib/api";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 import { errorMessage, LiveStatus, LoadGate, type Notice, useLoad } from "./ui";
 
 const RESULTS = { ok: "frp.ok", cancelled: "frp.cancelled", failed: "frp.failed" } as const;

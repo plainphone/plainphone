@@ -11,7 +11,7 @@ import { RequireAuth } from "../components/RequireAuth";
 import { Button, Choice, LinkRow, Notice, PageTitle, Screen, Stack, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useIosPairing } from "../lib/session";
-import { APPLE_SCREEN_TIME_HELP } from "../shared/lib/platform";
+import { APPLE_SCREEN_TIME_HELP } from "@plainphone/shared/platform";
 
 export function AddIphone() {
   const { t } = useI18n();

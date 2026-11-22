@@ -11,7 +11,7 @@ import { AgreementFields, type AgreementDraft, agreementProblems } from "../../.
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, LoadGate, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
-import { type Agreement, parseLines } from "../../../shared/lib/age";
+import { type Agreement, parseLines } from "@plainphone/shared/age";
 
 type Fields = Partial<Pick<Agreement, "lines" | "adultLines" | "enabled" | "onHome">>;
 

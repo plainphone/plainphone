@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Typed client for the Plainphone API, generated from server/openapi.yaml
-// (`pnpm gen:api` writes src/api/schema.d.ts). Native apps authenticate with
+// Typed client for the Plainphone API, with the types @plainphone/api-client generates from
+// server/openapi.yaml. Native apps authenticate with
 // `Authorization: Bearer pp_s_…` and never send cookies.
 import createClient, { type Middleware } from "openapi-fetch";
 import { SERVER_URL } from "../lib/config";
-import type { paths } from "./schema";
+import type { paths } from "@plainphone/api-client/schema";
 
 export interface Issue {
   path: string;

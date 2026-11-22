@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { householdOptionLabel, pickHousehold } from "./household";
+import { householdOptionLabel, pickHousehold } from "@plainphone/shared/household";
 
 const households = [{ id: "a", name: "Home" }, { id: "b", name: "Home" }];
 

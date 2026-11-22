@@ -39,6 +39,8 @@ with one or more of these:
 | `enhancement` | A change to how Plainphone works. |
 | `documentation` | Docs, README or website text. |
 | `accessibility` | A barrier for people with disabilities. |
+| `test-report` | Results from trying Plainphone on a phone or an emulator. |
+| `translation` | A wrong, awkward or missing text in one of the five languages. |
 | `question` | Needs more information or a decision. |
 | `good first issue` | Small and well defined, good for a first contribution. |
 | `help wanted` | Help from outside the core team is welcome. |
@@ -100,6 +102,9 @@ submitting a contribution you agree it is licensed under Apache-2.0
 (section 5 of the [licence](../LICENSE)).
 
 ## For maintainers
+
+**Before sharing the repository widely,** go through the
+[public alpha launch checklist](launch-alpha.md).
 
 **Daily digest.** `.github/workflows/daily-digest.yml` runs every day at
 06:00 UTC. It posts new and waiting issues, pull requests and discussions from

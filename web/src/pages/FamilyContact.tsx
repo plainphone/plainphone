@@ -3,13 +3,13 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { SnapshotLine } from "../components/SnapshotLine";
 import { Field, Loading, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { ApiError } from "../lib/api";
 import {
   type ContactInvitePreview,
   type ContactView,
   EXTENDED_REPLY_LENGTH,
-} from "../lib/extended-family";
+} from "@plainphone/shared/extended-family";
 import {
   clearSession,
   contactRequest,
@@ -17,7 +17,7 @@ import {
   storedSession,
   storeSession,
 } from "../lib/family-contact";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 
 type Phase =
   | { kind: "preview"; token: string; invite: ContactInvitePreview | null; busy: boolean; failed: boolean }

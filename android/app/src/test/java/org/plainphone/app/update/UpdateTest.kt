@@ -166,7 +166,10 @@ class UpdateTest {
             check(alarmAvailable)
             alarms += atMs
         }
-        val lease: InstallLease = InstallLease(this, this) { _, _ -> applyPolicy() }
+        // As in production: recovery puts the restriction back directly, never through the policy apply.
+        val lease: InstallLease = InstallLease(
+            this, this, relockNow = { device.addRestriction("no_install_apps") },
+        ) { _, _ -> applyPolicy() }
         @Synchronized
         fun applyPolicy() {
             val catalog = "org.example.approved".takeIf { lease.isOpen(InstallLease.CATALOG) }

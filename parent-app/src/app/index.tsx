@@ -13,7 +13,7 @@ import { LiveIndicator } from "../components/LiveIndicator";
 import { useLiveRefresh } from "../lib/live";
 import { phoneStateText } from "../lib/phoneStateText";
 import { space } from "../lib/theme";
-import { isIphone } from "../shared/lib/platform";
+import { isIphone } from "@plainphone/shared/platform";
 import { useIosPairing } from "../lib/session";
 
 interface Row {

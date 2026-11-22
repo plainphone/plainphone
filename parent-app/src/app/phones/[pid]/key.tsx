@@ -8,7 +8,7 @@ import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { EmergencySection } from "../../../components/EmergencyOpenings";
 import { Button, Choice, Disclosure, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad, useSingleFlight } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
-import type { MessageKey } from "../../../shared/i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { useMe } from "../../../lib/session";
 import { EMAIL_RE } from "../../../lib/validate";
 import { usePlan } from "../../../components/Billing";

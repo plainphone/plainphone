@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useI18n } from "../i18n/I18n";
-import { formatRelative } from "../lib/format";
-import { phoneState, type PhoneStateInput } from "../lib/phone-state";
+import { formatRelative } from "@plainphone/shared/format";
+import { phoneState, type PhoneStateInput } from "@plainphone/shared/phone-state";
 
 /** The one-line answer to "is this phone reachable and does it have my rules?". */
 export function PhoneStateTitle({ phone, now }: { phone: PhoneStateInput; now: number }) {

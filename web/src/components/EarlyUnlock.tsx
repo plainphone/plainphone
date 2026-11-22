@@ -9,8 +9,8 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type PendingChange } from "../lib/api";
-import { type EarlyUnlockOffer, type EarlyUnlockPurchase, formatPrice, purchaseLine } from "../lib/billing";
-import { formatDateTime } from "../lib/format";
+import { type EarlyUnlockOffer, type EarlyUnlockPurchase, formatPrice, purchaseLine } from "@plainphone/shared/billing";
+import { formatDateTime } from "@plainphone/shared/format";
 import { useMe } from "../lib/session";
 import { errorNotice, Field, LiveStatus, LoadGate, type Notice, useLoad } from "./ui";
 import "./billing.css";

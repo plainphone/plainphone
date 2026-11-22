@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { MoreTimeRequest } from "./more-time";
+import type { MoreTimeRequest } from "@plainphone/shared/more-time";
 
 export const req = (over: Partial<MoreTimeRequest> = {}): MoreTimeRequest => ({
   id: "r1", phoneId: "p1", packageName: "com.example.video", appLabel: "Video", reason: null, day: "2026-11-19",

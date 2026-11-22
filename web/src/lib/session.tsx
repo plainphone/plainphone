@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { isLanguage } from "./phone-language";
-import { pickHousehold } from "./household";
+import { isLanguage } from "@plainphone/i18n/phone-language";
+import { pickHousehold } from "@plainphone/shared/household";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Locale, type Me, setUnauthorizedHandler } from "./api";

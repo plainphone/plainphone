@@ -1,0 +1,39 @@
+name: Translation
+description: A wrong, awkward or missing text in Danish, English, Swedish, Norwegian Bokmål or German.
+labels: [translation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plainphone is written in English and Danish. Swedish, Norwegian Bokmål and German still need review by native speakers, see [translations](https://github.com/plainphone/plainphone/blob/main/docs/translations.md). A pull request with the fix is welcome too.
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Danish
+        - English
+        - Swedish
+        - Norwegian Bokmål
+        - German
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Phone app
+        - Parent web app (app.plainphone.org)
+        - Parent app (iOS or Android)
+        - Mail or notification
+        - Website (plainphone.org)
+    validations:
+      required: true
+  - type: textarea
+    id: text
+    attributes:
+      label: The text today and your suggestion
+      description: Copy the text as it is, then your version. A screenshot helps when the text is cut off or too long.
+    validations:
+      required: true

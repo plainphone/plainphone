@@ -2,11 +2,11 @@
 import { type FormEvent, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { ApiError, api } from "../lib/api";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime } from "@plainphone/shared/format";
 import { INBOX_NAME_KEY } from "../lib/session";
-import { type FamilyInboxThread, familyState, REPLY_LENGTH, type SosSettings } from "../lib/sos-options";
+import { type FamilyInboxThread, familyState, REPLY_LENGTH, type SosSettings } from "@plainphone/shared/sos-options";
 import { ExtendedFamily } from "./ExtendedFamily";
 import { SnapshotLine } from "./SnapshotLine";
 import { Field, Switch, useLoad } from "./ui";
@@ -49,7 +49,7 @@ export function FamilyInbox({ pid, settings, saving, onSetting }: {
 
 function Thread({ pid }: { pid: string }) {
   const { t, locale } = useI18n();
-  const path = `/phones/${pid}/inbox`;
+  const path = `/phones/${pid}/inbox` as const;
   const res = useLoad(() => api.get<FamilyInboxThread>(path), [path]);
   const { reload, data } = res;
   const [text, setText] = useState("");

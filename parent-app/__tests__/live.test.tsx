@@ -7,7 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SosAlert } from "../src/components/SosAlert";
 import { I18nProvider } from "../src/i18n/I18n";
 import { LIVE_DEBOUNCE_MS, LiveProvider, useLiveRefresh, useLiveStatus } from "../src/lib/live";
-import type { Transport, TransportHandlers } from "../src/shared/lib/live-events";
+import type { Transport, TransportHandlers } from "@plainphone/shared/live-events";
 import { fakeApi, PHONE } from "../test/fakeApi";
 
 const mockPush = jest.fn();

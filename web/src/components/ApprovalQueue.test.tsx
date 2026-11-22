@@ -3,8 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import type { Approval } from "../lib/api";
-import type { Processed } from "../lib/approval-state";
-import { approvalFixtures } from "../lib/status-fixtures";
+import type { Processed } from "@plainphone/shared/approval-state";
+import { approvalFixtures } from "@plainphone/shared/status-fixtures";
 import { ApprovalQueue } from "./ApprovalQueue";
 
 afterEach(() => vi.unstubAllGlobals());

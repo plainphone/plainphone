@@ -9,7 +9,7 @@ import type { Locale } from "../api/models";
 import { getSessionToken } from "../api/client";
 import { SERVER_URL } from "./config";
 import { makeAppT, type TFn } from "../i18n/I18n";
-import { ANSWER_KEY, MORE_TIME_ANSWERS } from "../shared/lib/more-time";
+import { ANSWER_KEY, MORE_TIME_ANSWERS } from "@plainphone/shared/more-time";
 import { answerMoreTime, followUp, isMoreTimeAnswer, moreTimeTag, moreTimeTarget } from "./moreTime";
 import { registerNativeToken } from "./push-registration";
 

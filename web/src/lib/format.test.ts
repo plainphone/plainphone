@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { makeT } from "../i18n/translate";
+import { makeT } from "@plainphone/i18n/translate";
 import type { Op } from "./api";
 import {
   crossesMidnight,
@@ -12,8 +12,8 @@ import {
   normaliseCode,
   osmUrl,
   weekdayName,
-} from "./format";
-import { describeOp, formatDays } from "./ops";
+} from "@plainphone/shared/format";
+import { describeOp, formatDays } from "@plainphone/shared/ops";
 
 const words = { hm: "{h} h {m} min", h: "{h} h", m: "{m} min", lessThanMinute: "less than a minute" };
 

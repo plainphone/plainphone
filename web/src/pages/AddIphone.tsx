@@ -8,7 +8,7 @@ import { Link } from "react-router";
 import { PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { Profile } from "../lib/api";
-import { APPLE_SCREEN_TIME_HELP } from "../lib/platform";
+import { APPLE_SCREEN_TIME_HELP } from "@plainphone/shared/platform";
 import { useIosPairing } from "../lib/session";
 
 export function AddIphonePage() {

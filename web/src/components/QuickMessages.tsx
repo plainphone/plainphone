@@ -2,7 +2,7 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
-import type { MessageKey } from "../i18n/translate";
+import type { MessageKey } from "@plainphone/i18n/translate";
 import { ApiError, api } from "../lib/api";
 import {
   MAX_QUICK_MESSAGES,
@@ -11,7 +11,7 @@ import {
   type QuickMessages as QuickMessageList,
   type SosSettings,
   starterMessages,
-} from "../lib/sos-options";
+} from "@plainphone/shared/sos-options";
 import { Field, Switch, useLoad } from "./ui";
 
 function MessageForm({ initial, submitLabel, busy, onSubmit, onCancel }: {
@@ -59,7 +59,7 @@ export function QuickMessages({ pid, settings, saving, onSetting }: {
   onSetting: (patch: Partial<SosSettings>) => void;
 }) {
   const { t } = useI18n();
-  const path = `/phones/${pid}/quick-messages`;
+  const path = `/phones/${pid}/quick-messages` as const;
   const res = useLoad(() => api.get<QuickMessageList>(path), [path]);
   const { reload, data } = res;
   const [busy, setBusy] = useState(false);
