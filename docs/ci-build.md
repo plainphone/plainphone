@@ -1,13 +1,15 @@
 # CI and build
 
-The CI workflow starts on every pull request and push to main. One job
+The CI workflow starts on every pull request and push to main, and nightly at
+02:17 UTC on main. The nightly run enables only the `e2ee-prototype` check (the
+detector's `nightly` mode), and every other job reports success without work. One job
 computes the tree diff for the run. On pull requests it compares the checked-out
 merge commit with its first parent, so reruns use the same changed files even
 after the pull request moves. On pushes it compares the previous and current
 commit, and runs all checks when the previous commit is unavailable. Workflow
 and detector changes run all checks. Site deploy has its own main-only trigger.
 
-Each check job reports success on unrelated changes without checking out the
+The regular check jobs report success on unrelated changes without checking out the
 repository, restoring caches or starting PostgreSQL. A detector failure fails
 the check jobs, including when the detector emits missing or invalid outputs.
 A docs-only change starts seven runners (one detector and six short check
@@ -20,7 +22,10 @@ Android checks also watch the provisioning QR and release smoke scripts,
 `web/test-fixtures/*` for shared enrollment fixtures, and
 `docs/encryption-test-vectors/*` and `packages/crypto*` for Kotlin vector tests.
 Phone sync additionally watches the server, root workspace inputs and its
-test driver. Parent app checks watch the OpenAPI spec and the PWA files copied
+test driver. The [Android emulator suite](testing.md) runs on every main push
+and on pull requests touching its Android, server, workflow or test inputs.
+It caches a clean AOSP snapshot for each API level and keeps the screenshot
+and logs when a device flow fails. Parent app checks watch the OpenAPI spec and the PWA files copied
 by `pnpm sync:shared`. Server checks also watch the root workspace packages
 and encryption test vectors, which run in the TypeScript workspace suite.
 DNS checks watch the server schema and validation

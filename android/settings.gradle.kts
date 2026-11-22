@@ -17,4 +17,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "plainphone"
-include(":app")
+include(":app", ":e2e-fixture")

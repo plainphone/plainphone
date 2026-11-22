@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -202,10 +203,24 @@ fun placeCall(context: Context, number: String): String? {
     return runCatching {
         // The approved number is dialled, not the typed one: the rule matched the normalised form (12345678 for +4512345678).
         val dial = rules?.contactFor(number)?.number?.takeIf { it.isNotBlank() } ?: number
-        context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", dial, null), Bundle())
+        TelecomHandoff.submit(context, Uri.fromParts("tel", dial, null))
         rules?.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }
+}
+
+/** The one place a call leaves Plainphone for Android's Telecom. */
+internal object TelecomHandoff {
+    /** Emulator tests only: records the address instead of placing a real (emergency) call. */
+    @Volatile
+    internal var interceptForTest: ((Uri) -> Unit)? = null
+
+    @RequiresPermission(Manifest.permission.CALL_PHONE)
+    fun submit(context: Context, address: Uri) {
+        val intercept = interceptForTest
+        if (intercept != null) intercept(address)
+        else context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
+    }
 }
 
 /** The parents from the rules' SOS block (contacts marked for SOS): first on the People tab. */

@@ -22,6 +22,7 @@ jobs:
     outputs:
       android: ${{ steps.filter.outputs.android }}
       e2e: ${{ steps.filter.outputs.e2e }}
+      emulator: ${{ steps.filter.outputs.emulator }}
       server: ${{ steps.filter.outputs.server }}
       parent: ${{ steps.filter.outputs.parent }}
       dns: ${{ steps.filter.outputs.dns }}
@@ -61,13 +62,13 @@ jobs:
           import os
           from pathlib import Path
 
-          keys = {"android", "e2e", "server", "parent", "dns", "site", "backup", "ios", "e2ee"}
+          keys = {"android", "e2e", "emulator", "server", "parent", "dns", "site", "backup", "ios", "e2ee"}
           lines = Path(os.environ["GITHUB_OUTPUT"]).read_text(encoding="utf-8").splitlines()
           outputs = dict(line.split("=", 1) for line in lines)
           if len(lines) != len(keys) or outputs.keys() != keys or any(
               value not in {"true", "false"} for value in outputs.values()
           ):
-              raise SystemExit("::error::Expected one boolean output for each of the nine CI checks.")
+              raise SystemExit("::error::Expected one boolean output for each CI check.")
           PYTHON
 
   android:
@@ -378,11 +379,20 @@ jobs:
         if: needs.changes.outputs.e2ee == 'true'
         with:
           packages: "platforms;android-37.0 build-tools;36.1.0"
+      - name: Cache Robolectric instrumented SDKs
+        id: robolectric
+        if: needs.changes.outputs.e2ee == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: android/.gradle/robolectric
+          key: robolectric-sdks-${{ runner.os }}-${{ hashFiles('android/gradle/robolectric.properties') }}
       - uses: gradle/actions/setup-gradle@v6
         if: needs.changes.outputs.e2ee == 'true'
       - name: Kotlin binding over JNI, and the library in debug APKs only
         if: needs.changes.outputs.e2ee == 'true'
         working-directory: android
+        env:
+          ROBOLECTRIC_SDK_CACHE_HIT: ${{ steps.robolectric.outputs.cache-hit }}
         run: |
           ./gradlew --no-daemon testDebugUnitTest --tests 'org.plainphone.app.e2ee.*' assembleDebug assembleRelease \
             -PplainphoneE2eePrototype=true -PplainphoneMlsHostLib="$GITHUB_WORKSPACE/e2ee/mls-core/target/release/libplainphone_mls.so"
@@ -394,6 +404,98 @@ jobs:
             exit 1
           fi
           echo "debug APK has the prototype library, release APK does not"
+
+  android-e2e:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.emulator == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [34, 29]
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: plainphone
+          POSTGRES_PASSWORD: plainphone
+          POSTGRES_DB: plainphone_e2e
+        ports: ["5432"]
+        options: >-
+          --health-cmd "pg_isready -U plainphone -d plainphone_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm --filter @plainphone/server install --frozen-lockfile
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platforms;android-37.0 build-tools;36.1.0"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Build the phone app, instrumentation and PiP fixture
+        working-directory: android
+        run: >-
+          ./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          :app:assembleDebug :app:assembleDebugAndroidTest :e2e-fixture:assembleDebug
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -w /dev/kvm
+      - name: Cache clean emulator snapshot
+        id: avd
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.android/avd
+          key: plainphone-avd-v2-${{ runner.os }}-${{ runner.arch }}-aosp-${{ matrix.api }}
+      - name: Boot and save a clean snapshot
+        if: steps.avd.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          profile: pixel
+          force-avd-creation: false
+          emulator-boot-timeout: 240
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+            -feature ModemSimulator -shell-serial tcp:127.0.0.1:5557,server,nowait
+          script: adb shell getprop sys.boot_completed
+      - name: Run the device flows once
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2e
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          profile: pixel
+          force-avd-creation: false
+          emulator-boot-timeout: 240
+          emulator-options: >-
+            -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+            -feature ModemSimulator -shell-serial tcp:127.0.0.1:5557,server,nowait
+          script: python3 scripts/e2e-android-emulator.py
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: android-e2e-api-${{ matrix.api }}
+          path: android/build/emulator-e2e/
+          retention-days: 14
 
   offsite-backup:
     needs: changes
