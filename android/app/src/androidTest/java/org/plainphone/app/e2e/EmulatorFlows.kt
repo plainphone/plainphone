@@ -353,6 +353,20 @@ abstract class EmulatorFlow {
         }
     }.getOrElse { "unreadable: ${it.javaClass.simpleName}" }
 
+    /**
+     * The phone process's own call state, which follows the modem. Telecom can be empty while a call
+     * is still live here (run 45060357626, API 29).
+     */
+    @Suppress("DEPRECATION", "MissingPermission") // Device Owner grants READ_PHONE_STATE.
+    protected fun modemCallState(): String = runCatching {
+        when (val state = context.getSystemService(TelephonyManager::class.java).callState) {
+            TelephonyManager.CALL_STATE_IDLE -> "idle"
+            TelephonyManager.CALL_STATE_RINGING -> "ringing"
+            TelephonyManager.CALL_STATE_OFFHOOK -> "off hook"
+            else -> "unknown ($state)"
+        }
+    }.getOrElse { "unreadable: ${it.javaClass.simpleName}" }
+
     protected fun launchPlayer() {
         val result = device.executeShellCommand("am start -W -n $PLAYER_ACTIVITY")
         assertTrue("Could not start player: $result", "Status: ok" in result)
@@ -637,6 +651,10 @@ class DeviceOwnerFlow : EmulatorFlow() {
      * the call-back window that lets anyone call after an emergency call. The emulated modem answers an
      * outgoing call about a second after dialling, so whether the hang-up comes before that is not
      * controlled here; for 114 neither may open the window. A stranger's call is then still rejected.
+     *
+     * Hung up while Telecom was still connecting, Android 10 crashed its phone process and left 114
+     * live on the modem with nothing in Telecom; the stranger's call was then dropped by Android before
+     * any app saw it (run 45060357626). So the modem itself must be idle before the stranger calls.
      */
     private fun assertNonUrgentCallOpensNoCallBackWindow() {
         step("114 and a stranger's call")
@@ -651,10 +669,16 @@ class DeviceOwnerFlow : EmulatorFlow() {
         instrumentation.runOnMainSync { CallManager.hangUp() }
         Log.i("PlainphoneE2E", "hung up 114 in call state $state")
         await("the 114 call ended") { CallManager.state.value.isEmpty() && !telecom.isInCall }
+        await({ "no call left on the modem (${modemCallState()})" }) { modemCallState() == "idle" }
         assertNull("114 must not open the call-back window", TelephonyLog(context).sinceLastEmergencyMs())
 
         emulatorConsole("gsm", "call", CALLING_STRANGER)
-        await("the stranger's call rejected and logged") { isBlocked(Channel.CALL, Direction.INCOMING, CALLING_STRANGER) }
+        await({
+            "the stranger's call rejected and logged (modem ${modemCallState()}, voice service: ${voiceService()}, " +
+                "blocked log: ${TelephonyLog(context).blocked().map { "${it.channel} ${it.direction}" }})"
+        }) {
+            isBlocked(Channel.CALL, Direction.INCOMING, CALLING_STRANGER)
+        }
         await("no call left in Telecom") { CallManager.state.value.isEmpty() && !telecom.isInCall }
     }
 }
