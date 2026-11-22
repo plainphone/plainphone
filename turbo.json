@@ -1,0 +1,95 @@
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "cacheDir": ".turbo/cache",
+  "cacheMaxAge": "14d",
+  "cacheMaxSize": "2GB",
+  "ui": "stream",
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "build": {
+      "dependsOn": ["^build", "transit"],
+      "env": ["NODE_ENV"],
+      "outputs": ["dist/**"]
+    },
+    "@plainphone/web#build": {
+      "dependsOn": ["^build", "transit"],
+      "env": ["NODE_ENV", "VITE_*"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "transit"]
+    },
+    "lint": {
+      "dependsOn": ["^build", "transit"]
+    },
+    "@plainphone/crypto#typecheck": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/server/tsconfig.json"]
+    },
+    "@plainphone/crypto#lint": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/server/tsconfig.json"]
+    },
+    "@plainphone/crypto#build": {
+      "dependsOn": ["^build", "transit"],
+      "env": ["NODE_ENV"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/server/tsconfig.json"],
+      "outputs": ["dist/**"]
+    },
+    "@plainphone/crypto-vectors#typecheck": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/server/tsconfig.json"]
+    },
+    "@plainphone/crypto-vectors#lint": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/server/tsconfig.json"]
+    },
+    "test": {
+      "dependsOn": ["^build", "transit"],
+      "passThroughEnv": ["CI"]
+    },
+    "@plainphone/server#test": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/encryption-test-vectors/**",
+        "$TURBO_ROOT$/ios/Tests/Fixtures/**",
+        "$TURBO_ROOT$/compose.yaml",
+        "$TURBO_ROOT$/deploy/dokploy-compose.yaml",
+        "$TURBO_ROOT$/.env.example"
+      ],
+      "passThroughEnv": ["CI", "DATABASE_URL", "UPDATE_IOS_FIXTURE"]
+    },
+    "@plainphone/crypto#test": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/encryption-test-vectors/**"],
+      "passThroughEnv": ["CI"]
+    },
+    "@plainphone/crypto-vectors#test": {
+      "dependsOn": ["^build", "transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/encryption-test-vectors/**"],
+      "passThroughEnv": ["CI"]
+    },
+    "@plainphone/api-client#generate": {
+      "inputs": ["package.json", "$TURBO_ROOT$/server/openapi.yaml"],
+      "outputs": ["src/schema.d.ts"]
+    },
+    "@plainphone/api-client#check": {
+      "inputs": ["package.json", "src/schema.d.ts", "$TURBO_ROOT$/server/openapi.yaml"]
+    },
+    "@plainphone/crypto-vectors#generate": {
+      "cache": false
+    },
+    "@plainphone/parent-app#export": {
+      "dependsOn": ["transit"],
+      "env": ["NODE_ENV", "EXPO_PUBLIC_*", "PLAINPHONE_*"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
