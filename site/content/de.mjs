@@ -121,7 +121,7 @@ export default {
   },
   price: {
     title: "Preis",
-    body: "Plainphone ist derzeit kostenlos. Der Betrieb auf dem eigenen Server und ein Handy mit allen Funktionen bei unserem Dienst bleiben immer kostenlos. Für weitere Handys bei unserem Dienst werden wir später eine Gebühr erheben. Wer früh dabei ist, wird rechtzeitig informiert.",
+    body: "Plainphone ist derzeit kostenlos. Der Betrieb auf dem eigenen Server und ein Handy mit vollem Schutz bei unserem Dienst bleiben immer kostenlos. Für weitere Handys bei unserem Dienst werden wir später eine Gebühr erheben. Wer früh dabei ist, wird rechtzeitig informiert.",
     items: [
       {
         q: "Was kostet Plainphone?",
@@ -129,7 +129,7 @@ export default {
       },
       {
         q: "Was bleibt immer kostenlos?",
-        a: "Der Betrieb auf Ihrem eigenen Server und ein Handy mit allen Funktionen bei unserem Dienst.",
+        a: "Der Betrieb auf Ihrem eigenen Server und ein Handy mit vollem Schutz bei unserem Dienst.",
       },
       {
         q: "Was gilt beim Betrieb auf meinem eigenen Server?",

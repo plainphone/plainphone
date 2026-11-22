@@ -121,7 +121,7 @@ export default {
   },
   price: {
     title: "Pris",
-    body: "Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med alle funktioner på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.",
+    body: "Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.",
     items: [
       {
         q: "Hvad koster det?",
@@ -129,7 +129,7 @@ export default {
       },
       {
         q: "Hvad er altid gratis?",
-        a: "At køre Plainphone på egen server og at have én telefon med alle funktioner på vores server.",
+        a: "At køre Plainphone på egen server og at have én telefon med fuld beskyttelse på vores server.",
       },
       {
         q: "Hvad hvis jeg kører Plainphone på min egen server?",

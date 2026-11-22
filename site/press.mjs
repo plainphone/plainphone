@@ -9,8 +9,9 @@ import { zip } from "./zip.mjs";
 
 export const KIT = "/press-kit";
 export const ZIP = "plainphone-press-kit.zip";
-const LANGS = ["en", "da", "sv", "nb", "de"];
-const SHOTS = ["dashboard", "requests", "home", "blocked", "sharing"];
+// Languages and screenshots come from the front page content, so a new one is added in one place.
+const LANGS = Object.keys(home);
+const SHOTS = Object.keys(home.en.shots).filter((name) => typeof home.en.shots[name] === "object");
 
 // [file name in /press-kit/, source path below src/]
 const brandFiles = [
@@ -60,8 +61,8 @@ export function pressContent(t, { esc, picture, github, zipSize }) {
 <p class="lead">${p.lead}</p>
 <p class="kit-zip"><a class="button" href="${KIT}/${ZIP}" download>${p.zip} (${megabytes(zipSize, t.lang)})</a></p>
 <p class="note">${p.zipNote}</p>
-<section aria-labelledby="describe"><h2 id="describe">${p.shortTitle}</h2><p class="copy">${p.short}</p>
-<h2 id="paragraph">${p.longTitle}</h2><p class="copy">${p.long}</p></section>
+<section aria-labelledby="describe"><h2 id="describe">${p.shortTitle}</h2><p class="copy">${p.short}</p></section>
+<section aria-labelledby="paragraph"><h2 id="paragraph">${p.longTitle}</h2><p class="copy">${p.long}</p></section>
 <section aria-labelledby="facts"><h2 id="facts">${p.factsTitle}</h2>
 <dl class="facts">${p.facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}
 <div><dt>${p.links.code}</dt><dd><a href="${github}">github.com/plainphone/plainphone</a></dd></div>

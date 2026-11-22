@@ -292,13 +292,14 @@ else {
   const names = zipNames(readFileSync(kitZip));
   const expected = [
     "logo/plainphone-logo.svg", "logo/plainphone-logo.png", "logo/plainphone-logo-dark.svg", "logo/plainphone-logo-dark.png",
-    "logo/plainphone-app-icon.svg", "logo/plainphone-app-icon.png",
+    "logo/plainphone-mark.svg", "logo/plainphone-mark.png", "logo/plainphone-mark-dark.svg", "logo/plainphone-mark-dark.png",
+    "logo/plainphone-app-icon.svg", "logo/plainphone-app-icon.png", "fonts/OFL.txt",
     ...locales.map((lang) => `share-image/plainphone-${lang}.png`),
     ...locales.flatMap((lang) => shotNames.flatMap((shot) => ["light", "dark"].map((s) => `screenshots/${lang}/${shot}-${s}.webp`))),
   ];
   for (const name of expected) if (!names.includes(name)) errors.push(`press-kit zip: missing ${name}`);
   for (const lang of locales) {
-    const page = readFileSync(target(pagePaths.at(-1)[lang]), "utf8");
+    const page = readFileSync(target(pagePaths[routes.indexOf("press/")][lang]), "utf8");
     if (!page.includes('href="/press-kit/plainphone-press-kit.zip" download')) errors.push(`${lang}: press page does not link the zip`);
   }
 }

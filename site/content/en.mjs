@@ -121,7 +121,7 @@ export default {
   },
   price: {
     title: "Price",
-    body: "Plainphone is free today. Running it on your own server and keeping one phone with every feature on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.",
+    body: "Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.",
     items: [
       {
         q: "What does it cost?",
@@ -129,7 +129,7 @@ export default {
       },
       {
         q: "What will always be free?",
-        a: "Self-hosting and one phone with every feature on our hosted service.",
+        a: "Self-hosting and one fully protected phone on our hosted service.",
       },
       {
         q: "What if I run it on my own server?",
