@@ -77,6 +77,12 @@ export const nb: Messages = {
   "login.invalidEmail": "Skriv inn en gyldig e-postadresse, for eksempel navn@example.com.",
   "login.inviteNote": "Logg på for å godta invitasjonen til en husstand.",
   "login.pairNote": "Logg på for å legge til telefonen. Koden din lagres til du er tilbake.",
+  "login.codeTitle": "Logg inn med en kode",
+  "login.codeIntro": "Denne adressen logger inn med en kode i stedet for en lenke. Det sendes ingen e-post.",
+  "login.code": "Kode",
+  "login.codeSubmit": "Logg inn",
+  "login.codeSending": "Logger inn …",
+  "login.codeWrong": "Koden passer ikke til adressen. Sjekk den og prøv igjen.",
 
   "callback.title": "Logger inn",
   "callback.working": "Et øyeblikk…",

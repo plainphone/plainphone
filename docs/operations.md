@@ -215,7 +215,9 @@ How it counts:
   to a household, and a trusted person chosen by email for a phone. They take no place
   either: their pending links are not counted, and the household of their own they get on
   first sign-in does not count while they hold the invitation, have joined another
-  household as a parent, or are a trusted person on a phone.
+  household as a parent, or are a trusted person on a phone. The store review address
+  (`REVIEW_LOGIN_EMAIL`, [store-review.md](store-review.md)) is never stopped either: it
+  gets no mail, and Play's reviewer must always get in.
 - When the cap is full, `POST /api/auth/request` answers `429` with
   `code: "signup_cap_reached"`, `retryAt` (the next UTC midnight) and a `Retry-After`
   header, and no mail is sent. The dashboard and the parent app show "Full for today",

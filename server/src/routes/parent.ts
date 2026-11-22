@@ -48,6 +48,7 @@ import * as v from "../lib/validation.js";
 import { categoryOf, isAppCategory, OPEN_CATEGORIES } from "../lib/open-mode.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, resolveSession, verifyMagicLink } from "../services/auth.js";
+import { isReviewAddress } from "../services/review-login.js";
 import {
   applyPending,
   rejectTrustedChange,
@@ -141,6 +142,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         client: z.enum(["web", "native"]).default("web"),
       }),
     );
+    // The store review address signs in with its code (routes/review-login.ts): no mail is sent.
+    const review = ipAllowed && isReviewAddress(ctx.cfg, input.email);
+    if (review) return c.json({ ok: true, mailEnabled: ctx.mail.canSend, codeSignIn: true }, 202);
     if (!ipAllowed || (await recentLinks(ctx, input.email)) >= LOGIN_LINKS_PER_ADDRESS_HOUR) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }

@@ -301,7 +301,7 @@ Risk is our own estimate of a rejection on first review if the app is submitted 
   path to delete the account and a web link where deletion can be requested; the link must
   load, reference the app or developer and feature the deletion path prominently.
 - **Plainphone:** the answers are drafted in [data-safety.md](data-safety.md). In-app
-  deletion exists (Settings → Delete my account, `DELETE /api/me`). For the web link, the
+  deletion exists in the dashboard and the parent app (Settings → Delete my account, `DELETE /api/me`). For the web link, the
   privacy policy at <https://plainphone.org/privacy/> explains deletion and gives the address;
   a short page or anchor whose first lines are about deleting an account is safer.
 - **Risk:** **low.**
@@ -311,13 +311,13 @@ Risk is our own estimate of a rejection on first review if the app is submitted 
 - **Policy page:** [Requirements for providing sign in details for review](https://support.google.com/googleplay/android-developer/answer/15748846).
 - **What it says:** sign-in details must be reusable, always valid, and get past one-time codes.
 - **Plainphone:** sign-in is by a one-time link sent by mail ([parent-app.md](../parent-app.md#login-and-other-links)).
-  A reviewer cannot use that. Both apps need a review sign-in: for example a server setting that
-  lets one review account sign in with a fixed code, off by default and only on the hosted
-  service. The phone app's reviewer also needs a phone entry to pair with, so the review account
+  A reviewer cannot use that. **Done for the parent app:** `REVIEW_LOGIN_EMAIL` and
+  `REVIEW_LOGIN_CODE` let one address sign in with a fixed code, off by default, and give its
+  household a simulated phone that is already paired ([store-review.md](../store-review.md)). The phone app's reviewer also needs a phone entry to pair with, so the review account
   should already have a household with a pairing code ready. The parent app's reviewer has no
   phone at all, so the same account also needs a simulated phone that is already paired
   ([below](#a-parent-app-whose-phone-app-is-not-on-play)).
-- **Risk:** **certain rejection** without it.
+- **Risk:** **certain rejection** without it; **low** for the parent app with the review sign-in set.
 
 ### Foreground services, full-screen intents and alarms
 
