@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -313,16 +315,20 @@ internal fun PhoneApp(route: Route, resumed: Int) {
             destination.copy(number = PhoneNumbers.normalize(destination.number, rules.country) ?: destination.number)
         } else destination
         val contact = thread.contact(rules) ?: if (thread.canCompose(rules)) ApprovedContact(thread.number, thread.number) else null
-        key(thread) {
-            ConversationScreen(
-                contact = contact,
-                refresh = changes,
-                resumed = resumed,
-                thread = thread,
-                initialDraft = route.body.takeIf { route.number == open.number }.orEmpty(),
-                onBack = { conversationWith = null },
-                onCall = call,
-            )
+        // Outside the Scaffold below: the conversation needs its own host for call messages.
+        Box(Modifier.fillMaxSize()) {
+            key(thread) {
+                ConversationScreen(
+                    contact = contact,
+                    refresh = changes,
+                    resumed = resumed,
+                    thread = thread,
+                    initialDraft = route.body.takeIf { route.number == open.number }.orEmpty(),
+                    onBack = { conversationWith = null },
+                    onCall = call,
+                )
+            }
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding())
         }
         return
     }
@@ -331,7 +337,7 @@ internal fun PhoneApp(route: Route, resumed: Int) {
         if (back != null) BackHandler { tab = back }
         KeypadScreen(
             initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(),
-            onCall = call,
+            onCall = { placeCall(context, it) },
             onParents = { tab = Tab.CONTACTS },
             showParents = !rules.selfProfile,
             onEmergency = { org.plainphone.app.sos.openEmergencyDialer(context) },

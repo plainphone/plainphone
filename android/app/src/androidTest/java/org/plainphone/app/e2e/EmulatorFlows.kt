@@ -442,7 +442,10 @@ class DeviceOwnerFlow : EmulatorFlow() {
         }
     }
 
-    /** C4: the keypad, opened the way a tel: link in another app opens it, refuses a number that is not approved. */
+    /**
+     * C4: the keypad, opened the way a tel: link in another app opens it, refuses a number that is not
+     * approved. The refusal stays on the keypad until the number changes, so waiting for it cannot race it.
+     */
     private fun assertKeypadRefusesStranger() {
         val handedToTelecom = CopyOnWriteArrayList<Uri>()
         TelecomHandoff.interceptForTest = { handedToTelecom.add(it) }
