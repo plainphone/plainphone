@@ -1,0 +1,119 @@
+# Does Play Protect block QR setup of Plainphone as Device Owner? (issue #255, docs/testing.md)
+# Manual only: never on pushes or pull requests, and not a required check. Before this file is on
+# main, run it through CI: `gh workflow run ci.yml --ref <branch> -f dpc_probe=true`.
+name: DPC provisioning probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      api:
+        description: Google Play system image API level
+        type: choice
+        options: ["36", "35", "34", "36.1", "37.0"]
+        default: "36"
+      image_tag:
+        description: System image tag (ps16k is the 16 KB page-size variant, from API 35)
+        type: choice
+        options: ["google_apis_playstore", "google_apis_playstore_ps16k"]
+        default: google_apis_playstore
+      tag:
+        description: Release tag, e.g. v0.1.20 (empty means the newest release)
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      api:
+        type: string
+        default: "36"
+      image_tag:
+        type: string
+        default: google_apis_playstore
+      tag:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      API: ${{ inputs.api }}
+      TAG: ${{ inputs.tag }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE: system-images;android-${{ inputs.api }};${{ inputs.image_tag }};x86_64
+      WORK: ${{ github.workspace }}/probe-work
+      OUT: ${{ github.workspace }}/probe-artifacts
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Probe tests
+        run: python3 -m unittest scripts/test_dpc_provisioning_probe.py
+      - name: Check the image inputs
+        run: |
+          # workflow_call takes free strings: only a Google Play x86_64 image may reach sdkmanager.
+          [[ "$API" =~ ^[0-9]+(\.[0-9]+)?(-ext[0-9]+)?$ ]] || { echo "::error::unexpected api: $API"; exit 1; }
+          [[ "$IMAGE_TAG" =~ ^google_apis_playstore(_ps16k)?$ ]] || { echo "::error::unexpected image_tag: $IMAGE_TAG"; exit 1; }
+          # The 16 KB page-size images start at API 35 (see the SDK's sys-img2-4.xml).
+          if [[ "$IMAGE_TAG" == *_ps16k && "${API%%[.-]*}" -lt 35 ]]; then
+            echo "::error::$IMAGE_TAG exists only from API 35, not for api $API"; exit 1
+          fi
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -w /dev/kvm
+      - name: Install qrencode and zbar
+        run: sudo apt-get update -q && sudo apt-get install -y -q qrencode zbar-tools
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools emulator build-tools;36.1.0 ${{ env.IMAGE }}"
+      - name: Download the release APK and check its SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$OUT"
+          python3 scripts/dpc-provisioning-probe.py fetch --out "$WORK/release" --tag "$TAG"
+          cp "$WORK/release/release.json" "$OUT/"
+      - name: Build the QR code a parent would scan
+        run: |
+          # The phone pairs with no server (.invalid never resolves), so the probe leaves nothing in production.
+          python3 scripts/provisioning-qr.py --apk "$(jq -r .apk "$WORK/release/release.json")" \
+            --apk-url "$(jq -r .apk_url "$WORK/release/release.json")" \
+            --pin 000000 --server-url https://probe.invalid --out "$WORK/qr"
+          jq -j -c . "$WORK/qr.json" | qrencode -t ASCII -l L -m 4 -o "$WORK/qr.txt"
+          python3 scripts/dpc-provisioning-probe.py canvas "$WORK/qr.txt" "$WORK/camera.png"
+          # The camera frame must decode to exactly the QR payload.
+          zbarimg --raw -q "$WORK/camera.png" > "$WORK/decoded.txt"
+          python3 -c 'import json,sys; a,b=(json.load(open(p)) for p in sys.argv[1:]); sys.exit(a!=b and "camera frame does not decode to the QR payload")' \
+            "$WORK/qr.json" "$WORK/decoded.txt"
+          cp "$WORK/camera.png" "$OUT/qr-camera-frame.png"
+      - name: Create a Google Play emulator
+        run: |
+          # Creates ~/.android/adbkey before the emulator boots, so a user build (ro.adb.secure=1)
+          # trusts this adb server instead of staying "unauthorized".
+          adb start-server
+          echo no | avdmanager create avd -n plainphone-probe -k "$IMAGE" -d pixel_6 --force
+          printf '%s\n' hw.ramSize=4096 disk.dataPartition.size=6G >> ~/.android/avd/plainphone-probe.avd/config.ini
+          grep -E '^(PlayStore.enabled|image.sysdir.1|tag.id)=' ~/.android/avd/plainphone-probe.avd/config.ini
+      - name: Scan the QR code in the setup wizard
+        timeout-minutes: 33
+        run: >-
+          python3 scripts/dpc-provisioning-probe.py run --avd plainphone-probe --image "$IMAGE"
+          --qr "$WORK/camera.png" --release "$WORK/release/release.json" --out "$OUT"
+      - name: Stop any emulator left running
+        if: always()
+        run: |
+          pkill -9 -f qemu-system || true
+          adb kill-server || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dpc-provisioning-probe-api-${{ inputs.api }}-${{ inputs.image_tag }}
+          path: probe-artifacts/
+          retention-days: 30
