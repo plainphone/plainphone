@@ -9,11 +9,12 @@ and restores a pre-test emulator snapshot. A leg without a cached snapshot
 boots once and caches the snapshot right away, before any flow runs, so
 the test run never writes back to it. The flows step has its own 25-minute
 limit: a hang then fails the step and the artifact below is still uploaded,
-whereas a job that reaches its own limit is cancelled without one. Each of
-the two flows (light mode, then Device Owner) must finish within 11 minutes.
-The light-mode flow includes one minute of app use for its time limit, and
-if it starts in the last six minutes of a day it first waits for midnight,
-so nothing it counts per day starts over mid-test.
+whereas a job that reaches its own limit is cancelled without one. The
+light-mode flow must finish within 15 minutes and the Device Owner flow
+within 7. The light-mode flow includes one minute of app use for its time
+limit, and if it reaches its counting steps in the last ten minutes of a
+day it first waits for midnight, so nothing it counts per day starts over
+mid-test.
 
 ## Run locally
 

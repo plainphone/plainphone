@@ -122,10 +122,10 @@ def serial_shell(console, *args, timeout=30):
     raise RuntimeError("Emulator serial console disconnected")
 
 
-# Each flow takes two to four minutes. The light flow can first wait up to six minutes so that
+# Each flow takes two to four minutes. The light flow can first wait up to ten minutes so that
 # its day and month counts do not straddle a real midnight (LightModeFlow.awaitClearOfMidnight).
-# Both flows at this limit still fit the limit of the CI step that runs them.
-INSTRUMENT_TIMEOUT = 660
+# Together these limits fit the limit of the CI step that runs both flows.
+INSTRUMENT_TIMEOUTS = {"LightModeFlow": 900, "DeviceOwnerFlow": 420}
 
 
 def console_lines(console, deadline, overrun):
@@ -164,9 +164,9 @@ def instrument(flow, port, token, console=None, command_prefix=(), *, parent_num
     command += (f"{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner",)
     if console is None:
         result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUT).stdout
+                     stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
     else:
-        result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUT)
+        result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow])
     (ARTIFACTS / f"{flow}.txt").write_text(result, encoding="utf-8")
     print(result, flush=True)
     # am instrument can exit zero even when a test fails or never ran.

@@ -703,11 +703,10 @@ class LightModeFlow : EmulatorFlow() {
 
     /**
      * Waits, only when the test starts in the last minutes of a day, until the trusted time has passed
-     * midnight in each of [zones], so nothing counted per day or month starts over mid-test. The margin
-     * covers the rest of the flow (about three minutes) and keeps the flow within the harness's limit.
+     * midnight in each of [zones], so nothing counted per day or month starts over mid-test.
      */
     private fun awaitClearOfMidnight(vararg zones: ZoneId) {
-        val margin = Duration.ofMinutes(6)
+        val margin = Duration.ofMinutes(10)
         fun clear(): Boolean {
             val now = TrustedClock.of(context).now().instant
             return zones.all { zone ->

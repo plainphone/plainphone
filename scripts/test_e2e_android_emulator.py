@@ -245,7 +245,7 @@ class WorkflowTest(unittest.TestCase):
         flows = steps["Run the device flows once"]["timeout-minutes"]
         boot = steps["Boot and save a clean snapshot"]["timeout-minutes"]
         # Light mode, then Device Owner: a flow that overruns fails in the harness, not by the step limit.
-        self.assertLess(2 * harness.INSTRUMENT_TIMEOUT, flows * 60)
+        self.assertLess(sum(harness.INSTRUMENT_TIMEOUTS.values()), flows * 60)
         # A step that overruns fails before the job is cancelled, so the artifact is still uploaded.
         self.assertLess(boot + flows, job["timeout-minutes"])
 
