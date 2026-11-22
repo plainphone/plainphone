@@ -240,6 +240,41 @@ describe("iPhone status", () => {
     expect(summary.status.lockIntact).toBe(false);
   });
 
+  it("counts the base lock alone while school time, bedtime and the daily limit are not enforced (phase 1)", async () => {
+    iosPairing(true);
+    const parent = await signIn(h, "parent@example.org");
+    const { device, phoneId } = await pairIphone(h, parent);
+    await h.ctx.db.insert(schedules).values([
+      { phoneId, kind: "school", days: [1, 2, 3, 4, 5], startMinute: 480, endMinute: 870, allowedPackages: [] },
+      { phoneId, kind: "bedtime", days: [1, 2, 3, 4, 5, 6, 7], startMinute: 1260, endMinute: 420, allowedPackages: [] },
+    ]);
+    await h.ctx.db.insert(timeLimits).values({ phoneId, packageName: TOTAL, minutes: 90 });
+    // They stay in the rules document, so phase 2 only switches the phone on.
+    const doc = (await device.get("/api/device/rules")).json;
+    expect(doc.schedules).toHaveLength(2);
+    expect(doc.timeLimits.total).toEqual({ minutes: 90, days: {} });
+    // The phone reports only the base store and nothing failed: the lock is intact, and the
+    // dashboard has no iPhone line for these rows.
+    expect((await device.put("/api/device/status", iosStatus())).status).toBe(204);
+    const summary = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(summary.status).toMatchObject({ lockIntact: true, failedPolicies: [] });
+    expect(summary.capabilities).toMatchObject({ schoolTime: "yes", bedtimeApps: "yes", timeLimits: "yes" });
+  });
+
+  it("leaves Android phones with schedules judged as before", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { device, phoneId } = await pairPhone(h, parent);
+    await h.ctx.db.insert(schedules).values({ phoneId, kind: "school", days: [1, 2, 3, 4, 5], startMinute: 480, endMinute: 870, allowedPackages: [] });
+    const { ios: _ios, ...android } = iosStatus();
+    expect((await device.put("/api/device/status", { ...android, deviceOwner: true })).status).toBe(204);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status.lockIntact).toBe(true);
+    // An Android phone's own failures still reach the dashboard.
+    const failed = { ...android, deviceOwner: true, lockIntact: false, failedPolicies: ["school time could not be applied"] };
+    expect((await device.put("/api/device/status", failed)).status).toBe(204);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status)
+      .toMatchObject({ lockIntact: false, failedPolicies: ["school time could not be applied"] });
+  });
+
   it("accepts fields a newer iPhone app adds", async () => {
     iosPairing(true);
     const parent = await signIn(h, "parent@example.org");

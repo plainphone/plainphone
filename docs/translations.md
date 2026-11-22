@@ -40,3 +40,9 @@ Nedtid, Nedetid and Auszeit for Downtime; Skærmtid, Skärmtid, Skjermtid and Bi
 Screen Time; Kommunikationsgrænser, Kommunikationsgränser, Kommunikasjonsgrenser and
 Kommunikationslimits for Communication Limits; Familiedeling, Familjedelning, Familiedeling and
 Familienfreigabe for Family Sharing. Check them against Apple's Settings app in each language.
+The child's iPhone (`iphone.*` in `parent-app/src/i18n/app-*.ts`) uses the same names, plus Kun
+kontakter, Endast kontakter, Bare kontakter and Nur Kontakte for Contacts Only; those four are not
+checked against Apple's Settings yet. The shield's words live in Swift
+(`parent-app/modules/plainphone-screentime/ios/Core/ShieldCopy.swift`), because the shield
+extension has no React Native; its unit test checks all five languages. Setup screens speak to
+the parent (German: Sie), the child's screen and the shield to the child (German: du).
