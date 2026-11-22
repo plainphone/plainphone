@@ -169,7 +169,7 @@ const schema = z.object({
   BOT_CHALLENGE_HMAC_KEY: unsetIfEmpty(z.string().min(32).optional()),
   /** A hidden form field only bots fill in: they get a normal answer, and no mail is sent. */
   SPAM_HONEYPOT: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
-  /** Refuse throwaway mail addresses for new households (server/data/disposable-domains.txt). */
+  /** Refuse throwaway mail addresses for new households (server/catalog/disposable-email/domains.txt). */
   BLOCK_DISPOSABLE_EMAIL: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
   /** Invitation mails per household per 24 hours, counted in the database. 0: no cap. */
   INVITES_PER_HOUSEHOLD_DAILY: unsetIfEmpty(z.coerce.number().int().min(0).default(20)),

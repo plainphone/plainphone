@@ -70,6 +70,7 @@ services:
       # New households per UTC day (docs/operations.md#daily-cap-on-new-households). 0 = no cap.
       SIGNUP_DAILY_CAP: ${SIGNUP_DAILY_CAP:-0}
       # Bot and spam protection on sign-in and invitations (docs/operations.md#bot-and-spam-protection).
+      # Off until the parent app that solves it is in the stores: older builds cannot sign in with it on.
       BOT_CHALLENGE: ${BOT_CHALLENGE:-off}
       BOT_CHALLENGE_DIFFICULTY: ${BOT_CHALLENGE_DIFFICULTY:-100000}
       BOT_CHALLENGE_HMAC_KEY: ${BOT_CHALLENGE_HMAC_KEY:-}

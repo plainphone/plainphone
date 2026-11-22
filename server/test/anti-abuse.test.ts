@@ -9,7 +9,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
-import { botChallengesSpent, householdInvites, inviteMails, magicLinks, rateLimitHits, serverSecrets } from "../src/db/schema.js";
+import { botChallengesSpent, householdInvites, inviteMails, magicLinks, rateLimitHits, selfKeys, serverSecrets } from "../src/db/schema.js";
 import { abuseCount } from "../src/services/abuse-metrics.js";
 import { CHALLENGE_MINUTES, sweepBotChallenges } from "../src/services/bot-challenge.js";
 import { isDisposableEmail } from "../src/services/disposable-email.js";
@@ -101,7 +101,8 @@ describe("bot challenge (ALTCHA)", () => {
     const r = await request({ email: "family@example.org" });
     expect(r.status).toBe(403);
     expect(r.json.code).toBe("bot_challenge_required");
-    // An old app shows the server's words: they must say what to do.
+    // For API clients and a dashboard tab opened before the switch. Old parent apps do not show
+    // it (they say "something went wrong"; docs/operations.md), so the words are not their fix.
     expect(r.json.error).toMatch(/update/);
     expect(h.mail.outbox).toHaveLength(0);
     expect(await rows(magicLinks)).toBe(0);
@@ -144,6 +145,28 @@ describe("bot challenge (ALTCHA)", () => {
     expect((await request({ email: "one@example.org", altcha: early })).status).toBe(202);
     h.clock.advance(1_000);
     expect((await request({ email: "two@example.org", altcha: late })).json.code).toBe("bot_challenge_failed");
+  });
+
+  it("refuses a solution whose number was spliced onto the salt to push the expiry back", async () => {
+    // Find a number with two digits or more and no zero after the first, so one can be moved.
+    const numberOf = (c: Challenge) => String(JSON.parse(Buffer.from(solve(c), "base64").toString()).number);
+    let c = await challenge();
+    while (!/^\d[1-9]/.test(numberOf(c))) c = await challenge();
+    const digits = numberOf(c);
+    // The hash is the same: (salt + "1") + "234" == salt + "1234". Signature and challenge match.
+    const spliced = { ...c, salt: c.salt + digits[0], number: Number(digits.slice(1)) };
+    expect(createHash("sha256").update(spliced.salt + spliced.number).digest("hex")).toBe(c.challenge);
+    const raw = Buffer.from(JSON.stringify(spliced)).toString("base64");
+    expect((await request({ email: "family@example.org", altcha: raw })).json.code).toBe("bot_challenge_failed");
+    // A correctly signed challenge that expires later than a fresh one would is refused too.
+    h.clock.advance(1_000);
+    const future = await challenge();
+    h.clock.advance(-1_000);
+    expect((await request({ email: "family@example.org", altcha: solve(future) })).json.code).toBe("bot_challenge_failed");
+    expect(h.mail.outbox).toHaveLength(0);
+    expect(await rows(botChallengesSpent)).toBe(0);
+    // The untouched solution still works.
+    expect((await request({ email: "family@example.org", altcha: solve(c) })).status).toBe(202);
   });
 
   it("makes its own HMAC key once and keeps it in the database", async () => {
@@ -300,6 +323,27 @@ describe("invitation mails per household", () => {
     expect((await mum.post(`/api/households/${hid}/invites`, { email: "dad@example.org" })).json.code).toBe("invite_cap_reached");
   });
 
+  it("also covers the trusted person's mail when a parent sets the key, which is still set", async () => {
+    h.ctx.cfg.INVITES_PER_HOUSEHOLD_DAILY = 2;
+    const { mum, hid } = await household();
+    const a = await pairPhone(h, mum, { name: "A", profile: "self" });
+    const b = await pairPhone(h, mum, { name: "B", profile: "self" });
+    const key = (email: string) => ({ keyType: "trusted", delayHours: 24, trustedEmail: email, payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" });
+    expect((await mum.put(`/api/phones/${a.phoneId}/key`, key("one@example.org"))).status).toBeLessThan(300);
+    expect((await mum.put(`/api/phones/${b.phoneId}/key`, key("two@example.org"))).status).toBeLessThan(300);
+    // Let a change that waits for the delay apply, then leave one place under the cap.
+    h.clock.advance(25 * 3_600_000);
+    expect(await takeInviteMail(h.ctx, hid)).toBe(true);
+    const to = (email: string) => h.mail.outbox.filter((m) => m.to === email).length;
+    const before = { one: to("one@example.org"), two: to("two@example.org") };
+    await a.device.get("/api/device/rules");
+    await b.device.get("/api/device/rules");
+    expect(to("one@example.org") - before.one + to("two@example.org") - before.two).toBe(1);
+    // Both keys are set; only the mail over the cap was skipped.
+    const keys = await h.ctx.db.select().from(selfKeys);
+    expect(keys.filter((k) => k.trustedEmail === "one@example.org" || k.trustedEmail === "two@example.org")).toHaveLength(2);
+  });
+
   it("forgets mails older than a day", async () => {
     const { hid } = await household();
     await takeInviteMail(h.ctx, hid);
@@ -362,6 +406,17 @@ describe("rate limits in the database", () => {
     for (let n = 0; n < 10; n++) expect((await start()).status).toBe(201);
     h.app = createApp(h.ctx);
     expect((await start()).status).toBe(429);
+  });
+
+  it("limits setup-link pairing per address in the database, across a restart", async () => {
+    // An unknown token is refused, but the attempt still counts: guessing is what the limit stops.
+    const enroll = () => anon().call("POST", "/api/device/enroll", { token: "pp_e_unknown", installId: "a".repeat(16) }, { "x-forwarded-for": "203.0.113.10" });
+    for (let n = 0; n < 20; n++) expect((await enroll()).status).not.toBe(429);
+    h.app = createApp(h.ctx);
+    expect((await enroll()).status).toBe(429);
+    // The review and template steps share the same count.
+    const review = await anon().call("POST", "/api/device/enrollment-review", { token: "pp_e_unknown", mode: "light" }, { "x-forwarded-for": "203.0.113.10" });
+    expect(review.status).toBe(429);
   });
 
   it("deletes rows whose window has ended", async () => {

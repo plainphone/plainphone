@@ -39,8 +39,10 @@ const sha256Hex = (value: string) => createHash("sha256").update(value).digest("
 
 export async function createChallenge(ctx: Ctx): Promise<Challenge> {
   const expires = Math.floor(ctx.now().getTime() / 1000) + CHALLENGE_MINUTES * 60;
-  // The expiry is part of the salt, so the signature covers it (as ALTCHA does).
-  const salt = `${randomBytes(12).toString("hex")}?expires=${expires}`;
+  // The expiry is part of the salt, so the signature covers it (as ALTCHA does). The closing "&"
+  // keeps the salt from being lengthened: without it, the first digits of the number could be
+  // moved onto the expiry, giving the same hash with a later date.
+  const salt = `${randomBytes(12).toString("hex")}?expires=${expires}&`;
   const maxnumber = ctx.cfg.BOT_CHALLENGE_DIFFICULTY;
   // Uniform over 0..maxnumber: on average a client tries half of them.
   const number = randomBytes(4).readUInt32BE() % (maxnumber + 1);
@@ -49,11 +51,14 @@ export async function createChallenge(ctx: Ctx): Promise<Challenge> {
   return { algorithm: "SHA-256", challenge, maxnumber, salt, signature };
 }
 
+/** The exact shape createChallenge makes; anything else was not made here. */
+const SALT = /^[0-9a-f]{24}\?expires=(\d{1,12})&$/;
+
 const payload = z.strictObject({
   algorithm: z.literal("SHA-256"),
   challenge: z.string().regex(/^[0-9a-f]{64}$/),
   number: z.number().int().min(0).max(10_000_000),
-  salt: z.string().min(1).max(200),
+  salt: z.string().regex(SALT),
   signature: z.string().regex(/^[0-9a-f]{64}$/),
   /** The widget may add how long solving took; it is ignored. */
   took: z.number().optional(),
@@ -82,15 +87,17 @@ export async function verifySolution(ctx: Ctx, raw: string | undefined): Promise
   if (!raw || raw.length > 2000) return false;
   const p = decode(raw);
   if (!p) return false;
-  const expires = Number(new URLSearchParams(p.salt.split("?")[1] ?? "").get("expires"));
-  if (!Number.isFinite(expires) || expires * 1000 <= ctx.now().getTime()) return false;
+  const expires = Number(SALT.exec(p.salt)![1]) * 1000;
+  const now = ctx.now().getTime();
+  // Never later than a fresh challenge expires, so a spent row is always swept in time.
+  if (expires <= now || expires > now + CHALLENGE_MINUTES * 60_000) return false;
   if (!equalHex(sha256Hex(p.salt + p.number), p.challenge)) return false;
   const expected = createHmac("sha256", await hmacKey(ctx)).update(p.challenge).digest("hex");
   if (!equalHex(expected, p.signature)) return false;
   // Replay protection: the first request with this signature stores it, any later one finds it.
   const spent = await ctx.db
     .insert(botChallengesSpent)
-    .values({ signature: p.signature, expiresAt: new Date(expires * 1000) })
+    .values({ signature: p.signature, expiresAt: new Date(expires) })
     .onConflictDoNothing()
     .returning({ signature: botChallengesSpent.signature });
   return spent.length === 1;

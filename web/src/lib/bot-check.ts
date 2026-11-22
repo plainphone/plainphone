@@ -37,7 +37,8 @@ export type BotCheckState = "off" | "working" | "ready" | "failed";
 
 /**
  * Solves the server's puzzle in the background while `enabled`. `take()` waits for the answer,
- * or gives undefined when no check is needed. Each answer is handed out once.
+ * or gives undefined when no check is needed. `take(true)` solves one anyway, for a server that
+ * switched the check on after the page read /api/health. Each answer is handed out once.
  */
 export function useBotCheck(enabled: boolean) {
   const [state, setState] = useState<BotCheckState>("off");
@@ -62,8 +63,8 @@ export function useBotCheck(enabled: boolean) {
     return () => job.current?.abort.abort();
   }, [enabled, start]);
 
-  const take = useCallback(async (): Promise<string | undefined> => {
-    if (!enabled) return undefined;
+  const take = useCallback(async (force = false): Promise<string | undefined> => {
+    if (!enabled && !force) return undefined;
     // Single use: a second submit (another address, "try again") solves a fresh one.
     if (!job.current || used.current === job.current.answer || Date.now() - job.current.at > FRESH_MS || state === "failed") start();
     const answer = job.current!.answer;

@@ -85,7 +85,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const pairPollLimit = new RateLimiter(320, 60 * 60_000);
   // Per address as well, since a client can mint ids: sized for several phones pairing behind one carrier NAT.
   const pairPollIpLimit = new RateLimiter(3000, 60 * 60_000);
-  const enrollLimit = new RateLimiter(20, 60 * 60_000);
+  const enrollLimit = new DbRateLimiter("enroll-ip", 20, 60 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const suggestionLimit = new RateLimiter(30, 60 * 60_000);
   const favouriteLimit = new RateLimiter(30, 60 * 60_000);
@@ -213,7 +213,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.post("/enrollment-review", async (c) => {
-    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    if (!(await enrollLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many attempts" });
     const input = await body(c, z.object({
       token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
       mode: z.enum(["light", "strong"]),
@@ -244,7 +244,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // A phone with a setup link can copy rules into that same draft before connecting.
   app.post("/enrollment-template", async (c) => {
-    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    if (!(await enrollLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many attempts" });
     const input = await body(c, z.object({
       token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
       template: templateCode,
@@ -269,7 +269,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Pairing by the one-time token from a dashboard-made provisioning QR code (no code to type).
   app.post("/enroll", async (c) => {
-    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    if (!(await enrollLimit.takeIp(ctx, clientIp(c, ctx.cfg.TRUST_PROXY)))) throw new HTTPException(429, { message: "too many attempts" });
     const input = await body(
       c,
       z.object({

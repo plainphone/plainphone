@@ -275,6 +275,7 @@ mail or create something has its own protection. Each one can be switched off pe
 | `POST /api/households/{hid}/invites` | Mails an invitation to a second parent (signed in) | Invitation cap per household, 3 invitations per address and household per day (database), 20 per inviting user per day (memory) |
 | Trusted person by mail (`key.set` in the dashboard or the app, or chosen on the phone at setup) | Mails the trusted person an invitation | Invitation cap per household: over it, the key is still set and only the mail is skipped |
 | `POST /api/device/pairings` | A phone starts pairing and gets a code (no mail) | IP limit 10/hour (database) |
+| `POST /api/device/enroll`, `/enrollment-review`, `/enrollment-template` | A phone pairs with the one-time token from a setup link or QR code; `/enroll` can mail the trusted person chosen on the phone | Shared IP limit 20/hour (database), invitation cap per household on the mail |
 | `POST /api/family-contact/invite`, `/accept`, `/decline` | An extended-family link is looked at, accepted or declined (no mail) | IP limit 30/15 min (database) |
 | `POST /api/auth/review` | Store review sign-in, only with `REVIEW_LOGIN_EMAIL` set (no mail) | Its own limit ([store-review.md](store-review.md)) |
 
@@ -314,10 +315,18 @@ package, a third party, cookies or tracking:
    deletes spent signatures after their challenge has expired.
 
 `/api/health` says `botChallenge: "altcha"` or `"off"` and `honeypot: true|false`, so clients
-know what to send. An app version from before the challenge gets `403` with
-`code: "bot_challenge_required"` and a message that asks to update the app; the current app
-also solves the puzzle and asks once more if the server switched it on after the app read
+know what to send. A client that sends no answer gets `403` with
+`code: "bot_challenge_required"` and a message that asks to update the app. The current app
+and dashboard solve the puzzle and ask once more if the server switched it on after they read
 `/api/health`. A wrong, expired or reused answer is `403 bot_challenge_failed`.
+
+**Old parent apps cannot sign in while it is on.** A parent-app build from before the
+challenge does not show the server's message: it maps an unknown `403` to its generic
+"Something went wrong", with no hint to update, and no status code exists that it would turn
+into a useful text. Existing sessions are not affected, only new sign-ins. So switch
+`BOT_CHALLENGE=altcha` on only once the app version that solves it is the one in the stores
+(and most parents have updated), and keep it `off` until then. The dashboard is served by the
+server itself, so it is always new enough.
 
 What it does and does not do: it makes each sign-in mail cost the sender a little CPU time,
 which is nothing for a person and adds up for a script that wants thousands. It does not stop
@@ -327,7 +336,7 @@ backstop.
 ### Throwaway addresses
 
 The list is [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains)
-(CC0), vendored in `server/catalog/disposable-email/` and read once at start. No lookup
+(CC0), vendored in `server/catalog/disposable-email/` and read once, on the first check. No lookup
 happens over the network. A subdomain of a listed domain counts too; `allow.txt` lists
 forwarding services people use as their lasting address and wins over the list. Refresh it
 with `node server/scripts/update-disposable-domains.mjs`, read the diff and commit it.

@@ -72,6 +72,13 @@ export function LoginPage() {
     }
     setBusy(true);
     try {
+      const send = (altcha: string | undefined) =>
+        api.post<{ ok: boolean; mailEnabled: boolean; codeSignIn?: boolean }>("/auth/request", {
+          email: value,
+          locale,
+          ...(altcha ? { altcha } : {}),
+          ...(website ? { website } : {}),
+        });
       let altcha: string | undefined;
       try {
         altcha = await botCheck.take();
@@ -79,12 +86,21 @@ export function LoginPage() {
         setFormError(t("botCheck.failed"));
         return;
       }
-      const r = await api.post<{ ok: boolean; mailEnabled: boolean; codeSignIn?: boolean }>("/auth/request", {
-        email: value,
-        locale,
-        ...(altcha ? { altcha } : {}),
-        ...(website ? { website } : {}),
-      });
+      let r: Awaited<ReturnType<typeof send>>;
+      try {
+        r = await send(altcha);
+      } catch (err) {
+        if (altcha || !(err instanceof ApiError && err.data.code === "bot_challenge_required")) throw err;
+        // The server switched the check on after this page read /api/health: solve it now, ask once more.
+        try {
+          altcha = await botCheck.take(true);
+        } catch {
+          setFormError(t("botCheck.failed"));
+          return;
+        }
+        r = await send(altcha);
+        setProtection((p) => ({ ...p, botChallenge: true }));
+      }
       if (r.codeSignIn) {
         setCode("");
         setCodeFor(value);

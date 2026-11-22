@@ -114,6 +114,17 @@ it("asks for no puzzle and sends none when the server has the check off", async 
   expect(sent()).toEqual({ email: "parent@example.test", locale: "en" });
 });
 
+it("solves the puzzle and asks once more when the server switched the check on after the page opened", async () => {
+  await mount();
+  post.mockRejectedValueOnce(new ApiError(403, "update", [], { code: "bot_challenge_required", error: "update" }));
+  await type("email", "parent@example.test");
+  await submit();
+  expect(post).toHaveBeenCalledTimes(2);
+  expect(post.mock.calls[0]![1]).not.toHaveProperty("altcha");
+  expect(JSON.parse(atob(sent().altcha!))).toMatchObject({ number: 37, salt: SALT });
+  expect(container.textContent).toContain("Check your mail");
+});
+
 it("says calmly when the puzzle could not be fetched, and sends nothing", async () => {
   server.health = { botChallenge: "altcha", honeypot: false };
   server.challengeStatus = 503;
