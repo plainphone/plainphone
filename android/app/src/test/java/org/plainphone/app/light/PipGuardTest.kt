@@ -195,6 +195,39 @@ class PipGuardTest {
         assertEquals(1, starts.count { it.component?.packageName == game })
     }
 
+    @Test fun `Android 10's picture-in-picture menu over the window does not hide whose window it is`() {
+        // Emulator run 45047940235 (API 29): once System UI's menu covered the pinned player, the window read
+        // as System UI ("pip: windows com.android.systemui#14@1"), so the blocked player floated on.
+        installLauncher(game)
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit().putStringSet("blocked", emptySet()).commit()
+        fun win(pkg: String?, pip: Boolean, id: Int) = AccessibilityWindowInfo().also {
+            Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+                rootNode = pkg?.let { p -> AccessibilityNodeInfo().apply { packageName = p } }
+                this.pip = pip
+                windowId = id
+            }
+        }
+        org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected") // watches the plan
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply { packageName = game })
+        shadow.windowList = listOf(win(game, false, 10))
+        windowsChanged()
+        shadow.windowList = listOf(win(null, true, 10)) // entering picture-in-picture: no root yet
+        windowsChanged()
+        shadow.windowList = listOf(win("com.android.systemui", true, 14)) // the menu covers the app's window
+        windowsChanged()
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(2))
+        assertEquals(null, shadowOf(service.application).nextStartedActivity)
+
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit().putStringSet("blocked", setOf(game)).commit()
+        looper.idleFor(Duration.ofSeconds(2))
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals("expanded once", 1, starts.count { it.component?.packageName == game })
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
+        // Home would stop app switches for 5 s on Android 10 and leave the window floating over the launcher.
+        assertEquals("the floating app is not treated as the app in front", 0, homeActions())
+    }
+
     @Test fun `the quiet window ends`() {
         assertTrue(PipGuard.expandedRecently(1_000L, 1_000L + PipGuard.EXPAND_QUIET_MS))
         assertTrue(!PipGuard.expandedRecently(1_000L, 1_001L + PipGuard.EXPAND_QUIET_MS))

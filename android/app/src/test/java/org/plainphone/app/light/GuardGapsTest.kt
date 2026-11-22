@@ -73,6 +73,37 @@ class GuardGapsTest {
         assertEquals("the game is stopped again", 2, homeActions())
     }
 
+    @Test fun `a blocked app that took focus back before its stop screen's events arrived is stopped again`() {
+        // Emulator run 45047940235 (API 34): the test started the player again 150 ms after its stop screen.
+        // The player's focus came first, the stop screen's late window events after it, so the guard took
+        // its own screen for the app in front, and neither a retry nor the 30 s tick looked at the player.
+        front(game)
+        assertEquals(1, homeActions())
+        shadow.windowList = listOf(AccessibilityWindowInfo().also {
+            Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+                rootNode = AccessibilityNodeInfo().apply { packageName = game }
+                focused = true
+            }
+        })
+        shadow.root = AccessibilityNodeInfo().apply { packageName = game }
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED).apply {
+            ReflectionHelpers.setField(this, "mWindowChangeTypes", AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
+        })
+        front(service.packageName) // the stop screen's event, late
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals("the game is stopped again", 2, homeActions())
+    }
+
+    @Test fun `a blocked app still in front after its stop screen is stopped again without any event`() {
+        front(game)
+        assertEquals(1, homeActions())
+        front(service.packageName) // the stop screen
+        // The game's task returns and Android reports nothing: only the active window says so.
+        shadow.root = AccessibilityNodeInfo().apply { packageName = game }
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals("the game is stopped again", 2, homeActions())
+    }
+
     @Test fun `a guard that restarts checks the app already in front`() {
         shadow.root = AccessibilityNodeInfo().apply { packageName = game }
         ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")

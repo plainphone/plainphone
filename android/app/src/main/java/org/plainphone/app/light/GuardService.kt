@@ -44,6 +44,12 @@ class GuardService : AccessibilityService() {
     /** Picture-in-picture apps asked to return to full screen (Android 10 refuses the dismiss), by elapsed time. */
     private val pipExpandedAt = mutableMapOf<String, Long>()
     private var lastPipSeen = ""
+    /** Window id to the app it showed, recent windows only: Android 10 pins a window before its root is readable. */
+    private val windowOwners = object : LinkedHashMap<Int, String>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>?) = size > WINDOW_OWNERS_KEPT
+    }
+    /** The app last seen in picture-in-picture, while a pinned window is listed (see [PipGuard.owner]). */
+    private var pinnedApp: String? = null
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
     private var planWatch: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
@@ -65,7 +71,7 @@ class GuardService : AccessibilityService() {
             if (!isInteractive()) return
             // The allow-list decides again too, not only the time limits: an emergency opening that just
             // ended, or a blocked app still in front after a missed block.
-            foreground?.let { if (canGuardApps()) guard(it, force = true) }
+            if (canGuardApps()) appInFront()?.let { guard(it, force = true) }
             if (canGuardApps()) guardPip()
             main.postDelayed(this, TICK_MS)
         }
@@ -76,6 +82,16 @@ class GuardService : AccessibilityService() {
         if (!canGuardApps()) return@Runnable
         foreground?.let { guard(it, force = true) }
         guardPip()
+    }
+
+    /**
+     * After a stop screen: is the blocked app still in front? Started again within moments of its
+     * stop screen, its focus can come before the stop screen's own window events, so the events end
+     * with Plainphone in front while the app is (emulator run 45047940235, API 34: 40 s unchecked).
+     */
+    private val settle = Runnable {
+        if (!canGuardApps() || inCall()) return@Runnable
+        appInFront(live = true)?.let { guard(it) }
     }
 
     /** Limited emergency openings (Self phone, light mode only): one app, 15 minutes. */
@@ -143,7 +159,8 @@ class GuardService : AccessibilityService() {
                 val app = updateWindowSubscription(focusChanges = if (maintenance) 0 else changes)
                 // A task brought back to the front (a second start of an open app) can come without a
                 // window state event, so the app in front would be the stop screen it covered (API 34).
-                if (app != null && app != foreground) {
+                // Checked even when it is the app last in front: that can be a stop screen's late event.
+                if (app != null) {
                     foreground = app
                     if (canGuardApps()) guard(app)
                 }
@@ -157,7 +174,10 @@ class GuardService : AccessibilityService() {
         val windowChanged = e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         val guarded = guardsSettings(pkg)
         if (windowChanged) {
-            if (!isOverlay(pkg)) foreground = pkg
+            if (!isOverlay(pkg)) {
+                foreground = pkg
+                if (e.windowId >= 0) windowOwners[e.windowId] = pkg
+            }
             // Keep tracking windows during maintenance so checks can resume in place.
             if (guarded) updateEventTypes(watchContent = true) else updateWindowSubscription()
         }
@@ -204,6 +224,7 @@ class GuardService : AccessibilityService() {
                 }
                 val pkg = root?.packageName?.toString()
                 root?.let(::recycle)
+                if (pkg != null && !isOverlay(pkg)) windowOwners[window.id] = pkg
                 val gainedFocus = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_FOCUSED) != 0 &&
                     window.isFocused
                 val becameActive = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_ACTIVE) != 0 &&
@@ -266,6 +287,25 @@ class GuardService : AccessibilityService() {
     private fun isInteractive(): Boolean =
         getSystemService(PowerManager::class.java)?.isInteractive == true
 
+    private fun inCall() = getSystemService(android.media.AudioManager::class.java)?.mode == android.media.AudioManager.MODE_IN_CALL
+
+    /**
+     * The app in front by the active window, for checks that run without an event. Window events can
+     * arrive late and out of order, so [foreground] alone can name a screen that is already gone.
+     * Falls back to it when the active window is unreadable, an overlay or a floating window, unless
+     * only a [live] answer will do.
+     */
+    private fun appInFront(live: Boolean = false): String? {
+        val fallback = if (live) null else foreground
+        val root = activeRootWithoutPrefetch() ?: return fallback
+        val pkg = root.packageName?.toString()
+        recycle(root)
+        if (pkg == null || isOverlay(pkg) || pkg in pipPackages) return fallback
+        if (pkg != foreground) Log.i(TAG, "in front: $pkg, not $foreground as the window events said")
+        foreground = pkg
+        return pkg
+    }
+
     private fun guard(pkg: String, force: Boolean = false) {
         if (pkg == packageName) return
         when (LightLock.plan(this).why(pkg)) {
@@ -288,17 +328,29 @@ class GuardService : AccessibilityService() {
         val wins = ArrayList<PipGuard.Win>()
         val roots = HashMap<String, AccessibilityNodeInfo>()
         val seen = ArrayList<String>()
+        // Read first, then resolve: a pinned app window names the app that System UI's menu may cover.
+        class Raw(val id: Int, val label: String, val inPip: Boolean, val rootPkg: String?)
+        val raw = ArrayList<Raw>()
         for (window in windows) {
             try {
                 val inPip = window.isInPictureInPictureMode
                 val root = if (!inPip) null else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) window.getRoot(0) else window.root
                 val pkg = root?.packageName?.toString()
-                wins += PipGuard.Win(pkg, inPip)
-                if (inPip) seen += "$pkg#${window.id}@${window.layer}"
-                if (root != null && pkg != null && !roots.containsKey(pkg)) roots[pkg] = root else root?.let(::recycle)
+                raw += Raw(window.id, "$pkg#${window.id}@${window.layer}", inPip, pkg)
+                // Only the app's own root takes a dismiss; System UI's menu root is not the app's window.
+                if (root != null && pkg != null && pkg != PipGuard.SYSTEM_UI && !roots.containsKey(pkg)) roots[pkg] = root else root?.let(::recycle)
             } finally {
                 if (Build.VERSION.SDK_INT < 33) window.recycle()
             }
+        }
+        val pinnedAppNow = raw.filter { it.inPip && it.rootPkg != PipGuard.SYSTEM_UI }
+            .firstNotNullOfOrNull { PipGuard.owner(it.rootPkg, it.id, windowOwners, null) }
+        pinnedApp = pinnedAppNow ?: pinnedApp.takeIf { raw.any { it.inPip } }
+        for (r in raw) {
+            val pkg = if (r.inPip) PipGuard.owner(r.rootPkg, r.id, windowOwners, pinnedApp) else null
+            if (r.inPip && r.rootPkg != null && r.rootPkg != PipGuard.SYSTEM_UI) windowOwners[r.id] = r.rootPkg
+            wins += PipGuard.Win(pkg, r.inPip)
+            if (r.inPip) seen += if (pkg != r.rootPkg) "${r.label} as $pkg" else r.label
         }
         // Logged on change only: this runs on every window-list change.
         val seenNow = seen.joinToString()
@@ -308,8 +360,11 @@ class GuardService : AccessibilityService() {
         }
         pipPackages = PipGuard.packages(wins, packageName)
         pipStopped.retainAll(pipPackages.toSet())
+        // A floating app is not the app in front: blocking it as one would press Home, which on Android 10
+        // holds back every app start for 5 s, the expand below included, and leaves the window floating.
+        if (foreground in pipPackages) foreground = null
         // A call (112 included) is never pushed aside by the stop screen; the window is looked at again after it.
-        val inCall = getSystemService(android.media.AudioManager::class.java)?.mode == android.media.AudioManager.MODE_IN_CALL
+        val inCall = inCall()
         val plan = LightLock.plan(this)
         val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, plan, pipStopped, ::openedForNow)
         if (!inCall) {
@@ -478,6 +533,11 @@ class GuardService : AccessibilityService() {
         Log.i(TAG, "stop screen for $pkg: $reason${if (quiet) ", after expanding it" else ""}")
         runCatching { startActivity(intent) }
             .onFailure { Log.w(TAG, "could not show the blocked screen: ${it.message}") }
+        // Settings and the VPN dialog have their own re-checks (see above).
+        if (reason != BlockedActivity.Reason.PROTECTION) {
+            main.removeCallbacks(settle)
+            main.postDelayed(settle, SETTLE_MS)
+        }
         return true
     }
 
@@ -556,6 +616,7 @@ class GuardService : AccessibilityService() {
         main.removeCallbacks(tick)
         main.removeCallbacks(emergencyExpiry)
         main.removeCallbacks(reguard)
+        main.removeCallbacks(settle)
         cancelSettingsChecks()
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
@@ -582,6 +643,9 @@ class GuardService : AccessibilityService() {
             AccessibilityEvent.WINDOWS_CHANGE_ACTIVE
         private const val TICK_MS = 30_000L
         private const val BLOCK_GAP_MS = 700L
+        /** Long enough for a stop screen to be in front; short enough that a blocked app is not used meanwhile. */
+        private const val SETTLE_MS = 1_500L
+        private const val WINDOW_OWNERS_KEPT = 32
         private const val KEYBOARD_CACHE_MS = 60_000L
 
         @Volatile var isConnected = false

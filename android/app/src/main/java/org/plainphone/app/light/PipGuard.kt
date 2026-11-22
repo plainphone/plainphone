@@ -55,6 +55,21 @@ object PipGuard {
     /** Long enough for Android's expand animation and a stop screen dropped by the guard's rate limit. */
     const val EXPAND_QUIET_MS = 5_000L
 
+    /**
+     * Whose app a picture-in-picture window shows. Its root names the app, except on Android 10:
+     * the window has no root while it enters picture-in-picture, so the app is the one [known] for
+     * that window id; and System UI then lays its menu over the app's window, so the pinned window
+     * reads as System UI and the app is the one last seen pinned ([lastPinned]). Emulator run
+     * 45047940235 showed both: "pip: windows null#10@1", then "com.android.systemui#14@1".
+     */
+    fun owner(rootPkg: String?, windowId: Int, known: Map<Int, String>, lastPinned: String?): String? = when (rootPkg) {
+        null -> known[windowId]
+        SYSTEM_UI -> lastPinned
+        else -> rootPkg
+    }
+
+    const val SYSTEM_UI = "com.android.systemui"
+
     /** Picture-in-picture packages, for the live time check (the plan may not know yet that time is up). */
     fun packages(windows: List<Win>, ownPackage: String): List<String> =
         windows.filter { it.inPip }.mapNotNull { it.pkg }.filter { it != ownPackage }.distinct()
