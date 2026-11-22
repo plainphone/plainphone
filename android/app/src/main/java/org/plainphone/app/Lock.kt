@@ -46,6 +46,12 @@ object Lock {
     private const val TAG = "Plainphone"
     private const val BEDTIME_STEP = "silent bedtime (Do Not Disturb)"
     private const val ACCOUNT_RELOCK_PENDING = "account_relock_pending"
+    /**
+     * Lock order (#229): AppUpdateWindow's and InstallWindow's monitors, then APPLY_LOCK, then
+     * CatalogAccounts' monitor, then InstallLease's lock. Nothing holding a later one waits for an
+     * earlier one: InstallLease relocks through relockNow, and its lease-closed work for
+     * AppUpdateWindow runs on that object's own thread.
+     */
     private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
     private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
