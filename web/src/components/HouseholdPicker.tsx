@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useI18n } from "../i18n/I18n";
-import { householdOptionLabel } from "../lib/household";
+import { householdOptionLabel } from "@plainphone/shared/household";
 import { chooseHousehold, useActiveHousehold, useMe } from "../lib/session";
 import { Field } from "./ui";
 

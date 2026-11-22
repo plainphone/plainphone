@@ -23,7 +23,7 @@ internal object SupportDiagnostics {
         else -> "other"
     }
 
-    // Match the safe policy names in web/src/lib/failedPolicies.ts; exclude runtime details.
+    // Match the safe policy names in packages/shared/src/failedPolicies.ts; exclude runtime details.
     private val policyNames = setOf(
         "Chrome managed config (no DoH, no incognito, SafeSearch)",
         "DNS filter (VPN)",

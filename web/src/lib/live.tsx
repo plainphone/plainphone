@@ -14,7 +14,7 @@ import {
   liveMatches,
   pollInterval,
   type Transport,
-} from "./live-events";
+} from "@plainphone/shared/live-events";
 import { LIVE_KEY, useLiveSetting } from "./live-settings";
 
 /** Bursts (a position every few seconds, several answers at once) make one refetch. */

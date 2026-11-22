@@ -6,7 +6,7 @@ import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Switch, Text } from "../components/ui";
 import { useLive } from "../lib/live";
-import { languageNames, languages } from "../shared/lib/phone-language";
+import { languageNames, languages } from "@plainphone/i18n/phone-language";
 import { useI18n } from "../i18n/I18n";
 import { DeleteAccount } from "../components/DeleteAccount";
 import { ServerChoice } from "../components/ServerChoice";

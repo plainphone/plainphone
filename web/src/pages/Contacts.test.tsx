@@ -40,7 +40,7 @@ it("warns only when the light phone restricts calls and texts and has no approve
 it("shows Apple's honest line instead of Android-only contact switches on an iPhone", async () => {
   vi.stubGlobal("localStorage", { getItem: () => "en" });
   vi.stubGlobal("navigator", { languages: ["en"] });
-  const { en } = await import("../i18n/en");
+  const { en } = await import("@plainphone/i18n/en");
   const render = () => renderToStaticMarkup(<I18nProvider><ContactsPage /></I18nProvider>);
   const iosLine = "On iPhone, Apple controls who can call.";
   const android = { id: "phone", mode: "light", profile: "child", platform: "android" };

@@ -3,7 +3,7 @@
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
 import { AppState } from "react-native";
-import { isLanguage } from "../shared/lib/phone-language";
+import { isLanguage } from "@plainphone/i18n/phone-language";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap, configureApiServer } from "../api/client";
 import type { Locale, Me } from "../api/models";
@@ -13,7 +13,7 @@ import { clearLocalNotifications, syncNativePush, watchNativePush } from "./noti
 import { logoutNativeSession } from "./push-registration";
 import { clearPendingInvite, forgetAcceptedInvites, loadPendingInvite } from "./pendingInvite";
 import { forgetHouseholdChoice, getHouseholdChoice, loadHouseholdChoice, subscribeHouseholdChoice } from "./household-choice";
-import { pickHousehold } from "../shared/lib/household";
+import { pickHousehold } from "@plainphone/shared/household";
 import { rememberLogout, retryPendingLogouts, signOutOnServer } from "./pending-logout";
 import { getItem, removeItem, setItem } from "./storage";
 

@@ -13,7 +13,7 @@ import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
 import { useLiveRefresh } from "../lib/live";
 import { savePendingInvite } from "../lib/pendingInvite";
-import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../shared/lib/approval-state";
+import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "@plainphone/shared/approval-state";
 
 /** `emergency` is missing when the server is older. */
 interface HelpedPerson {

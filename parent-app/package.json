@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@plainphone/api-client": "workspace:*",
+    "@plainphone/i18n": "workspace:*",
+    "@plainphone/shared": "workspace:*",
     "expo": "~58.0.25",
     "expo-camera": "~58.0.14",
     "expo-constants": "~58.0.16",
@@ -29,12 +32,12 @@
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "30.0.0",
+    "@types/node": "^26.6.6",
     "@types/react": "~19.3.0",
     "eslint": "^10.15.0",
     "eslint-config-expo": "~58.0.4",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.14",
-    "openapi-typescript": "^7.13.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -46,10 +49,6 @@
     "lint": "expo lint",
     "test": "jest",
     "export": "expo export --platform all",
-    "gen:api": "openapi-typescript ../server/openapi.yaml -o src/api/schema.d.ts",
-    "check:api": "mkdir -p .expo && openapi-typescript ../server/openapi.yaml -o .expo/schema.check.d.ts && diff -q .expo/schema.check.d.ts src/api/schema.d.ts",
-    "sync:shared": "node scripts/sync-shared.mjs",
-    "check:shared": "node scripts/sync-shared.mjs --check",
     "icons": "node scripts/make-icons.mjs"
   },
   "private": true,

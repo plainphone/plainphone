@@ -5,7 +5,7 @@
 // map on the phone screens.
 import * as SecureStore from "expo-secure-store";
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { en } from "../src/shared/i18n/en";
+import { en } from "@plainphone/i18n/en";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {

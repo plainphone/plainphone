@@ -3,7 +3,7 @@ import { type FormEvent, useId, useState } from "react";
 import { Link } from "react-router";
 import { Field, LoadGate, PageTitle, Switch, errorMessage, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { MessageKey, T } from "../i18n/translate";
+import type { MessageKey, T } from "@plainphone/i18n/translate";
 import {
   type App,
   ApiError,
@@ -24,7 +24,7 @@ import {
   setModesEnabled,
   updateMode,
 } from "../lib/api";
-import { crossesMidnight, formatClock, formatList, hhmmToMinutes, minutesToHHMM, weekdayName } from "../lib/format";
+import { crossesMidnight, formatClock, formatList, hhmmToMinutes, minutesToHHMM, weekdayName } from "@plainphone/shared/format";
 import { usePhone } from "./Phone";
 
 export function modeName(m: Pick<Mode, "name" | "preset">, t: T): string {

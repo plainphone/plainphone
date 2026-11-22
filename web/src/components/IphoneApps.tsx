@@ -6,7 +6,7 @@
 import { LoadGate, PageTitle, useLoad, useNow } from "./ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type IosSelectionState, type Phone } from "../lib/api";
-import { formatRelative } from "../lib/format";
+import { formatRelative } from "@plainphone/shared/format";
 
 export function IphoneApps({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();

@@ -11,9 +11,9 @@ import { ApprovalQueue } from "../src/components/ApprovalQueue";
 import { PhoneStateHint, PhoneStateTitle } from "../src/components/PhoneState";
 import { I18nProvider, useI18n } from "../src/i18n/I18n";
 import type { Approval } from "../src/lib/api";
-import type { Processed } from "../src/lib/approval-state";
-import { formatRelative } from "../src/lib/format";
-import { approvalFixtures, FIXTURE_NOW, phoneFixtures } from "../src/lib/status-fixtures";
+import type { Processed } from "@plainphone/shared/approval-state";
+import { formatRelative } from "@plainphone/shared/format";
+import { approvalFixtures, FIXTURE_NOW, phoneFixtures } from "@plainphone/shared/status-fixtures";
 import "../src/styles.css";
 
 const params = new URLSearchParams(window.location.search);

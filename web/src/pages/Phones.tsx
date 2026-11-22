@@ -8,8 +8,8 @@ import { PhoneStateTitle } from "../components/PhoneState";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
 import { useLiveRefresh } from "../lib/live";
-import { helpUrl, releaseState } from "../lib/phoneSupport";
-import { isIphone } from "../lib/platform";
+import { helpUrl, releaseState } from "@plainphone/shared/phoneSupport";
+import { isIphone } from "@plainphone/shared/platform";
 
 interface Row {
   phone: Phone;

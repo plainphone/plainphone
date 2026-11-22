@@ -13,7 +13,7 @@ import {
   pollInterval,
   SseParser,
   type TransportHandlers,
-} from "./live-events";
+} from "@plainphone/shared/live-events";
 
 describe("SseParser", () => {
   function parse(chunks: string[]) {

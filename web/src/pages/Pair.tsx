@@ -4,9 +4,9 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { errorNotice, Field, LiveStatus, type Notice, PageTitle, Switch } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
-import { normaliseCode } from "../lib/format";
+import { normaliseCode } from "@plainphone/shared/format";
 import { useHouseholdId } from "../lib/session";
-import { IOS_PAIRING_NOT_YET } from "../lib/platform";
+import { IOS_PAIRING_NOT_YET } from "@plainphone/shared/platform";
 
 export function PairPage() {
   const householdId = useHouseholdId();

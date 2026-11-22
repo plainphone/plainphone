@@ -2,8 +2,8 @@
 import { appDa } from "../src/i18n/app-da";
 import { appEn } from "../src/i18n/app-en";
 import { makeAppT } from "../src/i18n/I18n";
-import { da } from "../src/shared/i18n/da";
-import { en } from "../src/shared/i18n/en";
+import { da } from "@plainphone/i18n/da";
+import { en } from "@plainphone/i18n/en";
 
 describe("app copy", () => {
   it("has every key in both languages, with no empty strings", () => {

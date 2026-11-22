@@ -33,7 +33,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import { type TFn, useI18n } from "../i18n/I18n";
-import { planLimitKey, planLimitOf } from "../shared/lib/billing";
+import { planLimitKey, planLimitOf } from "@plainphone/shared/billing";
 import { type Colors, fonts, radius, radiusControl, radiusPill, space, touch, useColors } from "../lib/theme";
 
 /** Turns any error into a sentence for the user. */

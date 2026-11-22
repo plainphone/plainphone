@@ -1,0 +1,20 @@
+{
+  "name": "@plainphone/shared",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Platform-free logic shared by the web dashboard and the parent app",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm run typecheck"
+  },
+  "dependencies": {
+    "@plainphone/i18n": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
