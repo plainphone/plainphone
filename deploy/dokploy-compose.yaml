@@ -69,6 +69,9 @@ services:
       IOS_PAIRING_ENABLED: ${IOS_PAIRING_ENABLED:-false}
       # New households per UTC day (docs/operations.md#daily-cap-on-new-households). 0 = no cap.
       SIGNUP_DAILY_CAP: ${SIGNUP_DAILY_CAP:-0}
+      # App store review sign-in (docs/store-review.md). Unset = the path does not exist.
+      REVIEW_LOGIN_EMAIL: ${REVIEW_LOGIN_EMAIL:-}
+      REVIEW_LOGIN_CODE: ${REVIEW_LOGIN_CODE:-}
       # Traefik sits in front, so X-Forwarded-For is trustworthy here.
       TRUST_PROXY: "true"
     expose:
