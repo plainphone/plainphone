@@ -635,7 +635,7 @@ class LightModeFlow : EmulatorFlow() {
         text("Enter picture-in-picture").click()
         await("fixture entering PiP") { isPlayerInPip() }
         allowPlayer(false)
-        await("fixture leaving PiP") { !isPlayerInPip() }
+        await({ "fixture leaving PiP; ${windowState()}" }) { !isPlayerInPip() }
 
         allowPlayer(true)
         launchPlayer()
@@ -746,11 +746,28 @@ class LightModeFlow : EmulatorFlow() {
 
     private fun assertPlayerStopped(why: LightPlan.Why = LightPlan.Why.NOT_ALLOWED) {
         assertEquals("Player must be in the light-mode block plan", why, LightLock.plan(context).why(PLAYER))
-        await("blocked player leaving the foreground") {
-            val resumed = device.executeShellCommand("dumpsys activity activities").lineSequence()
-                .filter { "ResumedActivity" in it }.toList()
+        await({ "blocked player leaving the foreground; ${windowState()}" }) {
+            val resumed = resumedActivities()
             resumed.isNotEmpty() && resumed.none { PLAYER in it }
         }
+    }
+
+    private fun resumedActivities() = device.executeShellCommand("dumpsys activity activities").lineSequence()
+        .filter { "ResumedActivity" in it }.map { it.trim() }.toList()
+
+    /**
+     * For a failed wait: what the guard believed, the rules it had, and what Android showed. Emulator run
+     * 45047940235 needed all three to tell a guard that never saw the app from one that could not stop it.
+     */
+    private fun windowState(): String {
+        val pinned = device.executeShellCommand("am stack list")
+            .split(Regex("(?m)(?=^Stack id=|^RootTask id=)"))
+            .filter { "mWindowingMode=pinned" in it }
+            .joinToString(" | ") { block -> block.lines().filter { "/" in it || "mWindowingMode" in it }.joinToString(" ") { it.trim() } }
+        val plan = LightLock.plan(context)
+        return "${GuardService.describe()}; plan for the player: ${plan.why(PLAYER)}, " +
+            "allowed by the synced rules: ${store.rules()?.allowedApps?.contains(PLAYER)}; " +
+            "resumed: ${resumedActivities()}; pinned: ${pinned.ifEmpty { "none" }}"
     }
 
     private fun isPlayerInPip(): Boolean {

@@ -106,6 +106,10 @@ The stuck call itself cannot be stopped, so after a watchdog failure the flow's
 `finally` blocks do not run; after the light flow, the clock then stays 35 days
 ahead for the rest of the run. On failure, the job log shows whether the
 server was still running and the end of its log.
+In the light flow, a wait for the player to leave the foreground or
+picture-in-picture names, when it fails, what the guard took for the app in
+front and for the floating app, the stored plan and synced rules for the player,
+and Android's resumed activities and pinned task.
 
 The test parent's number is the emulator's own SIM number, `+15555215554`
 (`E2E_MODEM_NUMBER` changes it; pass the same 11 digits to `-phone-number`).

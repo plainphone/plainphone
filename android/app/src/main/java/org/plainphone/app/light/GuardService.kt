@@ -652,6 +652,13 @@ class GuardService : AccessibilityService() {
             private set
         @Volatile private var instance: java.lang.ref.WeakReference<GuardService>? = null
 
+        /** What the guard believes now, for a failing end-to-end check's message. Main thread state, read loosely. */
+        fun describe(): String = instance?.get()?.let {
+            runCatching {
+                "guard: in front ${it.foreground}, pinned ${it.pinnedApp}, floating ${it.pipPackages}, stopped ${it.pipStopped.toList()}"
+            }.getOrElse { e -> "guard: unreadable (${e.javaClass.simpleName})" }
+        } ?: "guard: not running"
+
         /** Maintenance: the service switches itself off (Android 7+). False when it is not running. */
         fun disable(): Boolean {
             val service = instance?.get() ?: return false
