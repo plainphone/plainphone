@@ -621,13 +621,12 @@ function QrStep({ qr: first, progress }: { qr: Qr; progress?: { step: number; to
     }
     checkRef.current = check;
     void check();
+    // useLiveRefresh checks again when the tab comes back; the interval is the fallback.
     const id = window.setInterval(check, 4_000);
-    document.addEventListener("visibilitychange", check);
     return () => {
       stop = true;
       checkRef.current = undefined;
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", check);
       window.clearTimeout(expiryTimer);
     };
   }, [qr.phoneId, qr.enrollmentId, qr.expiresAt, paired, gone]);
