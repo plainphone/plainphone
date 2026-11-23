@@ -23,6 +23,62 @@ spec.loader.exec_module(harness)
 # What adb's server writes when it mistakes a socket for an emulator (run 45001557220).
 ADB_CNXN = b"CNXN\x00\x00\x00\x01\x00\x10\x00\x00host::features=shell_v2,cmd,fixed_push_mkdir,apex,abb\n"
 
+# `am instrument -r` as AndroidJUnitRunner prints it.
+TEST_STARTED = """INSTRUMENTATION_STATUS: class=org.plainphone.app.e2e.DeviceOwnerFlow
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=
+org.plainphone.app.e2e.DeviceOwnerFlow:
+INSTRUMENTATION_STATUS: test=enrollApplyRulesAndSendSos
+INSTRUMENTATION_STATUS_CODE: 1
+"""
+PASSED_RUN = TEST_STARTED + """INSTRUMENTATION_STATUS: class=org.plainphone.app.e2e.DeviceOwnerFlow
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=enrollApplyRulesAndSendSos
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_RESULT: stream=
+
+Time: 182.4
+
+OK (1 test)
+
+
+INSTRUMENTATION_CODE: -1
+"""
+FAILED_RUN = TEST_STARTED + """INSTRUMENTATION_STATUS: class=org.plainphone.app.e2e.DeviceOwnerFlow
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: revoked app must be hidden again
+\tat org.junit.Assert.fail(Assert.java:89)
+\tat org.plainphone.app.e2e.DeviceOwnerFlow.enrollApplyRulesAndSendSos(EmulatorFlows.kt:452)
+
+INSTRUMENTATION_STATUS: stream=
+Error in enrollApplyRulesAndSendSos(org.plainphone.app.e2e.DeviceOwnerFlow):
+java.lang.AssertionError: revoked app must be hidden again
+
+INSTRUMENTATION_STATUS: test=enrollApplyRulesAndSendSos
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 97.1
+There was 1 failure:
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+
+
+INSTRUMENTATION_CODE: -1
+"""
+# The process running the test went away: the run's last status is the test's start (issue 237).
+STARTED_ONLY_RUN = TEST_STARTED + """INSTRUMENTATION_RESULT: shortMsg=Process crashed.
+INSTRUMENTATION_CODE: 0
+"""
+
 
 class FakeConsole:
     """The guest end of the serial socket: echoes input like a TTY and answers with `reply`."""
@@ -331,6 +387,53 @@ class InstrumentTest(unittest.TestCase):
         self.assertEqual(serial.call_args.kwargs["name"], "DeviceOwnerFlow (am instrument)")
         self.assertEqual(serial.call_args.kwargs["timeout"], harness.INSTRUMENT_TIMEOUTS["DeviceOwnerFlow"])
 
+    def run_on_console(self, output=None, error=None):
+        serial = mock.patch.object(harness, "serial_shell", return_value=output, side_effect=error)
+        with serial, self.assertRaises(RuntimeError) as raised:
+            harness.instrument("DeviceOwnerFlow", 8080, "token", console=object())
+        return str(raised.exception)
+
+    def test_a_failed_assertion_on_the_serial_console_ends_the_error_with_its_stack(self):
+        # Issue 237: the job log said only "DeviceOwnerFlow did not pass its one test".
+        message = self.run_on_console(FAILED_RUN)
+        self.assertTrue(message.startswith("DeviceOwnerFlow did not pass its one test: "), message)
+        self.assertIn("DeviceOwnerFlow#enrollApplyRulesAndSendSos reported a failure:", message)
+        self.assertIn("java.lang.AssertionError: revoked app must be hidden again", message)
+        self.assertIn("\tat org.plainphone.app.e2e.DeviceOwnerFlow.enrollApplyRulesAndSendSos(EmulatorFlows.kt:452)", message)
+
+    def test_a_non_zero_exit_on_the_serial_console_still_reports_the_stack(self):
+        error = harness.SerialCommandError("DeviceOwnerFlow (am instrument)", "1", FAILED_RUN)
+        message = self.run_on_console(error=error)
+        self.assertIn("java.lang.AssertionError: revoked app must be hidden again", message)
+        self.assertEqual((harness.ARTIFACTS / "DeviceOwnerFlow.txt").read_text(), FAILED_RUN)
+
+    def test_a_non_zero_exit_fails_a_run_that_reported_ok(self):
+        error = harness.SerialCommandError("DeviceOwnerFlow (am instrument)", "137", "OK (1 test)\n")
+        self.assertIn("am instrument exited with status 137", self.run_on_console(error=error))
+
+    def test_a_test_that_started_and_never_finished_says_its_process_went_away(self):
+        message = self.run_on_console(STARTED_ONLY_RUN)
+        self.assertIn("DeviceOwnerFlow#enrollApplyRulesAndSendSos started (status code 1) but never reported", message)
+        self.assertIn("am instrument ended with shortMsg=Process crashed.", message)
+
+    def test_an_instrumentation_that_could_not_start_is_named(self):
+        output = "INSTRUMENTATION_FAILED: org.plainphone.app.test/androidx.test.runner.AndroidJUnitRunner\n"
+        self.assertIn("INSTRUMENTATION_FAILED: org.plainphone.app.test/", self.run_on_console(output))
+
+    def test_a_run_without_any_test_says_so(self):
+        self.assertIn("no test started", self.run_on_console("INSTRUMENTATION_CODE: 0\n"))
+
+    def test_a_passing_run_is_not_a_failure(self):
+        self.assertIsNone(harness.instrumentation_failure(PASSED_RUN))
+        self.assertIsNone(harness.instrumentation_failure(PASSED_RUN.replace("\n", "\r\n")))
+
+    def test_a_long_stack_is_cut_with_a_pointer_to_the_artifact(self):
+        frames = "".join(f"\tat frame{n}(F.kt:{n})\n" for n in range(100))
+        output = FAILED_RUN.replace("\tat org.plainphone", frames + "\tat org.plainphone", 1)
+        failure = harness.instrumentation_failure(output)
+        self.assertIn("more lines in the flow's .txt artifact", failure)
+        self.assertNotIn("frame60(", failure)
+
     def test_the_light_watchdog_waits_out_a_run_that_starts_just_before_midnight(self):
         # Up to 11 minutes of midnight wait plus a four-minute flow is a pass, not a hang.
         watchdog = harness.INSTRUMENT_TIMEOUTS["LightModeFlow"] - harness.WATCHDOG_MARGIN
@@ -375,6 +478,43 @@ class DiagnosticsTest(unittest.TestCase):
         with mock.patch.object(harness, "adb", side_effect=subprocess.CalledProcessError(1, "adb")):
             harness.collect_diagnostics(ours, settle=0)
         self.assertFalse((self.artifacts / "connectivity.txt").exists())
+
+
+class AppDeathsTest(unittest.TestCase):
+    LOGCAT = """--------- beginning of main
+11-23 10:00:01.000   512   530 I ActivityManager: Force stopping org.plainphone.app appid=10123 user=0: start instr
+11-23 10:00:02.000   900   900 I PlainphoneE2E: step: enroll
+11-23 10:01:00.000  1234  1250 E AndroidRuntime: FATAL EXCEPTION: WM.task-1
+11-23 10:01:00.000  1234  1250 E AndroidRuntime: Process: org.plainphone.app, PID: 1234
+11-23 10:01:00.000  1234  1250 E AndroidRuntime: java.lang.IllegalStateException: boom
+11-23 10:01:00.001  1234  1251 I chatty  : uid=10123 org.plainphone.app identical 4 lines
+11-23 10:01:00.002   300   300 F DEBUG   : pid: 1300, tid: 1300, name: plainphone  >>> org.plainphone.app <<<
+11-23 10:01:00.003   300   300 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR)
+11-23 10:01:01.000   512   600 I ActivityManager: Process org.plainphone.app (pid 1234) has died: fg TOP
+11-23 10:01:01.000   512   600 I ActivityManager: Process com.android.phone (pid 800) has died: pers
+"""
+
+    def test_keeps_crash_reports_and_deaths_of_plainphone_processes_only(self):
+        lines = harness.app_deaths(self.LOGCAT)
+        self.assertEqual([line.split(": ", 1)[1] for line in lines], [
+            "Force stopping org.plainphone.app appid=10123 user=0: start instr",
+            "FATAL EXCEPTION: WM.task-1",
+            "Process: org.plainphone.app, PID: 1234",
+            "java.lang.IllegalStateException: boom",
+            "pid: 1300, tid: 1300, name: plainphone  >>> org.plainphone.app <<<",
+            "signal 11 (SIGSEGV), code 1 (SEGV_MAPERR)",
+            "Process org.plainphone.app (pid 1234) has died: fg TOP",
+        ])
+
+    def test_reports_them_in_the_job_log(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "logcat.txt"
+            path.write_text(self.LOGCAT, encoding="utf-8")
+            with mock.patch("builtins.print") as printed:
+                harness.report_app_deaths(path)
+                harness.report_app_deaths(Path(temp) / "missing.txt")
+        self.assertEqual(printed.call_count, 1)
+        self.assertIn("java.lang.IllegalStateException: boom", "\n".join(printed.call_args.args))
 
 
 class ConsoleCommandTest(unittest.TestCase):

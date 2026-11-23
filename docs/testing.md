@@ -70,7 +70,12 @@ WorkManager stops every sync. So in emulator mode (`PLAINPHONE_EMULATOR_E2E=1`)
 the server's DNS stub refuses strong-mode phones, which stay on the provisioning
 host as a real phone does while its ClientID is pending, and the per-phone host
 suffix is the reserved `dns.e2e.invalid`. No emulator reaches the production
-resolver. The JVM contract test (`scripts/e2e-phone-sync.sh`) still checks the
+resolver. The server log therefore shows `DNS sync failed … DNS service upsert
+failed: 503` for the Device Owner phone in every run, passing runs included, and
+the stub logs once per phone that the refusal is intended. The refusal does not
+depend on timing: the server pushes DNS rules only after the phone's row is
+committed, so the stub always finds the phone and its mode. No step of the flow
+needs the DNS service to accept the phone. The JVM contract test (`scripts/e2e-phone-sync.sh`) still checks the
 `.dns.plainphone.org` host.
 
 The serial console listens on TCP port 5599 (`E2E_SERIAL_PORT` changes it). Keep
@@ -114,6 +119,24 @@ The stuck call itself cannot be stopped, so after a watchdog failure the flow's
 `finally` blocks do not run; after the light flow, the clock then stays 35 days
 ahead for the rest of the run. On failure, the job log shows whether the
 server was still running and the end of its log.
+
+A failed flow's error, the last thing in the job log, says why the test failed.
+This also holds on the serial console after Device Owner has disabled ADB, and
+when `am instrument` exits non-zero. The harness reads `am instrument -r`'s
+report and quotes one of these:
+- the failing test's `INSTRUMENTATION_STATUS: stack=` (its first 40 lines; the
+  whole output is in `<Flow>.txt`),
+- `INSTRUMENTATION_FAILED` or `INSTRUMENTATION_ABORTED`,
+- or, when the last status was the test's start (`INSTRUMENTATION_STATUS_CODE: 1`)
+  and no result followed, that the process running the test went away, with
+  `am instrument`'s `shortMsg` (for example `Process crashed.`).
+
+A Java exception on any thread is reported as a test failure with its stack, so
+a test that only started was killed, ran out of memory or crashed natively. After
+saving logcat, the harness therefore prints its lines about Plainphone processes
+that died: `AndroidRuntime` crash reports, native crash headers (`DEBUG`), and
+kills, ANRs and deaths logged by `ActivityManager`. `scripts/test_e2e_android_emulator.py`
+covers both parsers.
 In the light flow, a wait for the player to leave the foreground or
 picture-in-picture names, when it fails, what the guard took for the app in
 front and for the floating app, the stored plan and synced rules for the player,

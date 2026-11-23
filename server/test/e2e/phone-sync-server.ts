@@ -51,6 +51,7 @@ const emulator = process.env.PLAINPHONE_EMULATOR_E2E === "1";
 // Confirm HTTP provisioning without requiring a DNS resolver in CI.
 const dnsToken = "e2e-dns-token";
 const dnsClients = new Set<string>();
+const refusedClients = new Set<string>();
 // A Device Owner emulator forces private DNS to the rules' host once the DNS service has
 // accepted its ClientID. No DNS-over-TLS server knows these ClientIDs in CI: the production
 // resolver refused them, Android marked the network unvalidated and WorkManager stopped every
@@ -72,7 +73,15 @@ const dnsServer = serve({
     if (request.method === "POST" && path === "/v1/clients") {
       const { client_id } = await request.json() as { client_id?: string };
       if (!client_id) return new Response(null, { status: 400 });
-      if (await refusesDnsClient(client_id)) return new Response(null, { status: 503 });
+      if (await refusesDnsClient(client_id)) {
+        // The server then logs "DNS service upsert failed: 503" on every retry, which read as
+        // a flaky stub in issue 237. Say once per phone that the refusal is intended.
+        if (!refusedClients.has(client_id)) {
+          refusedClients.add(client_id);
+          console.log("e2e DNS stub: refusing a strong-mode phone on purpose (503), so it keeps the provisioning DNS host; the server's \"DNS service upsert failed: 503\" for it is expected");
+        }
+        return new Response(null, { status: 503 });
+      }
       dnsClients.add(client_id);
       return new Response(null, { status: 201 });
     }
