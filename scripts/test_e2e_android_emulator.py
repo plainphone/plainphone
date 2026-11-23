@@ -224,6 +224,7 @@ class SerialShellTest(unittest.TestCase):
         self.addCleanup(thread.join, 5)
         with self.assertRaises(TimeoutError) as raised:
             harness.serial_shell(ours, *args, timeout=0.3, **kwargs)
+        self.overrun_output = raised.exception.output
         return str(raised.exception)
 
     def test_an_overrun_names_the_command_behind_a_root_prefix(self):
@@ -242,6 +243,8 @@ class SerialShellTest(unittest.TestCase):
         message = self.overrun(lambda marker: b"\r\n" + marker + b"-start\r\n" + lines, "am", "instrument")
         self.assertIn("step=39", message)
         self.assertNotIn("step=19\n", message, "only the last lines")
+        # The error carries all of it, so the harness can still find a failure reported early on.
+        self.assertIn("step=0\nINSTRUMENTATION_STATUS: step=1\n", self.overrun_output)
 
     def test_reports_a_closed_console(self):
         ours, guest = socket.socketpair()
@@ -411,9 +414,36 @@ class InstrumentTest(unittest.TestCase):
         error = harness.SerialCommandError("DeviceOwnerFlow (am instrument)", "137", "OK (1 test)\n")
         self.assertIn("am instrument exited with status 137", self.run_on_console(error=error))
 
-    def test_a_test_that_started_and_never_finished_says_its_process_went_away(self):
+    def test_a_non_zero_adb_exit_still_reports_the_stack(self):
+        error = subprocess.CalledProcessError(1, ("adb",), output=FAILED_RUN)
+        with mock.patch.object(harness, "adb", side_effect=error), self.assertRaises(RuntimeError) as raised:
+            harness.instrument("LightModeFlow", 8080, "token")
+        self.assertIn("java.lang.AssertionError: revoked app must be hidden again", str(raised.exception))
+        self.assertEqual((harness.ARTIFACTS / "LightModeFlow.txt").read_text(), FAILED_RUN)
+
+    def test_an_overrun_after_a_reported_failure_still_quotes_it(self):
+        # The overrun's tail shows only the last lines; the stack came long before them.
+        output = FAILED_RUN + "".join(f"[  {n}.0] binder: still waiting\n" for n in range(100))
+        error = harness.SerialTimeoutError("Emulator serial command DeviceOwnerFlow did not finish", output)
+        with mock.patch.object(harness, "serial_shell", side_effect=error), \
+                self.assertRaises(TimeoutError) as raised:
+            harness.instrument("DeviceOwnerFlow", 8080, "token", console=object())
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("Emulator serial command DeviceOwnerFlow did not finish\n"), message)
+        self.assertIn("java.lang.AssertionError: revoked app must be hidden again", message)
+        self.assertEqual((harness.ARTIFACTS / "DeviceOwnerFlow.txt").read_text(), output)
+
+    def test_an_adb_overrun_keeps_what_was_printed(self):
+        error = subprocess.TimeoutExpired(("adb",), 960, output=FAILED_RUN.encode())
+        with mock.patch.object(harness, "adb", side_effect=error), self.assertRaises(TimeoutError) as raised:
+            harness.instrument("LightModeFlow", 8080, "token")
+        self.assertIn("revoked app must be hidden again", str(raised.exception))
+        self.assertEqual((harness.ARTIFACTS / "LightModeFlow.txt").read_text(), FAILED_RUN)
+
+    def test_a_test_that_started_and_never_finished_says_its_result_is_missing(self):
         message = self.run_on_console(STARTED_ONLY_RUN)
-        self.assertIn("DeviceOwnerFlow#enrollApplyRulesAndSendSos started (status code 1) but never reported", message)
+        self.assertIn("DeviceOwnerFlow#enrollApplyRulesAndSendSos started (status code 1), and no result", message)
+        self.assertNotIn("went away", message)
         self.assertIn("am instrument ended with shortMsg=Process crashed.", message)
 
     def test_an_instrumentation_that_could_not_start_is_named(self):
@@ -484,6 +514,9 @@ class AppDeathsTest(unittest.TestCase):
     LOGCAT = """--------- beginning of main
 11-23 10:00:01.000   512   530 I ActivityManager: Force stopping org.plainphone.app appid=10123 user=0: start instr
 11-23 10:00:02.000   900   900 I PlainphoneE2E: step: enroll
+11-23 10:00:30.000   800   820 E AndroidRuntime: FATAL EXCEPTION: main
+11-23 10:00:30.000   800   820 E AndroidRuntime: Process: com.android.phone, PID: 800
+11-23 10:00:30.000   800   820 E AndroidRuntime: java.lang.NullPointerException: not ours
 11-23 10:01:00.000  1234  1250 E AndroidRuntime: FATAL EXCEPTION: WM.task-1
 11-23 10:01:00.000  1234  1250 E AndroidRuntime: Process: org.plainphone.app, PID: 1234
 11-23 10:01:00.000  1234  1250 E AndroidRuntime: java.lang.IllegalStateException: boom

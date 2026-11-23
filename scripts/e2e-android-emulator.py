@@ -93,6 +93,14 @@ class SerialCommandError(RuntimeError):
         self.output = output
 
 
+class SerialTimeoutError(TimeoutError):
+    """A serial console command that overran its deadline; `output` is all it printed until then."""
+
+    def __init__(self, message, output):
+        super().__init__(message)
+        self.output = output
+
+
 def serial_shell(console, *args, timeout=30, name=None):
     # The Device Owner disables adb as part of the real lock. The disposable
     # emulator's separate root console remains available to the test harness.
@@ -133,7 +141,8 @@ def serial_shell(console, *args, timeout=30, name=None):
             elif started:
                 output.extend(line)
     except TimeoutError as error:
-        raise TimeoutError(f"{error}; {overrun_detail(started, output)}") from None
+        raise SerialTimeoutError(f"{error}; {overrun_detail(started, output)}",
+                                 output.decode(errors="replace").replace("\r\n", "\n")) from None
     raise RuntimeError("Emulator serial console disconnected")
 
 
@@ -191,19 +200,33 @@ def instrument(flow, port, token, console=None, command_prefix=(), *, parent_num
     if parent_number is not None:
         command += ("-e", "parentNumber", parent_number)
     command += (f"{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner",)
-    exit_status = "0"
+    exit_status, overrun = "0", None
+    # What am instrument printed says why the test failed, also when it exited non-zero or
+    # overran: read that, not only the exit status or the timeout.
     if console is None:
-        result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
+        try:
+            result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
+        except subprocess.CalledProcessError as error:
+            result, exit_status = error.stdout or "", str(error.returncode)
+        except subprocess.TimeoutExpired as error:
+            output = error.stdout or ""
+            result = output.decode(errors="replace") if isinstance(output, bytes) else output
+            overrun = f"adb shell am instrument did not finish within {INSTRUMENT_TIMEOUTS[flow]} s"
     else:
         try:
             result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow],
                                   name=f"{flow} (am instrument)")
         except SerialCommandError as error:
-            # What it printed still says why the test failed; read that, not only the exit status.
             result, exit_status = error.output, error.status
+        except SerialTimeoutError as error:
+            result, overrun = error.output, str(error)
     (ARTIFACTS / f"{flow}.txt").write_text(result, encoding="utf-8")
     print(result, flush=True)
+    if overrun is not None:
+        # A failure the test reported before the overrun is the reason, and the overrun's tail
+        # of the output may no longer reach it.
+        raise TimeoutError(f"{overrun}\n{flow}: {instrumentation_failure(result)}")
     # am instrument can exit zero even when a test fails or never ran.
     failure = instrumentation_failure(result)
     if failure is None and exit_status != "0":
@@ -265,10 +288,10 @@ def instrumentation_failure(output):
             reasons.append(f"{name(status)} reported a {TEST_FAILURES[status['code']]}:\n" + "\n".join(lines))
     for test in dict.fromkeys(name(status) for status in statuses if status["code"] == TEST_STARTED):
         if test not in finished:
-            # A Java exception on any thread would have been reported as a failure above, so the
-            # process running the test was killed or crashed natively (issue 237, API 34).
-            reasons.append(f"{test} started (status code 1) but never reported a result: the process "
-                           "running it went away. The app deaths from logcat follow below")
+            # Only the missing result is known here: the process running the test may have been
+            # killed or crashed natively (issue 237, API 34), or the output was cut off.
+            reasons.append(f"{test} started (status code 1), and no result for it is in am instrument's "
+                           "output. Any shortMsg follows; the app deaths from logcat follow the error")
     ended = ", ".join(f"{key}={result[key]}" for key in ("shortMsg", "longMsg") if result.get(key))
     if ended:
         reasons.append(f"am instrument ended with {ended}")
@@ -524,23 +547,33 @@ DEATH = re.compile(r"died|kill|crash|ANR in|force stopping|signal|tombstone", re
 def app_deaths(logcat, report_lines=40, limit=120):
     """Logcat lines on how a Plainphone process ended: Java and native crash reports, kills, ANRs."""
     found = []
-    report = None  # (pid, tag, lines left) of the crash report being copied
+    # The crash report being read: its pid and tag, its lines, and whether it is Plainphone's
+    # (None until a Java report's "Process:" line says which process crashed).
+    report = None
+
+    def close():
+        if report and report["ours"]:
+            found.extend(report["lines"])
+
     for line in logcat.splitlines():
         match = LOGCAT_LINE.match(line)
         if not match:
             continue
         pid, tag, message = match.groups()
-        if report and report[:2] == (pid, tag) and report[2] > 0:
-            found.append(line)
-            report = (pid, tag, report[2] - 1)
+        if report and report["key"] == (pid, tag) and len(report["lines"]) <= report_lines:
+            report["lines"].append(line)
+            if report["ours"] is None and message.startswith("Process: "):
+                report["ours"] = bool(APP_PROCESS.search(message))
             continue
+        close()
         report = None
-        if (tag == "AndroidRuntime" and message.startswith("FATAL EXCEPTION")) or \
-                (tag == "DEBUG" and ">>>" in message and APP_PROCESS.search(message)):
-            found.append(line)
-            report = (pid, tag, report_lines)
+        if tag == "AndroidRuntime" and message.startswith("FATAL EXCEPTION"):
+            report = {"key": (pid, tag), "lines": [line], "ours": None}
+        elif tag == "DEBUG" and ">>>" in message and APP_PROCESS.search(message):
+            report = {"key": (pid, tag), "lines": [line], "ours": True}
         elif APP_PROCESS.search(message) and DEATH.search(message):
             found.append(line)
+    close()
     return found[-limit:]
 
 

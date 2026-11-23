@@ -121,22 +121,25 @@ ahead for the rest of the run. On failure, the job log shows whether the
 server was still running and the end of its log.
 
 A failed flow's error, the last thing in the job log, says why the test failed.
-This also holds on the serial console after Device Owner has disabled ADB, and
-when `am instrument` exits non-zero. The harness reads `am instrument -r`'s
-report and quotes one of these:
+This also holds on the serial console after Device Owner has disabled ADB, when
+`am instrument` exits non-zero (over adb or the console), and when it overruns
+the harness limit: `<Flow>.txt` then holds everything it printed until then, and
+a failure it had already reported is quoted after the timeout. The harness reads
+`am instrument -r`'s report and quotes one of these:
 - the failing test's `INSTRUMENTATION_STATUS: stack=` (its first 40 lines; the
   whole output is in `<Flow>.txt`),
 - `INSTRUMENTATION_FAILED` or `INSTRUMENTATION_ABORTED`,
 - or, when the last status was the test's start (`INSTRUMENTATION_STATUS_CODE: 1`)
-  and no result followed, that the process running the test went away, with
-  `am instrument`'s `shortMsg` (for example `Process crashed.`).
+  and no result followed, that the result is missing, with `am instrument`'s
+  `shortMsg` if it printed one (for example `Process crashed.`).
 
-A Java exception on any thread is reported as a test failure with its stack, so
-a test that only started was killed, ran out of memory or crashed natively. After
-saving logcat, the harness therefore prints its lines about Plainphone processes
-that died: `AndroidRuntime` crash reports, native crash headers (`DEBUG`), and
-kills, ANRs and deaths logged by `ActivityManager`. `scripts/test_e2e_android_emulator.py`
-covers both parsers.
+A Java exception on any thread is reported as a test failure with its stack. A
+missing result therefore usually means the test's process was killed, ran out of
+memory or crashed natively, but the harness cannot tell that from output that was
+cut off. After saving logcat, it prints its lines about Plainphone processes that
+died: `AndroidRuntime` crash reports of a Plainphone process, native crash headers
+(`DEBUG`), and kills, ANRs and deaths logged by `ActivityManager`.
+`scripts/test_e2e_android_emulator.py` covers both parsers.
 In the light flow, a wait for the player to leave the foreground or
 picture-in-picture names, when it fails, what the guard took for the app in
 front and for the floating app, the stored plan and synced rules for the player,
