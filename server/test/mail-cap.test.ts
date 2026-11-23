@@ -108,6 +108,49 @@ describe("overall mail cap", () => {
     expect(await links()).toBe(0);
   });
 
+  it("keeps the mail slot and the sign-up place together when sign-ins race for the last mails", async () => {
+    // Three sign-up places, two mails left: no new address may be told "come back tomorrow"
+    // because a link that then could not be mailed held a place.
+    h.ctx.cfg.SIGNUP_DAILY_CAP = 3;
+    setCaps(3);
+    await h.ctx.mail.send(other);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const answers = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => request(`new${n}@example.org`)));
+    const codes = answers.map((r) => (r.status === 202 ? "sent" : r.json.code)).sort();
+    expect(codes).toEqual(["mail_unavailable", "mail_unavailable", "mail_unavailable", "mail_unavailable", "sent", "sent"]);
+    expect(h.mail.outbox).toHaveLength(3);
+    expect(await links()).toBe(2);
+    expect(await mailsCounted(h.ctx)).toEqual({ hour: 3, day: 3 });
+  });
+
+  it("still answers mail_unavailable when the cap warning cannot be written", async () => {
+    setCaps(1);
+    await h.ctx.mail.send(other);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Only the warning row fails; the sign-in's other writes (the per-IP limit) go through.
+    const insert = h.ctx.db.insert.bind(h.ctx.db);
+    vi.spyOn(h.ctx.db, "insert").mockImplementation(((table: Parameters<typeof insert>[0]) => {
+      const query = insert(table);
+      const values = query.values.bind(query);
+      query.values = ((row: { bucket?: string }) => {
+        if (row.bucket === "mail-cap-warned") throw Object.assign(new Error("connection lost"), { code: "08006" });
+        return values(row as never);
+      }) as typeof query.values;
+      return query;
+    }) as typeof insert);
+
+    const r = await request("new@example.org");
+    expect(r.status).toBe(503);
+    expect(r.json.code).toBe("mail_unavailable");
+    // The failed write is logged without addresses, and the warning still shows once.
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(String(error.mock.calls[0]![0])).toContain("08006");
+    expect(error.mock.calls.flat().join(" ")).not.toContain("@");
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain("MAIL_HOURLY_CAP=1");
+  });
+
   it("starts over at the next UTC hour, and the daily cap at the next UTC day", async () => {
     setCaps(2, 3);
     await h.ctx.mail.send(other);

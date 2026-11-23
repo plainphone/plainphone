@@ -341,13 +341,16 @@ What people see at the cap:
   (the end of the full hour or day) and a `Retry-After` header. The dashboard and the parent app
   say "We can't send mail right now. Try again in a little while." in all five languages. No link
   is kept, so the attempt takes no place under the [daily cap](#daily-cap-on-new-households) and
-  does not count towards the address's 5 links an hour.
+  does not count towards the address's 5 links an hour. The mail and the sign-up place are taken
+  together in one transaction, so when several new addresses race for the last mail, the ones
+  left without a mail get `mail_unavailable`, never "come back tomorrow".
 - **Invitations to a second parent**: the invitation is kept, and the dashboard gets the link to
   pass on by hand, the same as on a server without mail (`mailed: false`).
 - **Other mail** (alerts, trusted-person invitations, approval requests, summaries, receipts) is
   skipped, the same as when the mail server is down: alerts still go out as push, and setup
   undo notices are tried again later.
-- **SOS** is always sent, also at the cap. It still counts.
+- **SOS** is always sent, also at the cap. It still counts. This exemption is on purpose: a parent
+  must always be reachable, so the cap never stops an SOS, even if it pushes the count past the cap.
 
 The mail server's own refusals: a temporary answer (SMTP `4xx`, for example `421`, `450`, `451`
 or `452`, which is how most servers say "rate limited") gets the same `503 mail_unavailable` on

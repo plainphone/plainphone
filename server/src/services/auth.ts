@@ -6,7 +6,7 @@ import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
 import { MailUnavailableError } from "../providers/mail.js";
 import type { Ctx } from "./context.js";
-import { assertMailSlotFree } from "./mail-cap.js";
+import { assertMailSlotFree, takeMailSlot } from "./mail-cap.js";
 import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
 export const MAGIC_LINK_MINUTES = 15;
@@ -28,6 +28,10 @@ export async function requestMagicLink(
   if (ctx.mail.canSend) await assertMailSlotFree(ctx);
   // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
   await withSignupPlace(ctx, email, async (tx) => {
+    // The mail's place under the mail cap is taken with the sign-up place, in one transaction:
+    // when the last mail is gone, the link is rolled back and holds no sign-up place, and a
+    // refused sign-up takes no mail. Throws MailUnavailableError at the mail cap.
+    if (ctx.mail.canSend) await takeMailSlot(ctx, false, tx);
     const now = ctx.now();
     await tx.insert(magicLinks).values({
       email,
@@ -46,7 +50,7 @@ export async function requestMagicLink(
     return;
   }
   try {
-    await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES));
+    await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES), { slotTaken: true });
   } catch (err) {
     // Mail cap or a temporary refusal: the link never arrived, so it must not hold a sign-up
     // place or count towards the address's limit. The caller answers "try again".

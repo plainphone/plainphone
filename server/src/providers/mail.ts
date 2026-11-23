@@ -11,6 +11,8 @@ export interface Mail {
 export interface SendOptions {
   /** An SOS: sent even when the server's own mail cap is reached (it is still counted). */
   urgent?: boolean;
+  /** The caller already took this mail's place under the cap (takeMailSlot), as sign-in does. */
+  slotTaken?: boolean;
 }
 
 /** The answer code for "we can't send mail right now" (docs/operations.md, "Mail caps"). */

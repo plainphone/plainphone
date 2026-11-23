@@ -46,6 +46,7 @@ export function mailCapOn(ctx: Ctx): boolean {
 }
 
 type Db = Pick<Ctx["db"], "select">;
+type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 type OpenWindow = CapWindow & { start: Date; hits: number };
 
 /** The current UTC hour's and day's windows with their counts; older rows are left to the sweeper. */
@@ -90,12 +91,22 @@ async function refuse(ctx: Ctx, full: OpenWindow[]): Promise<never> {
   if (warnedHour.get(ctx) !== hour.getTime()) {
     warnedHour.set(ctx, hour.getTime());
     // The process that claims this hour's row writes the line; other replicas and restarts stay quiet.
-    const claimed = await ctx.db
-      .insert(rateLimitHits)
-      .values({ bucket: "mail-cap-warned", subject: SUBJECT, windowStart: hour, hits: 1, expiresAt: new Date(hour.getTime() + HOUR) })
-      .onConflictDoNothing()
-      .returning({ hits: rateLimitHits.hits });
-    if (claimed.length) {
+    // The row is only for the log: if it cannot be written, this process warns on its own, and the
+    // caller still gets "try again" (503), not a 500.
+    let claimed = true;
+    try {
+      const rows = await ctx.db
+        .insert(rateLimitHits)
+        .values({ bucket: "mail-cap-warned", subject: SUBJECT, windowStart: hour, hits: 1, expiresAt: new Date(hour.getTime() + HOUR) })
+        .onConflictDoNothing()
+        .returning({ hits: rateLimitHits.hits });
+      claimed = rows.length > 0;
+    } catch (err) {
+      // The error code only: a driver message is not ours to vouch for.
+      const code = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code ?? "unknown";
+      console.error(`mail cap: could not record this hour's warning (${code})`);
+    }
+    if (claimed) {
       const which = full.map((w) => `${w.setting}=${w.cap}`).join(", ");
       console.warn(`mail cap reached (${which}): mail is refused until ${retryAt.toISOString()}; SOS mail still goes out`);
     }
@@ -117,13 +128,17 @@ export async function assertMailSlotFree(ctx: Ctx): Promise<void> {
  * Takes one mail from this hour's and today's allowance. At a cap, throws MailUnavailableError and
  * counts nothing, unless the mail is urgent (an SOS): that one is always counted and sent.
  */
-export async function takeMailSlot(ctx: Ctx, urgent = false): Promise<void> {
+export async function takeMailSlot(ctx: Ctx, urgent = false, db: Ctx["db"] | Tx = ctx.db): Promise<void> {
   if (!mailCapOn(ctx)) return;
-  const full = await ctx.db.transaction(async (tx) => {
+  // Inside a caller's transaction (sign-in) this is a savepoint, and the lock and the count are
+  // kept or rolled back with the caller's own writes.
+  const full = await db.transaction(async (tx) => {
     // Two processes must not both take the last mail.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.mail_cap'))`);
     const windows = await openWindows(tx, ctx, ctx.now());
     const over = fullWindows(windows);
+    // SOS is exempt on purpose: a parent must always be reachable, so an urgent mail is counted
+    // but never refused, also at a full cap (docs/operations.md, "Mail caps").
     if (over.length && !urgent) return over;
     for (const w of windows) {
       await tx
@@ -159,7 +174,7 @@ export class CappedMailProvider implements MailProvider {
 
   send(mail: Mail, opts: SendOptions = {}): Promise<void> {
     // With the caps off the caller gets the provider's own promise: no extra wait, not even a tick.
-    if (!mailCapOn(this.ctx)) return this.watch(this.inner.send(mail, opts));
+    if (!mailCapOn(this.ctx) || opts.slotTaken) return this.watch(this.inner.send(mail, opts));
     return takeMailSlot(this.ctx, opts.urgent ?? false).then(() => this.watch(this.inner.send(mail, opts)));
   }
 
