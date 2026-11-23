@@ -10,6 +10,8 @@ const unsetIfEmpty = <T extends z.ZodType>(t: T) => z.preprocess((v) => (v === "
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().default(8080),
+  /** Address to listen on, e.g. 127.0.0.1 for loopback only. Unset: every interface. */
+  HOST: unsetIfEmpty(z.string().optional()),
   DATABASE_URL: z.string().min(1),
   /** Database connections this server process keeps open at most (docs/operations.md#capacity). */
   DB_POOL_MAX: unsetIfEmpty(z.coerce.number().int().min(1).max(100).default(10)),

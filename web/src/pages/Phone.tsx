@@ -206,7 +206,6 @@ export function PhoneLayout() {
       {!atOverview && <RuleReceipt phone={value.phone} />}
       {atOverview && value.phone.profile === "child" && <SosPanel key={value.phone.id} pid={value.phone.id} />}
       {atOverview && value.phone.profile === "child" && <CallbackRequests key={`callbacks-${value.phone.id}`} pid={value.phone.id} />}
-      {atOverview && value.phone.profile === "child" && <SosOptions key={`sos-options-${value.phone.id}`} pid={value.phone.id} />}
       <Outlet />
       <ChangeBar
         banner={banner}
@@ -607,7 +606,6 @@ export function PhoneOverview() {
         </section>
       )}
 
-      {phone.pairedAt && <ServerMoveToggle />}
       {phone.pairedAt && <RequestsSection />}
       {phone.pairedAt && phone.profile === "child" && <MoreTimeSection phone={phone} setPhone={setPhone} notify={notify} />}
 
@@ -668,6 +666,8 @@ export function PhoneOverview() {
               </ul>
             </div>
           ))}
+          {/* Settings, not alerts: below the rules, so the phone's name and state come first. */}
+          {phone.profile === "child" && <SosOptions key={`sos-options-${phone.id}`} pid={phone.id} />}
         </div>
       </section>
 
@@ -682,6 +682,7 @@ export function PhoneOverview() {
       )}
       {phone.mode === "light" && !isIphone(phone) && <LightModeSection phone={phone} />}
       <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
+      {phone.pairedAt && <ServerMoveToggle />}
       <ManagePhone />
     </>
   );

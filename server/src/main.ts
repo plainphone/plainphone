@@ -34,7 +34,7 @@ await markUnconfirmedDnsDirty(ctx);
 const live = new LiveHub(ctx, events);
 const app = createApp(ctx, { live });
 const stopSweeper = startSweeper(ctx);
-const server = serve({ fetch: app.fetch, port: cfg.PORT }, (info) => {
+const server = serve({ fetch: app.fetch, port: cfg.PORT, hostname: cfg.HOST },(info) => {
   console.log(`plainphone server on :${info.port} (mail=${ctx.mail.name}, dns=${cfg.DNS_PROVIDER}, parentPush=${ctx.parentPush.name}, live=${events.name})`);
 });
 

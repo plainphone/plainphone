@@ -106,7 +106,8 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 
 Set these in `.env` (copied from `.env.example`). `compose.yaml` passes each one to the app
 container; leave a value empty and the default below applies. Not passed on purpose: the billing
-settings (`BILLING_*`, `STRIPE_*`, `PLAY_*`, for the hosted service only), `E2EE_PROTOTYPE_ENABLED`
+settings (`BILLING_*`, `STRIPE_*`, `PLAY_*`, for the hosted service only), `HOST` (the address to
+listen on, for running the server outside Docker; unset means every interface), `E2EE_PROTOTYPE_ENABLED`
 (always off in the image) and `PAYMENTS_ENABLED` (unused). `server/test/env-wiring.test.ts` fails
 when a setting the server reads is missing from `compose.yaml`, `deploy/dokploy-compose.yaml` or
 `.env.example` without a stated reason.

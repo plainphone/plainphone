@@ -232,7 +232,7 @@ The Android location-budget tests use a simulated monotonic clock to exercise pr
 
 The APK includes English, Danish, Swedish, Norwegian Bokmål and German resources. See [translation review status](docs/translations.md). The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
 
-See [Android emulator testing](docs/testing.md) for the on-device suite and local setup.
+See [Android emulator testing](docs/testing.md) for the on-device suite and local setup, and the [onboarding walk](docs/testing.md#onboarding-walk) for a Playwright run through a new parent's first steps in the web dashboard.
 
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 

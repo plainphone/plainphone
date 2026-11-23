@@ -69,6 +69,15 @@ it("warns that an alert did not reach every parent", () => {
   expect(html).toContain("could not be delivered to every parent");
 });
 
+it("shows no SOS history on a phone that never sent one, and the history once there is one", () => {
+  vi.stubGlobal("localStorage", { getItem: () => "en" });
+  vi.stubGlobal("navigator", { languages: ["en"] });
+  state.response = { events: [], callbackNumber: null };
+  expect(renderToStaticMarkup(<I18nProvider><SosPanel pid="phone" /></I18nProvider>)).not.toContain("SOS history");
+  state.response = { events: [{ ...report, seenAt: "2026-11-19T14:40:00Z" }], callbackNumber: null };
+  expect(renderToStaticMarkup(<I18nProvider><SosPanel pid="phone" /></I18nProvider>)).toContain("SOS history");
+});
+
 it("acknowledges the correct event and sends the optional label", async () => {
   const reply = { ...report, seenAt: "2026-11-19T14:33:00Z", seenByName: "Mum" };
   const send = vi.fn(async () => Response.json(reply));
