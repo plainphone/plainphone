@@ -291,6 +291,7 @@ export const nb: Messages = {
   "phone.updateAvailable": "Versjon {version} er klar",
   "phone.updateInstalling": "Telefonen installerer oppdateringen...",
   "phone.updateCurrent": "Appen er oppdatert",
+  "phone.updatedByPlay": "Oppdateres via Google Play",
   "phone.dnsWaiting": "Nettfilteret er under oppsett. Den er ikke aktiv ennå.",
 
   "pending.delayBanner": "Dette trer i kraft {time} (i {left}).",
@@ -891,6 +892,7 @@ export const nb: Messages = {
   "light.weaker2": "Telefonen kan tilbakestilles til fabrikkinnstillinger. Plainphone er da borte, og du ser telefonen gå offline.",
   "light.weaker3": "Sikker modus starter telefonen uten Plainphone.",
   "light.weaker4": "Plainphone kan avinstalleres etter at enhetsadministratoren er slått av. Plainphone prøver å blokkere tilgangen til disse innstillingene og kan varsle deg hvis enhetsadministratoren er slått av.",
+  "light.weaker4Play": "Plainphone kan avinstalleres fra telefonens innstillinger. Plainphone prøver å lukke disse skjermene, og blir appen avinstallert, ser du telefonen gå offline.",
   "light.weaker5": "Apper kan fortsatt installeres. Nye apper blokkeres til du tillater dem.",
   "light.weaker6": "På noen telefoner kan standard telefon- og SMS-app endres i Innstillinger. Samtaler og tekstmeldinger blir da ikke filtrert.",
   "light.weaker7": "Nettfilteret er et VPN. Hvis det er slått av, stopper filteret, og du får beskjed.",

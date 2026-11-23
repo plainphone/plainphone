@@ -291,6 +291,7 @@ export const de: Messages = {
   "phone.updateAvailable": "Version {version} ist fertig",
   "phone.updateInstalling": "Das Telefon installiert das Update ...",
   "phone.updateCurrent": "Die App ist auf dem neuesten Stand",
+  "phone.updatedByPlay": "Wird über Google Play aktualisiert",
   "phone.dnsWaiting": "Der Webfilter wird eingerichtet. Es ist noch nicht aktiv.",
 
   "pending.delayBanner": "Dies tritt in {time} (in {left}) in Kraft.",
@@ -891,6 +892,7 @@ export const de: Messages = {
   "light.weaker2": "Das Telefon kann auf die Werkseinstellungen zurückgesetzt werden. Das Plainphone ist dann nicht mehr verfügbar und Sie sehen, wie das Telefon offline geht.",
   "light.weaker3": "Im abgesicherten Modus wird das Telefon ohne Plainphone gestartet.",
   "light.weaker4": "Plainphone kann deinstalliert werden, nachdem der Geräteadministrator ausgeschaltet wurde. Plainphone versucht, den Zugriff auf diese Einstellungen zu blockieren und kann Sie benachrichtigen, wenn der Geräteadministrator ausgeschaltet ist.",
+  "light.weaker4Play": "Plainphone kann in den Einstellungen des Telefons deinstalliert werden. Plainphone versucht, diese Seiten zu schließen. Wird es deinstalliert, sehen Sie, dass das Telefon offline geht.",
   "light.weaker5": "Apps können weiterhin installiert werden. Neue Apps werden blockiert, bis Sie sie zulassen.",
   "light.weaker6": "Bei einigen Telefonen kann die Standardtelefon- und SMS-App in den Einstellungen geändert werden. Anrufe und SMS werden dann nicht gefiltert.",
   "light.weaker7": "Der Webfilter ist ein VPN. Wenn es ausgeschaltet ist, stoppt der Filter und Sie werden darüber informiert.",

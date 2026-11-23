@@ -5,7 +5,7 @@ import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "@plainphone/i18n/translate";
 import { api, type PhoneStatus } from "../lib/api";
 import { updateBatteryExemptionMessage } from "@plainphone/shared/failedPolicies";
-import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, type LatestVersion } from "@plainphone/shared/phoneUpdate";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, updatedByPlay, type LatestVersion } from "@plainphone/shared/phoneUpdate";
 
 const errorMessages: Readonly<Record<string, MessageKey>> = {
   network: "phone.updateNetwork",
@@ -33,6 +33,24 @@ function updateMessage(status: PhoneStatus, latest: LatestVersion | undefined, t
 }
 
 export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: PhoneStatus }) {
+  if (updatedByPlay(status)) return <PlayAppVersion status={status} />;
+  return <SelfUpdatingAppVersion phoneId={phoneId} status={status} />;
+}
+
+/** The Play edition: Google Play installs updates, so there is nothing to press (docs/play/play-edition.md). */
+function PlayAppVersion({ status }: { status: PhoneStatus }) {
+  const { t } = useI18n();
+  return (
+    <li>
+      <div className="phone-version">
+        <span>{t("phone.appVersion", { version: status.appVersion })}</span>
+      </div>
+      <p className="help">{t("phone.updatedByPlay")}</p>
+    </li>
+  );
+}
+
+function SelfUpdatingAppVersion({ phoneId, status }: { phoneId: string; status: PhoneStatus }) {
   const { t } = useI18n();
   const supported = status.appVersionCode !== undefined;
   const { data: latest } = useLoad(() => supported ? fetchLatestPhoneVersion("/download/android/latest.json") : Promise.resolve(undefined), [supported]);

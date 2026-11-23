@@ -20,6 +20,11 @@ export function usesProductionKey(version: string | null | undefined): boolean |
   return Number(major) > 0 || Number(minor) > 1 || (Number(minor) === 1 && Number(patch) >= 10);
 }
 
+/** The Play edition is updated by Google Play: no "Update now" and no check against the GitHub release. */
+export function updatedByPlay(status: { distribution?: string | null }): boolean {
+  return status.distribution === "play";
+}
+
 export function hasPhoneSigningKeyChange(
   status: {
     appVersion?: string | null;
