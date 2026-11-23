@@ -293,6 +293,7 @@ export const da: Messages = {
   "phone.updateAvailable": "Version {version} er klar",
   "phone.updateInstalling": "Telefonen installerer opdateringen…",
   "phone.updateCurrent": "Appen er opdateret",
+  "phone.updatedByPlay": "Opdateres via Google Play",
   "phone.dnsWaiting": "Webfilteret er ved at blive sat op. Det virker ikke endnu.",
 
   "pending.delayBanner": "Ændringen gælder fra {time} (om {left}).",
@@ -922,6 +923,7 @@ export const da: Messages = {
   "light.weaker2": "Telefonen kan nulstilles til fabriksindstillinger. Så er Plainphone væk, og du ser telefonen gå offline.",
   "light.weaker3": "Fejlsikret tilstand starter telefonen uden Plainphone.",
   "light.weaker4": "Plainphone kan afinstalleres, når enhedsadministrator er slået fra. Plainphone forsøger at spærre adgangen til de indstillinger og kan give besked, hvis enhedsadministrator slås fra.",
+  "light.weaker4Play": "Plainphone kan afinstalleres fra telefonens indstillinger. Plainphone forsøger at lukke de skærme, og bliver den afinstalleret, ser du telefonen gå offline.",
   "light.weaker5": "Der kan stadig installeres apps. Nye apps er spærret, til du tillader dem.",
   "light.weaker6": "På nogle telefoner kan standardappen til opkald og sms skiftes i Indstillinger. Så filtreres opkald og sms ikke.",
   "light.weaker7": "Webfilteret er et VPN. Slås det fra, stopper filteret, og du får besked.",

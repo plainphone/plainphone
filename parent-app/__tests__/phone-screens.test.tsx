@@ -392,6 +392,26 @@ describe("overview", () => {
     expect(api.calls).toEqual(expect.arrayContaining([expect.objectContaining({ method: "POST", path })]));
   });
 
+  it("says a Play phone is updated through Google Play and offers no Update now", async () => {
+    const api = phoneApi({
+      ...PHONE,
+      mode: "light",
+      lastSeenAt: new Date().toISOString(),
+      healthBoardEnabled: true,
+      status: {
+        appVersion: "0.1.11", appVersionCode: 11, distribution: "play", mode: "light", lockIntact: true, failedPolicies: [],
+        reportedAt: new Date().toISOString(),
+        protections: { deviceAdmin: false, accessibility: true, usageAccess: true, vpn: true, phoneRole: true, smsRole: true },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("App version 0.1.11")).toBeTruthy();
+    expect(screen.getByText("Updated through Google Play")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Update now" })).toBeNull();
+    expect(screen.queryByText("Restore uninstall protection in Plainphone on the phone.")).toBeNull();
+    expect(api.calls.some((c) => c.path.includes("latest.json"))).toBe(false);
+  });
+
   it("replaces Update now with setup instructions across a signing key change", async () => {
     phoneApi({
       ...PHONE,

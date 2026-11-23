@@ -130,6 +130,9 @@ export type StatusNotice = { id?: string; receivedAt: string };
 export const FILTER_METHODS = ["vpn", "privateDns"] as const;
 export const PRIVATE_DNS_ISSUES = ["off", "automatic", "wrongHost", "waiting", "unverified", "alwaysOn", "strictDns"] as const;
 export type FilterMethod = (typeof FILTER_METHODS)[number];
+/** Where the Android app came from: GitHub Releases and F-Droid, or Google Play (docs/play/play-edition.md). */
+export const DISTRIBUTIONS = ["github", "play"] as const;
+export type Distribution = (typeof DISTRIBUTIONS)[number];
 
 export interface DeviceStatus {
   /** iPhones only (docs/ios/architecture.md). */
@@ -143,6 +146,8 @@ export interface DeviceStatus {
   lockIntactWithoutFilter?: boolean;
   appVersion: string;
   androidVersion?: string;
+  /** Missing on apps from before the Play edition: `github`. */
+  distribution?: Distribution;
   appVersionCode?: number;
   update?: {
     state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";

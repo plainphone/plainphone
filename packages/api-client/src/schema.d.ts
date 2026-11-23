@@ -5235,6 +5235,11 @@ export interface components {
             /** @example 0.4.0 */
             appVersion: string;
             androidVersion?: string;
+            /**
+             * @description Where the Android app came from. `play` (Google Play) has no device admin and is updated by Play; missing means `github`.
+             * @enum {unknown}
+             */
+            distribution?: "github" | "play";
             appVersionCode?: number;
             update?: {
                 /** @enum {unknown} */
@@ -5250,7 +5255,7 @@ export interface components {
             charging: boolean | null;
             /** @description Plainphone is the device owner of this phone. */
             deviceOwner: boolean;
-            /** @description Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs. */
+            /** @description Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin (not with distribution play), accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs. */
             lockIntact: boolean;
             /** @description A PIN maintenance unlock is running on the phone. */
             maintenance: boolean;
@@ -11804,6 +11809,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The phone runs the Play edition, which Google Play updates */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };

@@ -41,7 +41,9 @@ The parent app does nothing until a phone is paired, and a reviewer has no child
 review sign-in, the review household gets a simulated phone, **Alex**, that talks to the server
 through the same API a real phone uses (in process, `server/src/services/review-demo.ts`):
 
-- paired in light mode as a Child phone, with every protection on and a battery level,
+- paired in light mode as a Child phone running the Play edition ([play/play-edition.md](play/play-edition.md)):
+  every protection on except device admin, which the Play edition never asks for, no **Update now**, and a
+  battery level,
 - an app list (phone, messages, camera, Duolingo, Spotify, YouTube, Minecraft and a few more),
   time used today, two contacts and a waiting request to allow Minecraft,
 - a position in a public park in Copenhagen, sent as the answer to a Find the phone.

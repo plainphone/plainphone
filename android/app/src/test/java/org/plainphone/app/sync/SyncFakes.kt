@@ -44,6 +44,8 @@ class FakeSyncDevice(
     var appliedAfterServerTime: Boolean? = null
     override fun serverTime(time: ServerTime) { serverTimes += time }
     override fun appVersion() = "0.1.2"
+    var distribution: String? = null
+    override fun distribution() = distribution
     var dynamicCorePackages = emptySet<String>()
     override fun dynamicCorePackages() = dynamicCorePackages
 

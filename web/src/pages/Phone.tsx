@@ -813,8 +813,9 @@ const LIGHT_REQUIRED: Protection[] = ["deviceAdmin", "accessibility", "usageAcce
 function LightModeSection({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
   const p = phone.status?.protections;
+  const play = phone.status?.distribution === "play";
   const rows = p
-    ? PROTECTIONS.filter((k) => k !== "deviceOwner" &&
+    ? PROTECTIONS.filter((k) => k !== "deviceOwner" && !(play && k === "deviceAdmin") &&
         !(phone.status?.filterMethod === "privateDns" && (k === "vpn" || k === "alwaysOnVpn" || k === "privateDnsOk")) && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
         (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
       )
@@ -854,7 +855,7 @@ function LightModeSection({ phone }: { phone: Phone }) {
       <h3 className="h3 light-sub">{t("light.weakerTitle")}</h3>
       <ul className="weaker">
         {(["1", "2", "3", "4", "5", "6", "7"] as const).map((n) => (
-          <li key={n}>{t(`light.weaker${n}` as MessageKey)}</li>
+          <li key={n}>{t(n === "4" && play ? "light.weaker4Play" : `light.weaker${n}` as MessageKey)}</li>
         ))}
       </ul>
     </section>

@@ -50,6 +50,8 @@ export interface PhoneStatus {
   filterWorking?: boolean;
   filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
   appVersion: string;
+  /** Where the Android app came from; missing means github. play has no device admin and is updated by Google Play. */
+  distribution?: "github" | "play";
   appVersionCode?: number;
   update?: {
     state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";

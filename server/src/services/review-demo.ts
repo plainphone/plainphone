@@ -95,7 +95,9 @@ async function checkIn(ctx: Ctx, device: Api, parent: Api, phoneId: string) {
     lockIntact: true,
     maintenance: false,
     mode: "light",
-    protections: { deviceAdmin: true, accessibility: true, usageAccess: true, vpn: true, phoneRole: true, smsRole: true },
+    // The Play edition, as a Play reviewer would install it: no device admin and no "Update now".
+    distribution: "play",
+    protections: { accessibility: true, usageAccess: true, vpn: true, phoneRole: true, smsRole: true },
     filterMethod: "vpn",
     filterWorking: true,
     webFilterActive: true,

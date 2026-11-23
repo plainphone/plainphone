@@ -1637,6 +1637,9 @@ components:
       properties:
         appVersion: { type: string, minLength: 1, maxLength: 40, examples: ["0.4.0"] }
         androidVersion: { type: string, maxLength: 23 }
+        distribution:
+          enum: [github, play]
+          description: Where the Android app came from. `play` (Google Play) has no device admin and is updated by Play; missing means `github`.
         appVersionCode: { type: integer, minimum: 1 }
         update:
           type: object
@@ -1652,7 +1655,7 @@ components:
         deviceOwner: { type: boolean, description: Plainphone is the device owner of this phone. }
         lockIntact:
           type: boolean
-          description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs.
+          description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin (not with distribution play), accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs.
         maintenance: { type: boolean, description: A PIN maintenance unlock is running on the phone. }
         pushProvider: { enum: [none, fcm, unifiedpush] }
         failedPolicies:
@@ -6047,6 +6050,7 @@ paths:
       responses:
         "202": { description: "Requested" }
         "404": { description: "Phone not found" }
+        "409": { description: "The phone runs the Play edition, which Google Play updates", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
   /phones/{pid}/app-updates:
     post:

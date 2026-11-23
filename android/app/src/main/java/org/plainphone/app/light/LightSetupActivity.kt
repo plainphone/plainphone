@@ -123,7 +123,7 @@ class LightSetupActivity : ComponentActivity() {
         requestedStep = savedInstanceState?.getString("requestedStep")?.let(LightSetup.Step::valueOf)
         PermissionRecovery.clearDone(this)
         restrictedStep = savedInstanceState?.getString("restrictedStep")?.let(LightSetup.Step::valueOf)
-            ?: LightSetup.Step.entries.firstOrNull { PermissionRecovery.restricted(this, it) }
+            ?: LightSetup.steps().firstOrNull { PermissionRecovery.restricted(this, it) }
         receiveLink(intent)
         val store = SyncStore(this)
         if (pendingLink == null && LightEnrollment.canImport(this, store) && !LightSetup.linkReviewed(this)) {
@@ -509,8 +509,8 @@ class LightSetupActivity : ComponentActivity() {
             return
         }
         val dashboard = LightSetup.hasDashboardPin(this) && step != LightSetup.Step.PIN
-        val index = LightSetup.Step.entries.indexOf(step) - if (dashboard) 1 else 0
-        val total = LightSetup.Step.entries.size - if (dashboard) 1 else 0
+        val index = LightSetup.steps().indexOf(step) - if (dashboard) 1 else 0
+        val total = LightSetup.steps().size - if (dashboard) 1 else 0
         if (step == LightSetup.Step.PAIR && dashboard && !LightSetup.isComplete(this)) {
             DashboardPairStep(index, total)
             return

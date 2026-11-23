@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.R
 import org.plainphone.app.light.GuardService
+import org.plainphone.app.distribution.Distribution
 import org.plainphone.app.light.LightAdminReceiver
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.light.LightRelease
@@ -200,7 +201,9 @@ class PlainphoneApiReleaseTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val policy = context.getSystemService(DevicePolicyManager::class.java)
         val admin = LightAdminReceiver.component(context)
-        shadowOf(policy).setActiveAdmin(admin)
+        // The Play edition has no device admin to keep or remove (docs/play/play-edition.md).
+        val hasAdmin = Distribution.DEVICE_ADMIN
+        if (hasAdmin) shadowOf(policy).setActiveAdmin(admin)
         Settings.Secure.putString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
             ComponentName(context, GuardService::class.java).flattenToString())
         Settings.Secure.putInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
@@ -215,7 +218,7 @@ class PlainphoneApiReleaseTest {
         compose.waitUntil(5_000) { reports().size == 1 }
         assertThat(reports().single().constraints.requiredNetworkType).isEqualTo(NetworkType.CONNECTED)
         assertThat(shadowOf(context as Application).nextStoppedService?.component).isEqualTo(vpn.component)
-        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(policy.isAdminActive(admin)).isEqualTo(hasAdmin)
         val guard = Robolectric.buildService(GuardService::class.java).create().get()
         ReflectionHelpers.callInstanceMethod<Unit>(guard, "onServiceConnected")
         assertThat(Shadow.extract<GuardShadow>(guard).disabled).isTrue()
@@ -225,10 +228,10 @@ class PlainphoneApiReleaseTest {
         val worker = TestWorkerBuilder<SyncWorker>(context, Executor { it.run() })
             .setRunAttemptCount(8).build()
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
-        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(policy.isAdminActive(admin)).isEqualTo(hasAdmin)
         answer = 409
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
-        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(policy.isAdminActive(admin)).isEqualTo(hasAdmin)
         assertThat(SyncStore(context, FakeSecretBox()).removed).isFalse()
 
         Settings.Global.putInt(context.contentResolver, Settings.Global.BOOT_COUNT, 2)
@@ -256,13 +259,15 @@ class PlainphoneApiReleaseTest {
         store.markReleased()
         val policy = context.getSystemService(DevicePolicyManager::class.java)
         val admin = LightAdminReceiver.component(context)
-        shadowOf(policy).setActiveAdmin(admin)
+        // The Play edition has no device admin to keep or remove (docs/play/play-edition.md).
+        val hasAdmin = Distribution.DEVICE_ADMIN
+        if (hasAdmin) shadowOf(policy).setActiveAdmin(admin)
 
         val worker = TestWorkerBuilder<SyncWorker>(context, Executor { it.run() }).build()
         answer = 404
         responseBody = "404 Not Found"
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
-        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(policy.isAdminActive(admin)).isEqualTo(hasAdmin)
         assertThat(store.removed).isFalse()
 
         answer = 401

@@ -24,6 +24,8 @@ type PhoneHealth = PhoneStateInput & {
     filterWorking?: boolean;
     filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
     protections?: Partial<Record<string, boolean>>;
+    /** play has no device admin (docs/play/play-edition.md); missing means github. */
+    distribution?: "github" | "play";
     ios?: { authorizationStatus: "notDetermined" | "denied" | "approved" };
   } | null;
 };
@@ -122,6 +124,7 @@ export function healthRows(phone: PhoneHealth, now: number, locale: Locale, t: T
     for (const key of LIGHT_CHECKS) {
       // Private DNS does not use the VPN, so Always-on VPN advice would only confuse.
       if (key === "alwaysOnVpn" && phone.status?.filterMethod === "privateDns") continue;
+      if (key === "deviceAdmin" && phone.status?.distribution === "play") continue;
       const protections = status?.protections;
       const value = key === "usageAccess" ? protections?.usageAccessGranted : protections?.[key];
       const usageNotRequired = key === "usageAccess" && protections?.usageAccess === true;

@@ -209,7 +209,7 @@ The app has two product flavors in the `distribution` dimension:
 | Flavor | For | What it is |
 |---|---|---|
 | `github` (default) | GitHub Releases, F-Droid, the emulator suite | The whole app: light and strong mode, Child and Myself, the self-updater |
-| `play` | Google Play | Light mode with the Child profile only, updated by Play, with the disclosures and the notice Play asks for. See [docs/play/play-edition.md](docs/play/play-edition.md) |
+| `play` | Google Play | Light mode with the Child profile only and no device admin, updated by Play, with the disclosures and the notice Play asks for. The phone reports `distribution: "play"`, so the dashboard does not ask for a device admin or offer **Update now**. See [docs/play/play-edition.md](docs/play/play-edition.md) |
 
 Gradle task names carry the flavor: `assembleGithubDebug`, `testPlayDebugUnitTest`, `bundlePlayRelease`. The debug APK ends up in `android/app/build/outputs/apk/github/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 

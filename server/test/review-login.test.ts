@@ -151,6 +151,8 @@ describe("review sign-in switched on", () => {
     expect(phone.profile).toBe("child");
     expect(phone.lastSeenAt).toBe(h.clock.now.toISOString());
     expect(phone.status.lockIntact).toBe(true);
+    expect(phone.status.distribution).toBe("play");
+    expect(phone.status.protections.deviceAdmin).toBeUndefined();
 
     const apps = await c.get(`/api/phones/${phone.id}/apps`);
     expect(apps.json.apps.length).toBeGreaterThan(5);

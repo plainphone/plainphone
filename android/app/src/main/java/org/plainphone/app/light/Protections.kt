@@ -10,6 +10,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.os.PowerManager
 import android.provider.Settings
+import org.plainphone.app.distribution.Distribution
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.time.TimeGuard
 
@@ -33,6 +34,7 @@ data class Protections(
     val privateDnsOk: Boolean,
     val usageAccessGranted: Boolean = usageAccess,
 ) {
+    /** The Play edition has no device admin, so it leaves [deviceAdmin] out instead of reporting it off. */
     fun toMap(): Map<String, Boolean> = mapOf(
         "deviceOwner" to deviceOwner,
         "deviceAdmin" to deviceAdmin,
@@ -46,15 +48,18 @@ data class Protections(
         "notifications" to notifications,
         "batteryUnrestricted" to batteryUnrestricted,
         "privateDnsOk" to privateDnsOk,
-    )
+    ).let { if (Distribution.DEVICE_ADMIN) it else it - "deviceAdmin" }
 
     /**
      * Light mode: the protections the lock cannot do without. Missing ones make `lockIntact`
      * false, so the parent sees it. Always-on VPN, notifications and battery are recommended
      * but not required (some phones do not offer them).
      */
-    fun missingForLight(method: FilterMethod = FilterMethod.VPN, dnsIssue: String? = null): List<String> = buildList {
-        if (!deviceAdmin) add("device admin")
+    fun missingForLight(
+        method: FilterMethod = FilterMethod.VPN,
+        dnsIssue: String? = null,
+    ): List<String> = buildList {
+        if (Distribution.DEVICE_ADMIN && !deviceAdmin) add("device admin")
         if (!accessibility) add("accessibility service")
         if (method == FilterMethod.PRIVATE_DNS) {
             if (dnsIssue != null) add("DNS filter (Private DNS)")
@@ -73,8 +78,9 @@ data class Protections(
             val usageAccessGranted = TimeGuard.hasUsageAccess(context)
             return Protections(
                 deviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true,
-                deviceAdmin = dpm?.isAdminActive(LightAdminReceiver.component(context)) == true ||
-                    dpm?.isDeviceOwnerApp(context.packageName) == true,
+                // The Play edition declares no admin receiver, so it does not ask Android about one.
+                deviceAdmin = Distribution.DEVICE_ADMIN && (dpm?.isAdminActive(LightAdminReceiver.component(context)) == true ||
+                    dpm?.isDeviceOwnerApp(context.packageName) == true),
                 accessibility = isGuardEnabled(context),
                 usageAccess = !needsUsageAccess || usageAccessGranted,
                 usageAccessGranted = usageAccessGranted,

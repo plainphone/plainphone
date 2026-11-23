@@ -13,6 +13,12 @@ object Distribution {
     /** Checks `/download/android/latest.json`; installs a newer APK in strong mode and offers it in light mode. */
     const val SELF_UPDATES = true
 
+    /** Sent as `distribution` in `PUT /device/status`. */
+    const val NAME = "github"
+
+    /** Light mode asks for a device admin, so uninstalling needs it switched off first; strong mode is Device Owner. */
+    const val DEVICE_ADMIN = true
+
     /** Setup offers Myself (an adult's own phone) next to Child. */
     const val MYSELF_PROFILE = true
 
