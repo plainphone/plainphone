@@ -57,9 +57,17 @@ export function timeZoneOptions(opts: {
   const firstZones = [...new Set([opts.browserZone, ...Object.keys(COMMON)].filter((z): z is string => Boolean(z)))];
   const first = new Set(firstZones);
   const collator = new Intl.Collator(opts.locale);
+  const common = firstZones.map(option);
+  const byLabel = new Map(common.map((o) => [o.label, o]));
   const rest = [...new Set(["UTC", ...all, opts.selected])]
     .filter((zone) => !first.has(zone))
     .map(option)
+    // Aliases such as "Etc/UTC" and "UTC" read the same: show the text once, as the selected zone if it is one of them.
+    .filter((o) => {
+      const twin = byLabel.get(o.label);
+      if (twin && o.zone === opts.selected) twin.zone = o.zone;
+      return !twin;
+    })
     .sort((a, b) => collator.compare(a.label, b.label));
-  return { common: firstZones.map(option), rest };
+  return { common, rest };
 }

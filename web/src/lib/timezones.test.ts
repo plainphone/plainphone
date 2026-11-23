@@ -40,3 +40,11 @@ it("keeps a saved zone this browser does not know", () => {
   const { rest } = timeZoneOptions({ browserZone: undefined, selected: "America/Nuuk", locale: "da", at: winter, all });
   expect(rest.map((o) => o.zone)).toContain("America/Nuuk");
 });
+
+it("shows UTC once when the browser and the saved zone are two names for it", () => {
+  const { common, rest } = timeZoneOptions({ browserZone: "Etc/UTC", selected: "UTC", locale: "en", at: winter, all });
+  const labels = [...common, ...rest].map((o) => o.label);
+  expect(labels.filter((l) => l === "UTC")).toHaveLength(1);
+  // The one that is left is the saved zone, so the picker still has it selected.
+  expect(common[0]).toEqual({ zone: "UTC", label: "UTC" });
+});
