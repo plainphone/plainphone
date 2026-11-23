@@ -140,7 +140,7 @@ export const en = {
   "pair.code": "Code from the phone",
   "pair.codeHelp": "Eight letters and digits. The code works for 15 minutes.",
   "pair.name": "Name",
-  "pair.nameHelp": "For example the child's first name. Only you see it.",
+  "pair.nameHelp": "For example the child's first name. Everyone in your household sees it, and so does the phone.",
   "pair.profile": "Whose phone is it?",
   "pair.submit": "Add phone",
   "pair.adding": "Adding…",

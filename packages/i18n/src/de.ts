@@ -136,7 +136,7 @@ export const de: Messages = {
   "pair.code": "Code vom Telefon",
   "pair.codeHelp": "Acht Buchstaben und Ziffern. Der Code funktioniert 15 Minuten lang.",
   "pair.name": "Name",
-  "pair.nameHelp": "Zum Beispiel der Vorname des Kindes. Der Name ist nur für Sie sichtbar.",
+  "pair.nameHelp": "Zum Beispiel der Vorname des Kindes. Alle im Haushalt sehen ihn, und das Telefon auch.",
   "pair.profile": "Wessen Telefon ist es?",
   "pair.submit": "Telefon hinzufügen",
   "pair.adding": "Hinzufügen…",

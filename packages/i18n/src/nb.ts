@@ -136,7 +136,7 @@ export const nb: Messages = {
   "pair.code": "Kode fra telefonen",
   "pair.codeHelp": "Åtte bokstaver og sifre. Koden fungerer i 15 minutter.",
   "pair.name": "Navn",
-  "pair.nameHelp": "For eksempel barnets fornavn. Bare du ser det.",
+  "pair.nameHelp": "For eksempel barnets fornavn. Alle i husstanden ser det, og det gjør telefonen også.",
   "pair.profile": "Hvem sin telefon er dette?",
   "pair.submit": "Legg til telefon",
   "pair.adding": "Legger til …",

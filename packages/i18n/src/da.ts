@@ -138,7 +138,7 @@ export const da: Messages = {
   "pair.code": "Koden fra telefonen",
   "pair.codeHelp": "Otte bogstaver og tal. Koden virker i 15 minutter.",
   "pair.name": "Navn",
-  "pair.nameHelp": "Fx barnets fornavn. Det er kun dig, der ser det.",
+  "pair.nameHelp": "Fx barnets fornavn. Alle i husstanden kan se det, og det kan telefonen også.",
   "pair.profile": "Hvem er telefonen til?",
   "pair.submit": "Tilføj telefon",
   "pair.adding": "Tilføjer…",

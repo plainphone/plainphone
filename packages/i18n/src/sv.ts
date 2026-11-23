@@ -136,7 +136,7 @@ export const sv: Messages = {
   "pair.code": "Kod från telefonen",
   "pair.codeHelp": "Åtta bokstäver och siffror. Koden fungerar i 15 minuter.",
   "pair.name": "Namn",
-  "pair.nameHelp": "Till exempel barnets förnamn. Bara du ser det.",
+  "pair.nameHelp": "Till exempel barnets förnamn. Alla i hushållet ser det, och det gör telefonen också.",
   "pair.profile": "Vems telefon är det?",
   "pair.submit": "Lägg till telefon",
   "pair.adding": "Lägger till...",
