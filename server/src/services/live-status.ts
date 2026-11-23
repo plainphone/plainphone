@@ -9,7 +9,7 @@ import type { DeviceStatus } from "../db/schema.js";
 
 const SHOWN = [
   "lockIntact", "deviceOwner", "maintenance", "failedPolicies", "rulesEtag", "rulesAppliedAt", "rulesReceiptConfirmed",
-  "webFilterActive", "filterMethod", "filterWorking", "filterIssue", "appVersion", "androidVersion", "charging",
+  "webFilterActive", "filterMethod", "filterWorking", "filterIssue", "appVersion", "androidVersion", "distribution", "charging",
   "resetProtection", "accountTypes", "callRoleActionNeeded", "mode", "protections", "pushProvider", "dnsHost", "ios",
 ] as const satisfies readonly (keyof DeviceStatus)[];
 

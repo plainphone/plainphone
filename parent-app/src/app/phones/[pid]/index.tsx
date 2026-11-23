@@ -32,7 +32,7 @@ import { describeOp } from "@plainphone/shared/ops";
 import { appUpdateReceiptLine } from "@plainphone/shared/app-updates";
 import { healthRows, receiptText } from "@plainphone/shared/phone-health";
 import { isIphone, platformLine, ruleRowUnavailable } from "@plainphone/shared/platform";
-import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "@plainphone/shared/phoneUpdate";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, updatedByPlay, usesProductionKey, type LatestVersion } from "@plainphone/shared/phoneUpdate";
 
 function PendingList() {
   const { t, locale } = useI18n();
@@ -397,8 +397,23 @@ const systemStatus = {
 /** What the release metadata said: still asking, could not be read, or the latest version. */
 type LatestCheck = { state: "checking" } | { state: "failed" } | { state: "done"; latest: LatestVersion };
 
-/** The metadata is asked again whenever the screen gets focus, and on pull-to-refresh (the parent remounts this). */
 function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNullable<Phone["status"]> }) {
+  return updatedByPlay(status) ? <PlayAppVersion status={status} /> : <SelfUpdatingAppVersion phoneId={phoneId} status={status} />;
+}
+
+/** The Play edition: Google Play installs updates, so there is nothing to press (docs/play/play-edition.md). */
+function PlayAppVersion({ status }: { status: NonNullable<Phone["status"]> }) {
+  const { t } = useI18n();
+  return (
+    <VStack gap={space.sm}>
+      <Text>{t("phone.appVersion", { version: status.appVersion })}</Text>
+      <Text variant="muted">{t("phone.updatedByPlay")}</Text>
+    </VStack>
+  );
+}
+
+/** The metadata is asked again whenever the screen gets focus, and on pull-to-refresh (the parent remounts this). */
+function SelfUpdatingAppVersion({ phoneId, status }: { phoneId: string; status: NonNullable<Phone["status"]> }) {
   const { t } = useI18n();
   const { notify } = usePhone();
   const [busy, setBusy] = useState(false);

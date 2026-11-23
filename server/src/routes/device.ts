@@ -9,7 +9,8 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { fcmValidationKey, WAKE_PROVIDERS } from "../providers/push.js";
 import { IOS_PAIRING_NOT_YET, iosLockIntact, iosStatusInput } from "../lib/ios.js";
-import { contacts, PLATFORMS, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { contacts, PLATFORMS, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, DISTRIBUTIONS, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import type { Distribution } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
@@ -73,6 +74,10 @@ function starterPack(timezone: string): Set<string> {
 const LIGHT_FILTER_POLICIES = new Set(["DNS filter (VPN)", "private DNS not pointing elsewhere"]);
 /** Light mode cannot be intact without these (docs/sync-api.md). */
 const LIGHT_LOCK = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"] as const;
+/** The Play edition has no device admin (docs/play/play-edition.md); a phone that does not say keeps all six. */
+function lightLock(distribution: Distribution | undefined): readonly (typeof LIGHT_LOCK)[number][] {
+  return distribution === "play" ? LIGHT_LOCK.filter((k) => k !== "deviceAdmin") : LIGHT_LOCK;
+}
 
 const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k, z.boolean().optional()]))) as z.ZodType<
   Partial<Record<(typeof PROTECTIONS)[number], boolean>>
@@ -762,6 +767,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       z.object({
         appVersion: z.string().min(1).max(40),
         androidVersion: z.string().regex(/^\d{1,5}(?:\.\d{1,5}){0,3}$/).optional(),
+        distribution: z.enum(DISTRIBUTIONS).optional(),
         appVersionCode: z.number().int().positive().optional(),
         update: z.object({
           state: z.enum(["upToDate", "available", "installing", "prompted", "refused", "failed"]),
@@ -815,19 +821,21 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
     const appliedAt = input.rulesAppliedAt ? new Date(input.rulesAppliedAt) : null;
     // A light-mode phone (paired as light, or reporting light) is only intact when all six
-    // light protections are on, no policy failed and no maintenance unlock runs, whatever
-    // it says about lockIntact. The server only ever makes this stricter.
+    // light protections are on (five on the Play edition, which has no device admin), no policy
+    // failed and no maintenance unlock runs, whatever it says about lockIntact. The server only
+    // ever makes this stricter.
     const p = input.protections;
     const iphone = phone.platform === "ios";
     // An iPhone has its own lock (Family Controls), not light mode's six protections.
     const light = !iphone && (phone.mode === "light" || input.mode === "light");
     // A lifted step that is overdue counts as failed, so the usual protection-lost alert fires.
     const overdue = applyOverdueLifted(input, ctx.now());
+    const required = lightLock(input.distribution);
     const lockIntact = iphone ? iosLockIntact(input) :
       overdue.lockIntact &&
       (!light ||
         (p !== undefined &&
-          LIGHT_LOCK.every((k) => k === "vpn" && input.filterMethod === "privateDns"
+          required.every((k) => k === "vpn" && input.filterMethod === "privateDns"
             ? input.filterWorking === true : p[k] === true) && input.filterWorking !== false &&
           input.failedPolicies.length === 0 &&
           !input.maintenance));
@@ -837,7 +845,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const reportsFilter = light && input.filterMethod !== undefined && input.filterWorking !== undefined;
     // Filter setup and inconclusive canaries should not mask losses of other light protections.
     const lockIntactWithoutFilter = reportsFilter
-      ? !input.maintenance && LIGHT_LOCK.every((k) => k === "vpn" || p?.[k] === true) &&
+      ? !input.maintenance && required.every((k) => k === "vpn" || p?.[k] === true) &&
         overdue.failedPolicies.every((step) => LIGHT_FILTER_POLICIES.has(step))
       : undefined;
     const policy = input.failedPolicies.find(isInstallOverrun);

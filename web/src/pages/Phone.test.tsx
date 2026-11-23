@@ -213,6 +213,34 @@ it.each(["en", "da"] as const)("shows the battery fix by the version and Update 
 });
 
 
+it.each(["en", "da"] as const)("says a Play phone is updated through Google Play, with no Update now, in %s", (locale) => {
+  const t = makeT(locale);
+  const status = { ...phone.status, appVersionCode: 11, failedPolicies: [] };
+  const play = renderPhone({ ...phone, status: { ...status, distribution: "play" } }, "", locale);
+  const versionRow = play.match(/<li><div class="phone-version">[\s\S]*?<\/li>/)?.[0];
+  expect(versionRow).toContain(t("phone.updatedByPlay"));
+  expect(play).not.toContain(t("phone.updateNow"));
+  for (const distribution of ["github" as const, undefined]) {
+    const html = renderPhone({ ...phone, status: { ...status, distribution } }, "", locale);
+    expect(html).toContain(t("phone.updateNow"));
+    expect(html).not.toContain(t("phone.updatedByPlay"));
+  }
+});
+
+it("does not ask a light Play phone for a device admin", () => {
+  const t = makeT("en");
+  const protections = { deviceAdmin: false, accessibility: true, usageAccess: true, vpn: true, phoneRole: true, smsRole: true };
+  const light = { ...phone, mode: "light" as const, status: { ...phone.status, mode: "light" as const, deviceOwner: false, failedPolicies: [], protections } };
+  const play = renderPhone({ ...light, status: { ...light.status, distribution: "play" } });
+  expect(play).not.toContain(t("prot.deviceAdmin.missing"));
+  expect(play).toContain(t("light.allOk"));
+  expect(play).toContain(t("light.weaker4Play"));
+  expect(play).not.toContain(t("light.weaker4"));
+  const github = renderPhone(light);
+  expect(github).toContain(t("prot.deviceAdmin.missing"));
+  expect(github).toContain(t("light.weaker4"));
+});
+
 it("replaces a legacy battery update error with the fix text", () => {
   const detail = "Could not open and relock the install session";
   const html = renderPhone({

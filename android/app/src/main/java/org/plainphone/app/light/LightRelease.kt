@@ -5,6 +5,7 @@ package org.plainphone.app.light
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import org.plainphone.app.StepResult
+import org.plainphone.app.distribution.Distribution
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.sync.SyncStore
 
@@ -16,7 +17,7 @@ object LightRelease {
     fun release(context: Context): List<StepResult> = buildList {
         val undoPending = SyncStore(context).setupUndoPending
         // Keep Android's uninstall barrier until the server has durably accepted the report.
-        if (!undoPending) add(step("device admin off") { removeAdmin(context) })
+        if (!undoPending && Distribution.DEVICE_ADMIN) add(step("device admin off") { removeAdmin(context) })
         val storedDns = SyncStore(context).rules()?.dnsHost?.takeIf { LightFilter.setupIssue(context, it) == null }
         prefs(context).edit().putBoolean(KEY_RELEASED, true).apply {
             if (storedDns != null) putString(KEY_RELEASED_DNS, storedDns)
@@ -35,6 +36,7 @@ object LightRelease {
     }
 
     internal fun removeAdmin(context: Context) {
+        if (!Distribution.DEVICE_ADMIN) return
         val policy = context.getSystemService(DevicePolicyManager::class.java)
         val admin = LightAdminReceiver.component(context)
         if (policy.isAdminActive(admin)) policy.removeActiveAdmin(admin)

@@ -34,6 +34,16 @@ describe("phone health", () => {
     expect(rows.some((row) => row.key === "alwaysOnVpn")).toBe(false);
   });
 
+  it("leaves the device admin row out for a Play phone only", () => {
+    const status = { ...phone.status, protections: { deviceAdmin: false, phoneRole: true, smsRole: true } };
+    const play = healthRows({ ...phone, status: { ...status, distribution: "play" as const } }, now, "en", t);
+    expect(play.some((row) => row.key === "deviceAdmin")).toBe(false);
+    for (const distribution of ["github" as const, undefined]) {
+      const rows = healthRows({ ...phone, status: { ...status, distribution } }, now, "en", t);
+      expect(rows.find((row) => row.key === "deviceAdmin")).toMatchObject({ action: true, detail: t("health.fix.deviceAdmin") });
+    }
+  });
+
   it("keeps the Always-on VPN row hidden for a Private DNS phone whose report went stale", () => {
     const status = { ...phone.status, reportedAt: at(60 * 24), filterMethod: "privateDns" as const };
     const rows = healthRows({ ...phone, status }, now, "en", t);

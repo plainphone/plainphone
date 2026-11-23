@@ -3,7 +3,6 @@
 package org.plainphone.app.distribution
 
 import android.Manifest
-import android.app.admin.DevicePolicyManager
 import android.app.role.RoleManager
 import android.content.ComponentName
 import android.app.AppOpsManager
@@ -24,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.R
 import org.plainphone.app.light.GuardService
-import org.plainphone.app.light.LightAdminReceiver
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.sync.PlainphoneApiReleaseTest.PairedStore
@@ -138,7 +136,6 @@ class PlayDisclosureUiTest {
         roles.addHeldRole(RoleManager.ROLE_SMS)
         shadowOf(activity.getSystemService(AppOpsManager::class.java))
             .setMode(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), activity.packageName, AppOpsManager.MODE_ALLOWED)
-        shadowOf(activity.getSystemService(DevicePolicyManager::class.java)).setActiveAdmin(LightAdminReceiver.component(activity))
         if (step == LightSetup.Step.LOCATION) {
             Settings.Secure.putString(
                 activity.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,

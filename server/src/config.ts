@@ -11,6 +11,8 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().default(8080),
   DATABASE_URL: z.string().min(1),
+  /** Database connections this server process keeps open at most (docs/operations.md#capacity). */
+  DB_POOL_MAX: unsetIfEmpty(z.coerce.number().int().min(1).max(100).default(10)),
   /** Public base URL of the parent app, used in mails, e.g. https://app.plainphone.org */
   PUBLIC_URL: z.url().default("http://localhost:5173"),
   /** Directory with the built parent PWA. Served at / when it exists. */

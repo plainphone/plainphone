@@ -26,6 +26,8 @@ interface SyncDevice {
     fun registerWakeup(api: SyncApi, token: String, reason: String): String? = null
     fun appVersion(): String
     fun androidVersion(): String? = null
+    /** Where the app came from (`github` or `play`), so the dashboard knows who updates it. */
+    fun distribution(): String? = null
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
     /** Launchable apps, including the ones Plainphone hid. */
@@ -627,6 +629,7 @@ class SyncRunner(
         val status = DeviceStatus(
             appVersion = device.appVersion(),
             androidVersion = device.androidVersion().takeIf { store.rules()?.supportEnabled != false },
+            distribution = device.distribution(),
             batteryPct = battery,
             charging = charging,
             deviceOwner = lock.deviceOwner,

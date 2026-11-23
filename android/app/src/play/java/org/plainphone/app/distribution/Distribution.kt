@@ -12,8 +12,18 @@ import org.plainphone.app.light.LightSetup
  * The `github` flavor has its own copy in src/github.
  */
 object Distribution {
+    /** Sent as `distribution` in `PUT /device/status`, so the server does not ask for a device admin. */
+    const val NAME = "play"
+
     /** Google Play updates the app; Play forbids any other way ("Device and Network Abuse"). */
     const val SELF_UPDATES = false
+
+    /**
+     * No device admin and no Device Owner: Play's review advises against device admin in a parental
+     * control app (docs/play/policy-review.md#device-admin). The guard protects Plainphone's own
+     * settings pages instead.
+     */
+    const val DEVICE_ADMIN = false
 
     /** Play allows monitoring only in apps made for parents and their children, so no Myself. */
     const val MYSELF_PROFILE = false

@@ -295,6 +295,7 @@ export const en = {
   "phone.updateAvailable": "Version {version} is ready",
   "phone.updateInstalling": "The phone is installing the update…",
   "phone.updateCurrent": "The app is up to date",
+  "phone.updatedByPlay": "Updated through Google Play",
   "phone.dnsWaiting": "The web filter is being set up. It isn’t active yet.",
 
   "pending.delayBanner": "This takes effect {time} (in {left}).",
@@ -924,6 +925,7 @@ export const en = {
   "light.weaker2": "The phone can be reset to factory settings. Plainphone is then gone, and you see the phone go offline.",
   "light.weaker3": "Safe mode starts the phone without Plainphone.",
   "light.weaker4": "Plainphone can be uninstalled after device admin is switched off. Plainphone tries to block access to those settings and can notify you if device admin is switched off.",
+  "light.weaker4Play": "Plainphone can be uninstalled from the phone’s settings. Plainphone tries to close those screens, and if it is uninstalled you see the phone go offline.",
   "light.weaker5": "Apps can still be installed. New apps are blocked until you allow them.",
   "light.weaker6": "On some phones the default phone and SMS app can be changed in Settings. Calls and texts are then not filtered.",
   "light.weaker7": "The web filter is a VPN. If it is switched off, the filter stops, and you are told.",

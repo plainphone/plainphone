@@ -43,6 +43,7 @@ class PipRootDismissTest {
 
     @Before fun setUp() {
         NodeShadow.performed.clear()
+        NodeShadow.onRootAction = null
         service = Robolectric.buildService(GuardService::class.java).create().get()
         service.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE).edit().putBoolean("complete", true).apply()
         shadow = Shadow.extract(service)
@@ -119,6 +120,49 @@ class PipRootDismissTest {
         assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
     }
 
+    @Test fun `a first dismiss that does not take is sent again until the window is gone`() {
+        // Emulator runs 45135133026 and 45133584798 (API 29): System UI shows its close menu for 3.5 s
+        // after a window floats in and takes no dismiss meanwhile (see PipGuard.RECHECK_DELAYS_MS). The
+        // guard then started the player, which only added a player to the pinned task, and nothing
+        // looked again before the tick: the player floated over its stop screen.
+        val launcher = android.content.ComponentName(player, "$player.PlayerActivity")
+        shadowOf(service.packageManager).apply {
+            addActivityIfNotPresent(launcher)
+            addIntentFilterForActivity(launcher, android.content.IntentFilter(android.content.Intent.ACTION_MAIN).apply {
+                addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            })
+        }
+        shadow.root = sealedNode(service.packageName, 4)
+        ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")
+        service.onAccessibilityEvent(AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply {
+            packageName = player
+            ReflectionHelpers.setField(this, "mSourceWindowId", 9)
+        })
+        shadow.windowList = listOf(window(player, 9, pip = false))
+        windowsChanged()
+        shadow.windowList = listOf(window(PipGuard.SYSTEM_UI, 12))
+        windowsChanged()
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(2))
+        // System UI refuses the first dismiss (its menu shows), takes the next and removes the window.
+        NodeShadow.onRootAction = { count ->
+            (count > 1).also { taken -> if (taken) shadow.windowList = emptyList() }
+        }
+
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit().putStringSet("blocked", setOf(player)).commit()
+        looper.idle()
+        val rootDismisses = { NodeShadow.performed.count { it.first == PipRootNode.ROOT_NODE_ID } }
+        assertEquals("the first dismiss", 1, rootDismisses())
+        looper.idleFor(Duration.ofSeconds(1))
+        assertEquals("sent again without a window event", 2, rootDismisses())
+        looper.idleFor(Duration.ofSeconds(40))
+        assertEquals("not sent again once the window is gone", 2, rootDismisses())
+
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertFalse("starting the pinned player adds another player to the pinned task", starts.any { it.component?.packageName == player })
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
+    }
+
     @Config(sdk = [34])
     @Test fun `Android 14 does not get a built node`() {
         assertFalse(PipRootNode.supported)
@@ -132,12 +176,17 @@ class PipRootDismissTest {
         @Implementation override fun performAction(action: Int): Boolean = performAction(action, null)
 
         @Implementation override fun performAction(action: Int, arguments: Bundle?): Boolean {
-            performed += Triple(ReflectionHelpers.getField<Long>(real, "mSourceNodeId"), real.windowId, action)
-            return super.performAction(action, arguments)
+            val source = ReflectionHelpers.getField<Long>(real, "mSourceNodeId")
+            performed += Triple(source, real.windowId, action)
+            val answer = onRootAction.takeIf { source == PipRootNode.ROOT_NODE_ID }
+                ?: return super.performAction(action, arguments)
+            return answer(performed.count { it.first == PipRootNode.ROOT_NODE_ID })
         }
 
         companion object {
             val performed = mutableListOf<Triple<Long, Int, Int>>()
+            /** System UI's answer to the nth action on its root node; null for the default. */
+            var onRootAction: ((Int) -> Boolean)? = null
         }
     }
 

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -22,6 +23,7 @@ import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.EditableContactPolicySource
+import org.plainphone.app.telephony.RecentDials
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -50,12 +52,22 @@ class CallRefusalTest {
             }
         }
         TelecomHandoff.interceptForTest = { dialled += it }
+        RecentDials.clear()
     }
 
     @After
     fun reset() {
         ContactPolicySources.override = null
         TelecomHandoff.interceptForTest = null
+    }
+
+    /** A test dial never reaches Telecom, so it must not count as a recent dial (#273). */
+    @Test
+    @SuppressLint("MissingPermission")
+    fun `a call swallowed by the test hook is not remembered as dialled`() {
+        TelecomHandoff.submit(context, Uri.fromParts("tel", "+12025550101", null))
+        assertThat(dialled).hasSize(1)
+        assertThat(RecentDials.wasJustDialled("+12025550101", null)).isFalse()
     }
 
     @Test

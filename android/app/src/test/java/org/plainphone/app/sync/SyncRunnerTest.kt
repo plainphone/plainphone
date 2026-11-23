@@ -636,6 +636,19 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `the status says where the app came from, and an app that does not know leaves it out`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        device.distribution = "play"
+        runner.run("play")
+        assertThat(api.statuses.last().distribution).isEqualTo("play")
+        assertThat(api.statuses.last().toJson().getString("distribution")).isEqualTo("play")
+
+        val older = api.statuses.last().copy(distribution = null)
+        assertThat(older.toJson().has("distribution")).isFalse()
+    }
+
+    @Test
     fun `a new Private DNS filter is only confirmed once the phone has verified it`() {
         pair()
         device.lock = device.lock.copy(mode = "light")
