@@ -67,7 +67,7 @@ class PipRootDismissTest {
 
     private fun windowsChanged() = service.onAccessibilityEvent(AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOWS_CHANGED))
 
-    @Config(sdk = [29, 33])
+    @Config(sdk = [29, 30, 31, 32, 33])
     @Test fun `the root node is built over the service's own connection`() {
         assertEquals(CONNECTION, PipRootNode.connectionId(sealedNode(service.packageName, 4)))
         val root = PipRootNode.of(12, CONNECTION)

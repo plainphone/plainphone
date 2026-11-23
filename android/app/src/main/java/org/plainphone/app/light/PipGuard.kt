@@ -66,6 +66,9 @@ object PipGuard {
      * ("pip: windows com.android.systemui#10@1"), 45047940235 ("null#10@1", then
      * "com.android.systemui#14@1") and 45125434098 (the menu window read as "null#12@1", so the
      * floating player counted as gone and was stopped and expanded again) showed these.
+     * Known gap: if a second app goes straight into picture-in-picture while the first still floats
+     * and its window is unreadable on the first look, it counts as the first app until its window
+     * reads, so for that one check it is judged (and possibly dismissed) by the first app's rules.
      */
     fun owner(rootPkg: String?, windowId: Int, known: Map<Int, String>, lastPinned: String?, inFront: String?): String? =
         when (rootPkg) {
