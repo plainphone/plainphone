@@ -134,6 +134,7 @@ when a setting the server reads is missing from `compose.yaml`, `deploy/dokploy-
 | `SPAM_HONEYPOT` | `on` | A hidden field on the dashboard's sign-in form that only bots fill in. They get the normal answer, and no mail is sent |
 | `BLOCK_DISPOSABLE_EMAIL` | `on` | A new household cannot start with a throwaway mail address (a vendored list, no lookup online). Existing accounts and invited people are never refused |
 | `INVITES_PER_HOUSEHOLD_DAILY` | `20` | Invitation mails a household can send in 24 hours. `0` = no cap |
+| `HOUSEHOLD_PHONE_CAP` | `0` (no cap) | Phones one household can have at most. Leave it empty or `0` on your own server. The hosted test service uses `10`, because every phone registers its own DNS filter address. Only adding a phone is checked: phones already set up keep syncing, and SOS, 112 and release are never affected ([operations.md](operations.md#phones-per-household)) |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
 | `DB_POOL_MAX` | `10` | Database connections the server keeps open at most. Ten carry about 1,500 phones syncing every minute; raise it only with the numbers in [operations.md](operations.md#capacity) |
 | `BILLING_ENABLED` | `false` | Paid plan and paid early unlock of the hosted service. Leave it off when self-hosting: every household then has everything, and no payment provider is called. The other `BILLING_*`, `STRIPE_*` and `PLAY_*` variables only matter with it on ([billing.md](billing.md)) |

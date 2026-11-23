@@ -1,8 +1,9 @@
 # Known limitations
 
 Plainphone reduces what a phone can reach. It does not make a phone safe, and some things cannot be
-blocked by any app. This page lists what Plainphone cannot block today, per mode, and links to the
-details.
+blocked by any app. This page lists what Plainphone cannot block today, per mode, what strong mode
+needs, what has not run on a real phone yet and how the Google Play edition differs. Each item
+links to the details.
 
 Plainphone is in public alpha. It has had little testing on real phones and no external security
 audit. The [bypass checklist](bypass-checklist.md) is how a phone gets tested. A way around the lock
@@ -82,3 +83,59 @@ Light mode adds friction. It is not a lock, and the dashboard says so.
 
 - **A newly installed app on the block list** can open for a few seconds, until the phone has synced.
 - **The lists of known apps** cannot cover every betting or social app. Block the rest one by one.
+
+## What strong mode needs
+
+- **A factory reset first.** Strong mode is set up by scanning a QR code on the first setup
+  screen, so everything on the phone is erased. Light mode needs no reset.
+  [Set up a test phone](setup-test-phone.md)
+- **Android 10 or newer.** Android 14 or newer gives the full lock. On Android 10 to 13 someone can
+  switch back to the built-in phone app, app cloning is not blocked by Plainphone, and Android 10
+  has no factory reset protection with chosen accounts.
+  [What works on which version](android-versions.md#what-works-on-which-version)
+- **Wi-Fi without a login page, or mobile data,** during setup.
+- **Google Play Protect may block the setup** on phones with Google Play services, because
+  Plainphone is not on Android Enterprise's list of approved apps. Nobody has tried it on a real
+  phone yet (issue #255). [The open question](setup-test-phone.md#3-scan-the-qr-code)
+- **Factory reset protection needs Google Play services** and a linked Google account. Without
+  them nothing stops a reset from bringing the phone back as new.
+  [Factory reset protection](policies.md#factory-reset-protection)
+
+## Not yet tried on a real phone
+
+The emulator suite runs on Android 10 and 14 for every merge, but these have not run on a
+physical phone yet:
+
+- **The bypass checklist** as a whole: its result log is still empty.
+  [Result log](bypass-checklist.md#result-log)
+- **The fallbacks on Android 10 to 13:** the phone app dialog, sending SMS, location, and the
+  incoming call notification. [Android versions](android-versions.md#not-yet-tested-on-a-real-phone)
+- **Calls and messages on Samsung and Xiaomi,** whose phone apps may behave differently around
+  roles and call screening. [Contacts: not covered yet](contacts.md#not-covered-yet)
+- **Sync timing in Doze** and location on Samsung and Xiaomi. [Phone sync](phone-sync.md#not-done-yet)
+- **QR setup with Play Protect** (above) and **"Block connections without VPN"** in light mode.
+  [Always-on VPN](light-mode-vpn.md#always-on-vpn-and-block-connections-without-vpn)
+
+## The Google Play edition
+
+The app on Google Play is a smaller build than the one on GitHub Releases and F-Droid, to follow
+Play's policies. [The Play edition](play/play-edition.md)
+
+- **Light mode and the Child profile only.** No strong mode and no Myself profile. For those,
+  install the GitHub edition.
+- **No device admin,** so Plainphone can be uninstalled from Settings. Plainphone closes the
+  uninstall screens, and the parents see the phone go quiet if it is removed anyway.
+  [No device admin](play/play-edition.md#no-device-admin)
+- **Updates come from Google Play,** not from the dashboard's **Update now**.
+- **A notification is always shown** while Plainphone is on, and the guard and location each get
+  their own explanation screen before Android asks.
+
+## The hosted test service
+
+- **Up to 10 phones per family** on app.plainphone.org (`HOUSEHOLD_PHONE_CAP`). Phones already
+  set up keep working; only adding one more is refused. Your own server has no cap unless you set
+  one. [Phones per household](operations.md#phones-per-household)
+- **A limited number of new families per day** when the daily cap is on. People who already have
+  an account always get in. [Daily cap](operations.md#daily-cap-on-new-households)
+- **The service can read the data you put in it.** End-to-end encryption is not built yet.
+  [Privacy](privacy.md)

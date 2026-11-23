@@ -178,6 +178,12 @@ const schema = z.object({
   /** Invitation mails per household per 24 hours, counted in the database. 0: no cap. */
   INVITES_PER_HOUSEHOLD_DAILY: unsetIfEmpty(z.coerce.number().int().min(0).default(20)),
   /**
+   * Phones per household at most (docs/operations.md, "Phones per household"). Every phone gets its
+   * own DNS filter ClientID, so one account must not register hundreds. Checked only when a phone
+   * is added; phones already there are never touched. Unset or 0: no cap, the self-hosting default.
+   */
+  HOUSEHOLD_PHONE_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
+  /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.
    */

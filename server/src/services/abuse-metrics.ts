@@ -14,6 +14,8 @@ export const ABUSE_REASONS = [
   "disposable_email",
   /** A household at its daily invitation cap. */
   "invite_cap",
+  /** A household at HOUSEHOLD_PHONE_CAP that tried to add another phone. */
+  "phone_cap",
   /** A database-backed IP rate limit. */
   "rate_limit",
 ] as const;

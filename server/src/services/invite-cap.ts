@@ -21,8 +21,9 @@ export async function takeInviteMail(ctx: Ctx, householdId: string): Promise<boo
   const cap = ctx.cfg.INVITES_PER_HOUSEHOLD_DAILY;
   if (cap <= 0) return true;
   const ok = await ctx.db.transaction(async (tx) => {
-    // Two invitations at once from the same household must not both take the last place.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.invite_cap'), hashtext(${householdId}))`);
+    // Two invitations at once from the same household must not both take the last place. The key is
+    // the lower-cased id, because Postgres sees both letter cases as one household.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.invite_cap'), hashtext(${householdId.toLowerCase()}))`);
     const now = ctx.now();
     const [row] = await tx
       .select({ n: count() })
