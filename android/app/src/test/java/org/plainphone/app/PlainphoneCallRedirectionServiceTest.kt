@@ -10,11 +10,13 @@ import android.os.Looper
 import android.telecom.PhoneAccountHandle
 import com.google.common.truth.Truth.assertThat
 import java.lang.reflect.Proxy
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.LocalContactPolicySource
 import org.plainphone.app.telephony.PlainphoneCallRedirectionService
+import org.plainphone.app.telephony.RecentDials
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -24,6 +26,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [30])
 class PlainphoneCallRedirectionServiceTest {
     private val service = Robolectric.buildService(PlainphoneCallRedirectionService::class.java).create().get()
+
+    @Before fun forgetDials() = RecentDials.clear()
 
     /** Connect an in-process Telecom adapter to observe the actual framework response. */
     private fun placeCall(number: String): List<String> {
