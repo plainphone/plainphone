@@ -153,7 +153,7 @@ All values come from the environment; never commit them.
 |---|---|---|
 | `BILLING_ENABLED` | `false` | Master switch. Needs `BILLING_GRANDFATHER_BEFORE`; without it billing stays off and `/api/health` lists `billing: BILLING_ENABLED needs BILLING_GRANDFATHER_BEFORE` |
 | `BILLING_GRANDFATHER_BEFORE` | | ISO time, e.g. `2027-03-01T00:00:00Z`. Households created before it keep everything free. An invalid value is dropped and reported, so billing stays off |
-| `BILLING_FREE_PHONES` | `1` | Phones on the free plan |
+| `BILLING_FREE_PHONES` | `1` | Phones on the free plan. `HOUSEHOLD_PHONE_CAP` ([operations.md](operations.md#phones-per-household)) applies on top, to every plan |
 | `BILLING_FREE_TRUSTED` | `1` | Trusted people (buddies) on the free plan |
 | `BILLING_CURRENCY` | `DKK` | Currency of the prices below |
 | `BILLING_PLUS_PRICE_MINOR` | `2900` | Shown price of the paid plan per household per month, in øre/cents |
