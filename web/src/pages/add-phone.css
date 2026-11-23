@@ -184,6 +184,13 @@
   gap: 0.25rem;
   text-align: start;
   min-height: 3rem;
+  /* Buttons do not inherit the page's type size: without this the titles are smaller than their help. */
+  font: inherit;
+  color: var(--ink);
+}
+
+.setup-options + p {
+  margin-top: 1rem;
 }
 
 /* "An iPhone" goes to its own page, so it is a link styled like the buttons. */
