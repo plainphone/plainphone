@@ -54,17 +54,18 @@ describe("phone switches", () => {
 
   it("treats a missing value as on, and shows off when the parent turned it off", () => {
     const on = renderToStaticMarkup(<PhoneSwitch {...props} phone={phone} field="silentBedtime" />);
-    expect(on).toContain("checked");
+    expect(on).toContain('role="switch"');
+    expect(on).toContain('aria-checked="true"');
     const off = renderToStaticMarkup(<PhoneSwitch {...props} phone={{ ...phone, silentBedtime: false }} field="silentBedtime" />);
-    expect(off).not.toContain("checked");
+    expect(off).toContain('aria-checked="false"');
     expect(off).toContain("One line.");
   });
 
   it("saves the one field that changed", async () => {
     vi.mocked(api.patch).mockResolvedValue({ ...phone, pinApprovalEnabled: false });
     renderToStaticMarkup(<PhoneSwitch {...props} phone={phone} field="pinApprovalEnabled" />);
-    const input = elements().find((el) => el?.type === "input" && el.props.type === "checkbox");
-    input.props.onChange({ target: { checked: false } });
+    const toggle = elements().find((el) => el?.type === "button" && el.props.role === "switch");
+    toggle.props.onClick();
     await vi.waitFor(() => expect(props.setPhone).toHaveBeenCalled());
     expect(api.patch).toHaveBeenCalledWith("/phones/p1", { pinApprovalEnabled: false });
   });

@@ -286,6 +286,21 @@ it("keeps device notices and app updates available with the health board off", (
   expect(html).not.toContain(t("health.lastSeen"));
 });
 
+it("uses switches, not checkboxes, for every on/off choice on the phone page", () => {
+  const html = renderPhone({
+    ...phone, pairedAt: phone.lastSeenAt, changeReceiptsEnabled: true, healthBoardEnabled: false, weeklySummaryEnabled: true,
+    pinApprovalEnabled: true, supportEnabled: true, releaseWarningsEnabled: false,
+  });
+  expect(html).not.toContain('type="checkbox"');
+  const switches = [...html.matchAll(/role="switch"[^>]*aria-checked="(true|false)"[^>]*aria-labelledby="([^"]+)"/g)];
+  const labelOf = (id: string) => html.match(new RegExp(`id="${id}">([^<]+)<`))?.[1];
+  const state = Object.fromEntries(switches.map(([, on, id]) => [labelOf(id!), on]));
+  expect(state).toMatchObject({
+    "Rule confirmations": "true", "Phone health": "false", "Weekly summary": "true",
+    "Support tools": "true", "Release warnings": "false",
+  });
+});
+
 const allYes = (over: Record<string, "yes" | "partial" | "no"> = {}): Phone["capabilities"] => ({
   apps: "yes", contacts: "yes", webFilter: "yes", bedtimeSilence: "yes", calmHome: "yes", phoneSettings: "yes", selfKeys: "yes", ...over,
 });
