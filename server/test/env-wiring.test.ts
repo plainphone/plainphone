@@ -18,6 +18,7 @@ const FILES: Record<File, string> = { compose: "compose.yaml", dokploy: "deploy/
 const NOT_PASSED: Record<string, { files: File[]; reason: string }> = {
   NODE_ENV: { files: ["compose", "dokploy"], reason: "the image sets production (Dockerfile)" },
   PORT: { files: ["compose", "dokploy"], reason: "the image sets 8080 and both files publish that port" },
+  HOST: { files: ["compose", "dokploy"], reason: "the container listens on every interface; HOST is for local scripts" },
   WEB_DIST: { files: ["compose", "dokploy"], reason: "the image sets the path of the built PWA it contains" },
   E2EE_PROTOTYPE_ENABLED: {
     files: ["compose", "dokploy"],

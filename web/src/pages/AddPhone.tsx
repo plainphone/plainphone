@@ -4,6 +4,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { Switch, errorMessage, errorNotice, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
+import { useLiveRefresh } from "../lib/live";
 import { encode } from "uqr";
 import { intlLocale } from "@plainphone/shared/format";
 import { lightSetupLink } from "../lib/light-setup";
@@ -593,6 +594,9 @@ function QrStep({ qr: first, progress }: { qr: Qr; progress?: { step: number; to
 
   // Wait for the phone: it pairs itself with the token as soon as setup is done.
   const [gone, setGone] = useState<"expired" | "outdated" | "removed" | null>(null);
+  const checkRef = useRef<() => Promise<void>>(undefined);
+  // The phone's first sync is a live event: show "connected" at once instead of at the next poll.
+  useLiveRefresh(["phone.status"], qr.phoneId, () => checkRef.current?.(), null, { enabled: !paired && !gone });
   useEffect(() => {
     if (paired || gone) return;
     let stop = false;
@@ -615,13 +619,14 @@ function QrStep({ qr: first, progress }: { qr: Qr; progress?: { step: number; to
         checking = false;
       }
     }
+    checkRef.current = check;
     void check();
+    // useLiveRefresh checks again when the tab comes back; the interval is the fallback.
     const id = window.setInterval(check, 4_000);
-    document.addEventListener("visibilitychange", check);
     return () => {
       stop = true;
+      checkRef.current = undefined;
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", check);
       window.clearTimeout(expiryTimer);
     };
   }, [qr.phoneId, qr.enrollmentId, qr.expiresAt, paired, gone]);

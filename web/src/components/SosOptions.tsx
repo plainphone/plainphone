@@ -18,6 +18,7 @@ export function SosOptions({ pid }: { pid: string }) {
   const [error, setError] = useState(false);
   const labelId = useId();
   const feedbackId = useId();
+  const headingId = useId();
   const settings: SosSettings = { ...DEFAULT_SOS_SETTINGS, ...res.data?.settings };
 
   /** The number goes with its confirmation; the server then decides what is on, so the page asks again. */
@@ -51,7 +52,8 @@ export function SosOptions({ pid }: { pid: string }) {
   if (!res.data) return res.error ? <p role="status">{t("hidden.unavailable")}</p> : null;
   const anyHidden = settings.hiddenPower || settings.hiddenClock;
   return (
-    <section className="section stack" aria-label={t("hidden.title")}>
+    <section className="stack-sm" aria-labelledby={headingId}>
+      <h3 className="h3" id={headingId}>{t("phone.rulesSafety")}</h3>
       <details className="form-card sos-options">
         <summary>{t("hidden.title")}</summary>
         <div className="stack">

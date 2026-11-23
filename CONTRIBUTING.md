@@ -43,6 +43,8 @@ Open <http://localhost:5173> and sign in with any address. The sign-in link appe
 
 To pair a phone or an emulator with this server, see [Your own phone app](docs/self-hosting.md#your-own-phone-app). The server tests (`pnpm --filter @plainphone/server test`) start their own embedded PostgreSQL, so they do not need Docker.
 
+To walk the whole first-time path as a new parent (site, sign-in, Add phone, a simulated phone, a rule change) in a browser, run `web/scripts/onboarding-walk.sh <output-dir>`; see [Onboarding walk](docs/testing.md#onboarding-walk). It starts its own stack on free ports. With an API on another port than 8080, `PLAINPHONE_API_URL` points `pnpm dev:web` at it.
+
 ## Setup per part
 
 The JavaScript parts are one pnpm workspace with one lockfile: `server/`, `web/`, `parent-app/` and `packages/*` (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root. `pnpm lint` there runs each package's `lint`: the TypeScript typecheck, and ESLint in the parent app. The web app and the parent app import shared copy, logic and API types from `packages/` (`@plainphone/i18n`, `@plainphone/shared`, `@plainphone/api-client`); change them there, never in a copy.
