@@ -5,6 +5,7 @@ import { toLocale } from "../lib/locale.js";
 import { phoneAlertMail } from "../lib/mail-templates.js";
 import { parentPushEnabled } from "../providers/parent-push.js";
 import { countPushFailure } from "./latency-metrics.js";
+import { isMailUnavailable } from "./mail-cap.js";
 import { deliverablePushSubscription, discardGonePushSubscription, recordFailedPush } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";
 import { phoneAlertRecipients, pushMessage } from "./notifications.js";
@@ -118,14 +119,15 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
           await ctx.mail.send(phoneAlertMail(recipient.email, locale, ctx.cfg.PUBLIC_URL, { kind: "protection", ...event }));
         }
       }
-    } catch {
+    } catch (err) {
       const now = ctx.now();
       if (now.getTime() - notice.createdAt.getTime() >= MAX_LIFETIME_MS) {
         console.error(`setup undo notice dropped after ${notice.attempts + 1} failed attempts`);
         await ctx.db.delete(setupUndoNotices).where(claim);
         continue;
       }
-      console.error("setup undo notice delivery failed; will retry");
+      // The mail cap logs once an hour and a 4xx once per mail; no second line for those.
+      if (!isMailUnavailable(err)) console.error("setup undo notice delivery failed; will retry");
       await ctx.db.update(setupUndoNotices)
         .set({ attempts: notice.attempts + 1, nextAttemptAt: new Date(now.getTime() + retryDelayMs(notice.attempts)) })
         .where(claim);

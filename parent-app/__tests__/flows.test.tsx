@@ -98,6 +98,22 @@ describe("logging in", () => {
     }
   });
 
+  it("says to try again in a little while when the server cannot send mail right now", async () => {
+    fakeApi({
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "POST /auth/request": {
+        status: 503,
+        body: { error: "no mail", code: "mail_unavailable", retryAt: "2026-11-22T13:00:00.000Z" },
+      },
+    });
+    await renderRouter(routes, { initialUrl: "/login" });
+    await fireEvent.changeText(await screen.findByLabelText("Email address"), "new@example.org");
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("We can't send mail right now. Try again in a little while.")).toBeTruthy();
+    expect(screen.queryByText("Check your mail")).toBeNull();
+    expect(screen.queryByText("Full for today")).toBeNull();
+  });
+
   it("uses the selected server for sign-in and can return to the hosted service", async () => {
     const custom = "https://plainphone.example.org";
     const api = fakeApi({

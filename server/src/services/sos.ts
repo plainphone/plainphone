@@ -84,7 +84,8 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
         const locale = toLocale(member.locale);
         const message = pushMessage(event, locale);
         try {
-          await withTimeout(ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body)), sendTimeout);
+          // Urgent: sent even at the mail cap (services/mail-cap.ts).
+          await withTimeout(ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body), { urgent: true }), sendTimeout);
           mailedAt = ctx.now();
           await record({ mailedAt });
         } catch {

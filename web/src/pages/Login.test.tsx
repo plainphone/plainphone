@@ -149,6 +149,16 @@ it("explains calmly when the hosted service has taken today's new families", asy
   expect(container.textContent).not.toContain("Too many");
 });
 
+it("says to try again in a little while when the server cannot send mail right now", async () => {
+  post.mockRejectedValue(new ApiError(503, "no mail", [], { code: "mail_unavailable", error: "no mail" }));
+  await mount();
+  await type("email", "new@example.org");
+  await submit();
+  expect(container.textContent).toContain("We can't send mail right now. Try again in a little while.");
+  expect(container.querySelector('[data-testid="signup-capped"]')).toBeNull();
+  expect(container.textContent).not.toContain("Check your mail");
+});
+
 it("still shows the usual error for other refusals", async () => {
   post.mockRejectedValue(new ApiError(429, "slow down"));
   await mount();

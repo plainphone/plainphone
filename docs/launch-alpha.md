@@ -63,7 +63,7 @@ What exists today, from the code:
 - **Sign-in** is by a link sent by mail (`POST /api/auth/request` in `server/src/routes/parent.ts`). Limits: 20 requests per IP per hour and 5 per email address per hour. Verifying a link: 30 per 15 minutes. All three are counted in the database.
 - **The limits on paths that mail someone or create something** are counted in the database too (`DbRateLimiter` in `server/src/services/rate-limits.ts`, #270 and this change): pairing starts (10 per IP per hour), claiming a code (20 per 15 minutes), setup enrolment (30 per user per day from the dashboard, 20 per IP per hour on the phone), invitations (20 per user and 3 per recipient per day, plus `INVITES_PER_HOUSEHOLD_DAILY`) and extended-family links. They survive restarts and add up across processes ([operations.md](operations.md#rate-limits-in-the-database)).
 - **The rest live in memory in one process** (`RateLimiter` in `server/src/lib/http.ts`), for example location requests (30 per hour), "more time" requests (6 per hour), a phone polling a pairing code and failed store review sign-ins. They sit behind a session or a phone's token, or fire many times a minute; [operations.md](operations.md#rate-limits-in-the-database) lists them.
-- **New households per day** can be capped with `SIGNUP_DAILY_CAP` (off by default, [operations.md](operations.md#daily-cap-on-new-households)). A new address that would go over the cap gets "Full for today" and no mail. There is still no overall cap on mail sent per hour or day.
+- **New households per day** can be capped with `SIGNUP_DAILY_CAP` (off by default, [operations.md](operations.md#daily-cap-on-new-households)). A new address that would go over the cap gets "Full for today" and no mail. An overall cap on mail per UTC hour and day (`MAIL_HOURLY_CAP`, `MAIL_DAILY_CAP`, off by default, [operations.md](operations.md#mail-caps)) stops the server before the mail provider does: a sign-in at the cap, or one the provider refuses for now (SMTP 4xx), gets "try again in a little while" instead of an error, and SOS mail always goes out.
 - **Resources:** [deploy/dokploy-compose.yaml](../deploy/dokploy-compose.yaml) limits the app container to 768 MB and Postgres to 1 GB, and the database pool is 10 connections (`server/src/db/client.ts`).
 - **Monitoring:** Uptime Kuma checks app health, DNS port 853, a DoT self-test every 5 minutes, the website and the backups. The public status page is <https://status.plainphone.org> ([operations.md](operations.md#monitoring-and-the-public-status-page)). Delivery speed has a Grafana dashboard in [deploy/grafana/](../deploy/grafana/) ([latency.md](latency.md)).
 
@@ -78,7 +78,7 @@ What is not known:
 
 | Item | State | Evidence |
 |---|---|---|
-| The mail provider's daily and hourly send limit, and what happens when it is reached | Missing | Not in the repo (provider settings are deploy configuration). Sign-in fails for everyone if the limit is hit. Issue draft L1 |
+| The mail provider's daily and hourly send limit, and what happens when it is reached | Partly | What happens is handled in the server: `MAIL_HOURLY_CAP` and `MAIL_DAILY_CAP` stop it before the provider does, and a provider's temporary refusal (SMTP 4xx) gets "try again" instead of a `500` ([operations.md](operations.md#mail-caps), #240). The provider's real limits, and the caps to set from them on the hosted service, are deploy configuration and still to be looked up. Issue L1 |
 | A cap or alarm on new sign-ups per day | Done | `SIGNUP_DAILY_CAP` ([operations.md](operations.md#daily-cap-on-new-households)), #241. Phones per household: `HOUSEHOLD_PHONE_CAP` ([operations.md](operations.md#phones-per-household)) |
 | A load test at 500 households and phones | Done | `scripts/load-test.sh`, results and limits in [operations.md](operations.md#capacity), #242. Measured on a test machine, not the production host |
 | An alert on 5xx rate and slow responses for the app | Partly | Uptime Kuma checks that `/api/health` answers ([operations.md](operations.md)). Alerts on error rate and response time are not documented in the repo. Issue draft L4 |
@@ -167,13 +167,15 @@ Labels: `documentation`, `question`
 
 Labels: `question`
 
-> Sign-in is by mail only. Every sign-in from a new address sends one mail, and there is no cap on mail in the server. If the provider's hourly or daily limit is reached, nobody can sign in.
+> Sign-in is by mail only. Every sign-in from a new address sends one mail, and there was no cap on mail in the server (there is now, see State below). If the provider's hourly or daily limit is reached, nobody can sign in.
 >
 > - Find the provider's hourly and daily limits and the current daily volume.
 > - Decide what is enough for a launch day (for example 500 new people, each signing in on two devices).
 > - Add an alert when sending fails or nears the limit, and say in `docs/operations.md` what to do.
 >
 > This touches deploy configuration and the hosted service, so it is not repository work only.
+
+State (#240): the server side is done. `MAIL_HOURLY_CAP` and `MAIL_DAILY_CAP` cap all mail in the database, sign-in at the cap or after a provider's temporary refusal says "We can't send mail right now. Try again in a little while.", SOS always goes out, and `/api/metrics` has the counts, the caps and the refusals to alert on ([operations.md](operations.md#mail-caps), with how to choose the numbers and a launch-day estimate of about 1,000 sign-in mails). Still open, on the hosted service: look up the Stalwart server's (and any relay's) hourly and daily limits and current volume, set the two caps from them, and add the alerts in Grafana.
 
 ### L2. Add a switchable daily cap on new accounts for the hosted service
 
