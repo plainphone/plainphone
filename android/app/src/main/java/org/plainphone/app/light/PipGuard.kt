@@ -56,6 +56,21 @@ object PipGuard {
     const val EXPAND_QUIET_MS = 5_000L
 
     /**
+     * When the guard looks again after dismissing a blocked window, without waiting for a window event.
+     * Android 10's System UI shows its close menu for 3.5 s once a window has floated in, and while the
+     * menu shows it takes no dismiss: the menu unregisters the input consumer, and with it the
+     * connection that answers for the pinned window (AOSP 10: PipTouchHandler
+     * .onPinnedStackAnimationEnded, PipMenuActivity.INITIAL_DISMISS_DELAY, PipMenuActivityController
+     * .onMenuStateChanged, PipTouchHandler.onRegistrationChanged). A dismiss System UI accepted only
+     * removes the window a moment later. Emulator runs 45135133026 and 45133584798 (API 29): the
+     * window floated on over its stop screen, as nothing changed until the guard's next tick.
+     */
+    val RECHECK_DELAYS_MS = listOf(500L, 1_000L, 2_000L, 4_000L, 8_000L)
+
+    /** The wait before re-check number [done] + 1, or null once they are all used up. */
+    fun recheckDelay(done: Int): Long? = RECHECK_DELAYS_MS.getOrNull(done)
+
+    /**
      * Whose app a picture-in-picture window shows. Its root names the app, except on Android 10,
      * where System UI answers for a pinned window and lays its menu over it, so the window reads as
      * System UI, and where a window can have no root while it enters picture-in-picture. The app is

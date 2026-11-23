@@ -114,9 +114,30 @@ class PipGuardTest {
         val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
         val dismissals = { shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS } }
         assertEquals(1, dismissals())
+        // Re-checks at 0.5 s and 1.5 s, without a window event (runs 45135133026 and 45133584798).
         shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals("looked again without a window event", 3, dismissals())
         windowsChanged()
-        assertEquals(2, dismissals())
+        assertEquals(4, dismissals())
+        assertEquals(1, homeActions())
+    }
+
+    @Test fun `a window that floats on is looked at a bounded number of times, then the app is expanded once`() {
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(60))
+        assertEquals(
+            "the first dismiss and one per re-check",
+            1 + PipGuard.RECHECK_DELAYS_MS.size,
+            shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS },
+        )
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals("expanded once, after the last re-check", 1, starts.count { it.component?.packageName == game })
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
         assertEquals(1, homeActions())
     }
 
