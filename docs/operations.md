@@ -378,3 +378,82 @@ receipts) stay in each process's memory.
 - The `403`, `422` and `429` rates on `/api/auth/request` in the Traefik numbers in Grafana.
 - If real people report "the security check did not work", look for a clock that is far off
   on the server (the expiry is checked against it) or a proxy that caches `/api/auth/challenge`.
+
+## Capacity
+
+How many phones one app container carries, measured with `scripts/load-test.sh` (#242). It
+builds the production image and starts it with `deploy/dokploy-compose.yaml` and its limits
+(768 MB app, Postgres 18 with 1 GB, a pool of 10 database connections), seeds synthetic
+households (`scripts/load/seed.sql`: names like "Load 12", `@example.invalid` addresses,
+555-01xx numbers) and runs `server/test/load-sync.ts`. It never talks to a real server.
+
+Each simulated phone does what the Android app does with the screen on: `GET /api/device/rules`
+with its `ETag` and then `PUT /api/device/status`, once a minute at its own second of the minute.
+It also keeps `GET /api/device/update-request` open the whole time, and a simulated push wake-up
+(a parent change, 4 per phone per hour) triggers an extra sync without the `ETag`, so the server
+sends the full rules. Every third phone shares its position every 5 minutes. The burst phase
+restarts the app and then sends every phone's sync and long request at the same moment, which
+is the worst case after a restart or a change that wakes every phone.
+
+```sh
+scripts/load-test.sh 500 10 3                  # phones, steady minutes, burst minutes
+DB_POOL_MAX=20 scripts/load-test.sh 2000 6 2   # with a larger pool
+```
+
+The JSON per phase lands in `load-results/` (git-ignored), with a timeline of app memory, CPU
+and database connections every 2 seconds. `scripts/bench-server.sh` is the in-process
+micro-benchmark of a `304` rules fetch.
+
+### Result (23 November 2026)
+
+Measured on a 16-vCPU AMD EPYC (Rome) VM with 31 GB RAM that other jobs were also using. **This
+is not the production host.** The load generator ran on the same machine (5 to 17 % of one core),
+and there was no Traefik or TLS in front. Treat the numbers as a ratio to scale from, not as
+the production figures. Two 500-phone runs gave a `/rules` p95 of 19 and 47 ms; the table shows
+the second one.
+
+| Run | Requests | `/rules` p50 / p95 / p99 | `/status` p50 / p95 | Errors | App memory (RSS), limit 768 MB | App CPU (1 core = 100 %) | DB connections in use (peak) |
+|---|---|---|---|---|---|---|---|
+| 500 phones, 10 min steady | 528 rules/min | 11.5 / 19.1 / 36 ms | 11.6 / 19.8 ms | 0 | 180 MiB, flat | 20 % average | 11 open, 10 active at most |
+| 500 phones, burst after restart | 500 at once | all synced after 6.6 s | | 0 | 213 MiB | 150 % peak | 11 open, 7 active |
+| 2,000 phones, 6 min steady | 2,122 rules/min | 18 / 105 / 629 ms | 20 / 89 ms | 0 | 261 MiB | 68 % average | pool full (10 of 10) |
+| 2,000 phones, burst | 2,000 at once | all synced after 23 s | | 5 % of long requests timed out once | 443 MiB | 172 % peak | pool full |
+| 2,000 phones, steady, `DB_POOL_MAX=20` | 2,122 rules/min | 14 / 108 / 232 ms | 16 / 139 ms | 0 | 256 MiB | 64 % average | 20 of 20 |
+| 2,000 phones, burst, `DB_POOL_MAX=20` | 2,000 at once | 95 % synced after 24 s | | 1.7 % of rules fetches failed once (`fetch failed`) | 357 MiB | 172 % peak | 20 of 20 |
+
+"Open" counts the pool plus the one connection that listens for live updates. `bench-server.sh`
+gives about 210 `304` answers a second in one process (5 ms of Node CPU each), with the same rate
+at 8 and 32 clients.
+
+### The bottleneck
+
+500 households are well within one container: about a fifth of a core, a quarter of the memory
+limit, and `/rules` under 50 ms for 95 % of requests. Memory stayed flat over 10 minutes, so
+nothing grows without bound.
+
+The first limit is the app's single Node.js thread. Every `/rules` request builds the whole rules
+document from 17 small queries and hashes it, also when the answer is `304`: the `ETag` is a hash
+of the document. That is about 5 ms of CPU per fetch, most of it building SQL in the query
+library and talking to Postgres, with no single hot spot in Plainphone's code. Around 2,000 phones
+with the screen on, the thread averages two thirds of a core and the slowest 1 % of fetches take
+more than half a second. A burst is bound by the same thread: 500 phones at once are served in
+about 7 seconds and 2,000 in about 23, with a pool of 10 or 20 alike.
+
+The pool of 10 is the second limit: at 2,000 phones all ten connections are busy at peaks.
+Twenty connections cut the slowest 1 % of fetches from 629 to 232 ms but do not make a burst
+faster. Postgres itself used under half a core and 160 MB of its 1 GB.
+
+The load test found no N+1 query or missing index on the sync path: each query there reads by an indexed key (the phone, its household or the token hash).
+
+### What to raise, and when
+
+| When | Change | How |
+|---|---|---|
+| Up to about 1,500 phones with the screen on at the same time | Nothing | The defaults carry it |
+| Beyond that, or when the slowest 1 % of `/api/device/rules` passes 250 ms | A pool of 20 | Set `DB_POOL_MAX=20` for the app in Dokploy and redeploy (`deploy/dokploy-compose.yaml` passes it). During a deploy the old and new container are both connected, so keep twice the pool plus 2 under Postgres' `max_connections` (100 by default). Self-hosted: the same variable in `.env` |
+| When the app's CPU stays near one core, about 2,000 phones or more | More than one Node process, or a cheaper `304` | Not a setting yet: a second app container behind Traefik works for live updates (they go through Postgres, [live-updates.md](live-updates.md)), but in-memory rate limits and the phone-update wake-up (`/api/device/update-request`) are per process, so a phone held by the other process hears an update request at its next rules sync instead (at most a minute with the screen on). A `304` that skips building the document needs a per-phone rules version. Both need their own change |
+| Memory | Nothing | 443 MiB at the 2,000-phone burst against the 768 MB limit. Memory follows the requests in flight, not the number of households |
+
+What to watch: the app container's CPU and memory in Grafana, and the p95 and p99 of
+`/api/device/rules` in the Traefik numbers. Rerun `scripts/load-test.sh` after a change to the
+sync path or the rules document, and update this section.

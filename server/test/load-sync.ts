@@ -63,7 +63,8 @@ async function call(name: string, path: string, init: RequestInit & { token: str
   } catch (err) {
     if (init.cutAt !== undefined && performance.now() >= init.cutAt - 5) return null;
     record(name, performance.now() - start, 0);
-    const key = `${name}: ${(err as Error).name}`;
+    const cause = (err as { cause?: { code?: string } }).cause?.code;
+    const key = `${name}: ${(err as Error).name}${cause ? ` (${cause})` : ""}`;
     errors.set(key, (errors.get(key) ?? 0) + 1);
     return null;
   }
