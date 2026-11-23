@@ -65,6 +65,7 @@ The root scripts `pnpm build`, `pnpm typecheck`, `pnpm lint` and `pnpm test` run
 | `dns/` | Python 3, Docker for the full stack | `python3 -m unittest discover -s dns/tests -p 'test_ppdns.py'` and `dns/tests/run-stack.sh` |
 | `site/` | Node only, no dependencies | `node build.mjs` and `npm run check` in `site/` |
 | `scripts/` | Python 3 | `python3 -m unittest scripts/test_provisioning_qr.py` |
+| `*.md` | Node only, no dependencies | `node scripts/check-markdown-links.mjs` checks every relative link and `#anchor` (external links are not checked) |
 
 CI selects which checks to run based on the files changed in each pull request. Checks for unaffected areas report success after skipping their build and test steps. In the server and parent app jobs, Turborepo replays the tasks whose inputs did not change from a cache that CI keeps between runs. See [CI and builds](docs/ci-build.md) for the workflow details.
 

@@ -48,6 +48,14 @@ export const help = {
           "In strong mode, Plainphone uses Android Private DNS. A VPN can use its own DNS instead. Disconnect it to check whether the filter starts working again.",
         ],
       },
+      {
+        id: "limitations",
+        title: "Something gets past the filter or the lock",
+        body: [
+          "No filter catches everything, and some things cannot be blocked by any app, such as a factory reset from recovery mode or the chats inside messenger apps. The <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/limitations.md\">known limitations</a> list what Plainphone cannot block today in strong and light mode.",
+          "If you found a way around the lock that is not on that list, please report it privately as described in <a href=\"https://github.com/plainphone/plainphone/blob/main/SECURITY.md\">SECURITY.md</a>, not in public on GitHub.",
+        ],
+      },
     ],
     contact: "Contact support",
     contactText: "Describe what you tried and what happened. You can paste the diagnostics from Maintenance or the dashboard. Leave out names, account details and other personal information.",
@@ -96,6 +104,14 @@ export const help = {
         body: [
           "I let tilstand bruger webfilteret Androids VPN-forbindelse. Android tillader én aktiv VPN pr. profil. Afbryd den anden VPN, slå Altid aktiv VPN fra for den, hvis den er slået til, og åbn Plainphone for at slå webfilteret til igen. Skal den anden VPN blive ved med at køre, kan Plainphone bruge Androids private DNS til webfilteret i stedet. I dashboardet eller forældreappen åbner du telefonens Webfilter og slår Privat DNS til. Ved første opsætning vælger du det, når Plainphone spørger om en anden VPN.",
           "I stærk tilstand bruger Plainphone Androids Private DNS. En VPN kan bruge sin egen DNS. Afbryd den for at se, om filteret virker igen.",
+        ],
+      },
+      {
+        id: "limitations",
+        title: "Noget slipper forbi filteret eller låsen",
+        body: [
+          "Intet filter fanger alt, og nogle ting kan ingen app blokere, fx en fabriksnulstilling fra gendannelsestilstand eller samtaler inde i beskedapps. Siden med <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/limitations.md\">kendte begrænsninger</a> (på engelsk) viser, hvad Plainphone ikke kan blokere i dag i stærk og let tilstand.",
+          "Har du fundet en vej uden om låsen, som ikke står på listen, så meld den privat som beskrevet i <a href=\"https://github.com/plainphone/plainphone/blob/main/SECURITY.md\">SECURITY.md</a> og ikke offentligt på GitHub.",
         ],
       },
     ],
