@@ -271,6 +271,23 @@ h1:focus {
   border-bottom-color: var(--accent);
 }
 
+/* On a phone the tabs stay on one line and scroll sideways, instead of one tab wrapping onto a
+   row of its own. The padding keeps the focus outline inside the scrolling box. */
+@media (max-width: 40rem) {
+  .main-nav ul {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 5px;
+    margin: -5px;
+  }
+
+  .main-nav a {
+    padding: 0 0.5rem;
+    white-space: nowrap;
+  }
+}
+
 .count {
   display: inline-grid;
   place-items: center;
