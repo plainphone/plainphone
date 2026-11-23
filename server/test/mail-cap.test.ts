@@ -127,7 +127,7 @@ describe("overall mail cap", () => {
     const text = await mailMetricsText(h.ctx);
     expect(text).toContain('plainphone_mail_counted{window="hour"} 1');
     expect(text).toContain('plainphone_mail_cap{window="day"} 50');
-    expect(text).toMatch(/plainphone_mail_sent_total \d+/);
+    expect(text).toMatch(/plainphone_mail_total\{outcome="sent"\} \d+/);
   });
 });
 

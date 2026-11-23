@@ -383,9 +383,9 @@ On `/api/metrics`:
 
 - `plainphone_mail_counted{window="hour"|"day"}` against `plainphone_mail_cap`: alert at 80%
   of either cap.
-- `plainphone_mail_refused_total{reason="cap"}` and `{reason="provider"}`: alert on any rise.
+- `plainphone_mail_total{outcome="cap"}` and `{outcome="provider"}`: alert on any rise.
   A rise in `provider` with the cap not reached means the provider's limit is lower than the cap.
-- `plainphone_mail_sent_total`: mails handed to the mail server since start-up.
+- `plainphone_mail_total{outcome="sent"}`: mails handed to the mail server since start-up.
 
 Set `0` (or leave empty) to switch a cap off again.
 

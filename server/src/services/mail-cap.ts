@@ -128,18 +128,26 @@ export class CappedMailProvider implements MailProvider {
     return this.inner.canSend;
   }
 
-  async send(mail: Mail, opts: SendOptions = {}): Promise<void> {
-    await takeMailSlot(this.ctx, opts.urgent ?? false);
-    try {
-      await this.inner.send(mail, opts);
-    } catch (err) {
-      if (err instanceof MailUnavailableError && err.reason === "provider") {
-        counter(this.ctx).provider++;
-        console.warn(`mail server refused for now (SMTP ${err.smtpCode})`);
-      }
-      throw err;
-    }
-    counter(this.ctx).sent++;
+  send(mail: Mail, opts: SendOptions = {}): Promise<void> {
+    // With the caps off the caller gets the provider's own promise: no extra wait, not even a tick.
+    if (!mailCapOn(this.ctx)) return this.watch(this.inner.send(mail, opts));
+    return takeMailSlot(this.ctx, opts.urgent ?? false).then(() => this.watch(this.inner.send(mail, opts)));
+  }
+
+  /** Counts and logs the outcome on the side; the caller still gets the result as it is. */
+  private watch(sending: Promise<void>): Promise<void> {
+    Promise.resolve(sending).then(
+      () => {
+        counter(this.ctx).sent++;
+      },
+      (err: unknown) => {
+        if (err instanceof MailUnavailableError && err.reason === "provider") {
+          counter(this.ctx).provider++;
+          console.warn(`mail server refused for now (SMTP ${err.smtpCode})`);
+        }
+      },
+    );
+    return sending;
   }
 }
 
@@ -158,13 +166,11 @@ export async function mailMetricsText(ctx: Ctx): Promise<string> {
   const c = counter(ctx);
   const now = mailCapOn(ctx) ? await mailsCounted(ctx) : { hour: 0, day: 0 };
   return [
-    "# HELP plainphone_mail_sent_total Mails handed to the mail server since start-up.",
-    "# TYPE plainphone_mail_sent_total counter",
-    `plainphone_mail_sent_total ${c.sent}`,
-    "# HELP plainphone_mail_refused_total Mails not sent since start-up: the server's own cap, or a temporary (4xx) refusal by the mail server.",
-    "# TYPE plainphone_mail_refused_total counter",
-    `plainphone_mail_refused_total{reason="cap"} ${c.cap}`,
-    `plainphone_mail_refused_total{reason="provider"} ${c.provider}`,
+    "# HELP plainphone_mail_total Mails since start-up: sent, refused at the server's own cap, or refused for now (4xx) by the mail server.",
+    "# TYPE plainphone_mail_total counter",
+    `plainphone_mail_total{outcome="sent"} ${c.sent}`,
+    `plainphone_mail_total{outcome="cap"} ${c.cap}`,
+    `plainphone_mail_total{outcome="provider"} ${c.provider}`,
     "# HELP plainphone_mail_counted Mails counted towards the cap in the current UTC hour and day (0 while no cap is set).",
     "# TYPE plainphone_mail_counted gauge",
     `plainphone_mail_counted{window="hour"} ${now.hour}`,

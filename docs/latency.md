@@ -132,7 +132,7 @@ are in [self-hosting.md](self-hosting.md#watching-delivery-speed).
 | `plainphone_latency_ms` | `path`, `provider`, `kind`, `window`, `quantile` (`0.5`, `0.95`) | Delivery time in milliseconds. Paths as above: `phone-server` (with `kind` `sos`, `quick`, `callback`), `server-parent`, `parent-device`, `server-child`. |
 | `plainphone_latency_samples` | `path`, `provider`, `kind`, `window` | How many timings the numbers rest on. |
 | `plainphone_push_failures_total` | `provider` | Pushes that failed since the server started (counter): alerts to parents, and wake-ups of child phones (`fcm`, `unifiedpush`). |
-| `plainphone_mail_sent_total`, `plainphone_mail_refused_total` | `reason` (`cap`, `provider`) on refused | Mails handed to the mail server, and mails not sent because of the server's mail cap or a temporary (4xx) refusal by the mail server, since start-up ([operations.md](operations.md#mail-caps)). |
+| `plainphone_mail_total` | `outcome` (`sent`, `cap`, `provider`) | Mails handed to the mail server, and mails not sent because of the server's mail cap or a temporary (4xx) refusal by the mail server, since start-up ([operations.md](operations.md#mail-caps)). |
 | `plainphone_mail_counted`, `plainphone_mail_cap` | `window` (`hour`, `day`) | Mails counted towards the cap in the current UTC hour and day, and `MAIL_HOURLY_CAP` / `MAIL_DAILY_CAP` (`0`: no cap). |
 
 `provider` is `fcm`, `apns`, `webpush`, `unifiedpush` or `poll`; `window` is `1h` or `24h`. Samples
