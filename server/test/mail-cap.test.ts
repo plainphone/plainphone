@@ -9,6 +9,7 @@ import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { createDb } from "../src/db/client.js";
 import { magicLinks } from "../src/db/schema.js";
+import { withTimeout } from "../src/lib/http.js";
 import { MailUnavailableError, SmtpMailProvider, smtpError, type Mail } from "../src/providers/mail.js";
 import { CappedMailProvider, mailMetricsText, mailsCounted } from "../src/services/mail-cap.js";
 import type { Ctx } from "../src/services/context.js";
@@ -217,7 +218,53 @@ describe("overall mail cap", () => {
     await expect(h.ctx.mail.send(other)).rejects.toBeInstanceOf(MailUnavailableError);
     await h.ctx.mail.send({ ...other, subject: "SOS" }, { urgent: true });
     expect(h.mail.outbox.map((m) => m.subject)).toEqual(["Alert", "SOS"]);
-    expect(await mailsCounted(h.ctx)).toEqual({ hour: 2, day: 2 });
+    // Counted afterwards, on the side.
+    await vi.waitFor(async () => expect(await mailsCounted(h.ctx)).toEqual({ hour: 2, day: 2 }));
+  });
+
+  it("sends an SOS when the count cannot reach the database, and logs it without addresses", async () => {
+    setCaps(1);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const down = () => {
+      throw Object.assign(new Error("connection lost"), { code: "08006" });
+    };
+    vi.spyOn(h.ctx.db, "transaction").mockImplementation(down);
+    vi.spyOn(h.ctx.db, "select").mockImplementation(down);
+    vi.spyOn(h.ctx.db, "insert").mockImplementation(down);
+
+    await h.ctx.mail.send({ ...other, subject: "SOS" }, { urgent: true });
+    expect(h.mail.outbox.map((m) => m.subject)).toEqual(["SOS"]);
+    await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(1));
+    expect(String(error.mock.calls[0]![0])).toContain("08006");
+    expect(error.mock.calls.flat().join(" ")).not.toContain("@");
+  });
+
+  it("sends an SOS without waiting while another transaction holds the cap's lock and the only connection", async () => {
+    const copy = await createTestDatabase();
+    const small = createDb(copy.url, 1);
+    try {
+      const ctx: Ctx = { ...h.ctx, db: small.db, cfg: { ...h.ctx.cfg, MAIL_HOURLY_CAP: 5 } };
+      const mail = new CappedMailProvider(ctx, h.mail);
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      const locked = new Promise<void>((resolve) => {
+        void small.db.transaction(async (tx) => {
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.mail_cap'))`);
+          resolve();
+          await held;
+        });
+      });
+      await locked;
+      // The send must not need the lock or a connection: a wait here would time the test out.
+      await withTimeout(mail.send({ ...other, subject: "SOS" }, { urgent: true }), 1_000);
+      expect(h.mail.outbox.map((m) => m.subject)).toEqual(["SOS"]);
+      // Once the other transaction is over, the SOS is still counted.
+      release();
+      await vi.waitFor(async () => expect(await mailsCounted(ctx)).toEqual({ hour: 1, day: 1 }));
+    } finally {
+      await small.sql.end();
+      await copy.drop();
+    }
   });
 
   it("still mails the parents an SOS from the phone at the cap, and counts it", async () => {
@@ -231,7 +278,7 @@ describe("overall mail cap", () => {
 
     expect((await device.post("/api/device/sos", { id: randomUUID(), kind: "urgent" })).status).toBe(200);
     await vi.waitFor(() => expect(h.mail.outbox.slice(before).map((m) => m.to)).toEqual(["parent@example.org"]));
-    expect(await mailsCounted(h.ctx)).toEqual({ hour: 2, day: 2 });
+    await vi.waitFor(async () => expect(await mailsCounted(h.ctx)).toEqual({ hour: 2, day: 2 }));
   });
 
   it("keeps an invitation at the cap and hands the inviter the link instead", async () => {

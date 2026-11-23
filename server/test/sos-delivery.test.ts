@@ -131,6 +131,41 @@ it("bounds a hung mail provider and never repeats a push that already went out",
   }
 });
 
+it("lets a timed-out SOS mail finish, records it, and never sends it twice", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  const id = randomUUID();
+  let finish!: () => void;
+  // The first try fails at once; the second is slow and gets through after its attempt timed out.
+  const mail = vi.spyOn(h.mail, "send")
+    .mockRejectedValueOnce(new Error("unavailable"))
+    .mockImplementationOnce((m) => new Promise<void>((resolve) => (finish = () => { h.mail.outbox.push(m); resolve(); })));
+  const retry = async () => {
+    await h.ctx.db.update(sosEvents).set({ notificationLeaseUntil: null }).where(eq(sosEvents.id, id));
+    await deliverSos(h.ctx, id, phoneId, { sendTimeoutMs: 50 });
+  };
+  const before = h.mail.outbox.length;
+  try {
+    expect((await device.post("/api/device/sos", { id, kind: "urgent" })).status).toBe(200);
+    await waitForSosRetryBackoff(h, id);
+    await retry(); // the slow send starts and outlives the 50 ms
+    expect(mail).toHaveBeenCalledTimes(2);
+    expect(await h.ctx.db.select().from(sosDeliveries)).toEqual([]);
+    await retry(); // still with the mail server: waited for, not sent again
+    expect(mail).toHaveBeenCalledTimes(2);
+
+    finish();
+    await vi.waitFor(async () => expect((await h.ctx.db.select().from(sosDeliveries))[0]?.mailedAt).toBeTruthy());
+    await retry(); // the late mail counts: the parent is reached and the incident closes
+    expect(mail).toHaveBeenCalledTimes(2);
+    expect(h.mail.outbox.slice(before).map((m) => m.to)).toEqual(["parent@example.org"]);
+    const [event] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
+    expect(event!.notificationClaimedAt).not.toBeNull();
+  } finally {
+    mail.mockRestore();
+  }
+});
+
 it("counts the final timeout from when the server received the report, not the phone's own clock", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });

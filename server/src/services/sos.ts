@@ -28,6 +28,27 @@ const RETRY_MS = 60_000;
 /** After this long the incident is closed as undelivered and shown as such in the dashboard. */
 export const SOS_GIVE_UP_MS = 6 * 3_600_000;
 
+/** Per process: SOS mails still with the mail server, by phone, event and parent. */
+const mailsInFlight = new WeakMap<Ctx, Map<string, Promise<Date>>>();
+
+/**
+ * Runs one SOS mail per parent at a time. A send cannot be called back once it is with the mail
+ * server, so a send that outlives the attempt's timeout is not abandoned: it goes on, records
+ * `mailedAt` itself if it gets through, and a retry meanwhile waits for it instead of sending a
+ * second mail. If it fails, the next retry sends again, so an SOS mail is never lost. Another
+ * process takes over only after the retry backoff, by which time the SMTP timeouts
+ * (providers/mail.ts) have normally ended the send.
+ */
+function mailOnce(ctx: Ctx, key: string, send: () => Promise<Date>): Promise<Date> {
+  let inFlight = mailsInFlight.get(ctx);
+  if (!inFlight) mailsInFlight.set(ctx, (inFlight = new Map()));
+  const running = inFlight.get(key);
+  if (running) return running;
+  const sending = send().finally(() => inFlight.delete(key));
+  inFlight.set(key, sending);
+  return sending;
+}
+
 function readyForDelivery(now: Date) {
   return and(isNull(sosEvents.notificationClaimedAt),
     or(isNull(sosEvents.notificationLeaseUntil), lte(sosEvents.notificationLeaseUntil, now)));
@@ -84,10 +105,13 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
         const locale = toLocale(member.locale);
         const message = pushMessage(event, locale);
         try {
-          // Urgent: sent even at the mail cap (services/mail-cap.ts).
-          await withTimeout(ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body), { urgent: true }), sendTimeout);
-          mailedAt = ctx.now();
-          await record({ mailedAt });
+          // Urgent: sent at once, also at the mail cap (services/mail-cap.ts).
+          mailedAt = await withTimeout(mailOnce(ctx, `${phoneId}:${id}:${member.id}`, async () => {
+            await ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body), { urgent: true });
+            const at = ctx.now();
+            await record({ mailedAt: at });
+            return at;
+          }), sendTimeout);
         } catch {
           failed = true;
         }

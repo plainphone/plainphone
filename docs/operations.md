@@ -351,6 +351,11 @@ What people see at the cap:
   undo notices are tried again later.
 - **SOS** is always sent, also at the cap. It still counts. This exemption is on purpose: a parent
   must always be reachable, so the cap never stops an SOS, even if it pushes the count past the cap.
+  An SOS goes to the mail server first and is counted afterwards, on the side, so it never waits
+  for the count, and a count that fails (database down) is logged and does not stop the mail.
+  An SOS mail that takes longer than the 20-second send timeout is not abandoned: it is left to
+  finish and recorded when it gets through, and the retry waits for it instead of sending a second
+  mail.
 
 The mail server's own refusals: a temporary answer (SMTP `4xx`, for example `421`, `450`, `451`
 or `452`, which is how most servers say "rate limited") gets the same `503 mail_unavailable` on
