@@ -29,7 +29,7 @@ const RETRY_MS = 60_000;
 export const SOS_GIVE_UP_MS = 6 * 3_600_000;
 
 /** One SOS mail to one parent: the send still with the mail server, and when it was accepted. */
-interface MailSend { pending?: Promise<Date>; sentAt?: Date; settled: boolean }
+interface MailSend { pending?: Promise<Date>; sentAt?: Date; recorded?: boolean; settled: boolean }
 /** Per process: SOS mails still with the mail server or not yet recorded, by phone, event and parent. */
 const mailsInFlight = new WeakMap<Ctx, Map<string, MailSend>>();
 
@@ -60,6 +60,7 @@ function mailOnce(
         entry.sentAt = ctx.now();
       }
       await record(entry.sentAt);
+      entry.recorded = true;
       return entry.sentAt;
     } finally {
       entry.settled = true;
@@ -134,7 +135,8 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
   const state = new Map(sent.map((delivery) => [delivery.userId, delivery]));
   const event = { type: "sos", id, phoneId, phoneName: phone.name, kind: row.kind, trigger: row.trigger, message: row.message } as const;
   let pushedNow = 0;
-  // Mails of this attempt that outlived its timeout and are still with the mail server.
+  // Every SOS mail of this attempt, and those that outlived its timeout.
+  const mails: MailSend[] = [];
   const stillSending: MailSend[] = [];
   // Each parent is tracked on their own: a retry only repeats what failed for them.
   const finished = await Promise.all(members.map(async (member) => {
@@ -162,6 +164,7 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
           const { entry, done } = mailOnce(ctx, `${phoneId}:${id}:${member.id}`,
             () => ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body), { urgent: true }),
             (at) => record({ mailedAt: at }));
+          mails.push(entry);
           try {
             mailedAt = await withTimeout(done, sendTimeout);
           } finally {
@@ -184,16 +187,20 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
   }));
   const sending = stillSending.filter((entry) => !entry.settled);
   let allDone = finished.every(Boolean);
-  if (!allDone && stillSending.length) {
+  if (!allDone && stillSending.length && !sending.length) {
     // A mail that outlived its timeout may have got through and been recorded while another parent
     // was still being waited for, so decide from what is recorded, not from this attempt's results.
+    // Skipped while a mail is still sending: it cannot give up then, and a failed lookup here would
+    // end the attempt before holdLease keeps other processes from sending that mail again.
     const recorded = await ctx.db.select().from(sosDeliveries)
       .where(and(eq(sosDeliveries.phoneId, phoneId), eq(sosDeliveries.eventId, id)));
     const reached = new Set(recorded.filter((d) => d.doneAt || d.pushedAt || d.mailedAt).map((d) => d.userId));
     allDone = members.every((member, i) => finished[i] || reached.has(member.id));
   }
-  // Never given up while a mail may still reach the parent: it is waited for first.
-  const gaveUp = !allDone && !sending.length && ctx.now().getTime() - row.receivedAt.getTime() >= SOS_GIVE_UP_MS;
+  // Never given up while a mail may still reach the parent, or reached them and only its record
+  // failed: it is waited for, or recorded by the next attempt, first.
+  const unrecorded = mails.some((entry) => entry.settled && entry.sentAt && !entry.recorded);
+  const gaveUp = !allDone && !sending.length && !unrecorded && ctx.now().getTime() - row.receivedAt.getTime() >= SOS_GIVE_UP_MS;
   // While retrying, the lease doubles as the earliest time of the next attempt; while a mail is
   // still with the mail server, it is held until that mail settles (holdLease).
   const next = new Date(ctx.now().getTime() + (sending.length ? LEASE_MS : RETRY_MS));

@@ -358,7 +358,8 @@ What people see at the cap:
   mail. While it is still with the mail server, the server holds on to the incident, so a second
   server process cannot send it again, and the incident is not closed as undelivered. Whether a
   parent was reached is read back from what the database recorded, so a late mail that got through
-  is never shown as undelivered.
+  is never shown as undelivered. A mail the mail server accepted but that could not be recorded
+  keeps the incident open too: the next try records it, without sending it again.
 - **SOS mail is at-least-once.** A lost SOS is never acceptable; a duplicate is. One rare case can
   send the same SOS mail twice: several server processes, and a database outage that lasts longer
   than the incident's two-minute hold, so a second process takes over before the first could record
