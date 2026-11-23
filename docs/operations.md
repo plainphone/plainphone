@@ -216,8 +216,9 @@ through the same notify relay as Kuma's.
 **Self-hosting:** watch the same signals. The numbers for errors and response
 time come from your reverse proxy (Traefik, Caddy and nginx can all export
 them), since the server's own [`/api/metrics`](self-hosting.md#watching-delivery-speed)
-covers alert delivery only. These starting thresholds are suggestions, not
-measured limits. Tune them to your traffic:
+counts alert delivery and the bot and spam protection, not HTTP errors or
+response times. These starting thresholds are suggestions, not measured
+limits. Tune them to your traffic:
 
 - **Server errors:** more than 2% of responses are `5xx` over 10 minutes, and
   at least 5 of them, so a quiet server does not alert on a single error.

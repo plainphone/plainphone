@@ -24,10 +24,12 @@ that is not on this page is a security bug: report it privately as described in
   parent allows them. [Contacts: not covered yet](contacts.md#not-covered-yet)
 - **MMS and group messages** are dropped while Plainphone is the SMS app, also from approved
   contacts. RCS chat is off then too, so messages fall back to SMS.
+  [Contacts: not covered yet](contacts.md#not-covered-yet)
 - **Voicemail** can be called only once its number is added as a contact. Visual voicemail is not
-  handled.
+  handled. [Contacts: not covered yet](contacts.md#not-covered-yet)
 - **Preinstalled apps with SMS permission** (some carrier apps, sometimes the assistant) may send or
-  read SMS without Plainphone. Checklist row C18 tests it.
+  read SMS without Plainphone.
+  [Checklist row C18](bypass-checklist.md#calls-and-messages-phase-2)
 
 ## Strong mode
 
@@ -44,12 +46,14 @@ that is not on this page is a security bug: report it privately as described in
   [What Android does not let us block](policies.md#what-android-does-not-let-us-block)
 - **App clones** (Dual Messenger and similar) may still appear on some makers' phones. Plainphone
   removes the extra profile at the next lock check, within 15 minutes, or reports that it could not.
+  [Checklist row A10](bypass-checklist.md#installing-apps)
 - **On Android 10, Force stop** of Plainphone is possible outside install windows. Restrictions
   already set stay in place.
   [Force stop during an install window](policies.md#force-stop-during-an-install-window-android-10)
 - **The system check** can be fooled by a rooted phone that uses a leaked attestation key.
   [System check](bypass-checklist.md#system-check)
 - **Web shortcuts** ("Add to home screen") are allowed. Only the web filter applies to them.
+  [Checklist row A7](bypass-checklist.md#installing-apps)
 
 ## Light mode
 
