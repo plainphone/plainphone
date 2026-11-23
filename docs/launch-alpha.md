@@ -167,7 +167,7 @@ Labels: `documentation`, `question`
 
 Labels: `question`
 
-> Sign-in is by mail only. Every sign-in from a new address sends one mail, and there is no cap on mail in the server. If the provider's hourly or daily limit is reached, nobody can sign in.
+> Sign-in is by mail only. Every sign-in from a new address sends one mail, and there was no cap on mail in the server (there is now, see State below). If the provider's hourly or daily limit is reached, nobody can sign in.
 >
 > - Find the provider's hourly and daily limits and the current daily volume.
 > - Decide what is enough for a launch day (for example 500 new people, each signing in on two devices).

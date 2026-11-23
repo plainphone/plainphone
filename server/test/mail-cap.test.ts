@@ -6,8 +6,8 @@ import { count } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "../src/config.js";
 import { magicLinks } from "../src/db/schema.js";
-import { MailUnavailableError, smtpError, type Mail } from "../src/providers/mail.js";
-import { mailMetricsText, mailsCounted } from "../src/services/mail-cap.js";
+import { MailUnavailableError, SmtpMailProvider, smtpError, type Mail } from "../src/providers/mail.js";
+import { CappedMailProvider, mailMetricsText, mailsCounted } from "../src/services/mail-cap.js";
 import { Client, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -81,6 +81,33 @@ describe("overall mail cap", () => {
     expect(String(warn.mock.calls[0]![0])).not.toContain("@");
   });
 
+  it("writes the warning once per hour across replicas", async () => {
+    setCaps(1);
+    await h.ctx.mail.send(other);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // A second process (or this one after a restart) shares the database, not the memory.
+    const replica = new CappedMailProvider({ ...h.ctx }, h.mail);
+    await expect(h.ctx.mail.send(other)).rejects.toBeInstanceOf(MailUnavailableError);
+    await expect(replica.send(other)).rejects.toBeInstanceOf(MailUnavailableError);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    h.clock.advance(60 * 60_000);
+    setCaps(0, 1);
+    await expect(replica.send(other)).rejects.toBeInstanceOf(MailUnavailableError);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses sign-in at the cap before a link holds a sign-up place", async () => {
+    h.ctx.cfg.SIGNUP_DAILY_CAP = 1;
+    setCaps(1);
+    await h.ctx.mail.send(other);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Neither link can be mailed, so neither may keep the other out with "come back tomorrow".
+    const answers = await Promise.all([request("first@example.org"), request("second@example.org")]);
+    expect(answers.map((r) => r.json.code)).toEqual(["mail_unavailable", "mail_unavailable"]);
+    expect(await links()).toBe(0);
+  });
+
   it("starts over at the next UTC hour, and the daily cap at the next UTC day", async () => {
     setCaps(2, 3);
     await h.ctx.mail.send(other);
@@ -146,7 +173,13 @@ describe("temporary refusals by the mail server", () => {
   });
 
   it("answers a sign-in with mail_unavailable instead of a 500, and logs the code only", async () => {
-    vi.spyOn(h.mail, "send").mockRejectedValue(new MailUnavailableError("provider", undefined, 451));
+    // A real SMTP provider whose server answers 451, so the mapping in SmtpMailProvider.send is covered.
+    const smtp = new SmtpMailProvider("smtp://localhost:2525", "noreply@example.org");
+    const transport = (smtp as unknown as { transport: { sendMail: () => Promise<unknown> } }).transport;
+    vi.spyOn(transport, "sendMail").mockRejectedValue(
+      Object.assign(new Error("451 4.7.1 slow down <new@example.org>"), { responseCode: 451 }),
+    );
+    h.ctx.mail = new CappedMailProvider(h.ctx, smtp);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 

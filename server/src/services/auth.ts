@@ -6,6 +6,7 @@ import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
 import { MailUnavailableError } from "../providers/mail.js";
 import type { Ctx } from "./context.js";
+import { assertMailSlotFree } from "./mail-cap.js";
 import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
 export const MAGIC_LINK_MINUTES = 15;
@@ -23,6 +24,8 @@ export async function requestMagicLink(
   client: "web" | "native" = "web",
 ): Promise<void> {
   const token = randomToken("pp_m_");
+  // At the mail cap, answer "try again" before the link takes a sign-up place another address could use.
+  if (ctx.mail.canSend) await assertMailSlotFree(ctx);
   // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
   await withSignupPlace(ctx, email, async (tx) => {
     const now = ctx.now();

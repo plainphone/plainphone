@@ -13,7 +13,7 @@
 // The wrapper also turns a temporary refusal by the mail server (SMTP 4xx) into the same answer,
 // logged with the code only (providers/mail.ts).
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { rateLimitHits } from "../db/schema.js";
 import { MailUnavailableError, type Mail, type MailProvider, type SendOptions } from "../providers/mail.js";
 import type { Ctx } from "./context.js";
@@ -45,19 +45,33 @@ export function mailCapOn(ctx: Ctx): boolean {
   return ctx.cfg.MAIL_HOURLY_CAP > 0 || ctx.cfg.MAIL_DAILY_CAP > 0;
 }
 
-/** Mails counted in the current UTC hour and day. */
-export async function mailsCounted(ctx: Ctx, now = ctx.now()): Promise<{ hour: number; day: number }> {
-  const windows = capWindows(ctx);
-  const rows = await ctx.db
-    .select({ bucket: rateLimitHits.bucket, windowStart: rateLimitHits.windowStart, hits: rateLimitHits.hits })
+type Db = Pick<Ctx["db"], "select">;
+type OpenWindow = CapWindow & { start: Date; hits: number };
+
+/** The current UTC hour's and day's windows with their counts; older rows are left to the sweeper. */
+async function openWindows(db: Db, ctx: Ctx, now: Date): Promise<OpenWindow[]> {
+  const windows = capWindows(ctx).map((w) => ({ ...w, start: windowStart(now, w.ms) }));
+  const rows = await db
+    .select({ bucket: rateLimitHits.bucket, hits: rateLimitHits.hits })
     .from(rateLimitHits)
-    .where(and(eq(rateLimitHits.subject, SUBJECT), inArray(rateLimitHits.bucket, windows.map((w) => w.bucket))));
-  const hits = (w: CapWindow) =>
-    rows.find((r) => r.bucket === w.bucket && r.windowStart.getTime() === windowStart(now, w.ms).getTime())?.hits ?? 0;
-  return { hour: hits(windows[0]!), day: hits(windows[1]!) };
+    .where(
+      and(
+        eq(rateLimitHits.subject, SUBJECT),
+        or(...windows.map((w) => and(eq(rateLimitHits.bucket, w.bucket), eq(rateLimitHits.windowStart, w.start)))),
+      ),
+    );
+  return windows.map((w) => ({ ...w, hits: rows.find((r) => r.bucket === w.bucket)?.hits ?? 0 }));
 }
 
-/** Per process: the hour the "cap reached" warning was last logged, and counters for /api/metrics. */
+const fullWindows = (windows: OpenWindow[]) => windows.filter((w) => w.cap > 0 && w.hits >= w.cap);
+
+/** Mails counted in the current UTC hour and day. */
+export async function mailsCounted(ctx: Ctx, now = ctx.now()): Promise<{ hour: number; day: number }> {
+  const [hour, day] = await openWindows(ctx.db, ctx, now);
+  return { hour: hour!.hits, day: day!.hits };
+}
+
+/** Per process: the hour the "cap reached" warning was last checked, and counters for /api/metrics. */
 const warnedHour = new WeakMap<Ctx, number>();
 const counters = new WeakMap<Ctx, { sent: number; cap: number; provider: number }>();
 
@@ -65,6 +79,38 @@ function counter(ctx: Ctx) {
   let c = counters.get(ctx);
   if (!c) counters.set(ctx, (c = { sent: 0, cap: 0, provider: 0 }));
   return c;
+}
+
+/** Counts the refusal, logs the warning once per UTC hour across all processes, and throws. */
+async function refuse(ctx: Ctx, full: OpenWindow[]): Promise<never> {
+  // Both caps full: the later window decides when mail goes out again.
+  const retryAt = new Date(Math.max(...full.map((w) => w.start.getTime() + w.ms)));
+  counter(ctx).cap++;
+  const hour = windowStart(ctx.now(), HOUR);
+  if (warnedHour.get(ctx) !== hour.getTime()) {
+    warnedHour.set(ctx, hour.getTime());
+    // The process that claims this hour's row writes the line; other replicas and restarts stay quiet.
+    const claimed = await ctx.db
+      .insert(rateLimitHits)
+      .values({ bucket: "mail-cap-warned", subject: SUBJECT, windowStart: hour, hits: 1, expiresAt: new Date(hour.getTime() + HOUR) })
+      .onConflictDoNothing()
+      .returning({ hits: rateLimitHits.hits });
+    if (claimed.length) {
+      const which = full.map((w) => `${w.setting}=${w.cap}`).join(", ");
+      console.warn(`mail cap reached (${which}): mail is refused until ${retryAt.toISOString()}; SOS mail still goes out`);
+    }
+  }
+  throw new MailUnavailableError("cap", retryAt);
+}
+
+/**
+ * Throws MailUnavailableError when a cap is already reached, without taking a slot. Sign-in calls it
+ * before the link holds a sign-up place, so a mail that cannot go out does not hold one even briefly.
+ */
+export async function assertMailSlotFree(ctx: Ctx): Promise<void> {
+  if (!mailCapOn(ctx)) return;
+  const full = fullWindows(await openWindows(ctx.db, ctx, ctx.now()));
+  if (full.length) await refuse(ctx, full);
 }
 
 /**
@@ -76,15 +122,8 @@ export async function takeMailSlot(ctx: Ctx, urgent = false): Promise<void> {
   const full = await ctx.db.transaction(async (tx) => {
     // Two processes must not both take the last mail.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.mail_cap'))`);
-    const now = ctx.now();
-    const windows = capWindows(ctx).map((w) => ({ ...w, start: windowStart(now, w.ms) }));
-    const rows = await tx
-      .select({ bucket: rateLimitHits.bucket, windowStart: rateLimitHits.windowStart, hits: rateLimitHits.hits })
-      .from(rateLimitHits)
-      .where(and(eq(rateLimitHits.subject, SUBJECT), inArray(rateLimitHits.bucket, windows.map((w) => w.bucket))));
-    const hits = (w: (typeof windows)[number]) =>
-      rows.find((r) => r.bucket === w.bucket && r.windowStart.getTime() === w.start.getTime())?.hits ?? 0;
-    const over = windows.filter((w) => w.cap > 0 && hits(w) >= w.cap);
+    const windows = await openWindows(tx, ctx, ctx.now());
+    const over = fullWindows(windows);
     if (over.length && !urgent) return over;
     for (const w of windows) {
       await tx
@@ -97,17 +136,7 @@ export async function takeMailSlot(ctx: Ctx, urgent = false): Promise<void> {
     }
     return null;
   });
-  if (!full) return;
-  // Both caps full: the later window decides when mail goes out again.
-  const retryAt = new Date(Math.max(...full.map((w) => w.start.getTime() + w.ms)));
-  counter(ctx).cap++;
-  const hour = windowStart(ctx.now(), HOUR).getTime();
-  if (warnedHour.get(ctx) !== hour) {
-    warnedHour.set(ctx, hour);
-    const which = full.map((w) => `${w.setting}=${w.cap}`).join(", ");
-    console.warn(`mail cap reached (${which}): mail is refused until ${retryAt.toISOString()}; SOS mail still goes out`);
-  }
-  throw new MailUnavailableError("cap", retryAt);
+  if (full) await refuse(ctx, full);
 }
 
 /**
