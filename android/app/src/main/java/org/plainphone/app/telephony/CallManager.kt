@@ -107,10 +107,11 @@ object CallManager {
 
     fun answer() = primary()?.answer(VideoProfile.STATE_AUDIO_ONLY)
     fun decline() = primary()?.reject(false, null)
-    fun hangUp() = primary()?.disconnect()
+    /** Hang-ups go through [endCall], so a call still connecting cannot crash Android 10's phone process. */
+    fun hangUp() = primary()?.let(::endCall)
     @Synchronized
     fun disconnect(id: Int) {
-        calls.firstOrNull { System.identityHashCode(it) == id }?.disconnect()
+        calls.firstOrNull { System.identityHashCode(it) == id }?.let(::endCall)
     }
     fun playDtmf(digit: Char) = primary()?.let { it.playDtmfTone(digit); it.stopDtmfTone() }
 

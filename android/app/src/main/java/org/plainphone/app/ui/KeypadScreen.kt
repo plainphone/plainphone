@@ -50,15 +50,17 @@ import org.plainphone.app.sos.HoldAction
  * The keypad. Two labelled routes sit above the digits so they stay on screen however large the
  * text is: a parent (the People tab) and the emergency call. The number display is hidden from the
  * screen reader and the call button says only "Call", so a spoken status never reads a whole
- * number aloud; each key is still announced as it is pressed.
+ * number aloud; each key is still announced as it is pressed. [onCall] returns why a call was not
+ * placed, or null; that answer stays on screen until the number changes.
  */
 @Composable
 internal fun KeypadScreen(
-    initial: String, onCall: (String) -> Unit, onParents: () -> Unit = {}, showParents: Boolean = true,
+    initial: String, onCall: (String) -> String?, onParents: () -> Unit = {}, showParents: Boolean = true,
     onEmergency: () -> Unit = {}, onBack: (() -> Unit)? = null,
 ) {
     var number by remember(initial) { mutableStateOf(initial) }
     var hint by remember { mutableStateOf<Int?>(null) }
+    var refusal by remember(initial) { mutableStateOf<String?>(null) }
     val t = plainTokens
     Column(
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState())
@@ -82,7 +84,7 @@ internal fun KeypadScreen(
             }
         }
         val emergency = @Composable { m: Modifier ->
-            Box(m) { HoldAction(stringResource(R.string.sos_emergency), { hint = R.string.sos_hold_emergency }, onEmergency) }
+            Box(m) { HoldAction(stringResource(R.string.sos_emergency), { hint = R.string.sos_hold_emergency; refusal = null }, onEmergency) }
         }
         if (LocalDensity.current.fontScale >= LARGE_TEXT) {
             Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -95,9 +97,9 @@ internal fun KeypadScreen(
                 emergency(Modifier.weight(1f))
             }
         }
-        hint?.let {
+        (refusal ?: hint?.let { stringResource(it) })?.let {
             Text(
-                stringResource(it),
+                it,
                 Modifier.padding(top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -118,18 +120,18 @@ internal fun KeypadScreen(
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(16.dp))
-        Keypad(onKey = { number += it }, modifier = Modifier.widthIn(max = 320.dp))
+        Keypad(onKey = { number += it; refusal = null }, modifier = Modifier.widthIn(max = 320.dp))
         Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Spacer(Modifier.size(56.dp))
             FilledIconButton(
-                onClick = { if (number.isNotBlank()) onCall(number) },
+                onClick = { if (number.isNotBlank()) refusal = onCall(number) },
                 modifier = Modifier.size(72.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = AnswerFill, contentColor = OnAnswer),
             ) {
                 Icon(PlainIcons.Phone, contentDescription = stringResource(R.string.action_call_plain), modifier = Modifier.size(30.dp))
             }
-            IconButton(onClick = { number = number.dropLast(1) }, modifier = Modifier.size(56.dp)) {
+            IconButton(onClick = { number = number.dropLast(1); refusal = null }, modifier = Modifier.size(56.dp)) {
                 Icon(PlainIcons.Backspace, contentDescription = stringResource(R.string.action_delete_digit))
             }
         }

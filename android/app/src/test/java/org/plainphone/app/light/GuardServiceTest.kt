@@ -400,6 +400,8 @@ class GuardServiceTest {
         @Implementation(minSdk = 33) fun getRoot(prefetchingStrategy: Int): AccessibilityNodeInfo? = rootNode
         @Implementation fun isFocused(): Boolean = focused
         @Implementation fun getId(): Int = windowId
+        /** Before Android 13 the guard recycles each window it read; the tests hand out the same ones again. */
+        @Implementation fun recycle() {}
     }
 
     private fun prepareGuard(service: GuardService): ServiceShadow {

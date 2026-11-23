@@ -23,5 +23,5 @@ object GuardFixture {
 object DialerFixture {
     @Composable
     fun keypad(onCall: (String) -> Unit = {}, onParents: () -> Unit = {}, onEmergency: () -> Unit = {}) =
-        KeypadScreen(initial = "2012", onCall = onCall, onParents = onParents, onEmergency = onEmergency)
+        KeypadScreen(initial = "2012", onCall = { onCall(it); null }, onParents = onParents, onEmergency = onEmergency)
 }

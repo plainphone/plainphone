@@ -22,6 +22,7 @@ in this table against the production source, including both branches of platform
 | `MaintenanceActivity.kt` `handler.postDelayed(this, remaining)` | At the install-window deadline | On | Update the maintenance UI when an install window closes. |
 | `light/GuardService.kt` `main.postDelayed(this, TICK_MS)` | 30 s | On | Recheck the foreground app’s allow-list and time limit. |
 | `light/GuardService.kt` `main.postDelayed(reguard, BLOCK_GAP_MS - (now - lastBlockAt))` | Once, within 700 ms of a block dropped by the rate limit | On | Check the app in front again, so a quick switch back cannot keep a blocked app open. |
+| `light/GuardService.kt` `main.postDelayed(settle, SETTLE_MS)` | Once, 1.5 s after a stop screen for an app | On | Read the active window, so an app started again before its stop screen's window events arrived is stopped again. |
 | `light/GuardService.kt` `if (intent.action == Intent.ACTION_SCREEN_ON && isInteractive()) main.postDelayed(tick, TICK_MS)` | On screen-on, first tick in 30 s | On | Resume foreground time checks. |
 | `light/GuardService.kt` `registerReceiver(it, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })` | On screen-on or screen-off | Either | Start or stop foreground time checks. |
 | `light/GuardService.kt` `if (isInteractive()) main.postDelayed(tick, TICK_MS)` | On connection, first tick in 30 s | On | Start foreground time checks when already interactive. |

@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The Plainphone authors
-"""Checks the emulator harness's serial-console protocol without an emulator."""
+"""Checks the emulator harness's serial-console and device console-command protocols without an emulator."""
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import importlib.util
+import json
 import re
 import socket
 import subprocess
@@ -236,6 +238,17 @@ class WorkflowTest(unittest.TestCase):
         self.assertTrue(uses[flows].startswith("reactivecircus/android-emulator-runner@"))
         self.assertIsInstance(steps[flows].get("timeout-minutes"), int)
 
+    def test_both_flows_fit_the_flows_step_and_the_step_fits_the_job(self):
+        workflow = yaml.safe_load((self.WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+        job = workflow["jobs"]["android-e2e"]
+        steps = {step.get("name"): step for step in job["steps"]}
+        flows = steps["Run the device flows once"]["timeout-minutes"]
+        boot = steps["Boot and save a clean snapshot"]["timeout-minutes"]
+        # Light mode, then Device Owner: a flow that overruns fails in the harness, not by the step limit.
+        self.assertLess(sum(harness.INSTRUMENT_TIMEOUTS.values()), flows * 60)
+        # A step that overruns fails before the job is cancelled, so the artifact is still uploaded.
+        self.assertLess(boot + flows, job["timeout-minutes"])
+
     def test_api_29_cold_boots_and_a_hung_emulator_is_killed(self):
         job = yaml.safe_load((self.WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))["jobs"]["android-e2e"]
         legs = {leg["api"]: leg["snapshot"] for leg in job["strategy"]["matrix"]["include"]}
@@ -251,6 +264,33 @@ class WorkflowTest(unittest.TestCase):
         cleanup = steps["Stop any emulator left running"]
         self.assertEqual(cleanup["if"], "always()")
         self.assertLess(names.index("Run the device flows once"), names.index("Stop any emulator left running"))
+
+
+class InstrumentTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        patch = mock.patch.object(harness, "ARTIFACTS", Path(temp.name))
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_each_flow_gets_a_watchdog_that_fires_before_the_harness_limit(self):
+        # A hung flow must fail with its own stack trace, not end silently at the harness limit (run 45036374085).
+        passed = subprocess.CompletedProcess(("adb",), 0, stdout="OK (1 test)\n")
+        for flow, limit in harness.INSTRUMENT_TIMEOUTS.items():
+            with mock.patch.object(harness, "adb", return_value=passed) as adb:
+                harness.instrument(flow, 8080, "token")
+            args = list(adb.call_args.args)
+            watchdog = int(args[args.index("watchdogSeconds") + 1])
+            self.assertEqual(args[args.index("watchdogSeconds") - 1], "-e", flow)
+            self.assertLess(watchdog, limit, flow)
+            self.assertGreaterEqual(limit - watchdog, 30, f"{flow}: room for the failure report")
+            self.assertEqual(adb.call_args.kwargs["timeout"], limit, flow)
+
+    def test_the_light_watchdog_waits_out_a_run_that_starts_just_before_midnight(self):
+        # Up to 11 minutes of midnight wait plus a four-minute flow is a pass, not a hang.
+        watchdog = harness.INSTRUMENT_TIMEOUTS["LightModeFlow"] - harness.WATCHDOG_MARGIN
+        self.assertGreaterEqual(watchdog, harness.LIGHT_FLOW_WORST_CASE)
 
 
 class DiagnosticsTest(unittest.TestCase):
@@ -291,6 +331,80 @@ class DiagnosticsTest(unittest.TestCase):
         with mock.patch.object(harness, "adb", side_effect=subprocess.CalledProcessError(1, "adb")):
             harness.collect_diagnostics(ours, settle=0)
         self.assertFalse((self.artifacts / "connectivity.txt").exists())
+
+
+class ConsoleCommandTest(unittest.TestCase):
+    def test_allows_an_sms_or_a_call_from_a_number(self):
+        self.assertEqual(harness.console_command(["sms", "send", "+12025550188", "Emulator stranger text"]),
+                         ("emu", "sms", "send", "+12025550188", "Emulator stranger text"))
+        self.assertEqual(harness.console_command(["gsm", "call", "2025550177"]), ("emu", "gsm", "call", "2025550177"))
+
+    def test_rejects_every_other_console_command(self):
+        for args in (["kill"], ["gsm", "cancel", "2025550177"], ["sms", "send", "+1; kill", "x"],
+                     ["sms", "send", "+12025550188", "a\nkill"], ["gsm", "call", "2025550177", "extra"]):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                harness.console_command(args)
+
+
+class ServeConsoleTest(unittest.TestCase):
+    def start_server(self, queue, gone=()):
+        results = {}
+        stop = threading.Event()
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                assert self.headers["Authorization"] == "Bearer token"
+                if not queue:
+                    self.send_response(204)
+                    self.end_headers()
+                    return
+                body = json.dumps(queue.pop(0)).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_POST(self):
+                length = int(self.headers["Content-Length"])
+                results[self.path] = json.loads(self.rfile.read(length))["output"]
+                self.send_response(404 if self.path in gone else 204)
+                self.end_headers()
+                if len(results) == 2:
+                    stop.set()
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return server.server_address[1], stop, results
+
+    def test_runs_queued_commands_and_reports_their_output(self):
+        port, stop, results = self.start_server([
+            {"id": 1, "args": ["sms", "send", "+15555215554", "Emulator parent reply"]},
+            {"id": 2, "args": ["avd", "stop"]},
+        ])
+        done = subprocess.CompletedProcess(("adb",), 0, stdout="OK\n")
+        with mock.patch.object(harness, "adb", return_value=done) as adb:
+            harness.serve_console(port, "token", stop, "emulator-5554", poll=0.01)
+        adb.assert_called_once()
+        self.assertEqual(adb.call_args.args, ("-s", "emulator-5554", "emu", "sms", "send", "+15555215554", "Emulator parent reply"))
+        self.assertEqual(results["/e2e/console/1"], "OK\n")
+        # Refused on the host as well: the device sees why and fails.
+        self.assertIn("harness error", results["/e2e/console/2"])
+
+    def test_keeps_serving_after_the_device_gave_up_on_a_command(self):
+        port, stop, results = self.start_server([
+            {"id": 1, "args": ["sms", "send", "+15555215554", "late"]},
+            {"id": 2, "args": ["gsm", "call", "2025550177"]},
+        ], gone={"/e2e/console/1"})
+        done = subprocess.CompletedProcess(("adb",), 0, stdout="OK\n")
+        with mock.patch.object(harness, "adb", return_value=done) as adb:
+            harness.serve_console(port, "token", stop, "emulator-5554", poll=0.01)
+        self.assertEqual(adb.call_count, 2)
+        self.assertEqual(results["/e2e/console/2"], "OK\n")
 
 
 if __name__ == "__main__":
