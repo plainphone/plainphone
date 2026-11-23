@@ -5633,7 +5633,7 @@ export interface components {
                 "application/json": components["schemas"]["PlanLimit"];
             };
         };
-        /** @description The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code stays open. */
+        /** @description The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code or a move invitation stays open. */
         PhoneCap: {
             headers: {
                 [name: string]: unknown;
@@ -9819,12 +9819,14 @@ export interface operations {
                 };
             };
             402: components["responses"]["PlanLimit"];
-            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`, body as the PhoneCap response). The code stays open */
+            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`). The code stays open */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["IosNotYet"] | components["schemas"]["PhoneCap"];
+                };
             };
             /** @description Code not found or expired */
             404: {
@@ -10808,6 +10810,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+            403: components["responses"]["PhoneCap"];
             410: components["responses"]["Error"];
         };
     };

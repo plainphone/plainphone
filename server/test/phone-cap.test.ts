@@ -118,4 +118,17 @@ describe("per-user limits counted in the database", () => {
     h.app = createApp(h.ctx);
     expect((await parent.post("/api/phones/pairing-profile", { code: "AAAA-BBBB" })).status).toBe(429);
   });
+
+  it("keeps a user's invitation count across a restart", async () => {
+    // Only the per-user budget: distinct recipients, and no household mail cap.
+    h.ctx.cfg.INVITES_PER_HOUSEHOLD_DAILY = 0;
+    const parent = await signIn(h, "parent@example.org");
+    const hid = (await parent.get("/api/me")).json.households[0].id as string;
+    const invite = (n: number) => parent.post(`/api/households/${hid}/invites`, { email: `helper${n}@example.org` });
+    for (let n = 0; n < 20; n++) expect((await invite(n)).status).toBe(201);
+    h.app = createApp(h.ctx);
+    const refused = await invite(20);
+    expect(refused.status).toBe(429);
+    expect(refused.json.error).toBe("too many invitations; try again tomorrow");
+  });
 });

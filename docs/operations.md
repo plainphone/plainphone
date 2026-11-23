@@ -328,18 +328,19 @@ a parent's own Myself phone stays well under it.
 
 How it works:
 
-- It is checked only when a phone is added: claiming a pairing code (`POST /api/phones/claim`)
-  and a setup from the dashboard (`POST /api/phones/enroll`). Phones awaiting setup count, as
-  their ClientID is registered at once.
+- It is checked only when a phone is added: claiming a pairing code (`POST /api/phones/claim`),
+  a setup from the dashboard (`POST /api/phones/enroll`) and importing phones from another
+  server (`POST /api/households/{hid}/server-move/import`, where every phone in the bundle
+  counts). Phones awaiting setup or a move count, as their ClientID is registered at once.
 - Never affected: phones already in the household, also if the cap is lowered below what a
   family has. They sync, report and can be changed as before, and SOS, 112, release, removal
-  and moving a phone to this server are not checked.
+  and a phone redeeming its move token are not checked.
 - It holds for every household, also with billing on and a paid plan. Keep it above the plans'
   own limits.
 - The count is taken in the same transaction that adds the phone, under a lock per household,
   so two additions at the same moment cannot both take the last place.
 - At the cap the server answers `403` with `code: "household_phone_cap"` and `max`, adds
-  nothing, and keeps a pairing code open. The dashboard and the parent app say the family has
+  nothing, and keeps a pairing code or a move invitation open. The dashboard and the parent app say the family has
   the most phones this server allows, that removing a phone the family no longer uses frees a
   place, and that the phones it has keep working. The phone that was being paired keeps
   waiting with its code.
@@ -452,7 +453,8 @@ limit starts over at 00:00 UTC.
 The other limits stay in each process's memory (`RateLimiter` in `server/src/lib/http.ts`):
 they reset when the server restarts and count per process. They sit behind a session or a
 phone's token, send no mail to new people and create nothing a visitor could pile up, or they
-fire many times a minute: phone polling and delivery receipts, location and "more time"
+fire many times a minute: phone polling (also a phone polling its pairing code, so with two
+replicas each has its own poll budget) and delivery receipts, location and "more time"
 requests, "Update now" wake-ups, test pushes, setup templates, contact suggestions, reset
 protection, server moves, Stripe checkout, the bot challenge itself and the store review
 sign-in. Moving one of them to the database is a one-line change to `DbRateLimiter`

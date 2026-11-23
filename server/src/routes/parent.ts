@@ -662,7 +662,6 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
 
     const deviceToken = randomToken(DEVICE_PREFIX);
-    let phoneCap = 0;
     // One transaction: a phone polling meanwhile sees either "waiting" or its token.
     const phone = await ctx.db.transaction(async (tx) => {
       const [p] = await tx
@@ -677,8 +676,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       // The flag may have been switched off since the iPhone started pairing.
       if (p.platform === "ios" && !ctx.cfg.IOS_PAIRING_ENABLED) return "iosNotYet" as const;
       // The pairing stays open, so the parent can remove a phone and claim this one with the same code.
-      phoneCap = (await phoneCapReached(ctx, tx, householdId)) ?? 0;
-      if (phoneCap) return "phoneCap" as const;
+      const refused = await phoneCapReached(ctx, tx, householdId);
+      if (refused) return refused;
       const created = await createPhone(ctx, tx, {
         householdId,
         name: input.name,
@@ -700,7 +699,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!phone) return c.json({ error: "code not found or expired; check the code on the phone" }, 404);
     if (phone === "profileMismatch") return c.json({ error: "profile mismatch" }, 409);
     if (phone === "iosNotYet") return c.json(IOS_PAIRING_NOT_YET, 403);
-    if (phone === "phoneCap") return c.json(phoneCapBody(phoneCap), 403);
+    if ("phoneCap" in phone) return c.json(phoneCapBody(phone.phoneCap), 403);
     if (phone.deviceTokenHash) await syncDns(ctx, phone.id);
     return c.json(await phoneSummary(ctx, phone), 201);
   });
@@ -731,10 +730,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (input.template && input.profile !== "self") return c.json({ error: "only Self phones can copy rules" }, 400);
     const allowed = await isAllowed(ctx, householdId, "phone.add");
     if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
-    let phoneCap = 0;
     const phone = await ctx.db.transaction(async (tx) => {
-      phoneCap = (await phoneCapReached(ctx, tx, householdId)) ?? 0;
-      if (phoneCap) return "phoneCap" as const;
+      const refused = await phoneCapReached(ctx, tx, householdId);
+      if (refused) return refused;
       const template = input.template ? await readSelfTemplate(tx, input.template, ctx.now()) : null;
       if (input.template && !template) return null;
       const created = await createPhone(ctx, tx, {
@@ -751,7 +749,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (template) await applySelfTemplate(tx, created.id, template, ctx.now());
       return created;
     });
-    if (phone === "phoneCap") return c.json(phoneCapBody(phoneCap), 403);
+    if (phone && "phoneCap" in phone) return c.json(phoneCapBody(phone.phoneCap), 403);
     if (!phone) return c.json({ error: "the setup template has expired" }, 404);
     const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
     if (!setup) return c.json({ error: "this phone is already set up" }, 409);

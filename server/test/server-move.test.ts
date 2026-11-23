@@ -294,3 +294,23 @@ it("keeps a redeemed phone that syncs just after the move expired, and frees one
   await sweep(h.ctx);
   expect((await h.ctx.db.select().from(phones).where(eq(phones.id, secondId)))[0]).toMatchObject({ awaitingServerMove: false, deviceTokenHash: null });
 });
+
+it("counts imported phones against HOUSEHOLD_PHONE_CAP and keeps the invitation when it refuses", async () => {
+  const s = await servers();
+  await pairPhone(h, s.parent, { name: "Test phone A" });
+  await pairPhone(h, s.parent, { name: "Test phone B" });
+  s.destination.ctx.cfg.HOUSEHOLD_PHONE_CAP = 2;
+  expect((await s.newParent.post("/api/phones/enroll", { name: "Already here", profile: "child" })).status).toBe(201);
+  const ticket = await invitation(s);
+  const out = await s.parent.post(s.sourcePath + "/export", { ticket });
+  expect(out.status).toBe(201);
+  const importPath = s.destinationPath + "/import";
+  const refused = await s.newParent.post(importPath, { ticketId: ticket.id, bundle: out.json.bundle });
+  expect(refused.status).toBe(403);
+  expect(refused.json).toMatchObject({ code: "household_phone_cap", max: 2 });
+  expect((await s.newParent.get("/api/phones")).json.phones).toHaveLength(1);
+  s.destination.ctx.cfg.HOUSEHOLD_PHONE_CAP = 3;
+  const imported = await s.newParent.post(importPath, { ticketId: ticket.id, bundle: out.json.bundle });
+  expect(imported.status).toBe(201);
+  expect((await s.newParent.get("/api/phones")).json.phones).toHaveLength(3);
+});

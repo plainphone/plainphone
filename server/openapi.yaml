@@ -136,7 +136,7 @@ components:
           schema: { $ref: "#/components/schemas/PlanLimit" }
 
     PhoneCap:
-      description: The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code stays open.
+      description: The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code or a move invitation stays open.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/PhoneCap" }
@@ -4631,7 +4631,14 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
         "404": { description: "Code not found or expired" }
         "409": { description: "Profile differs from the choice on the phone" }
-        "403": { description: "iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`, body as the PhoneCap response). The code stays open" }
+        "403":
+          description: "iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`). The code stays open"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/IosNotYet" }
+                  - { $ref: "#/components/schemas/PhoneCap" }
 
   /phones/enroll:
     post:
@@ -5338,6 +5345,7 @@ paths:
                     type: array
                     items: { type: string, format: uuid }
         "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/PhoneCap" }
         "410": { $ref: "#/components/responses/Error" }
 
   /phones/{pid}/server-move/allow:
