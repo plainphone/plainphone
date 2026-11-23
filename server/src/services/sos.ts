@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { householdMembers, phones, sosDeliveries, sosEvents, users } from "../db/schema.js";
 import { withTimeout } from "../lib/http.js";
 import { toLocale } from "../lib/locale.js";
@@ -28,25 +28,70 @@ const RETRY_MS = 60_000;
 /** After this long the incident is closed as undelivered and shown as such in the dashboard. */
 export const SOS_GIVE_UP_MS = 6 * 3_600_000;
 
-/** Per process: SOS mails still with the mail server, by phone, event and parent. */
-const mailsInFlight = new WeakMap<Ctx, Map<string, Promise<Date>>>();
+/** One SOS mail to one parent: the send still with the mail server, and when it was accepted. */
+interface MailSend { pending?: Promise<Date>; sentAt?: Date; settled: boolean }
+/** Per process: SOS mails still with the mail server or not yet recorded, by phone, event and parent. */
+const mailsInFlight = new WeakMap<Ctx, Map<string, MailSend>>();
 
 /**
  * Runs one SOS mail per parent at a time. A send cannot be called back once it is with the mail
  * server, so a send that outlives the attempt's timeout is not abandoned: it goes on, records
  * `mailedAt` itself if it gets through, and a retry meanwhile waits for it instead of sending a
- * second mail. If it fails, the next retry sends again, so an SOS mail is never lost. Another
- * process takes over only after the retry backoff, by which time the SMTP timeouts
- * (providers/mail.ts) have normally ended the send.
+ * second mail. If it fails, the next retry sends again, so an SOS mail is never lost. A mail the
+ * mail server accepted is remembered until `mailedAt` is recorded: a retry after a failed record
+ * only records it again and never sends it twice. Other processes are kept out by holdLease.
  */
-function mailOnce(ctx: Ctx, key: string, send: () => Promise<Date>): Promise<Date> {
+function mailOnce(
+  ctx: Ctx, key: string, send: () => Promise<void>, record: (at: Date) => Promise<unknown>,
+): { entry: MailSend; done: Promise<Date> } {
   let inFlight = mailsInFlight.get(ctx);
   if (!inFlight) mailsInFlight.set(ctx, (inFlight = new Map()));
-  const running = inFlight.get(key);
-  if (running) return running;
-  const sending = send().finally(() => inFlight.delete(key));
-  inFlight.set(key, sending);
-  return sending;
+  const known = inFlight.get(key);
+  if (known?.pending) return { entry: known, done: known.pending };
+  const entry: MailSend = known ?? { settled: false };
+  inFlight.set(key, entry);
+  entry.settled = false;
+  const done = (async () => {
+    try {
+      if (!entry.sentAt) {
+        await send();
+        entry.sentAt = ctx.now();
+      }
+      await record(entry.sentAt);
+      return entry.sentAt;
+    } finally {
+      entry.settled = true;
+    }
+  })();
+  entry.pending = done;
+  done.then(() => inFlight.delete(key), () => {
+    if (entry.sentAt) entry.pending = undefined;
+    else inFlight.delete(key);
+  });
+  return { entry, done };
+}
+
+/**
+ * Keeps an incident's lease, from `lease` on, while SOS mails that outlived their attempt are still
+ * with the mail server, so no other process starts a second send of the same mail, however long the
+ * mail server's own timeouts are. Renewed only while the lease is still the one written here (a new
+ * attempt or a close ends the hold); once the mails settle it is released, so the next sweep records
+ * or retries them at once. A process that dies stops renewing, and the lease runs out.
+ */
+function holdLease(ctx: Ctx, key: SQL | undefined, lease: Date, sending: unknown[]) {
+  let held = lease;
+  const own = () => and(key, eq(sosEvents.notificationLeaseUntil, held), isNull(sosEvents.notificationClaimedAt));
+  const renew = setInterval(() => {
+    const next = new Date(ctx.now().getTime() + LEASE_MS);
+    ctx.db.update(sosEvents).set({ notificationLeaseUntil: next }).where(own()).returning({ id: sosEvents.id })
+      .then((rows) => { if (rows.length) held = next; else clearInterval(renew); })
+      .catch(() => console.error("SOS lease could not be renewed"));
+  }, LEASE_MS / 3);
+  renew.unref();
+  void Promise.allSettled(sending).then(async () => {
+    clearInterval(renew);
+    await ctx.db.update(sosEvents).set({ notificationLeaseUntil: ctx.now() }).where(own());
+  }).catch(() => console.error("SOS lease could not be released"));
 }
 
 function readyForDelivery(now: Date) {
@@ -83,6 +128,8 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
   const state = new Map(sent.map((delivery) => [delivery.userId, delivery]));
   const event = { type: "sos", id, phoneId, phoneName: phone.name, kind: row.kind, trigger: row.trigger, message: row.message } as const;
   let pushedNow = 0;
+  // Mails of this attempt that outlived its timeout and are still with the mail server.
+  const stillSending: MailSend[] = [];
   // Each parent is tracked on their own: a retry only repeats what failed for them.
   const finished = await Promise.all(members.map(async (member) => {
     const before = state.get(member.id);
@@ -106,12 +153,14 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
         const message = pushMessage(event, locale);
         try {
           // Urgent: sent at once, also at the mail cap (services/mail-cap.ts).
-          mailedAt = await withTimeout(mailOnce(ctx, `${phoneId}:${id}:${member.id}`, async () => {
-            await ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body), { urgent: true });
-            const at = ctx.now();
-            await record({ mailedAt: at });
-            return at;
-          }), sendTimeout);
+          const { entry, done } = mailOnce(ctx, `${phoneId}:${id}:${member.id}`,
+            () => ctx.mail.send(sosMail(member.email, locale, ctx.cfg.PUBLIC_URL, phoneId, message.title, message.body), { urgent: true }),
+            (at) => record({ mailedAt: at }));
+          try {
+            mailedAt = await withTimeout(done, sendTimeout);
+          } finally {
+            if (!entry.settled) stillSending.push(entry);
+          }
         } catch {
           failed = true;
         }
@@ -128,14 +177,19 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
     return done;
   }));
   const allDone = finished.every(Boolean);
-  const gaveUp = !allDone && ctx.now().getTime() - row.receivedAt.getTime() >= SOS_GIVE_UP_MS;
+  const sending = stillSending.filter((entry) => !entry.settled);
+  // Never given up while a mail may still reach the parent: it is waited for first.
+  const gaveUp = !allDone && !sending.length && ctx.now().getTime() - row.receivedAt.getTime() >= SOS_GIVE_UP_MS;
+  // While retrying, the lease doubles as the earliest time of the next attempt; while a mail is
+  // still with the mail server, it is held until that mail settles (holdLease).
+  const next = new Date(ctx.now().getTime() + (sending.length ? LEASE_MS : RETRY_MS));
   await ctx.db.update(sosEvents).set({
     notificationClaimedAt: allDone || gaveUp ? ctx.now() : null,
-    // While retrying, the lease doubles as the earliest time of the next attempt.
-    notificationLeaseUntil: allDone || gaveUp ? null : new Date(ctx.now().getTime() + RETRY_MS),
+    notificationLeaseUntil: allDone || gaveUp ? null : next,
     deliveryFailedAt: gaveUp ? ctx.now() : undefined,
     deliveredVia: pushedNow > 0 ? sql`coalesce(${sosEvents.deliveredVia}, 'push')` : undefined,
   }).where(claim);
+  if (!allDone && !gaveUp && sending.length) holdLease(ctx, key, next, sending.map((entry) => entry.pending));
   // The dashboard shows how the SOS went out, and when it could not be delivered.
   if (gaveUp || (pushedNow > 0 && row.deliveredVia === null)) {
     publishLive(ctx, { type: "sos.updated", householdId: phone.householdId, phoneId, id });

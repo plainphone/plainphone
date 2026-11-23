@@ -355,7 +355,8 @@ What people see at the cap:
   for the count, and a count that fails (database down) is logged and does not stop the mail.
   An SOS mail that takes longer than the 20-second send timeout is not abandoned: it is left to
   finish and recorded when it gets through, and the retry waits for it instead of sending a second
-  mail.
+  mail. While it is still with the mail server, the server holds on to the incident, so a second
+  server process cannot send it again, and the incident is not closed as undelivered.
 
 The mail server's own refusals: a temporary answer (SMTP `4xx`, for example `421`, `450`, `451`
 or `452`, which is how most servers say "rate limited") gets the same `503 mail_unavailable` on

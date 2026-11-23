@@ -242,19 +242,19 @@ describe("overall mail cap", () => {
   it("sends an SOS without waiting while another transaction holds the cap's lock and the only connection", async () => {
     const copy = await createTestDatabase();
     const small = createDb(copy.url, 1);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let holder: Promise<unknown> = Promise.resolve();
     try {
       const ctx: Ctx = { ...h.ctx, db: small.db, cfg: { ...h.ctx.cfg, MAIL_HOURLY_CAP: 5 } };
       const mail = new CappedMailProvider(ctx, h.mail);
-      let release!: () => void;
-      const held = new Promise<void>((resolve) => (release = resolve));
-      const locked = new Promise<void>((resolve) => {
-        void small.db.transaction(async (tx) => {
+      await new Promise<void>((locked) => {
+        holder = small.db.transaction(async (tx) => {
           await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.mail_cap'))`);
-          resolve();
+          locked();
           await held;
         });
       });
-      await locked;
       // The send must not need the lock or a connection: a wait here would time the test out.
       await withTimeout(mail.send({ ...other, subject: "SOS" }, { urgent: true }), 1_000);
       expect(h.mail.outbox.map((m) => m.subject)).toEqual(["SOS"]);
@@ -262,6 +262,9 @@ describe("overall mail cap", () => {
       release();
       await vi.waitFor(async () => expect(await mailsCounted(ctx)).toEqual({ hour: 1, day: 1 }));
     } finally {
+      // Free the only connection first, so a failed assertion above is reported instead of a hang.
+      release();
+      await holder.catch(() => {});
       await small.sql.end();
       await copy.drop();
     }
