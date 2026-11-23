@@ -34,6 +34,8 @@ mkdir -p "$OUT/logs"
 # An inherited DATABASE_URL is never used: the server migrates and writes test households into
 # whatever it points at. A database of your own must be named here and live on this machine.
 unset DATABASE_URL
+# The server below also starts with an empty environment (env -i), so no provider setting from this shell
+# (DNS_PROVIDER, SMTP_URL, PUSH_*, FCM_*, APNS_*) can make it reach a real service.
 if [ -n "${WALK_DATABASE_URL:-}" ]; then
   # Strict shape: one host, which is 127.0.0.1 or localhost, an optional port and a database name, and no
   # query string. Postgres.js also takes the host from "?host=" and accepts several hosts with commas, so a
@@ -56,7 +58,7 @@ fi
 setsid python3 -m http.server -b 127.0.0.1 -d "$ROOT/site/dist" "$SITE_PORT" >"$OUT/logs/site.log" 2>&1 &
 PIDS+=($!)
 
-(cd "$ROOT/server" && exec setsid env DATABASE_URL="$DATABASE_URL" HOST=127.0.0.1 PORT="$API_PORT" MAIL_PROVIDER=log BOT_CHALLENGE=altcha \
+(cd "$ROOT/server" && exec setsid env -i PATH="$PATH" HOME="$HOME" DATABASE_URL="$DATABASE_URL" HOST=127.0.0.1 PORT="$API_PORT" MAIL_PROVIDER=log BOT_CHALLENGE=altcha \
   PUBLIC_URL="http://127.0.0.1:$WEB_PORT" NODE_ENV=development pnpm exec tsx src/main.ts) >"$OUT/logs/server.log" 2>&1 &
 PIDS+=($!)
 
