@@ -1,4 +1,9 @@
-# Android emulator end-to-end tests
+# End-to-end tests
+
+This page covers the Android emulator tests and, [at the end](#onboarding-walk), the
+new-parent onboarding walk through the parent web app.
+
+## Android emulator
 
 The `android-e2e` CI job runs on GitHub-hosted Linux with KVM and AOSP
 x86_64 system images for API 34 and API 29 (Android 10). It runs on main
@@ -21,7 +26,7 @@ minute of app use for its time limit, and if it reaches its counting steps in
 the last ten minutes of a day it first waits for midnight, so nothing it counts
 per day starts over mid-test.
 
-## Run locally
+### Run locally
 
 Install JDK 21, Node 24, pnpm, Python 3, and the Android SDK. Use a disposable
 AOSP emulator with a root-capable system image and no accounts. The suite
@@ -140,7 +145,7 @@ Where a flow has to scroll to a button, it drags and holds still before lifting.
 A quick swipe leaves a fling running, and a scrolling screen spends the next tap
 on stopping the fling, so the tap never reaches the button.
 
-## Coverage
+### Coverage
 
 | Flow | What the emulator checks |
 | --- | --- |
@@ -161,7 +166,7 @@ emulator cannot test QR setup on a Google Play image). The
 parent side of the suite uses the authenticated API. To test the phone sync
 protocol without booting an emulator, run `scripts/e2e-phone-sync.sh`.
 
-## DPC provisioning probe
+### DPC provisioning probe
 
 Google Play Protect now blocks QR setup of Device Owner apps that Android
 Enterprise has not approved ([help page](https://support.google.com/work/android/answer/16694822),
@@ -245,7 +250,7 @@ screen without a Play Protect screen, a screen stayed unchanged for 150
 seconds, or there was no answer within 15 minutes. A block passes the job, with
 a warning annotation, because the probe did answer the question.
 
-### What matches a real QR setup and what does not
+#### What matches a real QR setup and what does not
 
 | Step | Same as a real phone | Different |
 | --- | --- | --- |
@@ -268,7 +273,7 @@ under test: `dpm set-device-owner` skips the wizard and Play Protect, an
 permission the shell does not have, `PROVISION_MANAGED_DEVICE` must come from
 an already installed DPC, and the emulator has no NFC.
 
-### Why the emulator has no QR path
+#### Why the emulator has no QR path
 
 The first CI run (API 36, `google_apis_playstore`) stopped with
 `user_setup_complete=1` and "Device provisioned: true". To find a way to the
@@ -310,3 +315,46 @@ what [the setup guide](setup-test-phone.md) asks for.
 To check the probe's decisions without an emulator, run
 `python3 -m unittest scripts/test_dpc_provisioning_probe.py` (the CI `changes`
 job runs it on every run).
+
+## Onboarding walk
+
+A Playwright walk through what a new parent does first, against a stack that runs only on
+loopback. CI does not run it (CI has no web end-to-end job); run it before an alpha link goes out
+and after changes to sign-in, the Add phone flow or the phone page.
+
+```sh
+web/scripts/onboarding-walk.sh /tmp/onboarding-walk
+```
+
+The script starts a throwaway PostgreSQL 18 in Docker on a free port (or uses `DATABASE_URL`, which
+must be a **disposable** database), builds the site and serves `site/dist`, and starts the server
+with `MAIL_PROVIDER=log` and `BOT_CHALLENGE=altcha`, so sign-in goes through the real puzzle. The
+Vite dev server proxies `/api` to that server (`PLAINPHONE_API_URL`). Everything stops and the
+container is removed when the walk ends; `KEEP_DB=1` keeps the container for a look afterwards.
+
+Each run is a new parent with an `@example.invalid` address and a made-up child:
+
+1. plainphone.org, then "Get started". The browser answers links to `app.plainphone.org` with the
+   local dashboard and blocks every other outside request, so nothing reaches the hosted service.
+2. Sign-in by mail link, read from the log mail provider in the server log.
+3. The household page (a household is created at first sign-in).
+4. Add phone: new phone (strong mode), a Child phone with a name, the 10 to 11 preset, skip the
+   family agreement, a parent PIN, the setup QR code.
+5. The phone, as the Android app talks to the server ([sync API](sync-api.md)): `POST /device/enroll`
+   with the QR code's token, `GET /device/rules`, `PUT /device/status`.
+6. The dashboard shows "connected", then the phone page with its health, name first.
+7. The daily time limit changes to 1 hour, and the phone's next `GET /device/rules` (with its last
+   ETag) returns the new limit.
+
+It runs in English and Danish at 390 and 1280 px (`LANGS=en` and `WIDTHS=390` narrow it down). The
+button and heading texts come from `packages/i18n`, so a changed text does not break the walk. A run
+fails on a broken step, a console error, a failed request, a page wider than the window or a
+translation key shown as text. Steps slower than 2 seconds are marked `SLOW`; the first step of the
+first run includes the Vite dev server compiling the app. Before sign-in the dashboard asks
+`/api/me` whether there is a session, and the 401 answer appears as a console error in Chrome; the
+walk counts these as notes, not failures.
+
+Screenshots of every step (`<lang>-<width>-<nn>-<step>.png`), `walk.json` with timings, health text
+and problems, and the server, Vite and site logs (`logs/`) go to the output directory. Keep them
+out of git. The walk needs Docker (unless `DATABASE_URL` is set) and `playwright` from `NODE_PATH`
+(default `~/dev/pw-test/node_modules`, as for the site screenshots).
