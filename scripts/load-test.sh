@@ -53,6 +53,11 @@ loadgen() {
 
 echo "== steady: $phones phones, $steady minutes"
 loadgen --minutes "$steady" --out "$out/steady.json"
+# Docker clears State.OOMKilled when the container starts again, so check before the restart too.
+oom_check() {
+  if [ "$(docker inspect -f '{{.State.OOMKilled}}' "$app")" = true ]; then echo "the app was OOM-killed ($1)" >&2; exit 1; fi
+}
+oom_check "steady phase"
 
 echo "== restart the app, then burst: every phone at once"
 "${compose[@]}" restart app >/dev/null
@@ -62,5 +67,5 @@ base="http://127.0.0.1:$port"
 wait_healthy
 loadgen --minutes "$burst" --burst --out "$out/burst.json"
 
-if [ "$(docker inspect -f '{{.State.OOMKilled}}' "$app")" = true ]; then echo "the app was OOM-killed" >&2; exit 1; fi
+oom_check "burst"
 echo "results in $out"

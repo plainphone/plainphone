@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Sync-heavy load: many phones doing what the Android app does with the screen on
-// (docs/capacity.md has how to run it, scripts/load-test.sh runs it against a local copy).
+// (docs/operations.md#capacity has how to run it, scripts/load-test.sh runs it against a local copy).
 // Each phone, once a minute at its own second of the minute: GET /api/device/rules with its
 // ETag, then PUT /api/device/status. It also holds GET /api/device/update-request open the
 // whole time, like UpdateRequestListener, and syncs again at once on a simulated push wake-up
