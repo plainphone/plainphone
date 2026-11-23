@@ -581,6 +581,12 @@ export const sv: Messages = {
 
   "house.title": "Hushåll",
   "house.intro": "Alla i hushållet kan hantera alla dess telefoner.",
+  "house.nameLabel": "Hushållets namn",
+  "house.nameHelp": "Visas på telefonen när den ansluts.",
+  "house.namePlaceholder": "Till exempel: Vår familj",
+  "house.nameSave": "Spara namn",
+  "house.nameSaved": "Namnet är sparat.",
+  "house.nameInvalid": "Skriv ett namn på 1 till 60 tecken.",
   "house.members": "Medlemmar",
   "house.owner": "Ägare",
   "house.parent": "Förälder",

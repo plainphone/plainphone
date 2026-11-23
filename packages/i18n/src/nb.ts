@@ -581,6 +581,12 @@ export const nb: Messages = {
 
   "house.title": "Husstand",
   "house.intro": "Alle i husstanden kan administrere alle telefonene.",
+  "house.nameLabel": "Husstandens navn",
+  "house.nameHelp": "Vises på telefonen når den kobles til.",
+  "house.namePlaceholder": "For eksempel: Familien vår",
+  "house.nameSave": "Lagre navn",
+  "house.nameSaved": "Navnet er lagret.",
+  "house.nameInvalid": "Skriv et navn på 1 til 60 tegn.",
   "house.members": "Medlemmer",
   "house.owner": "Eier",
   "house.parent": "Foreldre",

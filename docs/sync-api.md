@@ -56,7 +56,8 @@ phone                                      server                         parent
    Otherwise the phone shows a 15-minute code and a QR code. The dashboard uses the code to
    preselect the phone's profile and the adult submits the claim. In light mode, with `confirmOnPhone: true`,
    a claim creates a pending phone. Polling with the secret returns only the claimer's masked
-   email and the household name. The phone sends `{action: "confirm"}` to the same URL to finish
+   email and the household name (`null` until a parent has named the household, and when the name
+   contains the claimer's address). The phone sends `{action: "confirm"}` to the same URL to finish
    pairing. Until the first authenticated rules sync, the same secret can recover the token
    for 24 hours from confirmation, even after the 15-minute claim code expires. That first
    sync activates the phone and clears the recovery token. Before confirmation,

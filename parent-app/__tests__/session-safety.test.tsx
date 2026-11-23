@@ -232,4 +232,32 @@ describe("household members", () => {
     await fireEvent.press(screen.getByTestId("member-remove-confirm-u2"));
     await waitFor(() => expect(api.calls.filter((c) => c.method === "DELETE").map((c) => c.path)).toEqual([`/households/${hid}/members/u2`]));
   });
+
+  it("lets a new household get a name, and refuses an empty one", async () => {
+    const hid = ME.households[0].id;
+    let name = ME.households[0].name;
+    const api = fakeApi({
+      "GET /me": () => ({ body: { ...ME, households: [{ ...ME.households[0], name }] } }),
+      [`GET /households/${hid}/members`]: { body: { members: [{ id: "u1", email: "parent@example.org", role: "owner" }], invites: [] } },
+      [`PATCH /households/${hid}`]: (c) => {
+        name = (c.body as { name: string }).name;
+        return { status: 204 };
+      },
+    });
+    await renderRouter(routes, { initialUrl: "/household" });
+    const field = await screen.findByTestId("household-name");
+    expect(field.props.value).toBe("");
+    expect(field.props.placeholder).toBe("For example: Our family");
+
+    await fireEvent.press(screen.getByTestId("household-name-save"));
+    expect(await screen.findByText("Write a name of 1 to 60 characters.")).toBeTruthy();
+    expect(api.calls.some((c) => c.method === "PATCH")).toBe(false);
+
+    await fireEvent.changeText(field, "  Our family  ");
+    await fireEvent.press(screen.getByTestId("household-name-save"));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ name: "Our family" }));
+    expect(await screen.findByText("The name is saved.")).toBeTruthy();
+    // The screen's title follows the new name once the session is refreshed.
+    expect(await screen.findByText("Our family")).toBeTruthy();
+  });
 });

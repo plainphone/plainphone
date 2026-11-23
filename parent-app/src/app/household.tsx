@@ -6,6 +6,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { InviteResult, Members } from "../api/models";
 import { PlanCard } from "../components/Billing";
 import { ItemRow } from "../components/parts";
+import { HouseholdName } from "../components/HouseholdName";
 import { HouseholdPicker } from "../components/HouseholdPicker";
 import { RequireAuth } from "../components/RequireAuth";
 import { ResetProtection } from "../components/ResetProtection";
@@ -15,6 +16,7 @@ import { useActiveHousehold, useMe, useSession } from "../lib/session";
 import { space } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
 import { formatDateTime } from "@plainphone/shared/format";
+import { householdTitle } from "@plainphone/shared/household";
 
 function Household() {
   const { t, locale } = useI18n();
@@ -131,9 +133,10 @@ function Household() {
 
   return (
     <Screen testID="household" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
-      <PageTitle sub={t("house.intro")}>{household.name === "Home" ? t("house.title") : household.name}</PageTitle>
+      <PageTitle sub={t("house.intro")}>{householdTitle(household.name, t("house.title"))}</PageTitle>
       <HouseholdPicker />
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
+      <HouseholdName key={hid} household={household} notify={setNotice} />
       <LoadGate res={res}>
         {(data) =>
           data && (

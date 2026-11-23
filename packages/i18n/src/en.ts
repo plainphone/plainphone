@@ -616,6 +616,12 @@ export const en = {
 
   "house.title": "Household",
   "house.intro": "Everyone in the household can manage all its phones.",
+  "house.nameLabel": "Household name",
+  "house.nameHelp": "Shown on the phone when it connects.",
+  "house.namePlaceholder": "For example: Our family",
+  "house.nameSave": "Save name",
+  "house.nameSaved": "The name is saved.",
+  "house.nameInvalid": "Write a name of 1 to 60 characters.",
   "house.members": "Members",
   "house.owner": "Owner",
   "house.parent": "Parent",

@@ -581,6 +581,12 @@ export const de: Messages = {
 
   "house.title": "Haushalt",
   "house.intro": "Jeder im Haushalt kann alle seine Telefone verwalten.",
+  "house.nameLabel": "Name des Haushalts",
+  "house.nameHelp": "Wird auf dem Handy angezeigt, wenn es sich verbindet.",
+  "house.namePlaceholder": "Zum Beispiel: Unsere Familie",
+  "house.nameSave": "Namen speichern",
+  "house.nameSaved": "Der Name ist gespeichert.",
+  "house.nameInvalid": "Geben Sie einen Namen mit 1 bis 60 Zeichen ein.",
   "house.members": "Mitglieder",
   "house.owner": "Eigentümer",
   "house.parent": "Elternteil",

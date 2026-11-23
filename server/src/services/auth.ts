@@ -5,6 +5,7 @@ import { randomToken, sha256 } from "../lib/crypto.js";
 import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
+import { DEFAULT_HOUSEHOLD_NAME } from "./pairing-account.js";
 import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
 export const MAGIC_LINK_MINUTES = 15;
@@ -85,7 +86,7 @@ export async function startSession(
     // Two login links opened at once (two tabs): the loser of the insert uses the winner's user.
     [user] = await tx.insert(users).values({ email, locale }).onConflictDoNothing().returning();
     if (user) {
-      const [household] = await tx.insert(households).values({ name: "Home", summarySince: now, createdAt: now }).returning();
+      const [household] = await tx.insert(households).values({ name: DEFAULT_HOUSEHOLD_NAME, summarySince: now, createdAt: now }).returning();
       await tx.insert(householdMembers).values({ householdId: household!.id, userId: user.id, role: "owner" });
     } else {
       [user] = await tx.select().from(users).where(eq(users.email, email));

@@ -10,9 +10,10 @@ import { HouseholdPage } from "./Household";
 
 vi.mock("../components/ResetProtection", () => ({ ResetProtectionSection: () => null }));
 vi.mock("../components/HouseholdMove", () => ({ HouseholdMove: () => null }));
+const refresh = vi.hoisted(() => vi.fn(async () => null));
 vi.mock("../lib/session", () => ({
   useMe: () => ({ user: { id: "u1", email: "me@example.org", locale: "en" }, households: [{ id: "h1", name: "Home", role: "owner" }] }),
-  useSession: () => ({ refresh: async () => null }),
+  useSession: () => ({ refresh }),
   useActiveHousehold: () => ({ id: "h1", name: "Home", role: "owner" }),
   chooseHousehold: () => undefined,
 }));
@@ -84,4 +85,33 @@ it("asks before the parent leaves the household", async () => {
   expect(container.textContent).toContain("Leave the household?");
   await act(async () => button("Yes, leave")!.click());
   expect(removed).toEqual(["/households/h1/members/u1"]);
+});
+
+async function typeName(value: string) {
+  const input = container.querySelector<HTMLInputElement>('input[name="household-name"]')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  await act(async () => {
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+it("lets a new household get a name, with a placeholder while it has none", async () => {
+  const patch = vi.spyOn(api, "patch").mockResolvedValue(undefined as never);
+  await mount();
+  const input = container.querySelector<HTMLInputElement>('input[name="household-name"]')!;
+  expect(container.querySelector("h1")?.textContent).toBe("Household");
+  expect(input.value).toBe("");
+  expect(input.placeholder).toBe("For example: Our family");
+  expect(container.textContent).toContain("Shown on the phone when it connects");
+
+  await act(async () => button("Save name")!.click());
+  expect(patch).not.toHaveBeenCalled();
+  expect(container.textContent).toContain("Write a name of 1 to 60 characters.");
+
+  await typeName("  Our family  ");
+  await act(async () => button("Save name")!.click());
+  expect(patch).toHaveBeenCalledWith("/households/h1", { name: "Our family" });
+  expect(refresh).toHaveBeenCalled();
+  expect(container.textContent).toContain("The name is saved.");
 });

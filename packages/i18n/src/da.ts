@@ -614,6 +614,12 @@ export const da: Messages = {
 
   "house.title": "Husstand",
   "house.intro": "Alle i husstanden kan styre alle dens telefoner.",
+  "house.nameLabel": "Husstandens navn",
+  "house.nameHelp": "Vises på telefonen, når den bliver forbundet.",
+  "house.namePlaceholder": "Fx: Vores familie",
+  "house.nameSave": "Gem navn",
+  "house.nameSaved": "Navnet er gemt.",
+  "house.nameInvalid": "Skriv et navn på 1 til 60 tegn.",
   "house.members": "Medlemmer",
   "house.owner": "Ejer",
   "house.parent": "Forælder",
