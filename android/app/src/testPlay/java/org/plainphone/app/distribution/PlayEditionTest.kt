@@ -4,6 +4,7 @@ package org.plainphone.app.distribution
 
 import android.Manifest
 import android.app.NotificationManager
+import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
@@ -22,7 +23,11 @@ import java.util.concurrent.TimeUnit
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.light.LightRelease
+import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.Protections
 import org.plainphone.app.light.SetupAudience
+import org.plainphone.app.sync.AndroidSyncDevice
 import org.plainphone.app.sync.PlainphoneApiReleaseTest.PairedStore
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.update.PrefsUpdateStateStore
@@ -72,6 +77,30 @@ class PlayEditionTest {
         assertThat(pm.queryIntentActivities(Intent(DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL).setPackage(context.packageName), 0))
             .isEmpty()
         assertThat(requested()).doesNotContain(Manifest.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED)
+    }
+
+    @Test fun `the Play build declares no device admin and never asks for one`() {
+        val receivers = pm.getPackageInfo(context.packageName, PackageManager.GET_RECEIVERS).receivers.orEmpty()
+        assertThat(receivers.filter { it.permission == Manifest.permission.BIND_DEVICE_ADMIN }.map { it.name }).isEmpty()
+        assertThat(pm.queryBroadcastReceivers(Intent(DeviceAdminReceiver.ACTION_DEVICE_ADMIN_ENABLED).setPackage(context.packageName), 0))
+            .isEmpty()
+        assertThat(LightSetup.steps()).doesNotContain(LightSetup.Step.ADMIN)
+        assertThat(LightSetup.isDone(context, LightSetup.Step.ADMIN)).isTrue()
+        assertThat(LightSetup.intent(context, LightSetup.Step.ADMIN)).isNull()
+        // Switching Plainphone off has no device admin step to take.
+        LightRelease.removeAdmin(context)
+    }
+
+    @Test fun `the lock counts without a device admin and the status says play`() {
+        val protections = Protections(
+            deviceOwner = false, deviceAdmin = false, accessibility = true, usageAccess = true, vpn = true,
+            alwaysOnVpn = true, phoneRole = true, smsRole = true, notifications = true,
+            batteryUnrestricted = true, privateDnsOk = true,
+        )
+        assertThat(protections.missingForLight()).isEmpty()
+        assertThat(protections.toMap()).doesNotContainKey("deviceAdmin")
+        assertThat(Protections.read(context, null, needsUsageAccess = false).toMap()).doesNotContainKey("deviceAdmin")
+        assertThat(AndroidSyncDevice(context).distribution()).isEqualTo("play")
     }
 
     @Test fun `only the Child profile is offered`() {

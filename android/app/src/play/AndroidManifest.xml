@@ -71,6 +71,18 @@
             android:name="isMonitoringTool"
             android:value="child_monitoring" />
 
+        <!--
+            No device admin at all (Distribution.DEVICE_ADMIN): neither the Device Owner receiver nor
+            light mode's uninstall barrier. Play's review advises against device admin in a
+            parental control app; the server does not ask a Play phone for one.
+        -->
+        <receiver
+            android:name=".PlainphoneAdminReceiver"
+            tools:node="remove" />
+        <receiver
+            android:name=".light.LightAdminReceiver"
+            tools:node="remove" />
+
         <!-- No Device Owner setup from the Play build: strong mode is never on Play. -->
         <activity
             android:name=".provisioning.ProvisioningModeActivity"

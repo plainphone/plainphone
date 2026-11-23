@@ -10,6 +10,7 @@ import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.LockPolicy
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.StepResult
+import org.plainphone.app.distribution.Distribution
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.sync.SyncStore
 
@@ -45,7 +46,7 @@ object LightLock {
             PlainphoneVpnService.stop(context)
         }
         val now = Protections.read(context, config.dnsHost, needsUsageAccess = hasLimits)
-        results += StepResult("device admin (uninstall needs it switched off first)", now.deviceAdmin)
+        if (Distribution.DEVICE_ADMIN) results += StepResult("device admin (uninstall needs it switched off first)", now.deviceAdmin)
         results += StepResult("accessibility service (closes blocked apps)", now.accessibility)
         results += StepResult("default phone app", now.phoneRole)
         results += StepResult("default SMS app", now.smsRole)

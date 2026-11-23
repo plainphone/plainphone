@@ -509,8 +509,8 @@ class LightSetupActivity : ComponentActivity() {
             return
         }
         val dashboard = LightSetup.hasDashboardPin(this) && step != LightSetup.Step.PIN
-        val index = LightSetup.Step.entries.indexOf(step) - if (dashboard) 1 else 0
-        val total = LightSetup.Step.entries.size - if (dashboard) 1 else 0
+        val index = LightSetup.steps().indexOf(step) - if (dashboard) 1 else 0
+        val total = LightSetup.steps().size - if (dashboard) 1 else 0
         if (step == LightSetup.Step.PAIR && dashboard && !LightSetup.isComplete(this)) {
             DashboardPairStep(index, total)
             return

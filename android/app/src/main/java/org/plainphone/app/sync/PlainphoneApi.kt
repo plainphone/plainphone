@@ -185,6 +185,8 @@ data class DeviceStatus(
     val rulesReceiptConfirmed: Boolean? = null,
     val webFilterActive: Boolean? = null,
     val androidVersion: String? = null,
+    /** `github` or `play` (distribution/Distribution.kt). Older apps leave it out: the server treats that as `github`. */
+    val distribution: String? = null,
     val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
     val appUpdates: org.plainphone.app.update.AppUpdateLog.Report? = null,
@@ -229,6 +231,7 @@ data class DeviceStatus(
             pushProvider?.let { put("pushProvider", it) }
             appVersionCode?.let { put("appVersionCode", it) }
             androidVersion?.let { put("androidVersion", it) }
+            distribution?.let { put("distribution", it) }
             update?.let { put("update", it.toJson()) }
             appUpdates?.let { r ->
                 put("appUpdates", JSONObject()

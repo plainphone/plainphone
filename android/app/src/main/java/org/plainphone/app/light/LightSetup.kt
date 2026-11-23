@@ -18,6 +18,7 @@ import org.plainphone.app.batteryExemptionRequest
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.MaintenancePin
 import org.plainphone.app.R
+import org.plainphone.app.distribution.Distribution
 import org.plainphone.app.sync.SetupCompletion
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.Lock
@@ -68,6 +69,9 @@ object LightSetup {
         ALWAYS_ON(R.string.light_step_alwayson_title, R.string.light_step_alwayson_body, R.string.light_step_alwayson_action, optional = true),
     }
 
+    /** The steps this edition asks for: the Play edition has no device admin (docs/play/play-edition.md). */
+    fun steps(): List<Step> = Step.entries.filter { it != Step.ADMIN || Distribution.DEVICE_ADMIN }
+
     fun isDone(context: Context, step: Step): Boolean = when (step) {
         Step.PIN -> !ConfigStore(context).load().usesDefaultPin
         Step.PHONE -> roleHeld(context, android.app.role.RoleManager.ROLE_DIALER)
@@ -76,7 +80,8 @@ object LightSetup {
             LightFilter.privateDnsSetupIssue(context) == null
         } else !LightFilter.strictDnsConfigured(context) && VpnService.prepare(context) == null
         Step.USAGE -> TimeGuard.hasUsageAccess(context)
-        Step.ADMIN -> context.getSystemService(DevicePolicyManager::class.java)?.isAdminActive(LightAdminReceiver.component(context)) == true
+        Step.ADMIN -> !Distribution.DEVICE_ADMIN ||
+            context.getSystemService(DevicePolicyManager::class.java)?.isAdminActive(LightAdminReceiver.component(context)) == true
         Step.RUNNING -> notificationsAllowed(context) &&
             context.getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
         Step.LOCATION -> context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
@@ -172,7 +177,7 @@ object LightSetup {
     }
 
     /** The first step that still needs doing, or null when everything is set up. */
-    fun next(context: Context): Step? = Step.entries.firstOrNull { step ->
+    fun next(context: Context): Step? = steps().firstOrNull { step ->
         !isSkipped(context, step) && (!isDone(context, step) ||
             (step == Step.RUNNING && !isComplete(context) && batteryMaker() != null &&
                 !prefs(context).getBoolean("batteryMakerHelpSeen", false)))
@@ -315,7 +320,7 @@ object LightSetup {
             Intent(Settings.ACTION_WIRELESS_SETTINGS)
         } else VpnService.prepare(context)
         Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${context.packageName}"))
-        Step.ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+        Step.ADMIN -> if (!Distribution.DEVICE_ADMIN) null else Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
             .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, LightAdminReceiver.component(context))
             .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, context.getString(if (profile(context) == "self") R.string.setup_admin_self else R.string.light_admin_explanation))
         Step.RUNNING -> if (!notificationsAllowed(context)) {
