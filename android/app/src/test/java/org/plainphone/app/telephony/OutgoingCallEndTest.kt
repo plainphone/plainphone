@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.admin.DevicePolicyManager
 import android.net.Uri
@@ -10,6 +11,8 @@ import android.telecom.Call
 import android.telecom.TelecomManager
 import com.google.common.truth.Truth.assertThat
 import java.lang.reflect.Proxy
+import java.time.Duration
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.PlainphoneAdminReceiver
@@ -22,6 +25,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter
 
@@ -36,6 +40,8 @@ class OutgoingCallEndTest {
     private val approved = "+12025550123"
     private val service = Robolectric.buildService(PlainphoneInCallService::class.java).create().get()
     private val ended = mutableListOf<String>()
+
+    @Before fun forgetDials() = RecentDials.clear()
 
     private fun strongPhone() {
         val dpm = service.getSystemService(DevicePolicyManager::class.java)
@@ -184,6 +190,52 @@ class OutgoingCallEndTest {
         assertThat(TelephonyLog(service).blocked().map { it.channel to it.direction })
             .containsExactly(Channel.CALL to Direction.INCOMING)
         assertThat(shadowOf(service.getSystemService(NotificationManager::class.java)).allNotifications).isEmpty()
+    }
+
+    /** Issue #273: the child's own call that the phone process restart handed back without a direction. */
+    @Config(sdk = [29, 34])
+    @Test fun `a call of unknown direction to a number the child just dialled is an outgoing block with the message`() {
+        strongPhone()
+        RecentDials.record("+1 202 555 0102")
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.channel to it.direction })
+            .containsExactly(Channel.CALL to Direction.OUTGOING)
+        val shown = shadowOf(service.getSystemService(NotificationManager::class.java)).allNotifications
+        assertThat(shown.map { it.extras.getString(Notification.EXTRA_TITLE) }).containsExactly("Call not allowed")
+    }
+
+    @Config(sdk = [29])
+    @Test fun `a dial older than a minute does not make a stranger's call of unknown direction outgoing`() {
+        strongPhone()
+        RecentDials.record(stranger)
+        ShadowSystemClock.advanceBy(Duration.ofMillis(RecentDials.WINDOW_MS + 1))
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_NEW, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.channel to it.direction })
+            .containsExactly(Channel.CALL to Direction.INCOMING)
+    }
+
+    @Config(sdk = [29])
+    @Test fun `a blocked outgoing call that comes back without a direction stays outgoing`() {
+        strongPhone()
+        // Another app dialled the stranger; the in-call service sees it as outgoing first (run 45060357626).
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_DIALING))
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1", "TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.direction })
+            .containsExactly(Direction.OUTGOING, Direction.OUTGOING)
+    }
+
+    @Config(sdk = [29])
+    @Test fun `an approved call of unknown direction right after dialling it is kept`() {
+        strongPhone()
+        RecentDials.record(approved)
+        val call = outgoingCall(approved, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN)
+        service.onCallAdded(call)
+        service.onCallRemoved(call)
+        assertThat(ended).isEmpty()
+        assertThat(TelephonyLog(service).blocked()).isEmpty()
     }
 
     @Config(sdk = [29])

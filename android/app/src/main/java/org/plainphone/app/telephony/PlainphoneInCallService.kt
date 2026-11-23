@@ -54,29 +54,32 @@ class PlainphoneInCallService : InCallService() {
         // Calls Android itself flags as emergency (network-identified emergency, callback mode) are never touched.
         val flaggedEmergency = details.hasProperty(Call.Details.PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL) ||
             details.hasProperty(Call.Details.PROPERTY_EMERGENCY_CALLBACK_MODE)
+        if (outgoing) RecentDials.record(number)
         val rules = runCatching { ContactPolicySources.strictRules(this) }.getOrNull()
+        // A call of unknown direction is the child's own if they just dialled that number, otherwise it rang in.
+        val childDialled = outgoing || (unknown && RecentDials.wasJustDialled(number, rules?.country))
         // Rules that cannot be read: outgoing calls go only to the parents and emergency numbers (UnreadableRules).
         val decision = rules?.let {
             if (unknown) decideUnknownDirection(it, number)
             else contactPolicy().decide(it, Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
-        } ?: if (outgoing) runCatching { UnreadableRules.outgoingCall(this, number) }.getOrDefault(Decision.Allow("rules unreadable")) else null
+        } ?: if (childDialled) runCatching { UnreadableRules.outgoingCall(this, number) }.getOrDefault(Decision.Allow("rules unreadable")) else null
         if (decision != null && !decision.allowed && !flaggedEmergency) {
             Log.i(TAG, "ending call: $decision")
-            // A call of unknown direction is logged as incoming and the child gets no "Call not allowed"
-            // message: they did not dial it.
-            TelephonyLog(this).recordBlocked(Channel.CALL, if (outgoing) Direction.OUTGOING else Direction.INCOMING, number)
+            // Only a call the child dialled is logged as outgoing and shows "Call not allowed"; a stranger's
+            // call of unknown direction is an incoming block, like any other.
+            TelephonyLog(this).recordBlocked(Channel.CALL, if (childDialled) Direction.OUTGOING else Direction.INCOMING, number)
             when {
                 outgoing -> endCall(call)
                 unknown -> call.disconnect() // Not offered as ringing, so there is nothing to reject.
                 else -> call.reject(false, null)
             }
-            if (outgoing) CallNotifications.showBlockedCall(this, number, rulesUnreadable = rules == null)
+            if (childDialled) CallNotifications.showBlockedCall(this, number, rulesUnreadable = rules == null)
             return
         }
 
         // Silent bedtime: no ring screen, no heads-up. The call stays in the shade without a sound.
         // A bug here must never make a parent's call silent, so a failure counts as "rings".
-        if (!outgoing && rules != null && !runCatching { contactPolicy().ringsAtBedtime(rules, number) }.getOrDefault(true)) {
+        if (!childDialled && rules != null && !runCatching { contactPolicy().ringsAtBedtime(rules, number) }.getOrDefault(true)) {
             CallManager.markQuiet(call)
         }
 

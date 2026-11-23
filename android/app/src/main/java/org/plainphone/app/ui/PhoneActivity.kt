@@ -88,6 +88,7 @@ import org.plainphone.app.inbox.FamilyInbox
 import org.plainphone.app.inbox.FamilyThreadScreen
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.telephony.CallNotifications
+import org.plainphone.app.telephony.RecentDials
 import org.plainphone.app.telephony.SmsStore
 import org.plainphone.app.telephony.SmsThread
 import org.plainphone.app.telephony.SmsThreadKind
@@ -220,6 +221,8 @@ internal object TelecomHandoff {
     @RequiresPermission(Manifest.permission.CALL_PHONE)
     fun submit(context: Context, address: Uri) {
         val intercept = interceptForTest
+        // Remembered so a call Telecom later hands over without a direction counts as the child's own (#273).
+        RecentDials.record(address.schemeSpecificPart)
         if (intercept != null) intercept(address)
         else context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
     }
