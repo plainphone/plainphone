@@ -40,6 +40,8 @@ const mailsInFlight = new WeakMap<Ctx, Map<string, MailSend>>();
  * second mail. If it fails, the next retry sends again, so an SOS mail is never lost. A mail the
  * mail server accepted is remembered until `mailedAt` is recorded: a retry after a failed record
  * only records it again and never sends it twice. Other processes are kept out by holdLease.
+ * SOS mail is at-least-once on purpose: with several server processes and a database outage that
+ * outlasts the lease, a parent can get the same SOS mail twice. A lost SOS is never acceptable.
  */
 function mailOnce(
   ctx: Ctx, key: string, send: () => Promise<void>, record: (at: Date) => Promise<unknown>,
@@ -80,16 +82,20 @@ function mailOnce(
  */
 function holdLease(ctx: Ctx, key: SQL | undefined, lease: Date, sending: unknown[]) {
   let held = lease;
+  // Renewals run one after another, and the release waits for the last, so it sees the lease written.
+  let renewing: Promise<void> = Promise.resolve();
   const own = () => and(key, eq(sosEvents.notificationLeaseUntil, held), isNull(sosEvents.notificationClaimedAt));
   const renew = setInterval(() => {
-    const next = new Date(ctx.now().getTime() + LEASE_MS);
-    ctx.db.update(sosEvents).set({ notificationLeaseUntil: next }).where(own()).returning({ id: sosEvents.id })
-      .then((rows) => { if (rows.length) held = next; else clearInterval(renew); })
-      .catch(() => console.error("SOS lease could not be renewed"));
+    renewing = renewing.then(async () => {
+      const next = new Date(ctx.now().getTime() + LEASE_MS);
+      const rows = await ctx.db.update(sosEvents).set({ notificationLeaseUntil: next }).where(own()).returning({ id: sosEvents.id });
+      if (rows.length) held = next; else clearInterval(renew);
+    }).catch(() => console.error("SOS lease could not be renewed"));
   }, LEASE_MS / 3);
   renew.unref();
   void Promise.allSettled(sending).then(async () => {
     clearInterval(renew);
+    await renewing;
     await ctx.db.update(sosEvents).set({ notificationLeaseUntil: ctx.now() }).where(own());
   }).catch(() => console.error("SOS lease could not be released"));
 }
@@ -176,8 +182,16 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
     }
     return done;
   }));
-  const allDone = finished.every(Boolean);
   const sending = stillSending.filter((entry) => !entry.settled);
+  let allDone = finished.every(Boolean);
+  if (!allDone && stillSending.length) {
+    // A mail that outlived its timeout may have got through and been recorded while another parent
+    // was still being waited for, so decide from what is recorded, not from this attempt's results.
+    const recorded = await ctx.db.select().from(sosDeliveries)
+      .where(and(eq(sosDeliveries.phoneId, phoneId), eq(sosDeliveries.eventId, id)));
+    const reached = new Set(recorded.filter((d) => d.doneAt || d.pushedAt || d.mailedAt).map((d) => d.userId));
+    allDone = members.every((member, i) => finished[i] || reached.has(member.id));
+  }
   // Never given up while a mail may still reach the parent: it is waited for first.
   const gaveUp = !allDone && !sending.length && ctx.now().getTime() - row.receivedAt.getTime() >= SOS_GIVE_UP_MS;
   // While retrying, the lease doubles as the earliest time of the next attempt; while a mail is

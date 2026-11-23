@@ -239,6 +239,100 @@ it("does not give up on an SOS while its mail is still with the mail server", as
   }
 });
 
+it("does not give up on an SOS whose late mail got through while another parent was waited for", async () => {
+  const { phoneId, device } = await twoParents();
+  const real = h.parentPush.send.bind(h.parentPush);
+  let pushUp = false;
+  const push = vi.spyOn(h.parentPush, "send").mockImplementation(async (target, msg, opts) =>
+    pushUp && target.endpoint.endsWith("/two") ? real(target, msg, opts) : "failed");
+  const slow = { finish: () => {} };
+  const mail = vi.spyOn(h.mail, "send")
+    .mockRejectedValueOnce(new Error("unavailable"))
+    .mockRejectedValueOnce(new Error("unavailable"));
+  const insert = h.ctx.db.insert.bind(h.ctx.db);
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  let held = false;
+  let lag: { mockRestore(): void } | undefined;
+  const before = h.mail.outbox.length;
+  try {
+    const id = randomUUID();
+    expect((await device.post("/api/device/sos", { id, kind: "urgent" })).status).toBe(200);
+    await waitForSosRetryBackoff(h, id);
+    // Next attempt: the first parent's mail is slow, and recording the second parent's push is too.
+    pushUp = true;
+    mail.mockImplementation(async (m) => {
+      if (m.to === "second@example.org") throw new Error("unavailable");
+      await new Promise<void>((resolve) => (slow.finish = () => { h.mail.outbox.push(m); resolve(); }));
+    });
+    lag = vi.spyOn(h.ctx.db, "insert").mockImplementation(((table: Parameters<typeof insert>[0]) => {
+      if (table !== sosDeliveries || held) return insert(table);
+      held = true;
+      return {
+        values: (v: never) => ({ onConflictDoUpdate: (o: never) => gate.then(() => insert(table).values(v).onConflictDoUpdate(o)) }),
+      };
+    }) as never);
+    h.clock.advance(6 * 3_600_000 + 1);
+    const attempt = deliverSos(h.ctx, id, phoneId, { sendTimeoutMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 150)); // the first parent's mail has timed out
+    slow.finish();
+    await vi.waitFor(async () => {
+      const rows = await h.ctx.db.select().from(sosDeliveries).where(eq(sosDeliveries.eventId, id));
+      expect(rows.some((row) => row.mailedAt)).toBe(true);
+    });
+    open();
+    await attempt;
+    const [event] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
+    expect(event!.deliveryFailedAt).toBeNull();
+    expect(event!.notificationClaimedAt).not.toBeNull();
+    expect(h.mail.outbox.slice(before).map((m) => m.to)).toEqual(["parent@example.org"]);
+  } finally {
+    lag?.mockRestore();
+    push.mockRestore();
+    mail.mockRestore();
+  }
+});
+
+it("releases a held lease after a renewal that was still in flight", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  const { phoneId, id, mail, slow } = await slowSecondMail();
+  const update = h.ctx.db.update.bind(h.ctx.db);
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  let late: { mockRestore(): void } | undefined;
+  try {
+    h.clock.advance(60_000);
+    await deliverSos(h.ctx, id, phoneId, { sendTimeoutMs: 50 }); // the slow send holds the lease
+    // The renewal reaches the database, but its answer is late.
+    let renewal = false;
+    late = vi.spyOn(h.ctx.db, "update").mockImplementation(((table: Parameters<typeof update>[0]) => {
+      const query = update(table);
+      if (renewal) return query;
+      renewal = true;
+      return {
+        set: (v: never) => ({ where: (w: never) => ({
+          returning: (r: never) => query.set(v).where(w).returning(r).then(async (rows) => { await gate; return rows; }),
+        }) }),
+      };
+    }) as never);
+    h.clock.advance(30_000);
+    vi.advanceTimersByTime(40_000);
+    await vi.waitFor(async () => {
+      const [event] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
+      expect(event!.notificationLeaseUntil?.getTime()).toBe(h.clock.now.getTime() + 120_000);
+    });
+    slow.finish();
+    await vi.waitFor(async () => expect((await h.ctx.db.select().from(sosDeliveries))[0]?.mailedAt).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 50)); // the release is under way
+    open();
+    await waitForLeaseReleased(id);
+  } finally {
+    vi.useRealTimers();
+    late?.mockRestore();
+    mail.mockRestore();
+  }
+});
+
 it("records an accepted SOS mail again, without resending it, when the first record fails", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });

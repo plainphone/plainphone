@@ -356,7 +356,13 @@ What people see at the cap:
   An SOS mail that takes longer than the 20-second send timeout is not abandoned: it is left to
   finish and recorded when it gets through, and the retry waits for it instead of sending a second
   mail. While it is still with the mail server, the server holds on to the incident, so a second
-  server process cannot send it again, and the incident is not closed as undelivered.
+  server process cannot send it again, and the incident is not closed as undelivered. Whether a
+  parent was reached is read back from what the database recorded, so a late mail that got through
+  is never shown as undelivered.
+- **SOS mail is at-least-once.** A lost SOS is never acceptable; a duplicate is. One rare case can
+  send the same SOS mail twice: several server processes, and a database outage that lasts longer
+  than the incident's two-minute hold, so a second process takes over before the first could record
+  the mail. The hosted service runs one process, where this cannot happen.
 
 The mail server's own refusals: a temporary answer (SMTP `4xx`, for example `421`, `450`, `451`
 or `452`, which is how most servers say "rate limited") gets the same `503 mail_unavailable` on
