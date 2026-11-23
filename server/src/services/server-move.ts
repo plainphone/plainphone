@@ -10,6 +10,7 @@ import { householdMembers, moveIdentity, moveImports, phoneMoves, phones, users 
 import { dnsClientId, randomToken, sha256 } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
 import { isDnsReady, syncDns } from "./dns.js";
+import { phoneCapReached, PhoneCapError } from "./phone-cap.js";
 import { allowsServerMove, type MoveDb, type MovePhone, policyHash, portablePolicy, readMovePolicy, writeMovePolicy } from "./move-policy.js";
 
 const signingAlg = "EdDSA";
@@ -153,6 +154,10 @@ export async function importMove(ctx: Ctx, householdId: string, ticketId: string
     const expiresAt = new Date(imported.expiresAt);
     if (expiresAt <= ctx.now() || expiresAt > ticket.expiresAt) throw new MoveError(410, "the bundle expired");
 
+    // Each imported phone registers its own DNS ClientID, so a move counts against HOUSEHOLD_PHONE_CAP
+    // like pairing does. The bundle can be signed by any server, so its size proves nothing.
+    const refused = await phoneCapReached(ctx, tx, householdId, imported.phones.length);
+    if (refused) throw new PhoneCapError(refused.phoneCap);
     const newIds: string[] = [];
     for (const { name, policy, token } of imported.phones) {
       const { profile, mode, filterMethod, timezone, suggestDeviceContacts, lightContactRestriction, selfScheduleContacts,

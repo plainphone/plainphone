@@ -82,6 +82,9 @@ services:
       SPAM_HONEYPOT: ${SPAM_HONEYPOT:-on}
       BLOCK_DISPOSABLE_EMAIL: ${BLOCK_DISPOSABLE_EMAIL:-on}
       INVITES_PER_HOUSEHOLD_DAILY: ${INVITES_PER_HOUSEHOLD_DAILY:-20}
+      # Phones per household (docs/operations.md#phones-per-household): each one registers a DNS
+      # ClientID, and billing is off. 0 = no cap.
+      HOUSEHOLD_PHONE_CAP: ${HOUSEHOLD_PHONE_CAP:-10}
       # App store review sign-in (docs/store-review.md). Unset = the path does not exist.
       REVIEW_LOGIN_EMAIL: ${REVIEW_LOGIN_EMAIL:-}
       REVIEW_LOGIN_CODE: ${REVIEW_LOGIN_CODE:-}

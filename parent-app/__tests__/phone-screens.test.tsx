@@ -156,6 +156,20 @@ describe("pairing", () => {
     expect(await screen.findByText("That code was not found or has expired. Check the code on the phone.")).toBeTruthy();
   });
 
+  it("explains the server's phone cap and keeps the form", async () => {
+    phoneApi(PHONE, {
+      "POST /phones/claim": { status: 403, body: { error: "cap", code: "household_phone_cap", max: 10 } },
+      "GET /age-presets": { body: { presets: [] } },
+    });
+    await renderRouter(routes, { initialUrl: "/pair?code=K7MP4QXR" });
+    await fireEvent.changeText(await screen.findByTestId("pair-name"), "Alma");
+    await fireEvent.press(screen.getByTestId("pair-submit"));
+    await fireEvent.press(await screen.findByTestId("pair-age-next"));
+    await fireEvent.press(await screen.findByTestId("pair-agreement-next"));
+    expect(await screen.findByText(/already has 10 phones, the most this server allows/)).toBeTruthy();
+    expect(screen.getByTestId("pair-name").props.value).toBe("Alma");
+  });
+
   it("offers to scan the code on a phone", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: "/pair" });

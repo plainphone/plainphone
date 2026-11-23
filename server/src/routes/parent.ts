@@ -81,9 +81,10 @@ import { parentBillingRoutes } from "./billing.js";
 import { cancelSubscriptions, isAllowed, planLimitBody, subscriptionsOfSoleHouseholds } from "../services/billing.js";
 import { offerFor } from "../services/early-unlock.js";
 import { recentLinks, SIGNUP_CAP_CODE, SignupCapError } from "../services/signup-cap.js";
-import { DbRateLimiter } from "../services/rate-limits.js";
+import { addressKey, DbRateLimiter } from "../services/rate-limits.js";
 import { guardSignupRequest } from "../services/signup-guard.js";
 import { INVITE_CAP_CODE, takeInviteMail } from "../services/invite-cap.js";
+import { phoneCapBody, phoneCapReached } from "../services/phone-cap.js";
 import { countAbuse } from "../services/abuse-metrics.js";
 
 type User = typeof users.$inferSelect;
@@ -119,12 +120,12 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Per address, counted in the database so it holds across restarts and processes.
   const LOGIN_LINKS_PER_ADDRESS_HOUR = 5;
   const verifyLimit = new DbRateLimiter("auth-verify-ip", 30, 15 * 60_000);
-  const claimLimit = new RateLimiter(20, 15 * 60_000);
+  const claimLimit = new DbRateLimiter("pairing-claim", 20, 15 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
-  const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
+  const enrollLimit = new DbRateLimiter("enroll-user", 30, 24 * 60 * 60_000);
   // "Update now" wakes the child's phone: a script must not wake it every second.
   const wakeLimit = new RateLimiter(30, 60 * 60_000);
-  const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
+  const inviteUserLimit = new DbRateLimiter("invite-user", 20, 24 * 60 * 60_000);
   const inviteRecipientLimit = new DbRateLimiter("invite-recipient", 3, 24 * 60 * 60_000);
 
   // --- Auth -------------------------------------------------------------------
@@ -442,7 +443,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const hid = param(c, "hid");
     await requireMember(c, hid);
     const input = await body(c, z.object({ email: v.email, locale: v.locale.optional() }));
-    if (!inviteUserLimit.take(c.get("user").id) || !(await inviteRecipientLimit.take(ctx, `${hid}:${input.email}`))) {
+    if (!(await inviteUserLimit.take(ctx, c.get("user").id)) || !(await inviteRecipientLimit.take(ctx, `${hid}:${input.email}`))) {
       throw new HTTPException(429, { message: "too many invitations; try again tomorrow" });
     }
     // INVITES_PER_HOUSEHOLD_DAILY: once the household's mails for today are used, nothing is stored or sent.
@@ -622,7 +623,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.post("/phones/pairing-profile", async (c) => {
-    if (!claimLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${c.get("user").id}`)) {
+    if (!(await claimLimit.take(ctx, `${addressKey(clientIp(c, ctx.cfg.TRUST_PROXY))}:${c.get("user").id}`))) {
       throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
     }
     const { code } = await body(c, z.object({ code: z.string().max(20).transform(normalizePairingCode) }));
@@ -633,7 +634,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.post("/phones/claim", async (c) => {
-    if (!claimLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${c.get("user").id}`)) {
+    if (!(await claimLimit.take(ctx, `${addressKey(clientIp(c, ctx.cfg.TRUST_PROXY))}:${c.get("user").id}`))) {
       throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
     }
     const input = await body(
@@ -674,6 +675,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (p.profileHint && input.profile !== p.profileHint) return "profileMismatch" as const;
       // The flag may have been switched off since the iPhone started pairing.
       if (p.platform === "ios" && !ctx.cfg.IOS_PAIRING_ENABLED) return "iosNotYet" as const;
+      // The pairing stays open, so the parent can remove a phone and claim this one with the same code.
+      const refused = await phoneCapReached(ctx, tx, householdId);
+      if (refused) return refused;
       const created = await createPhone(ctx, tx, {
         householdId,
         name: input.name,
@@ -695,6 +699,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!phone) return c.json({ error: "code not found or expired; check the code on the phone" }, 404);
     if (phone === "profileMismatch") return c.json({ error: "profile mismatch" }, 409);
     if (phone === "iosNotYet") return c.json(IOS_PAIRING_NOT_YET, 403);
+    if ("phoneCap" in phone) return c.json(phoneCapBody(phone.phoneCap), 403);
     if (phone.deviceTokenHash) await syncDns(ctx, phone.id);
     return c.json(await phoneSummary(ctx, phone), 201);
   });
@@ -702,7 +707,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Strong-mode setup from the dashboard: a phone entry plus a one-time token for the provisioning
   // QR code, which the browser builds (it also hashes the maintenance PIN; the server never sees it).
   app.post("/phones/enroll", async (c) => {
-    if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many new phones today" });
+    if (!(await enrollLimit.take(ctx, c.get("user").id))) throw new HTTPException(429, { message: "too many new phones today" });
     const input = await body(
       c,
       z.object({
@@ -726,6 +731,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const allowed = await isAllowed(ctx, householdId, "phone.add");
     if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
     const phone = await ctx.db.transaction(async (tx) => {
+      const refused = await phoneCapReached(ctx, tx, householdId);
+      if (refused) return refused;
       const template = input.template ? await readSelfTemplate(tx, input.template, ctx.now()) : null;
       if (input.template && !template) return null;
       const created = await createPhone(ctx, tx, {
@@ -742,6 +749,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (template) await applySelfTemplate(tx, created.id, template, ctx.now());
       return created;
     });
+    if (phone && "phoneCap" in phone) return c.json(phoneCapBody(phone.phoneCap), 403);
     if (!phone) return c.json({ error: "the setup template has expired" }, 404);
     const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
     if (!setup) return c.json({ error: "this phone is already set up" }, 409);
@@ -759,7 +767,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     // Only a phone that has not confirmed the account has something left to confirm.
     if (phone.deviceTokenHash !== null) return c.json({ error: "this phone is already paired and will show here once it connects" }, 409);
     if (pending || phone.awaitingServerMove) return c.json({ error: "confirm the account on the phone" }, 409);
-    if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
+    if (!(await enrollLimit.take(ctx, c.get("user").id))) throw new HTTPException(429, { message: "too many setup codes today" });
     const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
     if (!setup) return c.json({ error: "this phone is already set up" }, 409);
     return c.json(setup, 201);

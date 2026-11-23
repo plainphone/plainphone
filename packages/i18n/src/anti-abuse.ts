@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Bot and spam protection on the sign-in form and on invitations (docs/operations.md, "Bot and
+// Bot and spam protection on the sign-in form, on invitations and on adding phones (docs/operations.md, "Bot and
 // spam protection"), for the dashboard and the parent app. Kept in its own file so the main
 // catalogues only spread it in. Never use em dashes in copy.
 
@@ -10,6 +10,7 @@ export const antiAbuseEn = {
   "botCheck.honeypot": "Leave this field empty",
   "disposableEmail.error": "This looks like a temporary mail address. Use an address you will keep, so you can still sign in later.",
   "inviteCap.error": "Your family has sent today's invitations. Try again tomorrow.",
+  "phoneCap.error": "Your family already has {max} phones, the most this server allows. Remove a phone you no longer use, then add this one. The phones you have keep working.",
 } as const;
 
 export const antiAbuseDa: Record<keyof typeof antiAbuseEn, string> = {
@@ -18,6 +19,7 @@ export const antiAbuseDa: Record<keyof typeof antiAbuseEn, string> = {
   "botCheck.honeypot": "Lad dette felt være tomt",
   "disposableEmail.error": "Det ligner en midlertidig mailadresse. Brug en adresse, du beholder, så du også kan logge ind senere.",
   "inviteCap.error": "Jeres familie har sendt dagens invitationer. Prøv igen i morgen.",
+  "phoneCap.error": "Jeres familie har allerede {max} telefoner, det højeste antal denne server tillader. Fjern en telefon, I ikke længere bruger, og tilføj så denne. De telefoner, I har, virker som før.",
 };
 
 export const antiAbuseSv: Record<keyof typeof antiAbuseEn, string> = {
@@ -26,6 +28,7 @@ export const antiAbuseSv: Record<keyof typeof antiAbuseEn, string> = {
   "botCheck.honeypot": "Lämna det här fältet tomt",
   "disposableEmail.error": "Det ser ut som en tillfällig e-postadress. Använd en adress du behåller, så att du kan logga in även senare.",
   "inviteCap.error": "Er familj har skickat dagens inbjudningar. Försök igen i morgon.",
+  "phoneCap.error": "Er familj har redan {max} telefoner, det högsta antal den här servern tillåter. Ta bort en telefon ni inte längre använder och lägg sedan till den här. Telefonerna ni har fungerar som vanligt.",
 };
 
 export const antiAbuseNb: Record<keyof typeof antiAbuseEn, string> = {
@@ -34,6 +37,7 @@ export const antiAbuseNb: Record<keyof typeof antiAbuseEn, string> = {
   "botCheck.honeypot": "La dette feltet stå tomt",
   "disposableEmail.error": "Dette ser ut som en midlertidig e-postadresse. Bruk en adresse du beholder, så du kan logge inn senere også.",
   "inviteCap.error": "Familien deres har sendt dagens invitasjoner. Prøv igjen i morgen.",
+  "phoneCap.error": "Familien deres har allerede {max} telefoner, det høyeste antallet denne serveren tillater. Fjern en telefon dere ikke bruker lenger, og legg så til denne. Telefonene dere har, virker som før.",
 };
 
 export const antiAbuseDe: Record<keyof typeof antiAbuseEn, string> = {
@@ -42,4 +46,5 @@ export const antiAbuseDe: Record<keyof typeof antiAbuseEn, string> = {
   "botCheck.honeypot": "Dieses Feld bitte leer lassen",
   "disposableEmail.error": "Das sieht nach einer Wegwerf-E-Mail-Adresse aus. Nutzen Sie eine Adresse, die Sie behalten, damit Sie sich auch später anmelden können.",
   "inviteCap.error": "Ihre Familie hat die Einladungen für heute verschickt. Versuchen Sie es morgen noch einmal.",
+  "phoneCap.error": "Ihre Familie hat bereits {max} Telefone, die Höchstzahl auf diesem Server. Entfernen Sie ein Telefon, das Sie nicht mehr nutzen, und fügen Sie dann dieses hinzu. Ihre bisherigen Telefone funktionieren weiter.",
 };

@@ -294,3 +294,42 @@ it("keeps a redeemed phone that syncs just after the move expired, and frees one
   await sweep(h.ctx);
   expect((await h.ctx.db.select().from(phones).where(eq(phones.id, secondId)))[0]).toMatchObject({ awaitingServerMove: false, deviceTokenHash: null });
 });
+
+it("counts imported phones against HOUSEHOLD_PHONE_CAP and keeps the invitation when it refuses", async () => {
+  const s = await servers();
+  await pairPhone(h, s.parent, { name: "Test phone A" });
+  await pairPhone(h, s.parent, { name: "Test phone B" });
+  s.destination.ctx.cfg.HOUSEHOLD_PHONE_CAP = 2;
+  expect((await s.newParent.post("/api/phones/enroll", { name: "Already here", profile: "child" })).status).toBe(201);
+  const ticket = await invitation(s);
+  const out = await s.parent.post(s.sourcePath + "/export", { ticket });
+  expect(out.status).toBe(201);
+  const importPath = s.destinationPath + "/import";
+  const refused = await s.newParent.post(importPath, { ticketId: ticket.id, bundle: out.json.bundle });
+  expect(refused.status).toBe(403);
+  expect(refused.json).toMatchObject({ code: "household_phone_cap", max: 2 });
+  expect((await s.newParent.get("/api/phones")).json.phones).toHaveLength(1);
+  s.destination.ctx.cfg.HOUSEHOLD_PHONE_CAP = 3;
+  const imported = await s.newParent.post(importPath, { ticketId: ticket.id, bundle: out.json.bundle });
+  expect(imported.status).toBe(201);
+  expect((await s.newParent.get("/api/phones")).json.phones).toHaveLength(3);
+});
+
+it("lets two imports at the same instant take only the last place, also when the id differs in letter case", async () => {
+  const s = await servers();
+  const a = await pairPhone(h, s.parent, { name: "Test phone A" });
+  const b = await pairPhone(h, s.parent, { name: "Test phone B" });
+  const first = await exportPhone(s, a.phoneId);
+  const second = await exportPhone(s, b.phoneId);
+  s.destination.ctx.cfg.HOUSEHOLD_PHONE_CAP = 1;
+  // Postgres reads both forms as one household, so both requests must wait for the same lock.
+  const lower = s.destinationPath.toLowerCase() + "/import";
+  const upper = s.destinationPath.replace(/[0-9a-f-]{36}/, (id) => id.toUpperCase()) + "/import";
+  expect(upper).not.toBe(lower);
+  const results = await Promise.all([
+    s.newParent.post(lower, { ticketId: first.ticketId, bundle: first.bundle }),
+    s.newParent.post(upper, { ticketId: second.ticketId, bundle: second.bundle }),
+  ]);
+  expect(results.map((r) => r.status).sort()).toEqual([201, 403]);
+  expect((await s.newParent.get("/api/phones")).json.phones).toHaveLength(1);
+});

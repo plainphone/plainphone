@@ -29,10 +29,14 @@ export class ValidationError extends Error {
 
 export const uuidParam = z.uuid();
 
+/**
+ * A UUID from the path, lower-cased: Postgres treats "ABC…" and "abc…" as the same id, so anything
+ * keyed on the string (advisory locks, rate limits) must see one form.
+ */
 export function param(c: Context, name: string): string {
   const value = c.req.param(name);
   if (!value || !uuidParam.safeParse(value).success) throw new HTTPException(404, { message: "not found" });
-  return value;
+  return value.toLowerCase();
 }
 
 /** Small fixed-window limiter, per process. Enough for one server; swap for Redis if you scale out. */
