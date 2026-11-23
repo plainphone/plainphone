@@ -488,7 +488,7 @@ jobs:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.emulator == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -577,7 +577,7 @@ jobs:
       - name: Run the device flows once
         # Ends a hang as a failure, so the artifact upload below still runs; a job that hits
         # its own limit is cancelled and uploads nothing (run 45018411514).
-        timeout-minutes: 10
+        timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
           # Bounds the emulator's own graceful shutdown; the cleanup step below kills what is left.

@@ -132,23 +132,72 @@ const { sessionToken } = (await verify.json()) as { sessionToken: string };
 // return a successful, quiet rate-limit response, which must not fall back.
 const injectQuickMessage429 = emulator;
 let quickMessageRequests = 0;
-let smsObserved = false;
+
+// Emulator console commands (`adb emu ...`) the device asks the host harness to run, so an SMS
+// or a call from another number reaches the phone through the emulated modem, as it would from
+// a real network. The harness polls /e2e/console/next and posts the console's output back.
+// Only an SMS or an incoming call from a number is accepted, never another console command.
+type ConsoleCommand = { id: number; args: string[]; finish: (output: string | null) => void };
+const consoleQueue: ConsoleCommand[] = [];
+const consoleRunning = new Map<number, ConsoleCommand>();
+let consoleIds = 0;
+const consoleNumber = /^\+?[0-9]{3,15}$/;
+function consoleArgs(value: unknown): string[] | null {
+  if (!Array.isArray(value) || !value.every((a) => typeof a === "string")) return null;
+  const [group, action, number, ...rest] = value as string[];
+  if (!number || !consoleNumber.test(number)) return null;
+  if (group === "sms" && action === "send" && rest.length === 1 && /^[A-Za-z0-9 .,!?-]{1,140}$/.test(rest[0]!)) return value;
+  if (group === "gsm" && action === "call" && rest.length === 0) return value;
+  return null;
+}
+function runOnConsole(args: string[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    const command: ConsoleCommand = { id: ++consoleIds, args, finish: resolve };
+    consoleQueue.push(command);
+    // Shorter than the device's 10-second read timeout, so the test sees a clear 504.
+    setTimeout(() => {
+      const queued = consoleQueue.indexOf(command);
+      if (queued >= 0) consoleQueue.splice(queued, 1);
+      consoleRunning.delete(command.id);
+      resolve(null);
+    }, 8_000);
+  });
+}
+
 const server = serve({
   hostname: "127.0.0.1",
   port,
-  fetch: (request) => {
-    if (injectQuickMessage429) {
+  fetch: async (request) => {
+    if (emulator) {
       const path = new URL(request.url).pathname;
-      if (request.method === "POST" && path === "/api/device/quick-messages/send") {
+      if (injectQuickMessage429 && request.method === "POST" && path === "/api/device/quick-messages/send") {
         quickMessageRequests++;
         return new Response(null, { status: 429 });
       }
       if (request.headers.get("authorization") === `Bearer ${sessionToken}`) {
         if (path === "/e2e/quick-message-requests" && request.method === "GET") {
-          return Response.json({ count: quickMessageRequests, smsObserved });
+          return Response.json({ count: quickMessageRequests });
         }
-        if (path === "/e2e/sms-observed" && request.method === "POST" && quickMessageRequests === 1) {
-          smsObserved = true;
+        if (path === "/e2e/console" && request.method === "POST") {
+          const input = (await request.json().catch(() => null)) as { args?: unknown } | null;
+          const args = consoleArgs(input?.args);
+          if (!args) return new Response(null, { status: 400 });
+          const output = await runOnConsole(args);
+          return output === null ? new Response(null, { status: 504 }) : Response.json({ output });
+        }
+        if (path === "/e2e/console/next" && request.method === "GET") {
+          const command = consoleQueue.shift();
+          if (!command) return new Response(null, { status: 204 });
+          consoleRunning.set(command.id, command);
+          return Response.json({ id: command.id, args: command.args });
+        }
+        const finished = /^\/e2e\/console\/([0-9]+)$/.exec(path);
+        if (finished && request.method === "POST") {
+          const command = consoleRunning.get(Number(finished[1]));
+          if (!command) return new Response(null, { status: 404 });
+          consoleRunning.delete(command.id);
+          const { output } = (await request.json()) as { output?: unknown };
+          command.finish(String(output));
           return new Response(null, { status: 204 });
         }
       }

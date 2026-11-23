@@ -55,6 +55,45 @@ object PipGuard {
     /** Long enough for Android's expand animation and a stop screen dropped by the guard's rate limit. */
     const val EXPAND_QUIET_MS = 5_000L
 
+    /**
+     * When the guard looks again after dismissing a blocked window, without waiting for a window event.
+     * Android 10's System UI shows its close menu for 3.5 s once a window has floated in, and while the
+     * menu shows it takes no dismiss: the menu unregisters the input consumer, and with it the
+     * connection that answers for the pinned window (AOSP 10: PipTouchHandler
+     * .onPinnedStackAnimationEnded, PipMenuActivity.INITIAL_DISMISS_DELAY, PipMenuActivityController
+     * .onMenuStateChanged, PipTouchHandler.onRegistrationChanged). A dismiss System UI accepted only
+     * removes the window a moment later. Emulator runs 45135133026 and 45133584798 (API 29): the
+     * window floated on over its stop screen, as nothing changed until the guard's next tick.
+     */
+    val RECHECK_DELAYS_MS = listOf(500L, 1_000L, 2_000L, 4_000L, 8_000L)
+
+    /** The wait before re-check number [done] + 1, or null once they are all used up. */
+    fun recheckDelay(done: Int): Long? = RECHECK_DELAYS_MS.getOrNull(done)
+
+    /**
+     * Whose app a picture-in-picture window shows. Its root names the app, except on Android 10,
+     * where System UI answers for a pinned window and lays its menu over it, so the window reads as
+     * System UI, and where a window can have no root while it enters picture-in-picture. The app is
+     * then the one [known] for that window id from before it floated; for System UI's own menu
+     * window, and for an unreadable window while an app still floats, the app last seen floating
+     * ([lastPinned]); and for System UI failing both, the last app [inFront] that was not Home, as
+     * only the app in front can enter picture-in-picture. Emulator runs 45042386185
+     * ("pip: windows com.android.systemui#10@1"), 45047940235 ("null#10@1", then
+     * "com.android.systemui#14@1") and 45125434098 (the menu window read as "null#12@1", so the
+     * floating player counted as gone and was stopped and expanded again) showed these.
+     * Known gap: if a second app goes straight into picture-in-picture while the first still floats
+     * and its window is unreadable on the first look, it counts as the first app until its window
+     * reads, so for that one check it is judged (and possibly dismissed) by the first app's rules.
+     */
+    fun owner(rootPkg: String?, windowId: Int, known: Map<Int, String>, lastPinned: String?, inFront: String?): String? =
+        when (rootPkg) {
+            null -> known[windowId] ?: lastPinned
+            SYSTEM_UI -> known[windowId] ?: lastPinned ?: inFront
+            else -> rootPkg
+        }
+
+    const val SYSTEM_UI = "com.android.systemui"
+
     /** Picture-in-picture packages, for the live time check (the plan may not know yet that time is up). */
     fun packages(windows: List<Win>, ownPackage: String): List<String> =
         windows.filter { it.inPip }.mapNotNull { it.pkg }.filter { it != ownPackage }.distinct()

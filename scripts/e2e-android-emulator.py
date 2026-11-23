@@ -13,13 +13,13 @@ import subprocess
 import tempfile
 from threading import Event
 import time
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = Path(os.environ.get("E2E_ARTIFACTS", ROOT / "android/build/emulator-e2e"))
 PACKAGE = "org.plainphone.app"
-REPLY = "Emulator parent reply"
 
 
 def adb(*args, **kwargs):
@@ -122,6 +122,17 @@ def serial_shell(console, *args, timeout=30):
     raise RuntimeError("Emulator serial console disconnected")
 
 
+# Each flow takes two to four minutes. The light flow can first wait up to eleven minutes so that
+# its day and month counts do not straddle a real midnight (LightModeFlow.awaitClearOfMidnight).
+# Together these limits fit the limit of the CI step that runs both flows.
+INSTRUMENT_TIMEOUTS = {"LightModeFlow": 960, "DeviceOwnerFlow": 420}
+# The flow's own watchdog (FlowWatchdog) fails it this long before the limit above, with the step
+# it was at and the stuck stack traces, instead of the limit ending `am instrument` with no output.
+WATCHDOG_MARGIN = 60
+# The light flow's longest legitimate run: the midnight wait (at most 11 minutes) and the flow.
+LIGHT_FLOW_WORST_CASE = 11 * 60 + 4 * 60
+
+
 def console_lines(console, deadline, overrun):
     # Each read waits only for what is left of the deadline.
     pending = b""
@@ -151,16 +162,16 @@ def instrument(flow, port, token, console=None, command_prefix=(), *, parent_num
     command = (
         "am", "instrument", "-w", "-r", "-e", "class",
         f"{PACKAGE}.e2e.{flow}", "-e", "port", str(port), "-e", "parentToken",
-        token,
+        token, "-e", "watchdogSeconds", str(INSTRUMENT_TIMEOUTS[flow] - WATCHDOG_MARGIN),
     )
     if parent_number is not None:
         command += ("-e", "parentNumber", parent_number)
     command += (f"{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner",)
     if console is None:
         result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, timeout=240).stdout
+                     stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
     else:
-        result = serial_shell(console, *command_prefix, *command, timeout=240)
+        result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow])
     (ARTIFACTS / f"{flow}.txt").write_text(result, encoding="utf-8")
     print(result, flush=True)
     # am instrument can exit zero even when a test fails or never ran.
@@ -346,29 +357,58 @@ def run_flows(port, token, console, check_server=lambda: None):
     serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
     stop = Event()
     with ThreadPoolExecutor(max_workers=1) as executor:
-        reply = executor.submit(inject_parent_sms, port, token, stop, serial, parent_number)
+        commands = executor.submit(serve_console, port, token, stop, serial)
         try:
             check_server()
             instrument("DeviceOwnerFlow", port, token, console, android_runtime, parent_number=parent_number)
-            if not reply.result(timeout=5):
-                raise RuntimeError("SMS injection stopped before delivery")
         finally:
             stop.set()
+        # Raises what stopped the console runner, if anything did.
+        commands.result(timeout=15)
 
 
-def inject_parent_sms(port, token, stop, serial, parent_number):
-    # Inject a separate reply only once the child has observed the modem loopback.
-    request = Request(f"http://127.0.0.1:{port}/e2e/quick-message-requests",
-                      headers={"Authorization": f"Bearer {token}"})
-    while not stop.wait(0.25):
-        with urlopen(request, timeout=5) as reply:
-            if json.load(reply)["smsObserved"]:
-                response = adb("-s", serial, "emu", "sms", "send", parent_number, REPLY,
-                               text=True, stdout=subprocess.PIPE).stdout
-                if response.strip() != "OK":
-                    raise RuntimeError(f"Emulator rejected the incoming SMS: {response}")
-                return True
-    return False
+CONSOLE_NUMBER = re.compile(r"\+?[0-9]{3,15}")
+
+
+def console_command(args):
+    # The device may ask for an SMS or an incoming call from a number, and nothing else
+    # the emulator console can do (the test server checks the same).
+    if (len(args) == 4 and args[:2] == ["sms", "send"] and CONSOLE_NUMBER.fullmatch(args[2])
+            and re.fullmatch(r"[A-Za-z0-9 .,!?-]{1,140}", args[3])):
+        return ("emu", *args)
+    if len(args) == 3 and args[:2] == ["gsm", "call"] and CONSOLE_NUMBER.fullmatch(args[2]):
+        return ("emu", *args)
+    raise ValueError(f"Not an emulator console command the device may ask for: {args!r}")
+
+
+def serve_console(port, token, stop, serial, poll=0.25):
+    # Runs, in order, the emulator console commands the device queues on the test server, so an
+    # SMS or a call from another number reaches the phone through the emulated modem.
+    base = f"http://127.0.0.1:{port}/e2e/console"
+    headers = {"Authorization": f"Bearer {token}"}
+    while not stop.is_set():
+        with urlopen(Request(f"{base}/next", headers=headers), timeout=5) as response:
+            command = json.load(response) if response.status == 200 else None
+        if command is None:
+            stop.wait(poll)
+            continue
+        try:
+            output = adb("-s", serial, *console_command(command["args"]),
+                         text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            # The device asserts on the output, so it fails with this message.
+            output = f"harness error: {error}"
+        body = json.dumps({"output": output}).encode()
+        try:
+            with urlopen(Request(f"{base}/{command['id']}", data=body, method="POST",
+                                 headers={**headers, "Content-Type": "application/json"}), timeout=5):
+                pass
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            # The device stopped waiting (its request already got a 504); keep serving the next ones.
+            print(f"console command {command['id']} {command['args'][:2]} finished after the device gave up",
+                  flush=True)
 
 
 def report_server(server, log, lines=30):

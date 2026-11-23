@@ -114,9 +114,30 @@ class PipGuardTest {
         val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
         val dismissals = { shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS } }
         assertEquals(1, dismissals())
+        // Re-checks at 0.5 s and 1.5 s, without a window event (runs 45135133026 and 45133584798).
         shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals("looked again without a window event", 3, dismissals())
         windowsChanged()
-        assertEquals(2, dismissals())
+        assertEquals(4, dismissals())
+        assertEquals(1, homeActions())
+    }
+
+    @Test fun `a window that floats on is looked at a bounded number of times, then the app is expanded once`() {
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = true)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val root = Shadow.extract<GuardServiceTest.WindowShadow>(pip).rootNode!!
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(60))
+        assertEquals(
+            "the first dismiss and one per re-check",
+            1 + PipGuard.RECHECK_DELAYS_MS.size,
+            shadowOf(root).performedActions.count { it == AccessibilityNodeInfo.ACTION_DISMISS },
+        )
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals("expanded once, after the last re-check", 1, starts.count { it.component?.packageName == game })
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
         assertEquals(1, homeActions())
     }
 
@@ -193,6 +214,84 @@ class PipGuardTest {
         }
         val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
         assertEquals(1, starts.count { it.component?.packageName == game })
+    }
+
+    @Test fun `whose window it is when Android 10 does not say`() {
+        val known = mapOf(10 to game)
+        assertEquals(video, PipGuard.owner(video, 10, known, game, fine))
+        assertEquals("no root yet: the app the window showed", game, PipGuard.owner(null, 10, known, null, fine))
+        assertEquals("no root while an app floats: that app", game, PipGuard.owner(null, 11, known, game, fine))
+        assertEquals("no root, nothing seen floating", null, PipGuard.owner(null, 11, known, null, fine))
+        assertEquals("System UI answering for the app's window", game, PipGuard.owner(PipGuard.SYSTEM_UI, 10, known, video, fine))
+        assertEquals("System UI's menu window over it", video, PipGuard.owner(PipGuard.SYSTEM_UI, 14, known, video, fine))
+        assertEquals("never seen before: the app that was in front", fine, PipGuard.owner(PipGuard.SYSTEM_UI, 14, known, null, fine))
+    }
+
+    private fun android10Window(pkg: String?, pip: Boolean, id: Int) = AccessibilityWindowInfo().also {
+        Shadow.extract<GuardServiceTest.WindowShadow>(it).apply {
+            rootNode = pkg?.let { p -> AccessibilityNodeInfo().apply { packageName = p } }
+            this.pip = pip
+            windowId = id
+        }
+    }
+
+    /** An allowed [game] in front goes into picture-in-picture through [pinned], then the parent blocks it. */
+    private fun assertStoppedOnceBlocked(vararg pinned: List<AccessibilityWindowInfo>) {
+        installLauncher(game)
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit().putStringSet("blocked", emptySet()).commit()
+        org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected") // watches the plan
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply { packageName = game })
+        shadow.windowList = listOf(android10Window(game, false, 10))
+        windowsChanged()
+        pinned.forEach {
+            shadow.windowList = it
+            windowsChanged()
+        }
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(2))
+        assertEquals(null, shadowOf(service.application).nextStartedActivity)
+
+        service.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE).edit().putStringSet("blocked", setOf(game)).commit()
+        looper.idleFor(Duration.ofSeconds(2))
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals("expanded once", 1, starts.count { it.component?.packageName == game })
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
+        // Home would hold back app starts for 5 s on Android 10 and leave the window floating over the launcher.
+        assertEquals("the floating app is not treated as the app in front", 0, homeActions())
+    }
+
+    @Test fun `Android 10's menu over a floating window does not hide whose window it is`() {
+        // Emulator run 45047940235 (API 29): "pip: windows null#10@1", then "com.android.systemui#14@1",
+        // and the blocked player floated on.
+        assertStoppedOnceBlocked(listOf(android10Window(null, true, 10)), listOf(android10Window(PipGuard.SYSTEM_UI, true, 14)))
+    }
+
+    @Test fun `Android 10's System UI answering for a floating window does not hide whose window it is`() {
+        // Emulator run 45042386185 (main, issue #258): the first sighting was "com.android.systemui#10@1".
+        assertStoppedOnceBlocked(listOf(android10Window(PipGuard.SYSTEM_UI, true, 10)))
+    }
+
+    @Test fun `a floating window seen only as System UI belongs to the app that was in front`() {
+        assertStoppedOnceBlocked(listOf(android10Window(PipGuard.SYSTEM_UI, true, 21)))
+    }
+
+    @Test fun `a floating window that turns unreadable is not stopped again`() {
+        // Emulator run 45125434098 (API 29): after the stop screen, the menu window read as
+        // "null#12@1", the player counted as gone, and its next sighting stopped it again.
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = false)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(1))
+        shadow.windowList = listOf(android10Window(null, true, 12))
+        windowsChanged()
+        looper.idleFor(Duration.ofSeconds(1))
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
     }
 
     @Test fun `the quiet window ends`() {
