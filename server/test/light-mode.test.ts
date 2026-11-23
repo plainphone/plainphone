@@ -281,6 +281,26 @@ describe("status with light-mode fields", () => {
     }
   });
 
+  it("a Play phone needs the five protections without device admin; a phone that does not say needs all six", async () => {
+    const { parent, phoneId, device } = await lightPhone();
+    const { deviceAdmin: _admin, ...withoutAdmin } = allOn;
+    await device.put("/api/device/status", report({ mode: "light", distribution: "play", protections: withoutAdmin }));
+    expect(await intact(parent, phoneId)).toBe(true);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status.distribution).toBe("play");
+    await device.put("/api/device/status", report({ mode: "light", distribution: "play", protections: { ...allOn, deviceAdmin: false } }));
+    expect(await intact(parent, phoneId)).toBe(true);
+    for (const k of REQUIRED.filter((k) => k !== "deviceAdmin")) {
+      await device.put("/api/device/status", report({ mode: "light", distribution: "play", protections: { ...withoutAdmin, [k]: false } }));
+      expect(await intact(parent, phoneId), `${k} off`).toBe(false);
+    }
+    // GitHub builds and apps from before the field keep needing a device admin.
+    for (const distribution of ["github", undefined]) {
+      await device.put("/api/device/status", report({ mode: "light", distribution, protections: withoutAdmin }));
+      expect(await intact(parent, phoneId), String(distribution)).toBe(false);
+    }
+    expect((await device.put("/api/device/status", report({ distribution: "fdroid" }))).status).toBe(400);
+  });
+
   it("on a light phone, no protections, a failed policy or maintenance is not intact", async () => {
     const { parent, phoneId, device } = await lightPhone();
     await device.put("/api/device/status", report());
