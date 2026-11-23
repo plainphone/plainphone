@@ -1004,6 +1004,8 @@ export const da: Messages = {
   "add.lightPinOnPhone": "Vælg og bekræft din forælder-PIN på telefonen.",
   "add.timezone": "Husstandens tidszone",
   "add.timezoneHelp": "Vælg tidszonen dér, hvor telefonen skal bruges. Android og tidsplanerne bruger den.",
+  "add.timezoneCommon": "Forslag",
+  "add.timezoneAll": "Alle tidszoner",
   "add.makeQr": "Lav QR-koden",
   "add.making": "Laver QR-koden…",
   "add.qrTitle": "Sæt telefonen op: {name}",

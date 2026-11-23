@@ -94,8 +94,22 @@ it.each(["/settings", "/setup"])("offers a labeled language picker on %s", (sect
 it("shows the saved household time zone when regenerating a setup QR code", () => {
   const html = renderPhone({ ...phone, timezone: "Europe/Oslo" }, "/setup");
   expect(html).toContain("Household time zone");
-  expect(html).toContain('value="Europe/Oslo" selected="">Europe/Oslo');
+  expect(html).toMatch(/value="Europe\/Oslo" selected="">Oslo \(UTC\+[12]\)/);
   expect(html).toContain('value="Europe/Copenhagen"');
+});
+
+it("offers the common time zones first, with readable names, before all the others", () => {
+  const html = renderPhone({ ...phone, timezone: "Europe/Copenhagen" }, "/setup", "da");
+  const groups = [...html.matchAll(/<optgroup label="([^"]+)">(.*?)<\/optgroup>/g)];
+  expect(groups.map(([, label]) => label)).toEqual(["Forslag", "Alle tidszoner"]);
+  const suggested = [...groups[0]![2]!.matchAll(/value="([^"]+)"/g)].map(([, zone]) => zone);
+  expect(suggested).toEqual(expect.arrayContaining(["Europe/Copenhagen", "Europe/Stockholm", "Europe/Oslo", "Europe/Berlin", "Europe/London"]));
+  expect(suggested.length).toBeLessThan(10);
+  expect(groups[0]![2]).toMatch(/København \(UTC\+[12]\)/);
+  expect(groups[1]![2]).not.toContain('value="Europe/Copenhagen"');
+  const restLabels = [...groups[1]![2]!.matchAll(/">([^<]+)<\/option>/g)].map(([, label]) => label);
+  expect(restLabels.length).toBeGreaterThan(100);
+  expect(restLabels.filter((label) => label!.includes("_") || label!.includes("/"))).toEqual([]);
 });
 
 it.each([

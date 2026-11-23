@@ -972,6 +972,8 @@ export const nb: Messages = {
   "add.lightPinOnPhone": "Velg og bekreft foreldrenes PIN-kode på telefonen.",
   "add.timezone": "Husstandens tidssone",
   "add.timezoneHelp": "Velg tidssonen der telefonen skal brukes. Android og tidsplanene bruker den.",
+  "add.timezoneCommon": "Forslag",
+  "add.timezoneAll": "Alle tidssoner",
   "add.makeQr": "Lag QR-koden",
   "add.making": "Lager QR-koden …",
   "add.qrTitle": "Sett opp telefonen til {name}",

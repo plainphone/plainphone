@@ -972,6 +972,8 @@ export const de: Messages = {
   "add.lightPinOnPhone": "Wählen und bestätigen Sie Ihre Eltern-PIN am Telefon.",
   "add.timezone": "Zeitzone des Haushalts",
   "add.timezoneHelp": "Wählen Sie die Zeitzone, in der das Handy genutzt wird. Android und die Zeitpläne verwenden sie.",
+  "add.timezoneCommon": "Vorschläge",
+  "add.timezoneAll": "Alle Zeitzonen",
   "add.makeQr": "Erstellen Sie den QR-Code",
   "add.making": "Den QR-Code erstellen…",
   "add.qrTitle": "Richten Sie das Telefon von {name} ein",

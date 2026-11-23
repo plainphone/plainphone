@@ -972,6 +972,8 @@ export const sv: Messages = {
   "add.lightPinOnPhone": "Välj och bekräfta din föräldra-PIN på telefonen.",
   "add.timezone": "Hushållets tidszon",
   "add.timezoneHelp": "Välj tidszonen där telefonen ska användas. Android och schemana använder den.",
+  "add.timezoneCommon": "Förslag",
+  "add.timezoneAll": "Alla tidszoner",
   "add.makeQr": "Gör QR-koden",
   "add.making": "Gör QR-koden...",
   "add.qrTitle": "Konfigurera {name}s telefon",
