@@ -45,6 +45,14 @@ export const translations = {
           "I starkt läge använder Plainphone Androids privata DNS. En VPN kan använda sin egen DNS. Koppla från den och kontrollera om filtret fungerar igen.",
         ],
       },
+      {
+        id: "limitations",
+        title: "Något slinker förbi filtret eller låset",
+        body: [
+          "Inget filter fångar allt, och vissa saker kan ingen app blockera, till exempel en fabriksåterställning från återställningsläget eller chattar i meddelandeappar. Sidan med <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/limitations.md\">kända begränsningar</a> (på engelska) visar vad Plainphone inte kan blockera i dag i starkt och lätt läge.",
+          "Har du hittat ett sätt förbi låset som inte finns på listan, rapportera det privat enligt <a href=\"https://github.com/plainphone/plainphone/blob/main/SECURITY.md\">SECURITY.md</a> och inte offentligt på GitHub.",
+        ],
+      },
     ],
     contact: "Kontakta supporten",
     contactText: "Beskriv vad du provade och vad som hände. Du kan klistra in diagnostik från Underhåll eller kontrollpanelen. Utelämna namn, kontouppgifter och andra personuppgifter.",
@@ -95,6 +103,14 @@ export const translations = {
           "I sterk modus bruker Plainphone Androids private DNS. En VPN-tjeneste kan bruke sin egen DNS. Koble fra VPN-tjenesten for å se om filteret fungerer igjen.",
         ],
       },
+      {
+        id: "limitations",
+        title: "Noe slipper forbi filteret eller låsen",
+        body: [
+          "Ikke noe filter fanger alt, og noen ting kan ingen app blokkere, for eksempel en tilbakestilling fra gjenopprettingsmodus eller chatter i meldingsapper. Siden med <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/limitations.md\">kjente begrensninger</a> (på engelsk) viser hva Plainphone ikke kan blokkere i dag i sterk og lett modus.",
+          "Har du funnet en vei rundt låsen som ikke står på listen, rapporter den privat som beskrevet i <a href=\"https://github.com/plainphone/plainphone/blob/main/SECURITY.md\">SECURITY.md</a> og ikke offentlig på GitHub.",
+        ],
+      },
     ],
     contact: "Kontakt brukerstøtte",
     contactText: "Beskriv hva du prøvde og hva som skjedde. Du kan lime inn diagnostikk fra Vedlikehold eller kontrollpanelet. Utelat navn, kontoopplysninger og andre personopplysninger.",
@@ -143,6 +159,14 @@ export const translations = {
         body: [
           "Im leichten Modus nutzt der Webfilter die VPN-Verbindung von Android. Android erlaubt ein aktives VPN pro Profil. Trennen Sie das andere VPN, deaktivieren Sie dafür die Option Durchgehend aktives VPN, falls sie eingeschaltet ist, und schalten Sie den Webfilter in Plainphone wieder ein. Muss das andere VPN eingeschaltet bleiben, kann Plainphone stattdessen das private DNS von Android für den Webfilter verwenden. Im Dashboard oder in der Eltern-App öffnen Sie den Webfilter des Telefons und schalten Privates DNS ein. Bei der ersten Einrichtung wählen Sie es, wenn Plainphone nach einem anderen VPN fragt.",
           "Im starken Modus verwendet Plainphone die Funktion Privates DNS von Android. Ein VPN kann einen eigenen DNS-Dienst verwenden. Trennen Sie es, um zu prüfen, ob der Filter wieder funktioniert.",
+        ],
+      },
+      {
+        id: "limitations",
+        title: "Etwas kommt am Filter oder an der Sperre vorbei",
+        body: [
+          "Kein Filter erkennt alles, und manches kann keine App blockieren, zum Beispiel ein Zurücksetzen auf Werkseinstellungen im Wiederherstellungsmodus oder Chats in Messenger-Apps. Die <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/limitations.md\">bekannten Einschränkungen</a> (auf Englisch) zeigen, was Plainphone heute im starken und im leichten Modus nicht blockieren kann.",
+          "Wenn Sie einen Weg um die Sperre gefunden haben, der nicht auf der Liste steht, melden Sie ihn bitte vertraulich wie in <a href=\"https://github.com/plainphone/plainphone/blob/main/SECURITY.md\">SECURITY.md</a> beschrieben und nicht öffentlich auf GitHub.",
         ],
       },
     ],
