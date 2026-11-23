@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState } from "react";
 import { DEFAULT_HOUSEHOLD_NAME } from "@plainphone/shared/household";
-import { client, unwrap } from "../api/client";
+import { ApiError, client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import { useSession } from "../lib/session";
 import { Button, Card, errorMessage, Field, type NoticeValue } from "./ui";
@@ -40,7 +40,9 @@ export function HouseholdName({ household, notify }: {
       await refresh();
       notify({ tone: "success", text: t("house.nameSaved") });
     } catch (err) {
-      notify({ tone: "error", text: errorMessage(err, t) });
+      // The server holds the same rule, so the answer reads like the form's own check.
+      if (err instanceof ApiError && err.data.code === "household_name_reserved") setError(t("house.nameReserved"));
+      else notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
       inFlight.current = false;
       setSaving(false);

@@ -267,6 +267,20 @@ describe("household members", () => {
     expect(await screen.findByText("Our family")).toBeTruthy();
   });
 
+  it("shows the server's refusal of the reserved name on the field", async () => {
+    const hid = ME.households[0].id;
+    fakeApi({
+      "GET /me": { body: ME },
+      [`GET /households/${hid}/members`]: { body: { members: [{ id: "u1", email: "parent@example.org", role: "owner" }], invites: [] } },
+      [`PATCH /households/${hid}`]: { status: 400, body: { error: 'choose a name other than "Home"', code: "household_name_reserved" } },
+    });
+    await renderRouter(routes, { initialUrl: "/household" });
+    await fireEvent.changeText(await screen.findByTestId("household-name"), "Our family");
+    await fireEvent.press(screen.getByTestId("household-name-save"));
+    expect(await screen.findByText('Choose a name other than "Home".')).toBeTruthy();
+    expect(screen.queryByText("The name is saved.")).toBeNull();
+  });
+
   it("sends one save when Done is tapped again while the name is on its way", async () => {
     const hid = ME.households[0].id;
     const api = fakeApi({

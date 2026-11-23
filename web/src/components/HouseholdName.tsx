@@ -2,7 +2,7 @@
 import { type FormEvent, useState } from "react";
 import { DEFAULT_HOUSEHOLD_NAME } from "@plainphone/shared/household";
 import { useI18n } from "../i18n/I18n";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { errorMessage, Field, type Notice } from "./ui";
 
@@ -36,7 +36,9 @@ export function HouseholdName({ household, notify }: {
       await refresh();
       notify({ tone: "success", text: t("house.nameSaved") });
     } catch (err) {
-      notify({ tone: "error", text: errorMessage(err, t) });
+      // The server holds the same rule, so the answer reads like the form's own check.
+      if (err instanceof ApiError && err.data.code === "household_name_reserved") setError(t("house.nameReserved"));
+      else notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
       setSaving(false);
     }

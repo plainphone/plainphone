@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { HouseholdPage } from "./Household";
 
 vi.mock("../components/ResetProtection", () => ({ ResetProtectionSection: () => null }));
@@ -120,4 +120,14 @@ it("lets a new household get a name, with a placeholder while it has none", asyn
   expect(patch).toHaveBeenCalledWith("/households/h1", { name: "Our family" });
   expect(refresh).toHaveBeenCalled();
   expect(container.textContent).toContain("The name is saved.");
+});
+
+it("shows the server's refusal of the reserved name on the field", async () => {
+  vi.spyOn(api, "patch").mockRejectedValue(new ApiError(400, 'choose a name other than "Home"', [], { code: "household_name_reserved" }));
+  await mount();
+  await typeName("Our family");
+  await act(async () => button("Save name")!.click());
+  expect(container.querySelector('input[name="household-name"]')?.getAttribute("aria-invalid")).toBe("true");
+  expect(container.textContent).toContain('Choose a name other than "Home".');
+  expect(container.textContent).not.toContain("The name is saved.");
 });

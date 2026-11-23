@@ -9360,6 +9360,30 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The name is empty or too long, or (with `code` household_name_reserved) it is exactly "Home", the name that marks a household nobody has named. Nothing is saved. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        /** @enum {string} */
+                        code?: "household_name_reserved";
+                        issues?: {
+                            path?: string;
+                            message?: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not a member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getHouseholdSummarySettings: {

@@ -8,6 +8,9 @@ export const PAIRING_RECOVERY_MS = 24 * 60 * 60_000;
  */
 export const DEFAULT_HOUSEHOLD_NAME = "Home";
 
+/** The error code when a parent names a household exactly DEFAULT_HOUSEHOLD_NAME: saved, it would read as unnamed again. */
+export const HOUSEHOLD_NAME_RESERVED_CODE = "household_name_reserved";
+
 export function maskPairingEmail(email: string): string | null {
   const at = email.lastIndexOf("@");
   if (at <= 0 || at === email.length - 1) return null;
