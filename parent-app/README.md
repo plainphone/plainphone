@@ -12,7 +12,7 @@ The native parent app for iOS and Android. It does the same as the parent web ap
 - apps, approved contacts, web filter, school time, bedtime and daily screen time (one cap for all apps, caps for single apps, weekday overrides, 15 extra minutes today)
 - the phone's last position on a map, with Find, "Drive there", ringing the phone, "Are you okay?" and when the phone may send its position
 - the Self profile's key, changes waiting for the key, and approvals for a trusted person
-- household: other parents and invitations
+- household: its name (shown on the phone when it connects; a new household is just "Household" until named), other parents and invitations
 - delete your account in Settings ([docs/account-deletion.md](../docs/account-deletion.md))
 - live updates while the app is open: an SOS, requests, positions and inbox messages show at once ([docs/live-updates.md](../docs/live-updates.md))
 

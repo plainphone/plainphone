@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import { errorMessage, type Notice } from "../components/ui";
+import { errorMessage, type Notice, Switch } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type Phone } from "../lib/api";
 import { formatDateTime } from "@plainphone/shared/format";
@@ -61,18 +61,12 @@ export function PhoneSupport({ phone, setPhone, notify }: {
   return (
     <section className="section panel" aria-labelledby="support-h">
       <h2 id="support-h">{t("support.help")}</h2>
-      <label>
-        <input type="checkbox" role="switch" checked={enabled} disabled={saving}
-          aria-describedby="support-hint" onChange={(event) => void toggle("supportEnabled", event.target.checked)} />{" "}
-        {t("support.toggle")}
-      </label>
-      <p id="support-hint" className="muted">{t("support.toggleHint")}</p>
-      <label>
-        <input type="checkbox" role="switch" checked={phone.releaseWarningsEnabled !== false} disabled={saving}
-          aria-describedby="release-warnings-hint" onChange={(event) => void toggle("releaseWarningsEnabled", event.target.checked)} />{" "}
-        {t("support.releaseWarnings")}
-      </label>
-      <p id="release-warnings-hint" className="muted">{t("support.releaseWarningsHint")}</p>
+      <div className="stack-sm">
+        <Switch checked={enabled} busy={saving} label={t("support.toggle")} description={t("support.toggleHint")}
+          onChange={(next) => void toggle("supportEnabled", next)} />
+        <Switch checked={phone.releaseWarningsEnabled !== false} busy={saving} label={t("support.releaseWarnings")}
+          description={t("support.releaseWarningsHint")} onChange={(next) => void toggle("releaseWarningsEnabled", next)} />
+      </div>
       {enabled && (
         <div className="stack-sm">
           <a href={helpUrl(locale)}>{t("support.openHelp")}</a>

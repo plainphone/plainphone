@@ -71,6 +71,16 @@ it("links the terms and the privacy policy on the hosted test service", async ()
   expect(container.textContent).toContain("Vilkår for testtjenesten");
 });
 
+it("tells a new parent the same page creates their account", async () => {
+  await render("en");
+  expect(container.querySelector("h1")?.textContent).toBe("Log in or create an account");
+  expect(container.textContent).toContain("New here? The same link creates your account.");
+  act(() => root.unmount());
+  container.remove();
+  await render("da");
+  expect(container.querySelector("h1")?.textContent).toBe("Log ind eller opret en konto");
+});
+
 it("shows no terms on a self-hosted server", async () => {
   hosted.value = false;
   await render("en");

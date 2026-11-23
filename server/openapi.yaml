@@ -4341,6 +4341,24 @@ paths:
             schema: { type: object, properties: { name: { type: string } } }
       responses:
         "204": { description: "Renamed" }
+        "400":
+          description: The name is empty or too long, or (with `code` household_name_reserved) it is exactly "Home", the name that marks a household nobody has named. Nothing is saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+                  code: { type: string, enum: [household_name_reserved] }
+                  issues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path: { type: string }
+                        message: { type: string }
+        "404": { $ref: "#/components/responses/Error" }
   /households/{hid}/summary-settings:
     get:
       operationId: getHouseholdSummarySettings

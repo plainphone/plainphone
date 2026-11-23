@@ -31,6 +31,8 @@ describe("logging in", () => {
     await renderRouter(routes, { initialUrl: "/" });
     // Signed out: the start screen sends you to log in.
     await waitFor(() => expect(screen).toHavePathname("/login"));
+    // A new parent has no account yet: the heading covers both.
+    expect(await screen.findByText("Log in or create an account")).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText("Email address"), "not-an-address");
     await fireEvent.press(screen.getByTestId("login-submit"));
     expect(await screen.findByText("Enter a valid email address, like name@example.com.")).toBeTruthy();

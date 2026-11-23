@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useI18n } from "../i18n/I18n";
-import { householdOptionLabel } from "@plainphone/shared/household";
+import { householdOptionLabel, householdTitle } from "@plainphone/shared/household";
 import { chooseHousehold, useActiveHousehold, useMe } from "../lib/session";
 import { Field } from "./ui";
 
@@ -16,7 +16,7 @@ export function HouseholdPicker() {
         <select {...p} className="input-short" value={active.id} onChange={(e) => chooseHousehold(e.target.value)}>
           {me.households.map((h) => (
             <option key={h.id} value={h.id}>
-              {householdOptionLabel(h.name === "Home" ? t("house.title") : h.name, t(h.role === "owner" ? "house.owner" : "house.parent"))}
+              {householdOptionLabel(householdTitle(h.name, t("house.title")), t(h.role === "owner" ? "house.owner" : "house.parent"))}
             </option>
           ))}
         </select>

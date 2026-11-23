@@ -5,14 +5,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { HouseholdPage } from "./Household";
 
 vi.mock("../components/ResetProtection", () => ({ ResetProtectionSection: () => null }));
 vi.mock("../components/HouseholdMove", () => ({ HouseholdMove: () => null }));
+const refresh = vi.hoisted(() => vi.fn(async () => null));
 vi.mock("../lib/session", () => ({
   useMe: () => ({ user: { id: "u1", email: "me@example.org", locale: "en" }, households: [{ id: "h1", name: "Home", role: "owner" }] }),
-  useSession: () => ({ refresh: async () => null }),
+  useSession: () => ({ refresh }),
   useActiveHousehold: () => ({ id: "h1", name: "Home", role: "owner" }),
   chooseHousehold: () => undefined,
 }));
@@ -84,4 +85,49 @@ it("asks before the parent leaves the household", async () => {
   expect(container.textContent).toContain("Leave the household?");
   await act(async () => button("Yes, leave")!.click());
   expect(removed).toEqual(["/households/h1/members/u1"]);
+});
+
+async function typeName(value: string) {
+  const input = container.querySelector<HTMLInputElement>('input[name="household-name"]')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  await act(async () => {
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+it("lets a new household get a name, with a placeholder while it has none", async () => {
+  const patch = vi.spyOn(api, "patch").mockResolvedValue(undefined as never);
+  await mount();
+  const input = container.querySelector<HTMLInputElement>('input[name="household-name"]')!;
+  expect(container.querySelector("h1")?.textContent).toBe("Household");
+  expect(input.value).toBe("");
+  expect(input.placeholder).toBe("For example: Our family");
+  expect(container.textContent).toContain("Shown on the phone when it connects");
+
+  await act(async () => button("Save name")!.click());
+  expect(patch).not.toHaveBeenCalled();
+  expect(container.textContent).toContain("Write a name of 1 to 60 characters.");
+
+  // "Home" is the unnamed household's marker: saved, the page would show "Household" again.
+  await typeName(" Home ");
+  await act(async () => button("Save name")!.click());
+  expect(patch).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('Choose a name other than "Home".');
+
+  await typeName("  Our family  ");
+  await act(async () => button("Save name")!.click());
+  expect(patch).toHaveBeenCalledWith("/households/h1", { name: "Our family" });
+  expect(refresh).toHaveBeenCalled();
+  expect(container.textContent).toContain("The name is saved.");
+});
+
+it("shows the server's refusal of the reserved name on the field", async () => {
+  vi.spyOn(api, "patch").mockRejectedValue(new ApiError(400, 'choose a name other than "Home"', [], { code: "household_name_reserved" }));
+  await mount();
+  await typeName("Our family");
+  await act(async () => button("Save name")!.click());
+  expect(container.querySelector('input[name="household-name"]')?.getAttribute("aria-invalid")).toBe("true");
+  expect(container.textContent).toContain('Choose a name other than "Home".');
+  expect(container.textContent).not.toContain("The name is saved.");
 });

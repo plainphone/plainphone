@@ -54,10 +54,11 @@ describe("onboarding safety", () => {
     expect(claimed.status).toBe(201);
     expect(claimed.json.pairedAt).toBeNull();
     expect(claimed.json.setupQrAvailable).toBe(false);
+    // Nobody has named the household yet, so the phone gets no name, only the masked address.
     expect((await poll()).json).toEqual({
       status: "confirm",
       maskedEmail: "c***@example.org",
-      householdName: (await parent.get("/api/me")).json.households[0].name,
+      householdName: null,
     });
     const confirmed = await decide("confirm");
     expect(confirmed.status).toBe(200);
@@ -576,6 +577,7 @@ describe("onboarding safety", () => {
   it("identifies the claimer rather than a different member of the same household", async () => {
     const owner = await signIn(h, "owner@example.org");
     const household = (await owner.get("/api/me")).json.households[0];
+    expect((await owner.patch(`/api/households/${household.id}`, { name: "Test household" })).status).toBe(204);
     await owner.post(`/api/households/${household.id}/invites`, { email: "claimer@example.org" });
     const token = decodeURIComponent(/invite#token=(\S+)/.exec(h.mail.outbox.at(-1)!.text)![1]!);
     const { parent, code, poll } = await start();
@@ -584,7 +586,7 @@ describe("onboarding safety", () => {
       code, name: "My phone", profile: "self", householdId: household.id,
     })).status).toBe(201);
     expect((await poll()).json).toEqual({
-      status: "confirm", maskedEmail: "c***@example.org", householdName: household.name,
+      status: "confirm", maskedEmail: "c***@example.org", householdName: "Test household",
     });
   });
 

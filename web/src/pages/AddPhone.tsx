@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { Switch, errorMessage, errorNotice, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useLiveRefresh } from "../lib/live";
+import { timeZoneOptions, type ZoneOption } from "../lib/timezones";
 import { encode } from "uqr";
 import { intlLocale } from "@plainphone/shared/format";
 import { lightSetupLink } from "../lib/light-setup";
@@ -316,16 +317,18 @@ export function SetupPhonePage() {
 }
 
 function SetupTimezonePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const { t } = useI18n();
-  const zones = useMemo(
-    () => [...new Set(["UTC", ...Intl.supportedValuesOf("timeZone"), value])].sort(),
-    [value],
+  const { t, locale } = useI18n();
+  const { common, rest } = useMemo(
+    () => timeZoneOptions({ browserZone: Intl.DateTimeFormat().resolvedOptions().timeZone, selected: value, locale, at: new Date() }),
+    [value, locale],
   );
+  const options = (zones: ZoneOption[]) => zones.map(({ zone, label }) => <option key={zone} value={zone}>{label}</option>);
   return (
     <Field label={t("add.timezone")} help={t("add.timezoneHelp")}>
       {(props) => (
         <select {...props} value={value} onChange={(event) => onChange(event.target.value)}>
-          {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+          <optgroup label={t("add.timezoneCommon")}>{options(common)}</optgroup>
+          <optgroup label={t("add.timezoneAll")}>{options(rest)}</optgroup>
         </select>
       )}
     </Field>

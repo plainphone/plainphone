@@ -94,8 +94,22 @@ it.each(["/settings", "/setup"])("offers a labeled language picker on %s", (sect
 it("shows the saved household time zone when regenerating a setup QR code", () => {
   const html = renderPhone({ ...phone, timezone: "Europe/Oslo" }, "/setup");
   expect(html).toContain("Household time zone");
-  expect(html).toContain('value="Europe/Oslo" selected="">Europe/Oslo');
+  expect(html).toMatch(/value="Europe\/Oslo" selected="">Oslo \(UTC\+[12]\)/);
   expect(html).toContain('value="Europe/Copenhagen"');
+});
+
+it("offers the common time zones first, with readable names, before all the others", () => {
+  const html = renderPhone({ ...phone, timezone: "Europe/Copenhagen" }, "/setup", "da");
+  const groups = [...html.matchAll(/<optgroup label="([^"]+)">(.*?)<\/optgroup>/g)];
+  expect(groups.map(([, label]) => label)).toEqual(["Forslag", "Alle tidszoner"]);
+  const suggested = [...groups[0]![2]!.matchAll(/value="([^"]+)"/g)].map(([, zone]) => zone);
+  expect(suggested).toEqual(expect.arrayContaining(["Europe/Copenhagen", "Europe/Stockholm", "Europe/Oslo", "Europe/Berlin", "Europe/London"]));
+  expect(suggested.length).toBeLessThan(10);
+  expect(groups[0]![2]).toMatch(/København \(UTC\+[12]\)/);
+  expect(groups[1]![2]).not.toContain('value="Europe/Copenhagen"');
+  const restLabels = [...groups[1]![2]!.matchAll(/">([^<]+)<\/option>/g)].map(([, label]) => label);
+  expect(restLabels.length).toBeGreaterThan(100);
+  expect(restLabels.filter((label) => label!.includes("_") || label!.includes("/"))).toEqual([]);
 });
 
 it.each([
@@ -284,6 +298,21 @@ it("keeps device notices and app updates available with the health board off", (
   expect(html).toContain(t("phone.callRoleActionNeeded"));
   expect(html).toContain(t("phone.updateNow"));
   expect(html).not.toContain(t("health.lastSeen"));
+});
+
+it("uses switches, not checkboxes, for every on/off choice on the phone page", () => {
+  const html = renderPhone({
+    ...phone, pairedAt: phone.lastSeenAt, changeReceiptsEnabled: true, healthBoardEnabled: false, weeklySummaryEnabled: true,
+    pinApprovalEnabled: true, supportEnabled: true, releaseWarningsEnabled: false,
+  });
+  expect(html).not.toContain('type="checkbox"');
+  const switches = [...html.matchAll(/role="switch"[^>]*aria-checked="(true|false)"[^>]*aria-labelledby="([^"]+)"/g)];
+  const labelOf = (id: string) => html.match(new RegExp(`id="${id}">([^<]+)<`))?.[1];
+  const state = Object.fromEntries(switches.map(([, on, id]) => [labelOf(id!), on]));
+  expect(state).toMatchObject({
+    "Rule confirmations": "true", "Phone health": "false", "Weekly summary": "true",
+    "Support tools": "true", "Release warnings": "false",
+  });
 });
 
 const allYes = (over: Record<string, "yes" | "partial" | "no"> = {}): Phone["capabilities"] => ({

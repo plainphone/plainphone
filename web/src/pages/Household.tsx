@@ -4,10 +4,12 @@ import { useNavigate } from "react-router";
 import { HouseholdPicker } from "../components/HouseholdPicker";
 import { ResetProtectionSection } from "../components/ResetProtection";
 import { HouseholdMove } from "../components/HouseholdMove";
+import { HouseholdName } from "../components/HouseholdName";
 import { errorMessage, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type InviteResult, type Members } from "../lib/api";
 import { formatDateTime } from "@plainphone/shared/format";
+import { householdTitle } from "@plainphone/shared/household";
 import { useActiveHousehold, useMe, useSession } from "../lib/session";
 
 export function HouseholdPage() {
@@ -115,9 +117,10 @@ export function HouseholdPage() {
 
   return (
     <>
-      <PageTitle sub={t("house.intro")}>{household.name === "Home" ? t("house.title") : household.name}</PageTitle>
+      <PageTitle sub={t("house.intro")}>{householdTitle(household.name, t("house.title"))}</PageTitle>
       <HouseholdPicker />
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
+      <HouseholdName key={hid} household={household} notify={setNotice} />
       <LoadGate res={res}>
         {(data) =>
           data && (
