@@ -197,6 +197,42 @@ stopped self-test also alerts. Treat the push URL as a secret.
 Alerts from Kuma go through the notify relay to the operator. Self-hosters can
 use any Kuma notification channel.
 
+### Alerts on errors and response time
+
+Uptime Kuma only says whether the app answers. The hosted service also watches
+how it answers, in Grafana, from the reverse proxy's (Traefik's) numbers for
+app.plainphone.org:
+
+| Signal | Alerts when |
+| --- | --- |
+| Server errors | The app answers with `5xx` responses. |
+| Response time | Responses are slower than at the same time the day before. |
+| Server | Disk, memory, CPU or swap runs short, a process is killed for lack of memory (OOM), or a container keeps restarting (crash loop). |
+| App health | `/api/health` stops answering (Uptime Kuma, above). |
+
+These alerts are built on counts and timings per app, and reach the operator
+through the same notify relay as Kuma's.
+
+**Self-hosting:** watch the same signals. The numbers for errors and response
+time come from your reverse proxy (Traefik, Caddy and nginx can all export
+them), since the server's own [`/api/metrics`](self-hosting.md#watching-delivery-speed)
+counts alert delivery and the bot and spam protection, not HTTP errors or
+response times. These starting thresholds are suggestions, not measured
+limits. Tune them to your traffic:
+
+- **Server errors:** more than 2% of responses are `5xx` over 10 minutes, and
+  at least 5 of them, so a quiet server does not alert on a single error.
+- **Response time:** the 95th percentile stays above 1 second for 10 minutes,
+  or above twice the same hour yesterday. Leave out `/api/events`: it is a
+  long-lived [live updates](live-updates.md) stream, not a slow request.
+- **App health:** `/api/health` checked every minute, alerting after 3 failures
+  in a row. It answers `503` when the database is down. It still answers `200`
+  when the DNS service is down, with `"dns":"down"` in the body, so add a
+  keyword check for `"dns":"ok"` when you run the DNS service (`DNS_PROVIDER=http`).
+- **Server:** disk above 85%, memory above 90% for 10 minutes, CPU above 90%
+  for 15 minutes, swap in steady use, any OOM kill, and a container restarting
+  3 times within 10 minutes.
+
 ## Server settings on the hosted service
 
 `deploy/dokploy-compose.yaml` lists the app's environment one variable at a time, so a variable

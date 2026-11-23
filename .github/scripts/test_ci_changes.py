@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 DETECTOR = Path(__file__).with_name("ci-changes.py")
-CHECKS = {"android", "e2e", "emulator", "server", "parent", "dns", "site", "backup", "ios", "e2ee"}
+CHECKS = {"android", "e2e", "emulator", "server", "parent", "dns", "site", "markdown", "backup", "ios", "e2ee"}
 
 
 class ChangeDetectionTests(unittest.TestCase):
@@ -54,7 +54,7 @@ class ChangeDetectionTests(unittest.TestCase):
             "compose.yaml": {"backup", "server"},
             "deploy/dokploy-compose.yaml": {"backup", "server"},
             ".env.example": {"server"},
-            "docs/self-hosting.md": {"server"},
+            "docs/self-hosting.md": {"server", "markdown"},
             "scripts/e2e-android-emulator.py": {"emulator"},
             "scripts/test_e2e_android_emulator.py": {"emulator"},
             ".github/workflows/ci.yml": CHECKS,
@@ -62,7 +62,10 @@ class ChangeDetectionTests(unittest.TestCase):
             "ios/Tests/Fixtures/ios-rules.json": {"ios", "server"},
             "parent-app/modules/plainphone-screentime/ios/Core/RulesCompiler.swift": {"ios", "parent"},
             "parent-app/src/app/index.tsx": {"parent"},
-            "README.md": set(),
+            "README.md": {"markdown"},
+            "docs/limitations.md": {"markdown"},
+            "packages/shared/README.md": {"server", "parent", "markdown"},
+            "scripts/check-markdown-links.mjs": {"markdown"},
             ".github/scripts/ci-changes.py": CHECKS,
         }
         for path, expected in cases.items():
