@@ -5,6 +5,7 @@
 // (submitChange), so the rules, the phone's wake-up and the weekly summary behave as usual.
 
 import { errorSummary } from "../lib/log.js";
+import { isMailUnavailable } from "./mail-cap.js";
 import { and, asc, eq, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { dnsSettings, DNS_CATEGORIES, householdMembers, households, phones, schedules, timeLimits, users } from "../db/schema.js";
 import {
@@ -207,7 +208,7 @@ async function sendReminder(ctx: Ctx, phone: Phone) {
       try {
         await ctx.mail.send(reviewReminderMail(m.email, toLocale(m.locale), ctx.cfg.PUBLIC_URL, phone, suggestions));
       } catch (err) {
-        console.error(`review mail failed: ${errorSummary(err)}`);
+        if (!isMailUnavailable(err)) console.error(`review mail failed: ${errorSummary(err)}`);
       }
     }
   }

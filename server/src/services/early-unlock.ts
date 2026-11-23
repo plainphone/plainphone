@@ -7,6 +7,7 @@
 // duplicated or undeliverable unlock is refunded too.
 
 import { errorSummary } from "../lib/log.js";
+import { isMailUnavailable } from "./mail-cap.js";
 import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { earlyUnlocks, households, pendingChanges, phones, selfKeys, users } from "../db/schema.js";
 import { earlyUnlockReceiptMail, withdrawalReceiptMail } from "../lib/billing-mail.js";
@@ -370,6 +371,6 @@ async function sendReceipt(ctx: Ctx, row: Row, kind: "purchase" | "withdrawal", 
       : withdrawalReceiptMail(user.email, locale, ctx.cfg.PUBLIC_URL, row, h?.tz ?? "Europe/Copenhagen", extra.name);
     await ctx.mail.send(mail);
   } catch (err) {
-    console.error(`could not send the early unlock receipt: ${errorSummary(err)}`);
+    if (!isMailUnavailable(err)) console.error(`could not send the early unlock receipt: ${errorSummary(err)}`);
   }
 }

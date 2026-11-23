@@ -189,7 +189,7 @@ describe("what it leaves out", () => {
       expect(text).not.toContain(secret);
     }
     const names = new Set(text.split("\n").filter((l) => l && !l.startsWith("#")).flatMap((l) => [...l.matchAll(/(\w+)="/g)].map((m) => m[1])));
-    expect([...names].sort()).toEqual(["kind", "path", "provider", "quantile", "reason", "window"]);
+    expect([...names].sort()).toEqual(["kind", "outcome", "path", "provider", "quantile", "reason", "window"]);
     // Every line is a comment or a metric with a number.
     for (const line of text.trimEnd().split("\n")) expect(line).toMatch(/^(#.*|plainphone_\w+\{[^}]*\} \d+)$/);
   });

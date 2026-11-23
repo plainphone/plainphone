@@ -4,7 +4,9 @@ import { householdMembers, households, magicLinks, selfKeys, sessions, users } f
 import { randomToken, sha256 } from "../lib/crypto.js";
 import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
+import { MailUnavailableError } from "../providers/mail.js";
 import type { Ctx } from "./context.js";
+import { assertMailSlotFree, mailCapOn, takeMailSlot, warnMailCap } from "./mail-cap.js";
 import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
 export const MAGIC_LINK_MINUTES = 15;
@@ -22,8 +24,14 @@ export async function requestMagicLink(
   client: "web" | "native" = "web",
 ): Promise<void> {
   const token = randomToken("pp_m_");
-  // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
-  await withSignupPlace(ctx, email, async (tx) => {
+  // At the mail cap, answer "try again" before the link takes a sign-up place another address could use.
+  if (ctx.mail.canSend) await assertMailSlotFree(ctx);
+  const capped = ctx.mail.canSend && mailCapOn(ctx);
+  const issue = async (tx: Ctx["db"] | Tx) => {
+    // The mail's place under the mail cap is taken with the link (and its sign-up place) in one
+    // transaction: when the last mail is gone, the link is rolled back and holds no sign-up place;
+    // a refused sign-up or a failed insert takes no mail. Throws MailUnavailableError at the cap.
+    if (capped) await takeMailSlot(ctx, false, tx);
     const now = ctx.now();
     await tx.insert(magicLinks).values({
       email,
@@ -31,7 +39,16 @@ export async function requestMagicLink(
       expiresAt: new Date(now.getTime() + MAGIC_LINK_MINUTES * 60_000),
       createdAt: now,
     });
-  });
+  };
+  try {
+    // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
+    // Without that cap there is no transaction of its own, so the mail cap opens one.
+    await withSignupPlace(ctx, email, (db) => (capped && db === ctx.db ? ctx.db.transaction(issue) : issue(db)));
+  } catch (err) {
+    // The cap's warning is written now that the transaction no longer holds a connection.
+    await warnMailCap(ctx, err);
+    throw err;
+  }
   // The link opens a page that POSTs the token, so mail scanners that follow
   // links cannot use it up. Native apps get /auth/app, which the app claims as a
   // universal/app link; without the app installed it opens the PWA like /auth/callback.
@@ -41,7 +58,14 @@ export async function requestMagicLink(
     console.warn("login link requested, but no mail provider is configured (MAIL_PROVIDER=none)");
     return;
   }
-  await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES));
+  try {
+    await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES), { slotTaken: true });
+  } catch (err) {
+    // Mail cap or a temporary refusal: the link never arrived, so it must not hold a sign-up
+    // place or count towards the address's limit. The caller answers "try again".
+    if (err instanceof MailUnavailableError) await ctx.db.delete(magicLinks).where(eq(magicLinks.tokenHash, sha256(token)));
+    throw err;
+  }
 }
 
 /**
