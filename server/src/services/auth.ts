@@ -6,7 +6,7 @@ import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
 import { MailUnavailableError } from "../providers/mail.js";
 import type { Ctx } from "./context.js";
-import { assertMailSlotFree, takeMailSlot } from "./mail-cap.js";
+import { assertMailSlotFree, mailCapOn, takeMailSlot, warnMailCap } from "./mail-cap.js";
 import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
 export const MAGIC_LINK_MINUTES = 15;
@@ -26,12 +26,12 @@ export async function requestMagicLink(
   const token = randomToken("pp_m_");
   // At the mail cap, answer "try again" before the link takes a sign-up place another address could use.
   if (ctx.mail.canSend) await assertMailSlotFree(ctx);
-  // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
-  await withSignupPlace(ctx, email, async (tx) => {
-    // The mail's place under the mail cap is taken with the sign-up place, in one transaction:
-    // when the last mail is gone, the link is rolled back and holds no sign-up place, and a
-    // refused sign-up takes no mail. Throws MailUnavailableError at the mail cap.
-    if (ctx.mail.canSend) await takeMailSlot(ctx, false, tx);
+  const capped = ctx.mail.canSend && mailCapOn(ctx);
+  const issue = async (tx: Ctx["db"] | Tx) => {
+    // The mail's place under the mail cap is taken with the link (and its sign-up place) in one
+    // transaction: when the last mail is gone, the link is rolled back and holds no sign-up place;
+    // a refused sign-up or a failed insert takes no mail. Throws MailUnavailableError at the cap.
+    if (capped) await takeMailSlot(ctx, false, tx);
     const now = ctx.now();
     await tx.insert(magicLinks).values({
       email,
@@ -39,7 +39,16 @@ export async function requestMagicLink(
       expiresAt: new Date(now.getTime() + MAGIC_LINK_MINUTES * 60_000),
       createdAt: now,
     });
-  });
+  };
+  try {
+    // Throws SignupCapError (and sends nothing) when a new household would go over today's cap.
+    // Without that cap there is no transaction of its own, so the mail cap opens one.
+    await withSignupPlace(ctx, email, (db) => (capped && db === ctx.db ? ctx.db.transaction(issue) : issue(db)));
+  } catch (err) {
+    // The cap's warning is written now that the transaction no longer holds a connection.
+    await warnMailCap(ctx, err);
+    throw err;
+  }
   // The link opens a page that POSTs the token, so mail scanners that follow
   // links cannot use it up. Native apps get /auth/app, which the app claims as a
   // universal/app link; without the app installed it opens the PWA like /auth/callback.

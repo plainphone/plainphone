@@ -2,13 +2,18 @@
 //
 // MAIL_HOURLY_CAP and MAIL_DAILY_CAP (#240): an overall cap on outgoing mail, and a clear
 // "try again" when the cap is reached or the mail server refuses for now (SMTP 4xx).
-import { count } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { count, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
+import { createDb } from "../src/db/client.js";
 import { magicLinks } from "../src/db/schema.js";
 import { MailUnavailableError, SmtpMailProvider, smtpError, type Mail } from "../src/providers/mail.js";
 import { CappedMailProvider, mailMetricsText, mailsCounted } from "../src/services/mail-cap.js";
-import { Client, signIn, useHarness } from "./harness.js";
+import type { Ctx } from "../src/services/context.js";
+import { createTestDatabase } from "./db.js";
+import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
@@ -123,6 +128,43 @@ describe("overall mail cap", () => {
     expect(await mailsCounted(h.ctx)).toEqual({ hour: 3, day: 3 });
   });
 
+  it.each([0, 5])("answers the loser of a race for the last mail with a pool of one (SIGNUP_DAILY_CAP=%i)", async (signupCap) => {
+    // The cap's warning row must not wait for a connection the sign-in's own transaction holds.
+    const copy = await createTestDatabase();
+    const small = createDb(copy.url, 1);
+    try {
+      const ctx: Ctx = { ...h.ctx, db: small.db, cfg: { ...h.ctx.cfg, SIGNUP_DAILY_CAP: signupCap, MAIL_HOURLY_CAP: 1 } };
+      const app = createApp(ctx);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const post = (email: string) =>
+        app.request("/api/auth/request", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, locale: "en" }),
+        });
+      const answers = await Promise.all([post("first@example.org"), post("second@example.org")]);
+      expect(answers.map((r) => r.status).sort()).toEqual([202, 503]);
+      expect(h.mail.outbox).toHaveLength(1);
+    } finally {
+      await small.sql.end();
+      await copy.drop();
+    }
+  });
+
+  it("gives the mail back when the link cannot be stored, also without a sign-up cap", async () => {
+    setCaps(1);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // A link insert that fails for this address only.
+    await h.ctx.db.execute(sql`alter table magic_links add constraint test_no_link check (email <> 'broken@example.org')`);
+    try {
+      expect((await request("broken@example.org")).status).toBe(500);
+    } finally {
+      await h.ctx.db.execute(sql`alter table magic_links drop constraint test_no_link`);
+    }
+    expect(await mailsCounted(h.ctx)).toEqual({ hour: 0, day: 0 });
+    expect((await request("new@example.org")).status).toBe(202);
+  });
+
   it("still answers mail_unavailable when the cap warning cannot be written", async () => {
     setCaps(1);
     await h.ctx.mail.send(other);
@@ -175,6 +217,20 @@ describe("overall mail cap", () => {
     await expect(h.ctx.mail.send(other)).rejects.toBeInstanceOf(MailUnavailableError);
     await h.ctx.mail.send({ ...other, subject: "SOS" }, { urgent: true });
     expect(h.mail.outbox.map((m) => m.subject)).toEqual(["Alert", "SOS"]);
+    expect(await mailsCounted(h.ctx)).toEqual({ hour: 2, day: 2 });
+  });
+
+  it("still mails the parents an SOS from the phone at the cap, and counts it", async () => {
+    // Through the SOS service, so the test fails if it stops marking its mail urgent.
+    const parent = await signIn(h, "parent@example.org");
+    const { device } = await pairPhone(h, parent, { profile: "child" });
+    setCaps(1);
+    await h.ctx.mail.send(other);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const before = h.mail.outbox.length;
+
+    expect((await device.post("/api/device/sos", { id: randomUUID(), kind: "urgent" })).status).toBe(200);
+    await vi.waitFor(() => expect(h.mail.outbox.slice(before).map((m) => m.to)).toEqual(["parent@example.org"]));
     expect(await mailsCounted(h.ctx)).toEqual({ hour: 2, day: 2 });
   });
 

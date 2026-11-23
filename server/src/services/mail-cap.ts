@@ -82,36 +82,60 @@ function counter(ctx: Ctx) {
   return c;
 }
 
-/** Counts the refusal, logs the warning once per UTC hour across all processes, and throws. */
-async function refuse(ctx: Ctx, full: OpenWindow[]): Promise<never> {
+/** Cap refusals thrown inside a caller's transaction whose warning is still to be logged. */
+const unwarned = new WeakMap<MailUnavailableError, OpenWindow[]>();
+
+/** Counts the refusal and returns the error to throw. */
+function capError(ctx: Ctx, full: OpenWindow[]): MailUnavailableError {
   // Both caps full: the later window decides when mail goes out again.
   const retryAt = new Date(Math.max(...full.map((w) => w.start.getTime() + w.ms)));
   counter(ctx).cap++;
+  return new MailUnavailableError("cap", retryAt);
+}
+
+/** Logs the "cap reached" warning once per UTC hour across all processes. Never throws. */
+async function warnOnce(ctx: Ctx, full: OpenWindow[], retryAt: Date): Promise<void> {
   const hour = windowStart(ctx.now(), HOUR);
-  if (warnedHour.get(ctx) !== hour.getTime()) {
-    warnedHour.set(ctx, hour.getTime());
-    // The process that claims this hour's row writes the line; other replicas and restarts stay quiet.
-    // The row is only for the log: if it cannot be written, this process warns on its own, and the
-    // caller still gets "try again" (503), not a 500.
-    let claimed = true;
-    try {
-      const rows = await ctx.db
-        .insert(rateLimitHits)
-        .values({ bucket: "mail-cap-warned", subject: SUBJECT, windowStart: hour, hits: 1, expiresAt: new Date(hour.getTime() + HOUR) })
-        .onConflictDoNothing()
-        .returning({ hits: rateLimitHits.hits });
-      claimed = rows.length > 0;
-    } catch (err) {
-      // The error code only: a driver message is not ours to vouch for.
-      const code = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code ?? "unknown";
-      console.error(`mail cap: could not record this hour's warning (${code})`);
-    }
-    if (claimed) {
-      const which = full.map((w) => `${w.setting}=${w.cap}`).join(", ");
-      console.warn(`mail cap reached (${which}): mail is refused until ${retryAt.toISOString()}; SOS mail still goes out`);
-    }
+  if (warnedHour.get(ctx) === hour.getTime()) return;
+  warnedHour.set(ctx, hour.getTime());
+  // The process that claims this hour's row writes the line; other replicas and restarts stay quiet.
+  // The row is only for the log: if it cannot be written, this process warns on its own, and the
+  // caller still gets "try again" (503), not a 500.
+  let claimed = true;
+  try {
+    const rows = await ctx.db
+      .insert(rateLimitHits)
+      .values({ bucket: "mail-cap-warned", subject: SUBJECT, windowStart: hour, hits: 1, expiresAt: new Date(hour.getTime() + HOUR) })
+      .onConflictDoNothing()
+      .returning({ hits: rateLimitHits.hits });
+    claimed = rows.length > 0;
+  } catch (err) {
+    // The error code only: a driver message is not ours to vouch for.
+    const code = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code ?? "unknown";
+    console.error(`mail cap: could not record this hour's warning (${code})`);
   }
-  throw new MailUnavailableError("cap", retryAt);
+  if (claimed) {
+    const which = full.map((w) => `${w.setting}=${w.cap}`).join(", ");
+    console.warn(`mail cap reached (${which}): mail is refused until ${retryAt.toISOString()}; SOS mail still goes out`);
+  }
+}
+
+/** Counts the refusal, logs the warning, and throws. */
+async function refuse(ctx: Ctx, full: OpenWindow[]): Promise<never> {
+  const err = capError(ctx, full);
+  await warnOnce(ctx, full, err.retryAt!);
+  throw err;
+}
+
+/**
+ * Logs the warning for a refusal takeMailSlot threw inside the caller's transaction. Call it once
+ * that transaction is over; any other error is left alone.
+ */
+export async function warnMailCap(ctx: Ctx, err: unknown): Promise<void> {
+  const full = err instanceof MailUnavailableError ? unwarned.get(err) : undefined;
+  if (!full) return;
+  unwarned.delete(err as MailUnavailableError);
+  await warnOnce(ctx, full, (err as MailUnavailableError).retryAt!);
 }
 
 /**
@@ -126,7 +150,8 @@ export async function assertMailSlotFree(ctx: Ctx): Promise<void> {
 
 /**
  * Takes one mail from this hour's and today's allowance. At a cap, throws MailUnavailableError and
- * counts nothing, unless the mail is urgent (an SOS): that one is always counted and sent.
+ * counts nothing, unless the mail is urgent (an SOS): that one is always counted and sent. Given
+ * a transaction (`db`), the caller passes a refusal to warnMailCap after that transaction.
  */
 export async function takeMailSlot(ctx: Ctx, urgent = false, db: Ctx["db"] | Tx = ctx.db): Promise<void> {
   if (!mailCapOn(ctx)) return;
@@ -151,7 +176,14 @@ export async function takeMailSlot(ctx: Ctx, urgent = false, db: Ctx["db"] | Tx 
     }
     return null;
   });
-  if (full) await refuse(ctx, full);
+  if (!full) return;
+  if (db === ctx.db) await refuse(ctx, full);
+  // Inside a transaction the warning row would need a second connection while the caller's
+  // transaction holds one: with a small pool (DB_POOL_MAX) the two wait for each other. The
+  // caller hands the error to warnMailCap once its transaction is over.
+  const err = capError(ctx, full);
+  unwarned.set(err, full);
+  throw err;
 }
 
 /**
