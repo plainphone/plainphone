@@ -5345,7 +5345,18 @@ paths:
                     type: array
                     items: { type: string, format: uuid }
         "400": { $ref: "#/components/responses/Error" }
-        "403": { $ref: "#/components/responses/PhoneCap" }
+        "403":
+          description: The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap; nothing is added and the invitation stays open), or the signed-in member is not the household owner (only `error`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PhoneCap"
+                  - type: object
+                    required: [error]
+                    additionalProperties: false
+                    properties:
+                      error: { type: string }
         "410": { $ref: "#/components/responses/Error" }
 
   /phones/{pid}/server-move/allow:

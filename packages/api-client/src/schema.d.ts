@@ -10810,7 +10810,17 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
-            403: components["responses"]["PhoneCap"];
+            /** @description The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap; nothing is added and the invitation stays open), or the signed-in member is not the household owner (only `error`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneCap"] | {
+                        error: string;
+                    };
+                };
+            };
             410: components["responses"]["Error"];
         };
     };
