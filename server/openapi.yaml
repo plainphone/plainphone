@@ -135,6 +135,12 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/PlanLimit" }
 
+    PhoneCap:
+      description: The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code stays open.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PhoneCap" }
+
   parameters:
     phoneId: { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
     changeId: { name: cid, in: path, required: true, schema: { type: string, format: uuid } }
@@ -969,6 +975,14 @@ components:
       properties:
         error: { const: plan_limit }
         limit: { enum: [phones, trusted] }
+        max: { type: integer }
+
+    PhoneCap:
+      type: object
+      required: [error, code, max]
+      properties:
+        error: { type: string }
+        code: { const: household_phone_cap }
         max: { type: integer }
 
     ChangePending:
@@ -4617,7 +4631,7 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
         "404": { description: "Code not found or expired" }
         "409": { description: "Profile differs from the choice on the phone" }
-        "403": { description: "iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`)" }
+        "403": { description: "iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`, body as the PhoneCap response). The code stays open" }
 
   /phones/enroll:
     post:
@@ -4629,7 +4643,7 @@ paths:
         token, valid 24 hours. The browser builds a provisioning QR code in strong mode or a
         download and setup link in light mode from `provisioning`, the token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
         iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
-        its hash never reach the server. Rate limited to 30 per day per user.
+        its hash never reach the server. Rate limited to 30 per UTC day per user, counted in the database.
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         required: true
@@ -4654,6 +4668,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Enrollment" }
+        "403": { $ref: "#/components/responses/PhoneCap" }
         "404": { description: Household not found }
         "429": { $ref: "#/components/responses/Error" }
   /phones/{pid}/enrollment:
