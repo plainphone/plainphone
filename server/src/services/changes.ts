@@ -5,6 +5,7 @@
 // that loosens the rules waits for the key: a delay, or a trusted person (D12).
 
 import { errorSummary } from "../lib/log.js";
+import { isMailUnavailable } from "./mail-cap.js";
 import { RateLimiter } from "../lib/http.js";
 import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
@@ -612,7 +613,7 @@ async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null, househol
       ),
     );
   } catch (err) {
-    console.error(`could not mail the trusted person: ${errorSummary(err)}`);
+    if (!isMailUnavailable(err)) console.error(`could not mail the trusted person: ${errorSummary(err)}`);
   }
 }
 
@@ -701,7 +702,7 @@ async function mailTrustedPerson(ctx: Ctx, trustedUserId: string, phoneName: str
     if (!person) return;
     await ctx.mail.send(approvalRequestMail(person.email, toLocale(person.locale), ctx.cfg.PUBLIC_URL, phoneName));
   } catch (err) {
-    console.error(`could not mail the trusted person about a request: ${errorSummary(err)}`);
+    if (!isMailUnavailable(err)) console.error(`could not mail the trusted person about a request: ${errorSummary(err)}`);
   }
 }
 

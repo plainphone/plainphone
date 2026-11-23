@@ -4,6 +4,7 @@ import { householdMembers, households, magicLinks, selfKeys, sessions, users } f
 import { randomToken, sha256 } from "../lib/crypto.js";
 import type { Locale } from "../lib/locale.js";
 import { loginMail } from "../lib/mail-templates.js";
+import { MailUnavailableError } from "../providers/mail.js";
 import type { Ctx } from "./context.js";
 import { assertHouseholdPlace, withSignupPlace } from "./signup-cap.js";
 
@@ -41,7 +42,14 @@ export async function requestMagicLink(
     console.warn("login link requested, but no mail provider is configured (MAIL_PROVIDER=none)");
     return;
   }
-  await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES));
+  try {
+    await ctx.mail.send(loginMail(email, locale, ctx.cfg.PUBLIC_URL, url, MAGIC_LINK_MINUTES));
+  } catch (err) {
+    // Mail cap or a temporary refusal: the link never arrived, so it must not hold a sign-up
+    // place or count towards the address's limit. The caller answers "try again".
+    if (err instanceof MailUnavailableError) await ctx.db.delete(magicLinks).where(eq(magicLinks.tokenHash, sha256(token)));
+    throw err;
+  }
 }
 
 /**

@@ -7,6 +7,7 @@
 
 import { withTimeout } from "../lib/http.js";
 import { errorSummary } from "../lib/log.js";
+import { isMailUnavailable } from "./mail-cap.js";
 import { publishForPhone } from "./live-events.js";
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
@@ -283,7 +284,7 @@ export async function notifyAlertRecipients(
           ),
         ), ALERT_MAIL_TIMEOUT_MS);
       } catch (err) {
-        console.error(`alert mail failed: ${errorSummary(err)}`);
+        if (!isMailUnavailable(err)) console.error(`alert mail failed: ${errorSummary(err)}`);
       }
     })
     : [];
