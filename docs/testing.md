@@ -95,7 +95,10 @@ Before each flow, it checks that the test server process is alive and answers
 last thing it saw. Every command on the serial console has one deadline for the
 whole command, not one per read: kernel messages share the console and would
 otherwise keep a stuck command alive. A command that overruns gets a Ctrl-C, so
-the diagnostics after it still get a shell. Each flow also has a watchdog
+the diagnostics after it still get a shell. Its error names the command by what
+it does, not by the `su 0 nsenter` prefix it runs behind (`DeviceOwnerFlow (am
+instrument) did not finish`, not `su did not finish`). It also says either that
+no shell ever started the command or what the command printed last. Each flow also has a watchdog
 (`FlowWatchdog`) that fails it 60 seconds before the harness's limit for that
 flow (16 minutes for light mode, so its watchdog still allows the 11-minute
 midnight wait plus the flow; 7 for Device Owner). A call that never returns

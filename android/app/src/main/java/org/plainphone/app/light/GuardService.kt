@@ -52,6 +52,10 @@ class GuardService : AccessibilityService() {
     private val pipStopped = mutableSetOf<String>()
     /** Picture-in-picture apps asked to return to full screen (Android 10 refuses the dismiss), by elapsed time. */
     private val pipExpandedAt = mutableMapOf<String, Long>()
+    /** Picture-in-picture apps expanded for their current window; forgotten when the window is gone. */
+    private val pipExpanded = mutableSetOf<String>()
+    /** Re-checks done after dismissing each floating blocked app, for its current window (see [PipGuard.RECHECK_DELAYS_MS]). */
+    private val pipRechecks = mutableMapOf<String, Int>()
     private var lastPipSeen = ""
     /** Window id to the app it showed, recent windows only: Android 10 pins a window before its root is readable. */
     private val windowOwners = object : LinkedHashMap<Int, String>(16, 0.75f, true) {
@@ -86,6 +90,12 @@ class GuardService : AccessibilityService() {
             if (canGuardApps()) guardPip()
             main.postDelayed(this, TICK_MS)
         }
+    }
+
+    /** After a dismiss: is the window gone? Android 10 can drop the dismiss, and no window event says so. */
+    private val pipRecheck = Runnable {
+        pipRechecks.replaceAll { _, done -> done + 1 }
+        if (canGuardApps()) guardPip()
     }
 
     /** A block dropped by the rate limit: look at the app in front again once the gap is over. */
@@ -334,8 +344,9 @@ class GuardService : AccessibilityService() {
      * the window's own root (System UI takes it only on a node id no window reports), so the guard
      * then sends it to that id ([PipRootNode]). Only if that fails too is the app brought back to full
      * screen, where the stop screen covers it without the Home press that would let it float again.
-     * The stop screen comes once per window; the dismiss is repeated while the window floats, and
-     * none of this depends on which app is Home.
+     * The stop screen comes once per window; the dismiss is repeated while the window floats, also
+     * without a window event for a few seconds after it (see [recheckPip]), and none of this depends
+     * on which app is Home.
      */
     @Suppress("DEPRECATION")
     private fun guardPip() {
@@ -380,6 +391,8 @@ class GuardService : AccessibilityService() {
         }
         pipPackages = PipGuard.packages(wins, packageName)
         pipStopped.retainAll(pipPackages.toSet())
+        pipExpanded.retainAll(pipPackages.toSet())
+        pipRechecks.keys.retainAll(pipPackages.toSet())
         // A floating app is not the app in front: blocking it as one would press Home, which on Android 10
         // holds back every app start for 5 s, the expand below included, and leaves the window floating.
         if (foreground in pipPackages) foreground = null
@@ -388,17 +401,22 @@ class GuardService : AccessibilityService() {
         val plan = LightLock.plan(this)
         val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, plan, pipStopped, ::openedForNow)
         if (!inCall) {
-            PipGuard.stillFloating(wins, packageName, plan, pipStopped, ::openedForNow)
-                .forEach { dismissPip(it.pkg, roots[it.pkg], pinnedWindows[it.pkg].orEmpty()) }
+            PipGuard.stillFloating(wins, packageName, plan, pipStopped, ::openedForNow).forEach {
+                dismissPip(it.pkg, roots[it.pkg], pinnedWindows[it.pkg].orEmpty())
+                recheckPip(it.pkg)
+            }
         }
         for (t in targets) {
             // Expanded once per window, like the stop screen: a task that stays pinned is not reopened on
             // every event while the rate limit holds the stop screen back (run 45125434098: six starts).
-            if (!dismissPip(t.pkg, roots[t.pkg], pinnedWindows[t.pkg].orEmpty()) &&
+            // Not when System UI refused: it takes the dismiss again once its menu is gone, and starting
+            // the app can add another activity to the pinned task instead (see [expandPip]).
+            if (dismissPip(t.pkg, roots[t.pkg], pinnedWindows[t.pkg].orEmpty()) == PipDismiss.REFUSED &&
                 !PipGuard.expandedRecently(pipExpandedAt[t.pkg], SystemClock.elapsedRealtime())
             ) expandPip(t.pkg)
             // Once per window: if dismissing does not close it, Home and the stop screen must not repeat every tick.
             if (block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)) pipStopped += t.pkg
+            recheckPip(t.pkg)
         }
         roots.values.forEach(::recycle)
         // Time may be up before the stored plan knows it: the live check covers picture-in-picture apps too.
@@ -406,31 +424,62 @@ class GuardService : AccessibilityService() {
         if (!inCall && unchecked.isNotEmpty()) pipTimeCheck(unchecked)
     }
 
-    private fun dismissPip(pkg: String, root: AccessibilityNodeInfo?, windowIds: List<Int>): Boolean {
+    /** How a dismiss went: Android took it, System UI refused it for now, or nothing would take it. */
+    private enum class PipDismiss { ACCEPTED, REFUSED_BY_SYSTEM_UI, REFUSED }
+
+    private fun dismissPip(pkg: String, root: AccessibilityNodeInfo?, windowIds: List<Int>): PipDismiss {
         val dismissed = root?.performAction(AccessibilityNodeInfo.ACTION_DISMISS) == true
         Log.i(TAG, "pip $pkg: dismiss ${if (root == null) "without a root" else if (dismissed) "accepted" else "refused"}")
-        return dismissed || dismissThroughSystemUi(pkg, windowIds)
+        if (dismissed) return PipDismiss.ACCEPTED
+        return when (dismissThroughSystemUi(pkg, windowIds)) {
+            true -> PipDismiss.ACCEPTED
+            false -> PipDismiss.REFUSED_BY_SYSTEM_UI
+            null -> PipDismiss.REFUSED
+        }
     }
 
     /**
      * The dismiss on System UI's root node ([PipRootNode]), which removes the pinned task. Tried on
-     * each pinned window of the app: one without an accessibility connection yet refuses it.
+     * each pinned window of the app: one without an accessibility connection yet refuses it. Null when
+     * it could not be sent at all.
      */
-    private fun dismissThroughSystemUi(pkg: String, windowIds: List<Int>): Boolean {
-        if (!PipRootNode.supported || windowIds.isEmpty()) return false
+    private fun dismissThroughSystemUi(pkg: String, windowIds: List<Int>): Boolean? {
+        if (!PipRootNode.supported || windowIds.isEmpty()) return null
         val connection = connectionId ?: rootInActiveWindow?.let(PipRootNode::connectionId)?.also { connectionId = it }
         if (connection == null) {
             Log.w(TAG, "pip $pkg: no connection id for System UI's dismiss")
-            return false
+            return null
         }
+        var sent = false
         for (id in windowIds) {
             val node = PipRootNode.of(id, connection) ?: continue
+            sent = true
             val dismissed = runCatching { node.performAction(AccessibilityNodeInfo.ACTION_DISMISS) }.getOrDefault(false)
             recycle(node)
             Log.i(TAG, "pip $pkg: System UI dismiss on window $id ${if (dismissed) "accepted" else "refused"}")
             if (dismissed) return true
         }
-        return false
+        return if (sent) false else null
+    }
+
+    /**
+     * Looks again soon after a dismiss of [pkg]'s window, and dismisses again while it floats
+     * ([PipGuard.RECHECK_DELAYS_MS]); window events and the tick do too. Bounded per window: when the
+     * last re-check still finds it floating, the app is expanded under its stop screen instead, once,
+     * unless that was done for this window already. After that only events and the tick dismiss again.
+     */
+    private fun recheckPip(pkg: String) {
+        val done = pipRechecks.getOrPut(pkg) { 0 }
+        if (done > PipGuard.RECHECK_DELAYS_MS.size) return
+        val delay = PipGuard.recheckDelay(done)
+        if (delay != null) {
+            if (done > 0) Log.i(TAG, "pip $pkg: still floating after re-check $done")
+            if (!main.hasCallbacks(pipRecheck)) main.postDelayed(pipRecheck, delay)
+            return
+        }
+        pipRechecks[pkg] = done + 1
+        Log.w(TAG, "pip $pkg: still floating after $done re-checks")
+        if (pkg !in pipExpanded && !PipGuard.expandedRecently(pipExpandedAt[pkg], SystemClock.elapsedRealtime())) expandPip(pkg)
     }
 
     /**
@@ -444,7 +493,10 @@ class GuardService : AccessibilityService() {
         val started = launch != null && runCatching { startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .onFailure { Log.w(TAG, "pip $pkg: could not expand: ${it.message}") }.isSuccess
         Log.i(TAG, "pip $pkg: expand ${if (launch == null) "without a launch intent" else if (started) "requested" else "failed"}")
-        if (started) pipExpandedAt[pkg] = SystemClock.elapsedRealtime()
+        if (started) {
+            pipExpandedAt[pkg] = SystemClock.elapsedRealtime()
+            pipExpanded += pkg
+        }
     }
 
     /**
@@ -680,6 +732,7 @@ class GuardService : AccessibilityService() {
         main.removeCallbacks(emergencyExpiry)
         main.removeCallbacks(reguard)
         main.removeCallbacks(settle)
+        main.removeCallbacks(pipRecheck)
         cancelSettingsChecks()
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
@@ -718,7 +771,7 @@ class GuardService : AccessibilityService() {
         /** What the guard believes now, for a failing end-to-end check's message. Main thread state, read loosely. */
         fun describe(): String = instance?.get()?.let {
             runCatching {
-                "guard: in front ${it.foreground}, pinned ${it.pinnedApp}, floating ${it.pipPackages}, stopped ${it.pipStopped.toList()}"
+                "guard: in front ${it.foreground}, pinned ${it.pinnedApp}, floating ${it.pipPackages}, stopped ${it.pipStopped.toList()}, re-checks ${it.pipRechecks}"
             }.getOrElse { e -> "guard: unreadable (${e.javaClass.simpleName})" }
         } ?: "guard: not running"
 

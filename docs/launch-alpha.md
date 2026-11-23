@@ -71,14 +71,16 @@ What exists today, from the code:
 their rules every 15 minutes, and every minute while the screen is on ([phone-sync.md](phone-sync.md)).
 For 500 phones that is about 48,000 background fetches a day, plus about 60,000 more if each
 screen is on for two hours: around 100,000 `GET /api/device/rules` a day, most of them
-answered `304` from the `ETag` ([sync-api.md](sync-api.md)). The server's rule benchmark
-(`scripts/bench-server.sh`) has not been run at that size for this checklist. What is not known:
+answered `304` from the `ETag` ([sync-api.md](sync-api.md)). A load test of a local copy of the
+hosted setup carried 500 phones syncing every minute with a fifth of a core and 180 MiB, and
+about 2,000 before the app's single thread became the limit ([operations.md](operations.md#capacity)).
+What is not known:
 
 | Item | State | Evidence |
 |---|---|---|
 | The mail provider's daily and hourly send limit, and what happens when it is reached | Missing | Not in the repo (provider settings are deploy configuration). Sign-in fails for everyone if the limit is hit. Issue draft L1 |
 | A cap or alarm on new sign-ups per day | Done | `SIGNUP_DAILY_CAP` ([operations.md](operations.md#daily-cap-on-new-households)), #241. No cap on phones per household while billing is off |
-| A load test at 500 households and phones | Missing | `scripts/bench-server.sh` exists, no recorded result at that size. Issue draft L3 |
+| A load test at 500 households and phones | Done | `scripts/load-test.sh`, results and limits in [operations.md](operations.md#capacity), #242. Measured on a test machine, not the production host |
 | An alert on 5xx rate and slow responses for the app | Partly | Uptime Kuma checks that `/api/health` answers ([operations.md](operations.md)). Alerts on error rate and response time are not documented in the repo. Issue draft L4 |
 | Abuse of the DNS filter: one account creating many ClientIDs | Partly | Enrolment and pairing are rate limited per account and IP. No per-household phone cap while billing is off (`BILLING_FREE_PHONES` only applies with `BILLING_ENABLED`). Covered by L2 |
 

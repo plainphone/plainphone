@@ -56,6 +56,8 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-false}
       # Apply database migrations at start. Leave it true unless you run them yourself.
       MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
+      # Database connections the app keeps open at most (docs/operations.md#capacity).
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
       # Delivery timings (docs/latency.md); METRICS_TOKEN unset = /api/metrics answers 404.
       LATENCY_STATS: ${LATENCY_STATS:-on}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
