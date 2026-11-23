@@ -1042,10 +1042,12 @@ function PhoneDisplayPreferences() {
   return (
     <section className="section" aria-labelledby="phone-display-h">
       <h2 id="phone-display-h">{t("health.preferences")}</h2>
-      {displayPreferences.map(({ key, label, help }) => (
-        <Switch key={key} checked={phone[key] !== false} busy={saving} label={t(label)} description={t(help)}
-          onChange={(enabled) => void save(key, enabled)} />
-      ))}
+      <div className="stack-sm">
+        {displayPreferences.map(({ key, label, help }) => (
+          <Switch key={key} checked={phone[key] !== false} busy={saving} label={t(label)} description={t(help)}
+            onChange={(enabled) => void save(key, enabled)} />
+        ))}
+      </div>
     </section>
   );
 }

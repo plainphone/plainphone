@@ -61,10 +61,12 @@ export function PhoneSupport({ phone, setPhone, notify }: {
   return (
     <section className="section panel" aria-labelledby="support-h">
       <h2 id="support-h">{t("support.help")}</h2>
-      <Switch checked={enabled} busy={saving} label={t("support.toggle")} description={t("support.toggleHint")}
-        onChange={(next) => void toggle("supportEnabled", next)} />
-      <Switch checked={phone.releaseWarningsEnabled !== false} busy={saving} label={t("support.releaseWarnings")}
-        description={t("support.releaseWarningsHint")} onChange={(next) => void toggle("releaseWarningsEnabled", next)} />
+      <div className="stack-sm">
+        <Switch checked={enabled} busy={saving} label={t("support.toggle")} description={t("support.toggleHint")}
+          onChange={(next) => void toggle("supportEnabled", next)} />
+        <Switch checked={phone.releaseWarningsEnabled !== false} busy={saving} label={t("support.releaseWarnings")}
+          description={t("support.releaseWarningsHint")} onChange={(next) => void toggle("releaseWarningsEnabled", next)} />
+      </div>
       {enabled && (
         <div className="stack-sm">
           <a href={helpUrl(locale)}>{t("support.openHelp")}</a>
