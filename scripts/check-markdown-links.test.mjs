@@ -35,6 +35,29 @@ test("anchors number duplicate headings and skip code blocks", () => {
   assert.deepEqual([...anchors(source)].sort(), ["custom-id", "setext-heading", "setup", "setup-1", "setup-2"]);
 });
 
+test("anchors keep inline code text in headings", () => {
+  const source = [
+    "## Parent app (`org.plainphone.parent`)",
+    "## `/api/health` and 5xx",
+    "Setext with `code`",
+    "===",
+  ].join("\n");
+  assert.deepEqual([...anchors(source)].sort(), ["apihealth-and-5xx", "parent-app-orgplainphoneparent", "setext-with-code"]);
+});
+
+test("HTML comments hold no links or headings", () => {
+  const source = [
+    "Before <!-- [hidden](gone.md) --> [shown](a.md)",
+    "<!--",
+    "## Commented out",
+    "[hidden](gone.md)",
+    "-->",
+    "## Visible",
+  ].join("\n");
+  assert.deepEqual(links(source).map((link) => link.target), ["a.md"]);
+  assert.deepEqual([...anchors(source)], ["visible"]);
+});
+
 test("links finds inline, reference, image and HTML links outside code", () => {
   const source = [
     "See [a](a.md#x) and ![b](img/b.png \"title\") and [c](<with space.md>).",

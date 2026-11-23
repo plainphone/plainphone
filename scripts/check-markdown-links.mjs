@@ -29,19 +29,44 @@ function plainText(text) {
     .trim();
 }
 
-/** Lines outside fenced code blocks, with inline code spans blanked out. */
+/**
+ * Lines outside fenced code blocks and HTML comments. `text` has inline code spans blanked out
+ * (they hold no links); `raw` keeps them, because GitHub keeps their text in heading anchors.
+ */
 function proseLines(source) {
   const lines = [];
   let fence = null;
+  let inComment = false;
   source.split(/\r?\n/).forEach((line, index) => {
     const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
     if (fence) {
       if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !/\S/.test(line.slice(marker[0].length))) fence = null;
-    } else if (marker) {
-      fence = marker[1];
-    } else {
-      lines.push({ number: index + 1, text: line.replace(/(`+)[^`].*?\1/g, (span) => " ".repeat(span.length)) });
+      return;
     }
+    if (marker && !inComment) {
+      fence = marker[1];
+      return;
+    }
+    let raw = "";
+    let rest = line;
+    while (rest) {
+      if (inComment) {
+        const end = rest.indexOf("-->");
+        if (end === -1) break;
+        inComment = false;
+        rest = rest.slice(end + 3);
+      } else {
+        const start = rest.indexOf("<!--");
+        if (start === -1) {
+          raw += rest;
+          break;
+        }
+        raw += rest.slice(0, start);
+        inComment = true;
+        rest = rest.slice(start + 4);
+      }
+    }
+    lines.push({ number: index + 1, raw, text: raw.replace(/(`+)[^`].*?\1/g, (span) => " ".repeat(span.length)) });
   });
   return lines;
 }
@@ -56,11 +81,11 @@ export function anchors(source) {
     found.add(seen ? `${base}-${seen}` : base);
   };
   const lines = proseLines(source);
-  lines.forEach(({ text }, i) => {
-    const atx = /^ {0,3}#{1,6}(?:\s+(.*?))?(?:\s+#+)?\s*$/.exec(text);
+  lines.forEach(({ raw, text }, i) => {
+    const atx = /^ {0,3}#{1,6}(?:\s+(.*?))?(?:\s+#+)?\s*$/.exec(raw);
     const next = lines[i + 1];
     if (atx) add(slug(atx[1] ?? ""));
-    else if (text.trim() && !/^\s*[-*>|]/.test(text) && next && next.number === lines[i].number + 1 && /^ {0,3}(=+|-{2,})\s*$/.test(next.text)) add(slug(text));
+    else if (text.trim() && !/^\s*[-*>|]/.test(text) && next && next.number === lines[i].number + 1 && /^ {0,3}(=+|-{2,})\s*$/.test(next.text)) add(slug(raw));
     for (const match of text.matchAll(/<[a-z][^>]*?\s(?:id|name)\s*=\s*["']([^"']+)["']/gi)) found.add(match[1]);
   });
   return found;
