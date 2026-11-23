@@ -9,7 +9,7 @@ export interface Mail {
 }
 
 export interface SendOptions {
-  /** An SOS: sent even when the server's own mail cap is reached (it is still counted). */
+  /** An SOS: sent at once, also when the server's own mail cap is reached, and counted afterwards. */
   urgent?: boolean;
   /** The caller already took this mail's place under the cap (takeMailSlot), as sign-in does. */
   slotTaken?: boolean;

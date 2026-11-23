@@ -6,8 +6,8 @@
 // says so: a sign-in gets "try again in a little while", other mail is skipped like any failed mail.
 //
 // Every kind of mail counts: sign-in links, invitations, alerts, summaries, receipts and SOS. An SOS
-// is still sent at the cap (parents must hear about it) and still counted. The count is kept in
-// rate_limit_hits, one row per UTC hour and per UTC day for the whole server (no address, no
+// is sent first and counted afterwards, on the side: it never waits for the count's lock, and a
+// count that fails is only logged (parents must hear about it). The count is kept in rate_limit_hits, one row per UTC hour and per UTC day for the whole server (no address, no
 // household), so it survives restarts and holds across processes. The sweeper deletes old rows.
 //
 // The wrapper also turns a temporary refusal by the mail server (SMTP 4xx) into the same answer,
@@ -149,11 +149,36 @@ export async function assertMailSlotFree(ctx: Ctx): Promise<void> {
 }
 
 /**
- * Takes one mail from this hour's and today's allowance. At a cap, throws MailUnavailableError and
- * counts nothing, unless the mail is urgent (an SOS): that one is always counted and sent. Given
- * a transaction (`db`), the caller passes a refusal to warnMailCap after that transaction.
+ * Counts an SOS that has already been handed to the mail server. No lock: an SOS is never refused,
+ * so there is no last mail to race for, and one upsert keeps the count right across processes.
+ * Never throws; a failure is logged with the error code only.
  */
-export async function takeMailSlot(ctx: Ctx, urgent = false, db: Ctx["db"] | Tx = ctx.db): Promise<void> {
+export async function countSentMail(ctx: Ctx): Promise<void> {
+  if (!mailCapOn(ctx)) return;
+  const now = ctx.now();
+  try {
+    await ctx.db
+      .insert(rateLimitHits)
+      .values(capWindows(ctx).map((w) => {
+        const start = windowStart(now, w.ms);
+        return { bucket: w.bucket, subject: SUBJECT, windowStart: start, hits: 1, expiresAt: new Date(start.getTime() + w.ms) };
+      }))
+      .onConflictDoUpdate({
+        target: [rateLimitHits.bucket, rateLimitHits.subject, rateLimitHits.windowStart],
+        set: { hits: sql`${rateLimitHits.hits} + 1` },
+      });
+  } catch (err) {
+    const code = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code ?? "unknown";
+    console.error(`mail cap: could not count an SOS mail (${code})`);
+  }
+}
+
+/**
+ * Takes one mail from this hour's and today's allowance. At a cap, throws MailUnavailableError and
+ * counts nothing. Given a transaction (`db`), the caller passes a refusal to warnMailCap after that
+ * transaction. An SOS never comes here: CappedMailProvider sends it first and then calls countSentMail.
+ */
+export async function takeMailSlot(ctx: Ctx, db: Ctx["db"] | Tx = ctx.db): Promise<void> {
   if (!mailCapOn(ctx)) return;
   // Inside a caller's transaction (sign-in) this is a savepoint, and the lock and the count are
   // kept or rolled back with the caller's own writes.
@@ -162,9 +187,7 @@ export async function takeMailSlot(ctx: Ctx, urgent = false, db: Ctx["db"] | Tx 
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.mail_cap'))`);
     const windows = await openWindows(tx, ctx, ctx.now());
     const over = fullWindows(windows);
-    // SOS is exempt on purpose: a parent must always be reachable, so an urgent mail is counted
-    // but never refused, also at a full cap (docs/operations.md, "Mail caps").
-    if (over.length && !urgent) return over;
+    if (over.length) return over;
     for (const w of windows) {
       await tx
         .insert(rateLimitHits)
@@ -207,7 +230,16 @@ export class CappedMailProvider implements MailProvider {
   send(mail: Mail, opts: SendOptions = {}): Promise<void> {
     // With the caps off the caller gets the provider's own promise: no extra wait, not even a tick.
     if (!mailCapOn(this.ctx) || opts.slotTaken) return this.watch(this.inner.send(mail, opts));
-    return takeMailSlot(this.ctx, opts.urgent ?? false).then(() => this.watch(this.inner.send(mail, opts)));
+    if (opts.urgent) {
+      // SOS is exempt on purpose: a parent must always be reachable (docs/operations.md, "Mail
+      // caps"). It goes to the mail server at once, with no database work in front, and is counted
+      // once handed over, whatever the mail server answered, like any other mail.
+      const sending = this.watch(this.inner.send(mail, opts));
+      const count = () => void countSentMail(this.ctx);
+      sending.then(count, count);
+      return sending;
+    }
+    return takeMailSlot(this.ctx).then(() => this.watch(this.inner.send(mail, opts)));
   }
 
   /** Counts and logs the outcome on the side; the caller still gets the result as it is. */

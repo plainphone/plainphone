@@ -32,7 +32,7 @@ export async function requestMagicLink(
     // The mail's place under the mail cap is taken with the link (and its sign-up place) in one
     // transaction: when the last mail is gone, the link is rolled back and holds no sign-up place;
     // a refused sign-up or a failed insert takes no mail. Throws MailUnavailableError at the cap.
-    if (capped) await takeMailSlot(ctx, false, tx);
+    if (capped) await takeMailSlot(ctx, tx);
     const now = ctx.now();
     await tx.insert(magicLinks).values({
       email,
