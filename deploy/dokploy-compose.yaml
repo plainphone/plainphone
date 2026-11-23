@@ -10,7 +10,8 @@
 # VAPID_SUBJECT, OFFLINE_ALERT_HOURS, PUSH_EXTRA_HOSTS, IOS_PAIRING_ENABLED.
 # iOS push: APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID (docs/push-setup.md).
 # App links (docs/parent-app.md): APPLE_APP_IDS, ANDROID_APP_PACKAGE, ANDROID_APP_CERT_SHA256.
-# Optional, unset keeps the server default: LATENCY_STATS, METRICS_TOKEN, MIGRATE_ON_START, DB_POOL_MAX,
+# Optional, unset keeps the server default: LATENCY_STATS, METRICS_TOKEN, MIGRATE_ON_START,
+# DB_POOL_MAX (docs/operations.md#capacity),
 # the APK_* and PROVISIONING_DNS_HOST setup-QR settings, and billing (docs/billing.md:
 # BILLING_*, STRIPE_*, PLAY_*; off until BILLING_ENABLED=true with BILLING_GRANDFATHER_BEFORE).
 # server/test/env-wiring.test.ts checks this file against server/src/config.ts.

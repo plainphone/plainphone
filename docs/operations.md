@@ -224,7 +224,9 @@ limits. Tune them to your traffic:
   at least 5 of them, so a quiet server does not alert on a single error.
 - **Response time:** the 95th percentile stays above 1 second for 10 minutes,
   or above twice the same hour yesterday. Leave out `/api/events`: it is a
-  long-lived [live updates](live-updates.md) stream, not a slow request.
+  long-lived [live updates](live-updates.md) stream, not a slow request. Leave out
+  `/api/device/update-request` too: every phone holds it open for up to 55 seconds
+  ([capacity](#capacity)).
 - **App health:** `/api/health` checked every minute, alerting after 3 failures
   in a row. It answers `503` when the database is down. It still answers `200`
   when the DNS service is down, with `"dns":"down"` in the body, so add a
@@ -491,5 +493,6 @@ The load test found no N+1 query or missing index on the sync path: each query t
 | Memory | Nothing | 443 MiB at the 2,000-phone burst against the 768 MB limit. Memory follows the requests in flight, not the number of households |
 
 What to watch: the app container's CPU and memory in Grafana, and the p95 and p99 of
-`/api/device/rules` in the Traefik numbers. Rerun `scripts/load-test.sh` after a change to the
-sync path or the rules document, and update this section.
+`/api/device/rules` in the Traefik numbers ([alerts](#alerts-on-errors-and-response-time)).
+Rerun `scripts/load-test.sh` after a change to the sync path or the rules document, and update
+this section.
