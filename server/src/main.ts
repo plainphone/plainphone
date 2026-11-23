@@ -13,7 +13,7 @@ import { LiveHub } from "./services/live-hub.js";
 import { startSweeper } from "./services/sweeper.js";
 
 const cfg = loadConfig();
-const { db, sql } = createDb(cfg.DATABASE_URL);
+const { db, sql } = createDb(cfg.DATABASE_URL, cfg.DB_POOL_MAX);
 if (cfg.MIGRATE_ON_START) await runMigrations(db);
 
 // Live updates go through Postgres LISTEN/NOTIFY, so every server process on the same database

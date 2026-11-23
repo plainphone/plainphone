@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Local copy of the hosted setup for scripts/load-test.sh. Layered on top of
+# deploy/dokploy-compose.yaml, so the image, Postgres version, memory limits and pool size
+# are the hosted ones. Only what a local run needs is changed: a random host port on
+# loopback (never a fixed one) and no restart loop when the app dies (a crash must show).
+services:
+  app:
+    image: plainphone-load:local
+    restart: "no"
+    ports:
+      - "127.0.0.1::8080"
