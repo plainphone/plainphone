@@ -128,6 +128,7 @@ phone                                      server                         parent
    | `rulesReceiptConfirmed` | True when the ETag and timestamp represent a successful application. Older reports lack this confirmation because their ETag can refer to a fetched document. In light mode with the Private DNS filter, a phone holds the confirmation back until its own check has verified the filter (`filterWorking: true` for `privateDns`) after the parents chose that method. Later rule changes are confirmed even if the filter then breaks, because the phone did apply them; the health card shows the filter problem separately. If the chosen Private DNS filter never verifies, the phone also holds back confirmation of later rule changes until the filter verifies or the method changes; the health card shows why. |
    | `webFilterActive` | The phone observed the configured filter in use (`true`), observed that it was absent (`false`), or could not check (omitted or `null`). Light-mode phones report the method they use in `filterMethod`, `filterWorking` and `filterIssue` instead, and the health card shows that result. Strong-mode phones keep using `webFilterActive`. |
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
+   | `distribution` | `github` (GitHub Releases, F-Droid) or `play` (Google Play); missing means `github`. A `play` phone has no device admin and is updated by Play, so light mode does not require `deviceAdmin` and the dashboard shows no **Update now** ([play-edition.md](play/play-edition.md#no-device-admin)). Any other value is a `400` |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
    | `clockMovedId` | A UUID, sent once when the phone's clock is more than 10 minutes from the server's time ([light-mode.md](light-mode.md#the-phones-clock)). The parent API shows `clockMoved: true` for seven days |
@@ -137,7 +138,9 @@ phone                                      server                         parent
    `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. For a
    phone paired in light mode, or a report with `mode: "light"`, the server stores
    `lockIntact: false` when `protections` is missing, one of those six is off or missing, a
-   policy failed or maintenance runs, whatever the phone sent. For compatibility,
+   policy failed or maintenance runs, whatever the phone sent. With `distribution: "play"` the
+   five without `deviceAdmin` are enough; the Play edition leaves `deviceAdmin` out of
+   `protections`. For compatibility,
    `usageAccess` is true when permission is granted or there are no time limits.
    `usageAccessGranted` is the actual Android permission. Older phones omit it.
 

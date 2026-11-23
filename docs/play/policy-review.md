@@ -352,7 +352,7 @@ Risk is our own estimate of a rejection on first review if the app is submitted 
 ## What the phone app needs before Play
 
 Product changes, each one a separate issue. Items 1 to 5 and 8 are done in the `play` build
-flavor ([play-edition.md](play-edition.md)); 6, 7, 9, 10 and 11 are still open.
+flavor ([play-edition.md](play-edition.md)), and 10 as well; 6, 7, 9 and 11 are still open.
 
 1. A Play build property for the phone app that leaves out the self-updater (`SelfUpdater`, the
    install watchdog, `systemExempted`), every link to `/download/android`, and strong-mode

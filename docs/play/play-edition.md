@@ -17,6 +17,7 @@ Nothing has been uploaded to Play from here; see [README.md](README.md).
 | Change | Why | Policy |
 |---|---|---|
 | No self-updater: no update check against `/download/android/latest.json`, no download prompt or link to the APK, the dashboard's **Update now** does nothing, update checks left behind by a GitHub build are cancelled, no install watchdog (`FOREGROUND_SERVICE_SYSTEM_EXEMPTED`), no `REQUEST_INSTALL_PACKAGES` | "An app distributed via Google Play may not modify, replace, or update itself using any method other than Google Play's update mechanism." A monitoring app may also not link to an APK outside Play | [Device and Network Abuse](https://support.google.com/googleplay/android-developer/answer/9888379), [Malware, Stalkerware](https://support.google.com/googleplay/android-developer/answer/9888380) |
+| No device admin: neither the Device Owner receiver (`PlainphoneAdminReceiver`) nor light mode's uninstall barrier (`LightAdminReceiver`) is in the manifest, and setup has no "Protect Plainphone" step | "Don't use device admin features to block uninstallation", and there is no parental control exception for device admin | [Malware](https://support.google.com/googleplay/android-developer/answer/9888380), [policy-review.md](policy-review.md#device-admin) |
 | No Device Owner setup: the provisioning activities (`GET_PROVISIONING_MODE`, `ADMIN_POLICY_COMPLIANCE`) and the `PROVISIONING_SUCCESSFUL` entry point are removed from the manifest | Strong mode is installed from the QR code's download URL, never from Play, and Play Protect blocks unapproved DPCs during enrollment | [Android Enterprise DPC allowlist](https://support.google.com/work/android/answer/16694822) |
 | Child profile only: setup offers **Child** and **Parent** (a pointer to the dashboard), not **Myself**, and the Parent screen has no "set up for yourself" button | Monitoring apps must be "exclusively designed and marketed for parents to monitor their children" | [Malware, Stalkerware](https://support.google.com/googleplay/android-developer/answer/9888380) |
 | `<meta-data android:name="isMonitoringTool" android:value="child_monitoring" />` | Required in every version code on every track of a monitoring app | [Use of the isMonitoringTool flag](https://support.google.com/googleplay/android-developer/answer/12955211) |
@@ -30,6 +31,33 @@ The `isMonitoringTool` page shows the element inside `<manifest>`; Android's Pac
 `<meta-data>` inside `<application>` (and components), so the Play edition declares it
 there. Check the uploaded bundle's manifest in Play Console's App bundle explorer after the first
 upload.
+
+### No device admin
+
+In the GitHub edition, light mode asks to become device admin only so that uninstalling needs it
+switched off first. The Play edition leaves both admin receivers out of its manifest and does not
+call Android's device admin APIs (`Distribution.DEVICE_ADMIN` is `false`):
+
+- Setup skips the "Protect Plainphone" step, and the step counter counts one step fewer.
+- The phone leaves `deviceAdmin` out of `protections` and reports `distribution: "play"` in
+  `PUT /device/status` ([sync-api.md](../sync-api.md)). The server then counts the light lock as
+  intact with the other five protections; a report without `distribution` (every app from before
+  this field) still needs all six.
+- The dashboard and the parent app show no device admin row for the phone, and "What is weaker than
+  strong mode" says that Plainphone can be uninstalled from Settings. The guard still closes
+  Plainphone's app info page and the uninstall dialog, and the parents see the phone go quiet if it
+  is uninstalled anyway.
+- Switching Plainphone off has no "device admin off" step.
+
+A light-mode phone that moves from a GitHub build to the Play build should lose its device admin when the
+update removes the receiver (not yet tried on a phone); with `distribution: "play"` that is not a
+broken lock.
+
+### Where updates come from
+
+With `distribution: "play"` the dashboard and the parent app show the app version and "Updated
+through Google Play" instead of **Update now** and the check against the GitHub release, in all
+five languages. It is a fact about the installed app, not a setting, so it has no toggle.
 
 ### The persistent notice
 
@@ -76,7 +104,9 @@ flavor (`android/app/src/github/java/…` and `android/app/src/play/java/…`):
 
 | Member | `github` | `play` |
 |---|---|---|
+| `NAME` | `"github"` | `"play"` (`distribution` in `PUT /device/status`) |
 | `SELF_UPDATES` | `true` | `false` (checked in `SelfUpdate`, `UpdateWorker`, `UpdateRequestListener` and the light-mode Today screen) |
+| `DEVICE_ADMIN` | `true` | `false` (`LightSetup.steps()`, `Protections`, `LightLock`, `LightRelease`) |
 | `MYSELF_PROFILE` | `true` | `false` (`SetupAudience.offered()`) |
 | `disclosure(step)` | `null` | guard and location disclosures (`LightSetupActivity`) |
 | `onStateChanged(context)` | nothing | shows or removes the notice (`MonitoringNotice`) |
@@ -85,9 +115,10 @@ The manifest differences are in `android/app/src/play/AndroidManifest.xml`, merg
 manifest. The flags are compile-time constants, so R8 drops the self-updater from the Play release:
 `scripts/smoke-play-apk.sh` checks the APK has no update check and no download link.
 
-If a phone that is already Device Owner runs the Play build (only by moving from a GitHub build
-signed with the same key), it keeps working as before, except that it no longer updates itself and
-approved install windows fail closed (the install restriction stays on) without the watchdog.
+A strong-mode (Device Owner) phone must stay on the GitHub build. The Play build has no Device
+Owner receiver, so an update to it (only possible from a GitHub build signed with the same key)
+would take away the component Android knows the Device Owner by. This has not been tried on a
+phone.
 
 ## Building
 
@@ -125,8 +156,15 @@ upload key.
 - `android/app/src/testPlay/…/PlayEditionTest.kt` (Robolectric, merged Play manifest): no update
   report, no work for **Update now**, inherited update checks cancelled and doing nothing, no
   `REQUEST_INSTALL_PACKAGES`, `QUERY_ALL_PACKAGES` or install watchdog permission, no provisioning
-  activities, `isMonitoringTool` = `child_monitoring`, Child-only audiences, the notice shown when
-  paired, back after a swipe and gone after release.
+  activities, no device admin receiver and no device admin step, a light lock without device
+  admin and `distribution` = `play`, `isMonitoringTool` = `child_monitoring`, Child-only
+  audiences, the notice shown when paired, back after a swipe and gone after release.
+- `android/app/src/testGithub/…/GithubEditionTest.kt`: both admin receivers, the device admin step
+  and `distribution` = `github`.
+- `server/test/light-mode.test.ts`: a `play` report is intact without `deviceAdmin`, a `github`
+  report or one without the field is not. `web/src/pages/Phone.test.tsx`,
+  `web/src/lib/phone-health.test.ts` and `parent-app/__tests__/phone-screens.test.tsx`: no
+  **Update now** and no device admin row for a Play phone.
 - `PlayDisclosureUiTest.kt` (Robolectric with Compose): setup without Myself, the guard disclosure
   before Android's accessibility list (with **Not now** and **Read it again**), the location
   disclosure before the permission request, **Not now** skipping location. Screenshots in light and
@@ -135,14 +173,10 @@ upload key.
 
 ## Still open
 
-- **Device admin.** The policy review recommends leaving the light-mode device admin step out of
-  the Play edition ([policy-review.md](policy-review.md#device-admin)). It is still in, because the
-  server and dashboard count a missing device admin as a broken light-mode lock
-  (`LIGHT_LOCK` in `server/src/routes/device.ts`, `LIGHT_REQUIRED` in `web/src/pages/Phone.tsx`).
-  The phone first has to report which edition it is, so the server can stop requiring it for Play
-  phones.
-- **The dashboard** still shows **Update now** and the app version check for Play phones; the
-  phone ignores them.
+- **A self-hosted server older than this change** does not know `distribution` and counts a Play
+  phone's light lock as broken, because `deviceAdmin` is missing.
+- **`POST /phones/{id}/update`** is still accepted for a Play phone (the dashboard no longer offers
+  it); the phone ignores it.
 - **A Myself phone moving to the Play build** keeps its profile. Play cannot be the source of a
   Myself install, since setup does not offer it.
 - The review sign-in, the declarations and the videos in [policy-review.md](policy-review.md#what-the-phone-app-needs-before-play).
