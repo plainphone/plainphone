@@ -63,8 +63,8 @@ export const da: Messages = {
   "error.load": "Siden kunne ikke hentes.",
   "error.form": "Tjek felterne, der er markeret nedenfor.",
 
-  "login.title": "Log ind",
-  "login.intro": "Styr reglerne på en rolig telefon, til dit barn eller til dig selv. Vi sender dig et link, så du kan logge ind. Du skal ikke bruge en adgangskode.",
+  "login.title": "Log ind eller opret en konto",
+  "login.intro": "Styr reglerne på en rolig telefon, til dit barn eller til dig selv. Vi sender dig et link, så du kan logge ind. Er du ny, opretter det samme link din konto. Du skal ikke bruge en adgangskode.",
   "login.email": "E-mailadresse",
   "login.submit": "Send link til at logge ind",
   "login.sending": "Sender…",

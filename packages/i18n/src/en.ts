@@ -65,8 +65,8 @@ export const en = {
   "error.load": "Could not load this page.",
   "error.form": "Please check the fields marked below.",
 
-  "login.title": "Log in",
-  "login.intro": "Manage the rules on a calm phone, for your child or for yourself. We send you a link to log in. No password needed.",
+  "login.title": "Log in or create an account",
+  "login.intro": "Manage the rules on a calm phone, for your child or for yourself. We send you a link to log in. New here? The same link creates your account. No password needed.",
   "login.email": "Email address",
   "login.submit": "Send login link",
   "login.sending": "Sending…",

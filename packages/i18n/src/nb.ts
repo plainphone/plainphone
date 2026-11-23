@@ -61,8 +61,8 @@ export const nb: Messages = {
   "error.load": "Kunne ikke laste denne siden.",
   "error.form": "Sjekk de markerte feltene nedenfor.",
 
-  "login.title": "Logg inn",
-  "login.intro": "Administrer reglene på en rolig telefon, for barnet ditt eller for deg selv. Vi sender deg en lenke for å logge inn. Du trenger ikke passord.",
+  "login.title": "Logg inn eller opprett en konto",
+  "login.intro": "Administrer reglene på en rolig telefon, for barnet ditt eller for deg selv. Vi sender deg en lenke for å logge inn. Er du ny, oppretter den samme lenken kontoen din. Du trenger ikke passord.",
   "login.email": "E-postadresse",
   "login.submit": "Send innloggingslenke",
   "login.sending": "Sender …",

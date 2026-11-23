@@ -61,8 +61,8 @@ export const sv: Messages = {
   "error.load": "Det gick inte att ladda den här sidan.",
   "error.form": "Kontrollera fälten markerade nedan.",
 
-  "login.title": "Logga in",
-  "login.intro": "Hantera reglerna på en lugn telefon, för ditt barn eller för dig själv. Vi skickar dig en länk för att logga in. Inget lösenord behövs.",
+  "login.title": "Logga in eller skapa ett konto",
+  "login.intro": "Hantera reglerna på en lugn telefon, för ditt barn eller för dig själv. Vi skickar dig en länk för att logga in. Är du ny skapar samma länk ditt konto. Inget lösenord behövs.",
   "login.email": "E-postadress",
   "login.submit": "Skicka inloggningslänk",
   "login.sending": "Skickar…",

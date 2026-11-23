@@ -61,8 +61,8 @@ export const de: Messages = {
   "error.load": "Diese Seite konnte nicht geladen werden.",
   "error.form": "Bitte überprüfen Sie die unten markierten Felder.",
 
-  "login.title": "Anmelden",
-  "login.intro": "Hier verwalten Sie die Regeln für Ihr Plainphone oder das Ihres Kindes. Wir senden Ihnen einen Anmeldelink. Sie brauchen kein Passwort.",
+  "login.title": "Anmelden oder Konto erstellen",
+  "login.intro": "Hier verwalten Sie die Regeln für Ihr Plainphone oder das Ihres Kindes. Wir senden Ihnen einen Anmeldelink. Sind Sie neu, erstellt derselbe Link Ihr Konto. Sie brauchen kein Passwort.",
   "login.email": "E-Mail-Adresse",
   "login.submit": "Anmeldelink senden",
   "login.sending": "Senden…",
