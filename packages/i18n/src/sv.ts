@@ -149,6 +149,7 @@ export const sv: Messages = {
   "phone.rulesPeople": "Vad och vem",
   "phone.rulesWhen": "När",
   "phone.rulesDevice": "Telefonen",
+  "phone.rulesSafety": "SOS och meddelanden",
   "phone.apps": "Appar",
   "phone.appsHint": "Välj vilka appar som ska visas",
   "phone.contacts": "Kontakter",

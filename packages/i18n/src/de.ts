@@ -149,6 +149,7 @@ export const de: Messages = {
   "phone.rulesPeople": "Was und wer",
   "phone.rulesWhen": "Wann",
   "phone.rulesDevice": "Das Telefon",
+  "phone.rulesSafety": "SOS und Nachrichten",
   "phone.apps": "Apps",
   "phone.appsHint": "Wählen Sie aus, welche Apps angezeigt werden",
   "phone.contacts": "Kontakte",

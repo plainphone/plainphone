@@ -149,6 +149,7 @@ export const nb: Messages = {
   "phone.rulesPeople": "Hva og hvem",
   "phone.rulesWhen": "Når",
   "phone.rulesDevice": "Telefonen",
+  "phone.rulesSafety": "SOS og meldinger",
   "phone.apps": "Apper",
   "phone.appsHint": "Velg hvilke apper som skal vises",
   "phone.contacts": "Kontakter",
