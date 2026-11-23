@@ -35,10 +35,14 @@ mkdir -p "$OUT/logs"
 # whatever it points at. A database of your own must be named here and live on this machine.
 unset DATABASE_URL
 if [ -n "${WALK_DATABASE_URL:-}" ]; then
-  case "$WALK_DATABASE_URL" in
-    postgres://*@127.0.0.1[:/]* | postgres://*@localhost[:/]* | postgresql://*@127.0.0.1[:/]* | postgresql://*@localhost[:/]*) ;;
-    *) echo "WALK_DATABASE_URL must be a disposable database on 127.0.0.1 or localhost" >&2; exit 1 ;;
-  esac
+  # Strict shape: one host, which is 127.0.0.1 or localhost, an optional port and a database name, and no
+  # query string. Postgres.js also takes the host from "?host=" and accepts several hosts with commas, so a
+  # looser match let a URL that looks local point at another server.
+  re='^postgres(ql)?://[^@/?#,]+@(127\.0\.0\.1|localhost)(:[0-9]+)?/[A-Za-z0-9_-]+$'
+  if ! [[ "$WALK_DATABASE_URL" =~ $re ]]; then
+    echo "WALK_DATABASE_URL must be postgres://user:pass@127.0.0.1[:port]/db (or localhost), with no query string" >&2
+    exit 1
+  fi
   OWN_DB=1
   DATABASE_URL=$WALK_DATABASE_URL
 else
