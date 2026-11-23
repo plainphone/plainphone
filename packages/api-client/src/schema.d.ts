@@ -9377,13 +9377,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Not a member */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
+            404: components["responses"]["Error"];
         };
     };
     getHouseholdSummarySettings: {

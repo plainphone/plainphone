@@ -546,35 +546,41 @@ DEATH = re.compile(r"died|kill|crash|ANR in|force stopping|signal|tombstone", re
 
 def app_deaths(logcat, report_lines=40, limit=120):
     """Logcat lines on how a Plainphone process ended: Java and native crash reports, kills, ANRs."""
+    # Numbered lines, so reports that close late still come out in logcat order.
     found = []
-    # The crash report being read: its pid and tag, its lines, and whether it is Plainphone's
-    # (None until a Java report's "Process:" line says which process crashed).
-    report = None
+    # The crash reports being read, by pid and tag: their lines, and whether they are Plainphone's
+    # (None until a Java report's "Process:" line says which process crashed). Other processes
+    # write between a report's lines, so only a new report from the same pid and tag ends one.
+    reports = {}
 
-    def close():
+    def close(key):
+        report = reports.pop(key, None)
         if report and report["ours"]:
             found.extend(report["lines"])
 
-    for line in logcat.splitlines():
+    for number, line in enumerate(logcat.splitlines()):
         match = LOGCAT_LINE.match(line)
         if not match:
             continue
         pid, tag, message = match.groups()
-        if report and report["key"] == (pid, tag) and len(report["lines"]) <= report_lines:
-            report["lines"].append(line)
+        key = (pid, tag)
+        if tag == "AndroidRuntime" and message.startswith("FATAL EXCEPTION"):
+            close(key)
+            reports[key] = {"lines": [(number, line)], "ours": None}
+        elif tag == "DEBUG" and ">>>" in message:
+            close(key)
+            reports[key] = {"lines": [(number, line)], "ours": bool(APP_PROCESS.search(message))}
+        elif key in reports:
+            report = reports[key]
+            if len(report["lines"]) <= report_lines:
+                report["lines"].append((number, line))
             if report["ours"] is None and message.startswith("Process: "):
                 report["ours"] = bool(APP_PROCESS.search(message))
-            continue
-        close()
-        report = None
-        if tag == "AndroidRuntime" and message.startswith("FATAL EXCEPTION"):
-            report = {"key": (pid, tag), "lines": [line], "ours": None}
-        elif tag == "DEBUG" and ">>>" in message and APP_PROCESS.search(message):
-            report = {"key": (pid, tag), "lines": [line], "ours": True}
         elif APP_PROCESS.search(message) and DEATH.search(message):
-            found.append(line)
-    close()
-    return found[-limit:]
+            found.append((number, line))
+    for key in list(reports):
+        close(key)
+    return [line for _, line in sorted(found)][-limit:]
 
 
 def report_app_deaths(path):

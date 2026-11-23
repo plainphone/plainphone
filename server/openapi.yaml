@@ -4358,7 +4358,7 @@ paths:
                       properties:
                         path: { type: string }
                         message: { type: string }
-        "404": { description: "Not a member" }
+        "404": { $ref: "#/components/responses/Error" }
   /households/{hid}/summary-settings:
     get:
       operationId: getHouseholdSummarySettings
