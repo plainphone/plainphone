@@ -63,6 +63,8 @@ services:
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # New households per UTC day; 0 = no cap, the self-hosting default (docs/self-hosting.md).
       SIGNUP_DAILY_CAP: ${SIGNUP_DAILY_CAP:-0}
+      MAIL_HOURLY_CAP: ${MAIL_HOURLY_CAP:-0}
+      MAIL_DAILY_CAP: ${MAIL_DAILY_CAP:-0}
       # Bot and spam protection on sign-in and invitations (docs/operations.md#bot-and-spam-protection).
       BOT_CHALLENGE: ${BOT_CHALLENGE:-off}
       BOT_CHALLENGE_DIFFICULTY: ${BOT_CHALLENGE_DIFFICULTY:-100000}
@@ -70,6 +72,8 @@ services:
       SPAM_HONEYPOT: ${SPAM_HONEYPOT:-on}
       BLOCK_DISPOSABLE_EMAIL: ${BLOCK_DISPOSABLE_EMAIL:-on}
       INVITES_PER_HOUSEHOLD_DAILY: ${INVITES_PER_HOUSEHOLD_DAILY:-20}
+      # Phones per household; 0 = no cap, the self-hosting default (docs/self-hosting.md).
+      HOUSEHOLD_PHONE_CAP: ${HOUSEHOLD_PHONE_CAP:-0}
       # App store review sign-in (docs/store-review.md). Unset = the path does not exist.
       REVIEW_LOGIN_EMAIL: ${REVIEW_LOGIN_EMAIL:-}
       REVIEW_LOGIN_CODE: ${REVIEW_LOGIN_CODE:-}

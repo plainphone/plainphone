@@ -162,6 +162,13 @@ const schema = z.object({
    */
   SIGNUP_DAILY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
   /**
+   * Mails of every kind the server sends per UTC hour and per UTC day, counted in the database
+   * (docs/operations.md, "Mail caps"). Unset or 0: no cap, the self-hosting default. At the cap a
+   * sign-in gets "try again in a little while" and other mail is skipped; an SOS is always sent.
+   */
+  MAIL_HOURLY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
+  MAIL_DAILY_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
+  /**
    * Bot and spam protection on the sign-in form (docs/operations.md, "Bot and spam protection").
    * `altcha`: the dashboard and the parent app solve a small proof-of-work puzzle before a login
    * link is mailed. Off by default for self-hosting; the hosted service turns it on.
@@ -177,6 +184,12 @@ const schema = z.object({
   BLOCK_DISPOSABLE_EMAIL: unsetIfEmpty(z.enum(["on", "off"]).default("on")),
   /** Invitation mails per household per 24 hours, counted in the database. 0: no cap. */
   INVITES_PER_HOUSEHOLD_DAILY: unsetIfEmpty(z.coerce.number().int().min(0).default(20)),
+  /**
+   * Phones per household at most (docs/operations.md, "Phones per household"). Every phone gets its
+   * own DNS filter ClientID, so one account must not register hundreds. Checked only when a phone
+   * is added; phones already there are never touched. Unset or 0: no cap, the self-hosting default.
+   */
+  HOUSEHOLD_PHONE_CAP: unsetIfEmpty(z.coerce.number().int().min(0).default(0)),
   /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.

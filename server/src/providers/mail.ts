@@ -8,6 +8,33 @@ export interface Mail {
   text: string;
 }
 
+export interface SendOptions {
+  /** An SOS: sent even when the server's own mail cap is reached (it is still counted). */
+  urgent?: boolean;
+  /** The caller already took this mail's place under the cap (takeMailSlot), as sign-in does. */
+  slotTaken?: boolean;
+}
+
+/** The answer code for "we can't send mail right now" (docs/operations.md, "Mail caps"). */
+export const MAIL_UNAVAILABLE_CODE = "mail_unavailable";
+
+/**
+ * No mail can go out right now: the server's own cap (MAIL_HOURLY_CAP, MAIL_DAILY_CAP) is reached,
+ * or the mail server answered with a temporary 4xx (often its own rate limit). The message holds
+ * the SMTP code only, never the server's text, which can echo the recipient.
+ */
+export class MailUnavailableError extends Error {
+  constructor(
+    readonly reason: "cap" | "provider",
+    /** When the cap's window ends; unset for a refusal by the mail server. */
+    readonly retryAt?: Date,
+    readonly smtpCode?: number,
+  ) {
+    super(reason === "cap" ? "the server's mail cap is reached" : `the mail server refused for now (SMTP ${smtpCode})`);
+    this.name = "MailUnavailableError";
+  }
+}
+
 /**
  * Sends transactional mail. Self-hosters choose the provider with MAIL_PROVIDER.
  * With "none" nothing is sent, so a server without mail settings never leaks a
@@ -16,7 +43,7 @@ export interface Mail {
 export interface MailProvider {
   readonly name: string;
   readonly canSend: boolean;
-  send(mail: Mail): Promise<void>;
+  send(mail: Mail, opts?: SendOptions): Promise<void>;
 }
 
 export class NoMailProvider implements MailProvider {
@@ -62,6 +89,17 @@ export class SmtpMailProvider implements MailProvider {
   }
 
   async send(mail: Mail) {
-    await this.transport.sendMail({ from: this.from, ...mail });
+    try {
+      await this.transport.sendMail({ from: this.from, ...mail });
+    } catch (err) {
+      throw smtpError(err);
+    }
   }
+}
+
+/** A temporary SMTP answer (4xx, e.g. 421, 450, 451, 452) becomes MailUnavailableError; 5xx and the rest stay as they are. */
+export function smtpError(err: unknown): unknown {
+  const code = (err as { responseCode?: unknown } | null)?.responseCode;
+  if (typeof code === "number" && code >= 400 && code < 500) return new MailUnavailableError("provider", undefined, code);
+  return err;
 }

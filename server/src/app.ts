@@ -31,6 +31,7 @@ import { LocalEventBus } from "./services/live-events.js";
 import { LiveHub, type LiveHubOptions } from "./services/live-hub.js";
 import { botChallengeRoutes } from "./routes/bot-challenge.js";
 import { honeypotOn } from "./services/signup-guard.js";
+import { installMailCap } from "./services/mail-cap.js";
 
 /** The largest request body the API reads, unless a route sets its own limit. */
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
@@ -79,6 +80,8 @@ function encodingNotAcceptable(): Response {
 export function createApp(ctx: Ctx, opts: { live?: LiveHub; liveOptions?: Partial<LiveHubOptions> } = {}) {
   const app = new Hono();
   ctx.events ??= new LocalEventBus();
+  // Every mail passes the overall cap (MAIL_HOURLY_CAP, MAIL_DAILY_CAP) from here on.
+  installMailCap(ctx);
   const live = opts.live ?? new LiveHub(ctx, ctx.events, opts.liveOptions);
 
   app.use(

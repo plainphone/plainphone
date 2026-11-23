@@ -60,10 +60,10 @@ marked *(fixed here)*. Everything else that is not done has an issue draft at th
 
 What exists today, from the code:
 
-- **Sign-in** is by a link sent by mail (`POST /api/auth/request` in `server/src/routes/parent.ts`). Limits: 20 requests per IP per hour (in memory) and 5 per email address per hour (counted in the database). Verifying a link: 30 per 15 minutes.
-- **Other limits** sit per route, for example pairing (10 starts per hour), location requests (30 per hour), "more time" requests (6 per hour), invitations (20 per user and 3 per recipient per day) and setup enrolment (30 per day). All use `RateLimiter` in `server/src/lib/http.ts`.
-- **The other limits live in memory in one process.** They reset when the server restarts and do not add up across replicas. The comment in `http.ts` says so. The per-address sign-in limit and the daily cap below are counted in the database.
-- **New households per day** can be capped with `SIGNUP_DAILY_CAP` (off by default, [operations.md](operations.md#daily-cap-on-new-households)). A new address that would go over the cap gets "Full for today" and no mail. There is still no overall cap on mail sent per hour or day.
+- **Sign-in** is by a link sent by mail (`POST /api/auth/request` in `server/src/routes/parent.ts`). Limits: 20 requests per IP per hour and 5 per email address per hour. Verifying a link: 30 per 15 minutes. All three are counted in the database.
+- **The limits on paths that mail someone or create something** are counted in the database too (`DbRateLimiter` in `server/src/services/rate-limits.ts`, #270 and this change): pairing starts (10 per IP per hour), claiming a code (20 per 15 minutes), setup enrolment (30 per user per day from the dashboard, 20 per IP per hour on the phone), invitations (20 per user and 3 per recipient per day, plus `INVITES_PER_HOUSEHOLD_DAILY`) and extended-family links. They survive restarts and add up across processes ([operations.md](operations.md#rate-limits-in-the-database)).
+- **The rest live in memory in one process** (`RateLimiter` in `server/src/lib/http.ts`), for example location requests (30 per hour), "more time" requests (6 per hour), a phone polling a pairing code and failed store review sign-ins. They sit behind a session or a phone's token, or fire many times a minute; [operations.md](operations.md#rate-limits-in-the-database) lists them.
+- **New households per day** can be capped with `SIGNUP_DAILY_CAP` (off by default, [operations.md](operations.md#daily-cap-on-new-households)). A new address that would go over the cap gets "Full for today" and no mail. An overall cap on mail per UTC hour and day (`MAIL_HOURLY_CAP`, `MAIL_DAILY_CAP`, off by default, [operations.md](operations.md#mail-caps)) stops the server before the mail provider does: a sign-in at the cap, or one the provider refuses for now (SMTP 4xx), gets "try again in a little while" instead of an error, and SOS mail always goes out.
 - **Resources:** [deploy/dokploy-compose.yaml](../deploy/dokploy-compose.yaml) limits the app container to 768 MB and Postgres to 1 GB, and the database pool is 10 connections (`server/src/db/client.ts`).
 - **Monitoring:** Uptime Kuma checks app health, DNS port 853, a DoT self-test every 5 minutes, the website and the backups. The public status page is <https://status.plainphone.org> ([operations.md](operations.md#monitoring-and-the-public-status-page)). Delivery speed has a Grafana dashboard in [deploy/grafana/](../deploy/grafana/) ([latency.md](latency.md)).
 
@@ -78,11 +78,11 @@ What is not known:
 
 | Item | State | Evidence |
 |---|---|---|
-| The mail provider's daily and hourly send limit, and what happens when it is reached | Missing | Not in the repo (provider settings are deploy configuration). Sign-in fails for everyone if the limit is hit. Issue draft L1 |
-| A cap or alarm on new sign-ups per day | Done | `SIGNUP_DAILY_CAP` ([operations.md](operations.md#daily-cap-on-new-households)), #241. No cap on phones per household while billing is off |
+| The mail provider's daily and hourly send limit, and what happens when it is reached | Partly | What happens is handled in the server: `MAIL_HOURLY_CAP` and `MAIL_DAILY_CAP` stop it before the provider does, and a provider's temporary refusal (SMTP 4xx) gets "try again" instead of a `500` ([operations.md](operations.md#mail-caps), #240). The provider's real limits, and the caps to set from them on the hosted service, are deploy configuration and still to be looked up. Issue L1 |
+| A cap or alarm on new sign-ups per day | Done | `SIGNUP_DAILY_CAP` ([operations.md](operations.md#daily-cap-on-new-households)), #241. Phones per household: `HOUSEHOLD_PHONE_CAP` ([operations.md](operations.md#phones-per-household)) |
 | A load test at 500 households and phones | Done | `scripts/load-test.sh`, results and limits in [operations.md](operations.md#capacity), #242. Measured on a test machine, not the production host |
 | An alert on 5xx rate and slow responses for the app | Partly | Uptime Kuma checks that `/api/health` answers ([operations.md](operations.md)). Alerts on error rate and response time are not documented in the repo. Issue draft L4 |
-| Abuse of the DNS filter: one account creating many ClientIDs | Partly | Enrolment and pairing are rate limited per account and IP. No per-household phone cap while billing is off (`BILLING_FREE_PHONES` only applies with `BILLING_ENABLED`). Covered by L2 |
+| Abuse of the DNS filter: one account creating many ClientIDs | Done | Enrolment and pairing are rate limited per account and IP, counted in the database. `HOUSEHOLD_PHONE_CAP` caps phones per household whether billing is on or off: off by default for self-hosters, `10` on the hosted service through `deploy/dokploy-compose.yaml` ([operations.md](operations.md#phones-per-household)). Only adding a phone is checked. One person can still sign up with several addresses; `SIGNUP_DAILY_CAP` and the bot challenge bound that |
 
 ### Legal pages
 
@@ -110,7 +110,7 @@ What is not known:
 |---|---|---|
 | A pinned "Welcome to the alpha" post in Discussions → Announcements | Missing | Issue draft F1 |
 | Repository description, website and topics on GitHub | Missing | Not verifiable from the repo; set in GitHub's settings. Issue draft F2 |
-| A short "known limitations" list a visitor can scan | Partly | Spread over [light-mode.md](light-mode.md#what-can-be-got-around), [policies.md](policies.md), [dns-bypass.md](dns-bypass.md) and [bypass-checklist.md](bypass-checklist.md#residual-risks). Issue draft F3 |
+| A short "known limitations" list a visitor can scan | Done | [limitations.md](limitations.md): what each mode cannot block, strong mode's requirements, what has not run on a real phone and how the Play edition differs, each linking to the details. Linked from the README status block and the help pages on plainphone.org in all five languages |
 | Markdown link check for `docs/` and the README in CI | Missing | CI checks the built site's links (`site/scripts/check.mjs`) but not Markdown files. Good first issue G1 |
 | Native review of Swedish, Norwegian Bokmål and German | Partly | [translations.md](translations.md#needs-native-review). Good first issues G2 to G4 |
 | A recorded result of the bypass checklist on at least one real phone per release | Partly | [bypass-checklist.md](bypass-checklist.md#result-log) has a result log; v0.1.19 says it was not tested on a physical phone. Issue draft A1 |
@@ -122,7 +122,7 @@ What is not known:
 | External security audit | Missing | README and SECURITY.md say there has been none |
 | End-to-end encryption in production | Missing | [encryption.md](encryption.md) is a specification, the [phase 0 prototype](e2ee-prototype.md) runs on test data only |
 | A stable (non-pre-release) version and a support window | Missing | [SECURITY.md](../SECURITY.md#supported-versions): only the newest release is supported |
-| Shared rate limits (Redis or the database) for more than one server process | Partly | The per-address sign-in limit and `SIGNUP_DAILY_CAP` are counted in the database; the rest are in memory (`server/src/lib/http.ts` comment) |
+| Shared rate limits (Redis or the database) for more than one server process | Partly | The limits on sign-in mails and links, pairing starts, claiming a code, setup enrolment, invitations and extended-family links are counted in the database, as are `SIGNUP_DAILY_CAP`, `INVITES_PER_HOUSEHOLD_DAILY` and `HOUSEHOLD_PHONE_CAP`. Still per process, so each replica has its own budget: a phone polling a pairing code (320 per pairing and 3,000 per IP per hour), failed store review sign-ins, server moves and the limits behind a session or a phone's token ([operations.md](operations.md#rate-limits-in-the-database)) |
 | Real-phone test matrix across makers (Samsung, Xiaomi, Pixel, Android 10 to 16) | Partly | [android-versions.md](android-versions.md), [bypass-checklist.md](bypass-checklist.md) |
 | Play Store listing and its policies | Partly | [light-mode.md](light-mode.md#google-play-policies-per-part), [support.md](support.md#launch-setup) |
 | iPhone | Missing | README "Status and what's next" |
@@ -167,7 +167,7 @@ Labels: `documentation`, `question`
 
 Labels: `question`
 
-> Sign-in is by mail only. Every sign-in from a new address sends one mail, and there is no cap on mail in the server. If the provider's hourly or daily limit is reached, nobody can sign in.
+> Sign-in is by mail only. Every sign-in from a new address sends one mail, and there was no cap on mail in the server (there is now, see State below). If the provider's hourly or daily limit is reached, nobody can sign in.
 >
 > - Find the provider's hourly and daily limits and the current daily volume.
 > - Decide what is enough for a launch day (for example 500 new people, each signing in on two devices).
@@ -175,9 +175,13 @@ Labels: `question`
 >
 > This touches deploy configuration and the hosted service, so it is not repository work only.
 
+State (#240): the server side is done. `MAIL_HOURLY_CAP` and `MAIL_DAILY_CAP` cap all mail in the database, sign-in at the cap or after a provider's temporary refusal says "We can't send mail right now. Try again in a little while.", SOS always goes out, and `/api/metrics` has the counts, the caps and the refusals to alert on ([operations.md](operations.md#mail-caps), with how to choose the numbers and a launch-day estimate of about 1,000 sign-in mails). Still open, on the hosted service: look up the Stalwart server's (and any relay's) hourly and daily limits and current volume, set the two caps from them, and add the alerts in Grafana.
+
 ### L2. Add a switchable daily cap on new accounts for the hosted service
 
 Labels: `enhancement`, `security-hardening`
+
+Done: the daily cap is `SIGNUP_DAILY_CAP` (#241), the phone cap is `HOUSEHOLD_PHONE_CAP` ([operations.md](operations.md#phones-per-household)). Kept for the record.
 
 > There is no limit on new accounts per day, and none on phones per household while billing is off. A burst, or a script, could create many accounts, send many mails and register many DNS ClientIDs.
 >
@@ -228,6 +232,8 @@ Labels: `documentation`
 ### F3. Collect the known limitations on one page
 
 Labels: `documentation`
+
+Done: [limitations.md](limitations.md). Kept for the record.
 
 > What Plainphone cannot block today is spread over `docs/light-mode.md`, `docs/policies.md`, `docs/dns-bypass.md` and `docs/bypass-checklist.md`. Add `docs/limitations.md` with one short list per mode, linking to the details, and link it from the README status block.
 

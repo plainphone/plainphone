@@ -46,7 +46,9 @@ const FIXED: Record<File, Record<string, string>> = {
 /** `${KEY:-default}` lines whose default deliberately differs from the server's. */
 const OWN_DEFAULT: Record<File, Record<string, string>> = {
   compose: { MAIL_FROM: "a self-hosted server must not send as plainphone.org" },
-  dokploy: {},
+  dokploy: {
+    HOUSEHOLD_PHONE_CAP: "the hosted service caps phones per household while billing is off (docs/operations.md)",
+  },
 };
 
 /** Variables compose.yaml reads that .env.example does not list, and why. */

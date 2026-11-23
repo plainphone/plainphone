@@ -6,6 +6,7 @@
 // parents can already see: numbers, and app names from the phone's own list.
 
 import { errorSummary } from "../lib/log.js";
+import { isMailUnavailable } from "./mail-cap.js";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import {
   householdMembers,
@@ -267,7 +268,7 @@ async function deliverOne(ctx: Ctx, s: typeof householdSummaries.$inferSelect): 
       try {
         await ctx.mail.send(weeklySummaryMail(m.email, toLocale(m.locale), ctx.cfg.PUBLIC_URL, s.id, data));
       } catch (err) {
-        console.error(`summary mail failed: ${errorSummary(err)}`);
+        if (!isMailUnavailable(err)) console.error(`summary mail failed: ${errorSummary(err)}`);
       }
     }
   }

@@ -1435,7 +1435,7 @@ export interface paths {
         put?: never;
         /**
          * Mail a sign-in link
-         * @description Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full, and 422 `disposable_email` for a throwaway address that would start a new household (BLOCK_DISPOSABLE_EMAIL). When `/health` says `botChallenge: altcha`, `altcha` must hold a solved challenge from `/auth/challenge`, each accepted once; without it the answer is 403 `bot_challenge_required`, with a wrong, expired or reused one 403 `bot_challenge_failed`. A filled-in `website` (the honeypot, SPAM_HONEYPOT) gets the normal 202 and nothing is sent. `mailEnabled` is false on servers without mail settings.
+         * @description Same answer for known and unknown addresses, except that a new address gets 429 `signup_cap_reached` while today's cap on new households is full, and 422 `disposable_email` for a throwaway address that would start a new household (BLOCK_DISPOSABLE_EMAIL). When `/health` says `botChallenge: altcha`, `altcha` must hold a solved challenge from `/auth/challenge`, each accepted once; without it the answer is 403 `bot_challenge_required`, with a wrong, expired or reused one 403 `bot_challenge_failed`. A filled-in `website` (the honeypot, SPAM_HONEYPOT) gets the normal 202 and nothing is sent. `mailEnabled` is false on servers without mail settings. 503 `mail_unavailable`: no mail can go out right now (mail cap or a busy mail server).
          */
         post: operations["postAuthRequest"];
         delete?: never;
@@ -1826,7 +1826,7 @@ export interface paths {
         put?: never;
         /**
          * Invite another parent
-         * @description Mails `${PUBLIC_URL}/invite#token=…`. Without mail the response includes `url` to pass on by hand.
+         * @description Mails `${PUBLIC_URL}/invite#token=…`. Without mail, or when the mail cannot go out right now (mail cap or a busy mail server), `mailed` is false and the response includes `url` to pass on by hand.
          */
         post: operations["postHouseholdsInvites"];
         delete?: never;
@@ -1938,7 +1938,7 @@ export interface paths {
          *     token, valid 24 hours. The browser builds a provisioning QR code in strong mode or a
          *     download and setup link in light mode from `provisioning`, the token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
          *     iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
-         *     its hash never reach the server. Rate limited to 30 per day per user.
+         *     its hash never reach the server. Rate limited to 30 per UTC day per user, counted in the database.
          */
         post: operations["postPhonesEnroll"];
         delete?: never;
@@ -4586,6 +4586,12 @@ export interface components {
             limit: "phones" | "trusted";
             max: number;
         };
+        PhoneCap: {
+            error: string;
+            /** @constant */
+            code: "household_phone_cap";
+            max: number;
+        };
         ChangePending: {
             /** @constant */
             status: "pending";
@@ -5585,6 +5591,21 @@ export interface components {
                 };
             };
         };
+        /** @description No mail was sent: the server's mail cap is reached (MAIL_HOURLY_CAP, MAIL_DAILY_CAP; `retryAt` is when the cap's UTC hour or day ends), or the mail server refused for now (SMTP 4xx; `retryAt` is in a few minutes). Also given as Retry-After. Ask the person to try again in a little while. */
+        MailUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    error: string;
+                    /** @enum {unknown} */
+                    code: "mail_unavailable";
+                    /** Format: date-time */
+                    retryAt: string;
+                };
+            };
+        };
         /** @description Too many login links, or (with `code` signup_cap_reached) today's cap on new households is reached (SIGNUP_DAILY_CAP). No mail is sent; `retryAt` is the next UTC midnight, also given as Retry-After. */
         TooManyOrCapped: {
             headers: {
@@ -5625,6 +5646,15 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["PlanLimit"];
+            };
+        };
+        /** @description Adding the phone(s) would take the household over HOUSEHOLD_PHONE_CAP (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code or a move invitation stays open. */
+        PhoneCap: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PhoneCap"];
             };
         };
     };
@@ -8871,6 +8901,7 @@ export interface operations {
             403: components["responses"]["BotChallenge"];
             422: components["responses"]["DisposableEmail"];
             429: components["responses"]["TooManyOrCapped"];
+            503: components["responses"]["MailUnavailable"];
         };
     };
     postAuthReview: {
@@ -9804,12 +9835,14 @@ export interface operations {
                 };
             };
             402: components["responses"]["PlanLimit"];
-            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`) */
+            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`). The code stays open */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["IosNotYet"] | components["schemas"]["PhoneCap"];
+                };
             };
             /** @description Code not found or expired */
             404: {
@@ -9867,6 +9900,7 @@ export interface operations {
                 };
             };
             402: components["responses"]["PlanLimit"];
+            403: components["responses"]["PhoneCap"];
             /** @description Household not found */
             404: {
                 headers: {
@@ -10792,6 +10826,17 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+            /** @description Importing the phones would take the household over HOUSEHOLD_PHONE_CAP (`code` household_phone_cap; nothing is added and the invitation stays open), or the signed-in member is not the household owner (only `error`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneCap"] | {
+                        error: string;
+                    };
+                };
+            };
             410: components["responses"]["Error"];
         };
     };
