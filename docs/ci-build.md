@@ -35,7 +35,10 @@ settings by `server/test/env-wiring.test.ts`), and
 fail when `packages/api-client/src/schema.d.ts` is behind `server/openapi.yaml`.
 Phone sync and the emulator suite skip changes to the shared client packages.
 DNS checks watch the server schema and validation
-files mirrored by `dns/ppdns/profiles.py`. Independent jobs run in parallel.
+files mirrored by `dns/ppdns/profiles.py`. The Markdown job runs on any `*.md`
+change: `scripts/check-markdown-links.mjs` checks every relative link and `#anchor`
+in the tracked Markdown files with GitHub's heading anchors, without network
+access. Independent jobs run in parallel.
 Debug and release APK checks share one Gradle invocation. The Docker smoke job
 runs concurrently with server, web and phone sync checks, with `pnpm -r build`
 running in Docker only.
