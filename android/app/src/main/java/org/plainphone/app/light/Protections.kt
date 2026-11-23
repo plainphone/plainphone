@@ -35,7 +35,7 @@ data class Protections(
     val usageAccessGranted: Boolean = usageAccess,
 ) {
     /** The Play edition has no device admin, so it leaves [deviceAdmin] out instead of reporting it off. */
-    fun toMap(withAdmin: Boolean = Distribution.DEVICE_ADMIN): Map<String, Boolean> = mapOf(
+    fun toMap(): Map<String, Boolean> = mapOf(
         "deviceOwner" to deviceOwner,
         "deviceAdmin" to deviceAdmin,
         "accessibility" to accessibility,
@@ -48,7 +48,7 @@ data class Protections(
         "notifications" to notifications,
         "batteryUnrestricted" to batteryUnrestricted,
         "privateDnsOk" to privateDnsOk,
-    ).let { if (withAdmin) it else it - "deviceAdmin" }
+    ).let { if (Distribution.DEVICE_ADMIN) it else it - "deviceAdmin" }
 
     /**
      * Light mode: the protections the lock cannot do without. Missing ones make `lockIntact`
@@ -58,9 +58,8 @@ data class Protections(
     fun missingForLight(
         method: FilterMethod = FilterMethod.VPN,
         dnsIssue: String? = null,
-        withAdmin: Boolean = Distribution.DEVICE_ADMIN,
     ): List<String> = buildList {
-        if (withAdmin && !deviceAdmin) add("device admin")
+        if (Distribution.DEVICE_ADMIN && !deviceAdmin) add("device admin")
         if (!accessibility) add("accessibility service")
         if (method == FilterMethod.PRIVATE_DNS) {
             if (dnsIssue != null) add("DNS filter (Private DNS)")

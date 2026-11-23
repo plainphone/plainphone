@@ -16,7 +16,7 @@ Nothing has been uploaded to Play from here; see [README.md](README.md).
 
 | Change | Why | Policy |
 |---|---|---|
-| No self-updater: no update check against `/download/android/latest.json`, no download prompt or link to the APK, the dashboard's **Update now** does nothing, update checks left behind by a GitHub build are cancelled, no install watchdog (`FOREGROUND_SERVICE_SYSTEM_EXEMPTED`), no `REQUEST_INSTALL_PACKAGES` | "An app distributed via Google Play may not modify, replace, or update itself using any method other than Google Play's update mechanism." A monitoring app may also not link to an APK outside Play | [Device and Network Abuse](https://support.google.com/googleplay/android-developer/answer/9888379), [Malware, Stalkerware](https://support.google.com/googleplay/android-developer/answer/9888380) |
+| No self-updater: no update check against `/download/android/latest.json`, no download prompt or link to the APK, the dashboard offers no **Update now** and the server answers `POST /phones/{id}/update` with 409, update checks left behind by a GitHub build are cancelled, no install watchdog (`FOREGROUND_SERVICE_SYSTEM_EXEMPTED`), no `REQUEST_INSTALL_PACKAGES` | "An app distributed via Google Play may not modify, replace, or update itself using any method other than Google Play's update mechanism." A monitoring app may also not link to an APK outside Play | [Device and Network Abuse](https://support.google.com/googleplay/android-developer/answer/9888379), [Malware, Stalkerware](https://support.google.com/googleplay/android-developer/answer/9888380) |
 | No device admin: neither the Device Owner receiver (`PlainphoneAdminReceiver`) nor light mode's uninstall barrier (`LightAdminReceiver`) is in the manifest, and setup has no "Protect Plainphone" step | "Don't use device admin features to block uninstallation", and there is no parental control exception for device admin | [Malware](https://support.google.com/googleplay/android-developer/answer/9888380), [policy-review.md](policy-review.md#device-admin) |
 | No Device Owner setup: the provisioning activities (`GET_PROVISIONING_MODE`, `ADMIN_POLICY_COMPLIANCE`) and the `PROVISIONING_SUCCESSFUL` entry point are removed from the manifest | Strong mode is installed from the QR code's download URL, never from Play, and Play Protect blocks unapproved DPCs during enrollment | [Android Enterprise DPC allowlist](https://support.google.com/work/android/answer/16694822) |
 | Child profile only: setup offers **Child** and **Parent** (a pointer to the dashboard), not **Myself**, and the Parent screen has no "set up for yourself" button | Monitoring apps must be "exclusively designed and marketed for parents to monitor their children" | [Malware, Stalkerware](https://support.google.com/googleplay/android-developer/answer/9888380) |
@@ -162,7 +162,9 @@ upload key.
 - `android/app/src/testGithub/…/GithubEditionTest.kt`: both admin receivers, the device admin step
   and `distribution` = `github`.
 - `server/test/light-mode.test.ts`: a `play` report is intact without `deviceAdmin`, a `github`
-  report or one without the field is not. `web/src/pages/Phone.test.tsx`,
+  report or one without the field is not. `server/test/status.test.ts`: **Update now** is refused
+  with 409 for a `play` phone. `server/test/review-login.test.ts`: the review demo phone is a Play
+  phone. `web/src/pages/Phone.test.tsx`,
   `web/src/lib/phone-health.test.ts` and `parent-app/__tests__/phone-screens.test.tsx`: no
   **Update now** and no device admin row for a Play phone.
 - `PlayDisclosureUiTest.kt` (Robolectric with Compose): setup without Myself, the guard disclosure
@@ -175,8 +177,6 @@ upload key.
 
 - **A self-hosted server older than this change** does not know `distribution` and counts a Play
   phone's light lock as broken, because `deviceAdmin` is missing.
-- **`POST /phones/{id}/update`** is still accepted for a Play phone (the dashboard no longer offers
-  it); the phone ignores it.
 - **A Myself phone moving to the Play build** keeps its profile. Play cannot be the source of a
   Myself install, since setup does not offer it.
 - The review sign-in, the declarations and the videos in [policy-review.md](policy-review.md#what-the-phone-app-needs-before-play).

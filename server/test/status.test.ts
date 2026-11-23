@@ -197,6 +197,19 @@ describe("phone update requests", () => {
     expect((await device.put("/api/device/status", report({ appVersionCode: 42, update: codedUpdate }))).status).toBe(204);
     expect((await parent.get(path)).json.status.update).toEqual(codedUpdate);
   });
+
+  it("refuses an update request for a Play phone, which Google Play updates", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    expect((await device.put("/api/device/status", report({ distribution: "play" }))).status).toBe(204);
+    const refused = await parent.post(`${path}/update`);
+    expect(refused.status).toBe(409);
+    expect(refused.json.error).toBe("a Play phone is updated by Google Play");
+    expect((await device.get("/api/device/rules")).json.update.requestedAt).toBeNull();
+    expect((await device.put("/api/device/status", report({ distribution: "github" }))).status).toBe(204);
+    expect((await parent.post(`${path}/update`)).status).toBe(202);
+  });
 });
 
 it("hides an install overrun from an old status snapshot", async () => {

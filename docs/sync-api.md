@@ -406,7 +406,8 @@ suspends the process or either end loses its connection. The phone saves the mos
 the same work on every poll. `PUT /api/device/status` reports `appVersion`,
 `appVersionCode` and the optional latest outcome in `update`.
 `GET /download/android/latest.json` describes the release before the phone downloads
-the binary. See [Android updates](android-updates.md).
+the binary. See [Android updates](android-updates.md). A phone that last reported
+`distribution: "play"` is updated by Google Play, so the request is answered with 409.
 
 ### Updates of approved apps (strong mode)
 

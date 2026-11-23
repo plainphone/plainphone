@@ -123,7 +123,7 @@ class LightSetupActivity : ComponentActivity() {
         requestedStep = savedInstanceState?.getString("requestedStep")?.let(LightSetup.Step::valueOf)
         PermissionRecovery.clearDone(this)
         restrictedStep = savedInstanceState?.getString("restrictedStep")?.let(LightSetup.Step::valueOf)
-            ?: LightSetup.Step.entries.firstOrNull { PermissionRecovery.restricted(this, it) }
+            ?: LightSetup.steps().firstOrNull { PermissionRecovery.restricted(this, it) }
         receiveLink(intent)
         val store = SyncStore(this)
         if (pendingLink == null && LightEnrollment.canImport(this, store) && !LightSetup.linkReviewed(this)) {

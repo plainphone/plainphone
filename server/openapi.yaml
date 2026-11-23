@@ -6050,6 +6050,7 @@ paths:
       responses:
         "202": { description: "Requested" }
         "404": { description: "Phone not found" }
+        "409": { description: "The phone runs the Play edition, which Google Play updates", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
   /phones/{pid}/app-updates:
     post:

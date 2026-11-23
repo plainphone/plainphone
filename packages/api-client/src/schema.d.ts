@@ -11810,6 +11810,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The phone runs the Play edition, which Google Play updates */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     requestAppUpdates: {

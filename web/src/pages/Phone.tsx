@@ -808,19 +808,16 @@ function RequestsSection() {
 
 /** Protections that must be on for light mode to hold. The others are shown only when off. */
 const LIGHT_REQUIRED: Protection[] = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"];
-/** The Play edition has no device admin (docs/play/play-edition.md), so it is not asked for there. */
-const PLAY_LIGHT_REQUIRED = LIGHT_REQUIRED.filter((k) => k !== "deviceAdmin");
 
 /** Light mode, honestly: what is live right now, and what is weaker than strong mode. */
 function LightModeSection({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
   const p = phone.status?.protections;
   const play = phone.status?.distribution === "play";
-  const required = play ? PLAY_LIGHT_REQUIRED : LIGHT_REQUIRED;
   const rows = p
     ? PROTECTIONS.filter((k) => k !== "deviceOwner" && !(play && k === "deviceAdmin") &&
-        !(phone.status?.filterMethod === "privateDns" && (k === "vpn" || k === "alwaysOnVpn" || k === "privateDnsOk")) && (required.includes(k) || p[k] === false || p[k] === true)).map(
-        (k) => ({ key: k, ok: p[k] === true, required: required.includes(k) }),
+        !(phone.status?.filterMethod === "privateDns" && (k === "vpn" || k === "alwaysOnVpn" || k === "privateDnsOk")) && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
+        (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
       )
     : [];
   const missing = rows.filter((r) => !r.ok).sort((a, b) => Number(b.required) - Number(a.required));

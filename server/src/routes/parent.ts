@@ -1179,6 +1179,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/phones/:pid/update", async (c) => {
     const phone = await requirePhone(c);
+    // Google Play updates the Play edition; the phone would ignore the request (docs/play/play-edition.md).
+    if (phone.deviceStatus?.distribution === "play") return c.json({ error: "a Play phone is updated by Google Play" }, 409);
     if (!wakeLimit.take(`update:${phone.id}`)) throw new HTTPException(429, { message: "too many update requests; wait a few minutes" });
     const requestedAt = ctx.now();
     await ctx.db.update(phones).set({ updateRequestedAt: requestedAt }).where(eq(phones.id, phone.id));
