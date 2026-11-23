@@ -272,7 +272,7 @@ class OutgoingCallEndTest {
     @Config(sdk = [29, 34])
     @Test fun `an emergency number of unknown direction without a recent dial does not open the call-back window`() {
         strongPhone()
-        val call = outgoingCall("112", Call.STATE_NEW, Call.Details.DIRECTION_UNKNOWN)
+        val call = outgoingCall("112", Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN)
         service.onCallAdded(call)
         try {
             call.moveTo(Call.STATE_ACTIVE)

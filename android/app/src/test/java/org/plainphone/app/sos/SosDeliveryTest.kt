@@ -36,13 +36,18 @@ import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowSmsManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.telephony.RecentDials
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class SosDeliveryTest {
+    /** The SOS parent call takes the real Telecom route and records the dial; keep it out of later test classes. */
+    @After fun forgetDials() = RecentDials.clear()
+
     @Test
     @Config(sdk = [35], shadows = [PairedStore::class, FreshNetworkShadow::class, SmsPartsShadow::class])
     fun `worker hands off the fallback once and reports it on retry`(): Unit = runBlocking {
