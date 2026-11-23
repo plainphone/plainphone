@@ -84,6 +84,23 @@ def probe_console(console, attempts=12, timeout=10):
                 raise RuntimeError("No shell answered on the emulator serial console") from None
 
 
+class SerialCommandError(RuntimeError):
+    """A serial console command that exited non-zero; `output` is what it printed."""
+
+    def __init__(self, name, status, output):
+        super().__init__(f"Emulator serial command failed: {name} ({status})\n{output}")
+        self.status = status
+        self.output = output
+
+
+class SerialTimeoutError(TimeoutError):
+    """A serial console command that overran its deadline; `output` is all it printed until then."""
+
+    def __init__(self, message, output):
+        super().__init__(message)
+        self.output = output
+
+
 def serial_shell(console, *args, timeout=30, name=None):
     # The Device Owner disables adb as part of the real lock. The disposable
     # emulator's separate root console remains available to the test harness.
@@ -119,12 +136,13 @@ def serial_shell(console, *args, timeout=30, name=None):
                 if not status.isdigit():
                     raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
                 if status != "0":
-                    raise RuntimeError(f"Emulator serial command failed: {name} ({status})\n{result}")
+                    raise SerialCommandError(name, status, result)
                 return result
             elif started:
                 output.extend(line)
     except TimeoutError as error:
-        raise TimeoutError(f"{error}; {overrun_detail(started, output)}") from None
+        raise SerialTimeoutError(f"{error}; {overrun_detail(started, output)}",
+                                 output.decode(errors="replace").replace("\r\n", "\n")) from None
     raise RuntimeError("Emulator serial console disconnected")
 
 
@@ -182,17 +200,109 @@ def instrument(flow, port, token, console=None, command_prefix=(), *, parent_num
     if parent_number is not None:
         command += ("-e", "parentNumber", parent_number)
     command += (f"{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner",)
+    exit_status, overrun = "0", None
+    # What am instrument printed says why the test failed, also when it exited non-zero or
+    # overran: read that, not only the exit status or the timeout.
     if console is None:
-        result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
+        try:
+            result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
+        except subprocess.CalledProcessError as error:
+            result, exit_status = error.stdout or "", str(error.returncode)
+        except subprocess.TimeoutExpired as error:
+            output = error.stdout or ""
+            result = output.decode(errors="replace") if isinstance(output, bytes) else output
+            overrun = f"adb shell am instrument did not finish within {INSTRUMENT_TIMEOUTS[flow]} s"
     else:
-        result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow],
-                              name=f"{flow} (am instrument)")
+        try:
+            result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow],
+                                  name=f"{flow} (am instrument)")
+        except SerialCommandError as error:
+            result, exit_status = error.output, error.status
+        except SerialTimeoutError as error:
+            result, overrun = error.output, str(error)
     (ARTIFACTS / f"{flow}.txt").write_text(result, encoding="utf-8")
     print(result, flush=True)
+    if overrun is not None:
+        # A failure the test reported before the overrun is the reason, and the overrun's tail
+        # of the output may no longer reach it.
+        raise TimeoutError(f"{overrun}\n{flow}: {instrumentation_failure(result)}")
     # am instrument can exit zero even when a test fails or never ran.
-    if not re.search(r"^OK \(1 test\)\s*$", result, re.MULTILINE) or "INSTRUMENTATION_FAILED" in result:
-        raise RuntimeError(f"{flow} did not pass its one test")
+    failure = instrumentation_failure(result)
+    if failure is None and exit_status != "0":
+        failure = f"am instrument exited with status {exit_status}"
+    if failure is not None:
+        # The reason belongs in the error itself: issue 237's job log ended with only the first line.
+        raise RuntimeError(f"{flow} did not pass its one test: {failure}")
+
+
+# am instrument -r reports each test as INSTRUMENTATION_STATUS key=value lines closed by an
+# INSTRUMENTATION_STATUS_CODE line, then the run as INSTRUMENTATION_RESULT lines closed by
+# INSTRUMENTATION_CODE. A value (a stack trace, a stream) runs on until the next such line.
+INSTRUMENTATION_LINE = re.compile(r"^INSTRUMENTATION_(STATUS|RESULT|STATUS_CODE|CODE|FAILED|ABORTED): ?(.*?)\r?$")
+# AndroidJUnitRunner's status codes (androidx.test InstrumentationResultPrinter).
+TEST_STARTED = "1"
+TEST_FAILURES = {"-1": "error", "-2": "failure", "-4": "assumption failure"}
+STACK_LINES = 40
+
+
+def parse_instrumentation(output):
+    """The tests' statuses (each a dict with its "code"), the run's result and any FAILED/ABORTED lines."""
+    statuses, result, problems = [], {}, []
+    block, value = {}, None
+    for line in output.splitlines():
+        match = INSTRUMENTATION_LINE.match(line)
+        if not match:
+            if value is not None:
+                value.append(line)
+            continue
+        kind, rest = match.groups()
+        value = None
+        if kind in ("STATUS", "RESULT"):
+            key, _, first = rest.partition("=")
+            value = [first]
+            (block if kind == "STATUS" else result)[key] = value
+        elif kind == "STATUS_CODE":
+            statuses.append({**block, "code": [rest.strip()]})
+            block = {}
+        elif kind == "CODE":
+            result["code"] = [rest.strip()]
+        else:
+            problems.append(f"INSTRUMENTATION_{kind}: {rest.strip()}")
+
+    def joined(fields):
+        return {key: "\n".join(lines).strip() for key, lines in fields.items()}
+    return [joined(status) for status in statuses], joined(result), problems
+
+
+def instrumentation_failure(output):
+    """None when the one test passed, otherwise why not, with the failing test's stack trace."""
+    statuses, result, reasons = parse_instrumentation(output)
+    name = lambda status: f"{status.get('class', '?')}#{status.get('test', '?')}"
+    finished = {name(status) for status in statuses if status["code"] != TEST_STARTED}
+    for status in statuses:
+        if status["code"] in TEST_FAILURES:
+            lines = (status.get("stack") or status.get("stream") or "(no stack trace reported)").splitlines()
+            if len(lines) > STACK_LINES:
+                lines = [*lines[:STACK_LINES], f"... {len(lines) - STACK_LINES} more lines in the flow's .txt artifact"]
+            reasons.append(f"{name(status)} reported a {TEST_FAILURES[status['code']]}:\n" + "\n".join(lines))
+    for test in dict.fromkeys(name(status) for status in statuses if status["code"] == TEST_STARTED):
+        if test not in finished:
+            # Only the missing result is known here: the process running the test may have been
+            # killed or crashed natively (issue 237, API 34), or the output was cut off.
+            reasons.append(f"{test} started (status code 1), and no result for it is in am instrument's "
+                           "output. Any shortMsg follows; the app deaths from logcat follow the error")
+    ended = ", ".join(f"{key}={result[key]}" for key in ("shortMsg", "longMsg") if result.get(key))
+    if ended:
+        reasons.append(f"am instrument ended with {ended}")
+    passed = re.search(r"^OK \(1 test\)\s*$", output, re.MULTILINE)
+    if passed and not reasons:
+        return None
+    if not reasons:
+        reasons.append("no test started" if not statuses else 'no "OK (1 test)" line in the output')
+        if result.get("stream"):
+            reasons.append(result["stream"])
+    return "\n".join(reasons)
 
 
 def capture(console, label):
@@ -428,6 +538,57 @@ def serve_console(port, token, stop, serial, poll=0.25):
                   flush=True)
 
 
+# `logcat -v threadtime`: date, time, pid, tid, level, tag: message.
+LOGCAT_LINE = re.compile(r"^\S+ \S+\s+(\d+)\s+\d+ [VDIWEF] (.*?)\s*: (.*)$")
+APP_PROCESS = re.compile(r"org\.plainphone\.")
+DEATH = re.compile(r"died|kill|crash|ANR in|force stopping|signal|tombstone", re.IGNORECASE)
+
+
+def app_deaths(logcat, report_lines=40, limit=120):
+    """Logcat lines on how a Plainphone process ended: Java and native crash reports, kills, ANRs."""
+    found = []
+    # The crash report being read: its pid and tag, its lines, and whether it is Plainphone's
+    # (None until a Java report's "Process:" line says which process crashed).
+    report = None
+
+    def close():
+        if report and report["ours"]:
+            found.extend(report["lines"])
+
+    for line in logcat.splitlines():
+        match = LOGCAT_LINE.match(line)
+        if not match:
+            continue
+        pid, tag, message = match.groups()
+        if report and report["key"] == (pid, tag) and len(report["lines"]) <= report_lines:
+            report["lines"].append(line)
+            if report["ours"] is None and message.startswith("Process: "):
+                report["ours"] = bool(APP_PROCESS.search(message))
+            continue
+        close()
+        report = None
+        if tag == "AndroidRuntime" and message.startswith("FATAL EXCEPTION"):
+            report = {"key": (pid, tag), "lines": [line], "ours": None}
+        elif tag == "DEBUG" and ">>>" in message and APP_PROCESS.search(message):
+            report = {"key": (pid, tag), "lines": [line], "ours": True}
+        elif APP_PROCESS.search(message) and DEATH.search(message):
+            found.append(line)
+    close()
+    return found[-limit:]
+
+
+def report_app_deaths(path):
+    # A test that started and never finished leaves its reason only in logcat; show it in the job log.
+    try:
+        deaths = app_deaths(path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return
+    if deaths:
+        print(f"How Plainphone processes ended, from {path.name}:", *deaths, sep="\n", flush=True)
+    else:
+        print(f"No Plainphone crash, kill or ANR in {path.name}", flush=True)
+
+
 def report_server(server, log, lines=30):
     # In the job log too, so a server that exited shows without downloading the artifact.
     log.flush()
@@ -467,6 +628,7 @@ def main():
                 capture(console, "screen.png")
                 collect_diagnostics(console)
                 capture(console, "logcat.txt")
+                report_app_deaths(ARTIFACTS / "logcat.txt")
                 raise
             finally:
                 server.terminate()
