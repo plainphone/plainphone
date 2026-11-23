@@ -232,13 +232,13 @@ DIAGNOSTICS = {
 WORK_DIAGNOSTICS = ("su", "0", "cmd", "activity", "broadcast", "-a", "androidx.work.diagnostics.REQUEST_DIAGNOSTICS", "-p", PACKAGE)
 
 
-def device_command(console, *command, timeout=20):
+def device_command(console, *command, timeout=20, name=None):
     # Device Owner policy disables adb; the serial console still answers.
     try:
         return adb("shell", *command, text=True, stdout=subprocess.PIPE,
                    stderr=subprocess.STDOUT, timeout=timeout).stdout
     except (OSError, subprocess.SubprocessError):
-        return serial_shell(console, *command, timeout=timeout)
+        return serial_shell(console, *command, timeout=timeout, name=name)
 
 
 def collect_diagnostics(console, settle=3):
@@ -248,7 +248,7 @@ def collect_diagnostics(console, settle=3):
         except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
             print(f"Unable to collect {label}: {exc}", flush=True)
     try:
-        device_command(console, *WORK_DIAGNOSTICS)
+        device_command(console, *WORK_DIAGNOSTICS, name="cmd activity broadcast (work diagnostics)")
         time.sleep(settle)  # The diagnostics worker logs asynchronously; logcat is captured next.
     except (EOFError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Unable to request WorkManager diagnostics: {exc}", flush=True)
