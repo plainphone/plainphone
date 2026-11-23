@@ -21,7 +21,9 @@ import org.plainphone.app.sync.PlainphoneApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
+import org.plainphone.app.distribution.Distribution
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -48,6 +50,7 @@ class AndroidUpdateCompatibilityTest {
     }
 
     @Test fun persistedWorkerReconcilesInterruptedInstallBeforeCheckingForUpdates() {
+        assumeTrue("the Play edition has no self-updater", Distribution.SELF_UPDATES)
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         val store = PrefsUpdateStateStore(context)
         store.installingVersionCode = Long.MAX_VALUE

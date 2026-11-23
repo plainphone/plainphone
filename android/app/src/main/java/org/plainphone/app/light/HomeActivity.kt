@@ -169,7 +169,8 @@ class HomeActivity : ComponentActivity() {
             if (snapshot != null) TimeLeft(snapshot)
             val install = rules?.toInstall.orEmpty().filterNot { isInstalled(context, it.packageName) }
             if (install.isNotEmpty()) InstallList(install)
-            if (light) {
+            // The Play edition has no link to the APK: Google Play updates it.
+            if (light && org.plainphone.app.distribution.Distribution.SELF_UPDATES) {
                 val update = org.plainphone.app.update.SelfUpdate.report(context)
                 if (update?.state == org.plainphone.app.update.SelfUpdater.STATE_PROMPTED) {
                     Spacer(Modifier.height(16.dp))

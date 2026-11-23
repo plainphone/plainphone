@@ -42,6 +42,8 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.MainActivity
 import org.plainphone.app.R
+import org.plainphone.app.distribution.Distribution
+import org.plainphone.app.distribution.PermissionDisclosure
 import org.plainphone.app.sync.ServerAddress
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
@@ -60,6 +62,7 @@ class LightSetupActivity : ComponentActivity() {
     private var pendingLink by mutableStateOf<LightEnrollment.Link?>(null)
     private var manualServerOpen by mutableStateOf(false)
     private var batteryPromptOpened by mutableStateOf(false)
+    private var declinedDisclosure by mutableStateOf<LightSetup.Step?>(null)
 
     private var requestedStep: LightSetup.Step? = null
     private var restrictedStep by mutableStateOf<LightSetup.Step?>(null)
@@ -177,11 +180,7 @@ class LightSetupActivity : ComponentActivity() {
                 primary = null,
                 onPrimary = {},
             ) {
-                for ((choice, label) in listOf(
-                    SetupAudience.CHILD to R.string.setup_child,
-                    SetupAudience.PARENT to R.string.setup_parent,
-                    SetupAudience.MYSELF to R.string.setup_myself,
-                )) {
+                for ((choice, label) in SetupAudience.offered().map { it to it.label }) {
                     OutlinedButton(onClick = { audience = choice }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(label))
                     }
@@ -196,8 +195,10 @@ class LightSetupActivity : ComponentActivity() {
                 secondary = stringResource(R.string.setup_back),
                 onSecondary = back,
             ) {
-                OutlinedButton(onClick = { audience = SetupAudience.MYSELF }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.setup_parent_try_self))
+                if (SetupAudience.MYSELF in SetupAudience.offered()) {
+                    OutlinedButton(onClick = { audience = SetupAudience.MYSELF }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.setup_parent_try_self))
+                    }
                 }
                 ScanPlainphoneCode()
             }
@@ -440,8 +441,41 @@ class LightSetupActivity : ComponentActivity() {
         finish()
     }
 
+    /**
+     * Play edition: what the step uses and why, with an explicit yes, before Android's own screen.
+     * Agree opens it at once; Not now skips an optional step and otherwise waits on this screen.
+     */
+    @Composable
+    private fun DisclosureScreen(step: LightSetup.Step, disclosure: PermissionDisclosure) {
+        val declined = disclosure.declined?.takeIf { declinedDisclosure == step }
+        CalmScreen(
+            eyebrow = null,
+            title = stringResource(disclosure.title),
+            body = stringResource(declined ?: disclosure.body),
+            primary = stringResource(if (declined != null) disclosure.readAgain else disclosure.agree),
+            onPrimary = {
+                declinedDisclosure = null
+                if (declined == null) {
+                    LightSetup.agreeToDisclosure(this, step)
+                    act(step)
+                }
+                refresh++
+            },
+            secondary = if (declined != null) null else stringResource(disclosure.decline),
+            onSecondary = {
+                if (disclosure.declined == null) LightSetup.skip(this, step) else declinedDisclosure = step
+                refresh++
+            },
+        )
+    }
+
     @Composable
     private fun StepScreen(step: LightSetup.Step) {
+        val disclosure = Distribution.disclosure(step)
+        if (disclosure != null && !LightSetup.disclosureAgreed(this, step)) {
+            DisclosureScreen(step, disclosure)
+            return
+        }
         val restricted = restrictedStep == step
         if (restricted || (PermissionRecovery.blocked(this, step) && runtimePermissionMissing(step))) {
             val skippable = step.optional && !restricted
@@ -648,6 +682,7 @@ class LightSetupActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         SyncScheduler.ensurePeriodic(app)
                         Sync.runner(app).run("initial light setup")
+                        org.plainphone.app.distribution.Distribution.onStateChanged(app)
                     }
                 }
                 failed = store.isPaired && !LightSetup.hasDashboardRules(store)

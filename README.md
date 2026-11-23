@@ -17,7 +17,7 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance. The groundwork is in the code but switched off, and a paywall never touches locking, release, SOS, 112 or getting a phone back: see [billing](docs/billing.md).
 
-> **Status: public alpha.** Everything below works together in test builds, but it has had little testing on real phones and no external security audit. Try it on a spare phone or an emulator. Do not make it the only phone a child relies on yet. The hosted service at app.plainphone.org is a free test service, provided as is under its [terms](https://plainphone.org/terms/), and it can read the data you put in it (see [Privacy and security](#privacy-and-security)). Its data is kept during the alpha and is never wiped without at least 30 days' notice, by mail to account holders and in [Discussions → Announcements](https://github.com/plainphone/plainphone/discussions/categories/announcements); phones keep their last rules offline ([what happens and how to get out](docs/privacy.md#the-hosted-test-service-during-the-alpha)). Releases from v0.1.10 use the production signing key; v0.1.9 and earlier used a test key.
+> **Status: public alpha.** Everything below works together in test builds, but it has had little testing on real phones and no external security audit. [Known limitations](docs/limitations.md) lists what it cannot block yet. Try it on a spare phone or an emulator. Do not make it the only phone a child relies on yet. The hosted service at app.plainphone.org is a free test service, provided as is under its [terms](https://plainphone.org/terms/), and it can read the data you put in it (see [Privacy and security](#privacy-and-security)). Its data is kept during the alpha and is never wiped without at least 30 days' notice, by mail to account holders and in [Discussions → Announcements](https://github.com/plainphone/plainphone/discussions/categories/announcements); phones keep their last rules offline ([what happens and how to get out](docs/privacy.md#the-hosted-test-service-during-the-alpha)). Releases from v0.1.10 use the production signing key; v0.1.9 and earlier used a test key.
 
 <p align="center">
   <img src="site/src/img/home-en-light-2x.webp" width="200" alt="The phone's home screen: the time, school time until 14:00, four apps with 25 minutes left for Music, and Phone, Messages and SOS at the bottom.">
@@ -201,10 +201,17 @@ Requirements: JDK 21 and the Android SDK (command-line tools are enough; Android
 ```sh
 cd android
 echo "sdk.dir=$ANDROID_HOME" > local.properties
-./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew testGithubDebugUnitTest lintGithubDebug assembleGithubDebug
 ```
 
-The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+The app has two product flavors in the `distribution` dimension:
+
+| Flavor | For | What it is |
+|---|---|---|
+| `github` (default) | GitHub Releases, F-Droid, the emulator suite | The whole app: light and strong mode, Child and Myself, the self-updater |
+| `play` | Google Play | Light mode with the Child profile only, updated by Play, with the disclosures and the notice Play asks for. See [docs/play/play-edition.md](docs/play/play-edition.md) |
+
+Gradle task names carry the flavor: `assembleGithubDebug`, `testPlayDebugUnitTest`, `bundlePlayRelease`. The debug APK ends up in `android/app/build/outputs/apk/github/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The JavaScript parts (server, web app, parent app and `packages/`) build and test from the repository root:
 
@@ -241,10 +248,10 @@ keyPassword=...
 ```
 
 ```sh
-PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleRelease
+PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleGithubRelease
 ```
 
-Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:
+Without `PLAINPHONE_SIGNING`, the `github` release build is signed with your local debug key, and the `play` release stays unsigned. The Play bundle (`./gradlew bundlePlayRelease`) is signed with the upload key from `PLAINPHONE_PLAY_UPLOAD` ([docs/play/play-edition.md](docs/play/play-edition.md#signing-and-upload)). Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:
 
 ```text
 8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215
@@ -276,7 +283,7 @@ For self-hosting, tests and phones without an account there is a script with the
 
 ```sh
 scripts/provisioning-qr.py \
-  --apk android/app/build/outputs/apk/release/app-release.apk \
+  --apk android/app/build/outputs/apk/github/release/app-github-release.apk \
   --apk-url https://example.org/plainphone.apk \
   --ask-pin --out dist/provisioning-qr
 ```

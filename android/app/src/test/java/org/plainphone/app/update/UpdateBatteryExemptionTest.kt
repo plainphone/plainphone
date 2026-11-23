@@ -12,7 +12,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Test
+import org.plainphone.app.distribution.Distribution
 import org.junit.runner.RunWith
 import org.plainphone.app.Lock
 import org.plainphone.app.MainActivity
@@ -105,6 +107,7 @@ class UpdateBatteryExemptionTest {
     }
 
     @Test fun forcedUpdateReportsTheMissingExemptionAndPostsTheSystemDialog() {
+        assumeTrue("the Play edition has no self-updater", Distribution.SELF_UPDATES)
         becomeOwner()
         val outcome = SelfUpdate.updater(context).run(force = true)
         val report = SelfUpdate.report(context)!!

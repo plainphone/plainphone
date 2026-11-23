@@ -100,6 +100,7 @@ class PairingActivity : ComponentActivity() {
             val self = withContext(Dispatchers.IO) {
                 val store = SyncStore(this@PairingActivity)
                 if (!store.isPaired) return@withContext false
+                org.plainphone.app.distribution.Distribution.onStateChanged(this@PairingActivity)
                 if (store.rules()?.phoneId != store.phoneId) {
                     Sync.runner(this@PairingActivity).run("setup finished")
                 }

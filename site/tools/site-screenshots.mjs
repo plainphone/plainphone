@@ -37,7 +37,7 @@ mkdirSync(tmp, { recursive: true });
 
 if (!skipAndroid) {
   rmSync(androidShots, { recursive: true, force: true });
-  run("./gradlew", ["--no-daemon", "--no-build-cache", "--max-workers=2", "cleanTestDebugUnitTest", "testDebugUnitTest", "--tests", "org.plainphone.app.SiteScreenshotTest"], { cwd: join(root, "android") });
+  run("./gradlew", ["--no-daemon", "--no-build-cache", "--max-workers=2", "cleanTestGithubDebugUnitTest", "testGithubDebugUnitTest", "--tests", "org.plainphone.app.SiteScreenshotTest"], { cwd: join(root, "android") });
 }
 
 const dashboards = [["dashboard", "switches"], ["requests", "requests"]];

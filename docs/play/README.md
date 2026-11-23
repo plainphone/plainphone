@@ -10,13 +10,15 @@ been submitted, and no Play Console account or app entry has been created from h
 | [permission-declarations.md](permission-declarations.md) | Declaration texts for accessibility, SMS and call log, background location, VPN, foreground services; the in-app disclosures and the videos Google asks for |
 | [screenshots.md](screenshots.md) | Which screens, which sizes, which existing renders can be reused, and what has to be made |
 | [f-droid.md](f-droid.md) | What an F-Droid release of the phone app needs |
+| [play-edition.md](play-edition.md) | The phone app's `play` flavor: what it leaves out and adds and why, the disclosures, the notice, building the bundle and the upload key |
 
 ## Recommendation in short
 
 - **Parent app:** Play. Start with a closed test, then open testing as the public alpha.
 - **Phone app:** GitHub Releases for the alpha, as today, and F-Droid once the build is
-  reproducible. A reduced Play edition (light mode, Child profile only) later, after the product
-  changes in [policy-review.md](policy-review.md#what-the-phone-app-needs-before-play).
+  reproducible. The Play edition (light mode, Child profile only) is the `play` build flavor
+  ([play-edition.md](play-edition.md)); what is still open before uploading it is in
+  [policy-review.md](policy-review.md#what-the-phone-app-needs-before-play).
 - **Strong mode:** never through Play. Check the Android Enterprise DPC allowlist now: Play
   Protect may block QR setup of an unapproved Device Owner app
   ([policy-review.md](policy-review.md#device-owner-and-qr-provisioning)).

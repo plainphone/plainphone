@@ -4,7 +4,7 @@ package org.plainphone.app.billing
 
 import android.content.Context
 
-/** The direct build (no `-PplainphonePlay=true`): no app store, so no paid offers are shown. */
+/** The `github` flavor (GitHub Releases, F-Droid): no app store, so no paid offers are shown. */
 object Stores {
     const val available = false
 

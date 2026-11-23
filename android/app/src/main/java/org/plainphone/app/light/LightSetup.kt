@@ -145,6 +145,13 @@ object LightSetup {
         edit.apply()
     }
 
+    /** The user said yes on the step's disclosure screen (Play edition, Distribution.disclosure). Cleared on release. */
+    fun disclosureAgreed(context: Context, step: Step) = prefs(context).getBoolean("disclosure_${step.name}", false)
+
+    fun agreeToDisclosure(context: Context, step: Step) {
+        prefs(context).edit().putBoolean("disclosure_${step.name}", true).apply()
+    }
+
     fun batteryMaker(): Int? = when (Build.MANUFACTURER.lowercase(java.util.Locale.ROOT)) {
         "oneplus" -> R.string.light_battery_oneplus
         "xiaomi", "redmi", "poco" -> R.string.light_battery_xiaomi

@@ -22,7 +22,9 @@ import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
 import org.junit.After
 import org.junit.Before
+import org.junit.Assume.assumeTrue
 import org.junit.Test
+import org.plainphone.app.distribution.Distribution
 import org.junit.runner.RunWith
 import org.plainphone.app.Lock
 import org.plainphone.app.PlainphoneApplication
@@ -465,27 +467,35 @@ class UpdateAlarmTest {
         assertTrue(installsRestricted())
     }
 
-    @Test fun mergedManifestDeclaresBootAndReplacementRecovery() {
+    private val androidNs = "http://schemas.android.com/apk/res/android"
+
+    private fun mergedManifest(): org.w3c.dom.Document {
         val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
         val config = java.util.Properties()
         checkNotNull(javaClass.getResourceAsStream("/com/android/tools/test_config.properties")).use(config::load)
-        val manifest = java.io.File(config.getProperty("android_merged_manifest"))
-        val document = factory.newDocumentBuilder().parse(manifest)
-        val android = "http://schemas.android.com/apk/res/android"
+        return factory.newDocumentBuilder().parse(java.io.File(config.getProperty("android_merged_manifest")))
+    }
+
+    @Test fun mergedManifestDeclaresBootAndReplacementRecovery() {
+        val document = mergedManifest()
         val receivers = document.getElementsByTagName("receiver")
         val receiver = (0 until receivers.length).map { receivers.item(it) as org.w3c.dom.Element }
-            .single { it.getAttributeNS(android, "name") == RelockReceiver::class.java.name }
+            .single { it.getAttributeNS(androidNs, "name") == RelockReceiver::class.java.name }
         val actions = receiver.getElementsByTagName("action")
         val names = (0 until actions.length).map {
-            (actions.item(it) as org.w3c.dom.Element).getAttributeNS(android, "name")
+            (actions.item(it) as org.w3c.dom.Element).getAttributeNS(androidNs, "name")
         }
         assertTrue(Intent.ACTION_BOOT_COMPLETED in names)
         assertTrue(Intent.ACTION_MY_PACKAGE_REPLACED in names)
-        val services = document.getElementsByTagName("service")
+    }
+
+    @Test fun mergedManifestDeclaresTheInstallWatchdog() {
+        assumeTrue("the Play edition has no install watchdog", Distribution.SELF_UPDATES)
+        val services = mergedManifest().getElementsByTagName("service")
         val watchdog = (0 until services.length).map { services.item(it) as org.w3c.dom.Element }
-            .single { it.getAttributeNS(android, "name") == InstallWatchdogService::class.java.name }
-        assertEquals("systemExempted", watchdog.getAttributeNS(android, "foregroundServiceType"))
-        assertEquals("false", watchdog.getAttributeNS(android, "exported"))
+            .single { it.getAttributeNS(androidNs, "name") == InstallWatchdogService::class.java.name }
+        assertEquals("systemExempted", watchdog.getAttributeNS(androidNs, "foregroundServiceType"))
+        assertEquals("false", watchdog.getAttributeNS(androidNs, "exported"))
     }
 
     private val leasePrefs get() = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
@@ -517,19 +527,28 @@ class UpdateAlarmTest {
     }
 
     @Test fun updateEnrollmentAndPolicyRecoverBeforeTheirEarlyReturns() {
-        val recoveries = listOf<() -> Unit>(
-            {
+        val recoveries = listOfNotNull<() -> Unit>(
+            // The Play edition has no self-updater: its UpdateWorker returns at once.
+            ({
                 PrefsUpdateStateStore(context).lastCheckMs = System.currentTimeMillis()
                 TestListenableWorkerBuilder<UpdateWorker>(context).build().doWork()
-            },
+                Unit
+            }).takeIf { Distribution.SELF_UPDATES },
             { TestListenableWorkerBuilder<org.plainphone.app.sync.EnrollWorker>(context).build().doWork() },
             { Lock.applyIfNeeded(context, "test policy run", Long.MAX_VALUE) },
         )
         for (recover in recoveries) {
             openSelfUpdate()
-            reachDeadlineWithoutAlarm()
-            recover()
-            assertRecovered()
+            // Hold the watchdog's deadline timer, so only the run under test can restore the restriction.
+            val watchdog = shadowOf(service.get().timerLooper)
+            watchdog.pause()
+            try {
+                reachDeadlineWithoutAlarm()
+                recover()
+                assertRecovered()
+            } finally {
+                watchdog.unPause()
+            }
         }
     }
 

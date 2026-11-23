@@ -8,7 +8,7 @@
 #     (WorkManager stores the class name, so an update must still find queued work),
 #   - enum constants whose names are written to storage keep those names,
 #   - the signature verifies, and its checksum is printed for the QR code.
-# Usage: scripts/smoke-release-apk.sh <app-release.apk> [expected-checksum]
+# Usage: scripts/smoke-release-apk.sh <app-github-release.apk> [expected-checksum | --unsigned]
 # Needs ANDROID_HOME with build-tools (aapt2, apksigner, dexdump).
 set -euo pipefail
 
@@ -18,13 +18,18 @@ bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-"$bt/apksigner" verify --print-certs "$apk" >"$work/certs"
-digest="$(grep -m1 -oP 'certificate SHA-256 digest: \K[0-9a-f]{64}' "$work/certs")"
-checksum="$(echo "$digest" | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=')"
-echo "signature checksum: $checksum"
-if [[ -n "$expected" && "$checksum" != "$expected" ]]; then
-  echo "FAIL: expected checksum $expected" >&2
-  exit 1
+# --unsigned: the Play release built without an upload key (scripts/smoke-play-apk.sh).
+if [[ "$expected" == "--unsigned" ]]; then
+  echo "unsigned APK: signature not checked"
+else
+  "$bt/apksigner" verify --print-certs "$apk" >"$work/certs"
+  digest="$(grep -m1 -oP 'certificate SHA-256 digest: \K[0-9a-f]{64}' "$work/certs")"
+  checksum="$(echo "$digest" | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=')"
+  echo "signature checksum: $checksum"
+  if [[ -n "$expected" && "$checksum" != "$expected" ]]; then
+    echo "FAIL: expected checksum $expected" >&2
+    exit 1
+  fi
 fi
 
 pkg="org.plainphone.app"

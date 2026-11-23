@@ -119,8 +119,9 @@ from an unknown number being blocked.
 > Plainphone collects location data to enable Find, check-ins and the SOS button even when the
 > app is closed or not in use.
 >
-> Each time your parent asks where the phone is, you see a notice. Only the latest position is
-> kept.
+> Each time your parent asks where the phone is, you see a notice. Your parent can also share it
+> every 5 minutes for a set time, at most a week; then a notice stays on the whole time. Only the
+> latest position is kept.
 >
 > [Allow location] [Not now]
 

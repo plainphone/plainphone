@@ -51,5 +51,5 @@ tracking, device enrollment, storage and key lifecycle. F1 has no app or sync
 call sites.
 
 Run the shared JSON fixtures in `pnpm -r test` and in Android's
-`./gradlew --no-daemon testDebugUnitTest`. See the
+`./gradlew --no-daemon testGithubDebugUnitTest`. See the
 [fixture guide](../../docs/encryption-test-vectors/README.md) for coverage.

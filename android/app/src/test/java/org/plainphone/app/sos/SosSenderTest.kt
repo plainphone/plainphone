@@ -23,7 +23,9 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Before
@@ -86,22 +88,33 @@ class SosSenderTest {
     }
 
     @Test
-    fun `a confirmed SOS starts sending at once with a visible notice and an expedited safety net`() {
+    fun `a confirmed SOS starts sending at once with a visible notice and an expedited safety net`(): Unit = runBlocking {
+        // A slow server: the worker reports from Dispatchers.IO, so it is still running when enqueue returns (#265).
+        val slow = CountDownLatch(1).also { gate = it }
+        Thread { Thread.sleep(150); slow.countDown() }.start()
         val id = SosDelivery.enqueue(context, "test-phone", SosKind.HELP)
+        // Both are in place before enqueue returns: the notice and the queued safety net.
         val started = shadowOf(context).nextStartedService
         assertThat(started.component).isEqualTo(ComponentName(context, SosSendService::class.java))
         assertThat(JSONObject(started.getStringExtra(SosSender.EXTRA_JOB)!!).getString("id")).isEqualTo(id)
-        val work = WorkManager.getInstance(context).getWorkInfosForUniqueWork(id).get().single()
-        assertThat(work.state).isAnyOf(WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING, WorkInfo.State.SUCCEEDED)
+        val workManager = WorkManager.getInstance(context)
+        assertThat(workManager.getWorkInfosForUniqueWork(id).get()).hasSize(1)
         // The safety net ran too: one report, no matter how many runners.
+        val work = withTimeout(10_000) {
+            workManager.getWorkInfosForUniqueWorkFlow(id).first { it.singleOrNull()?.state?.isFinished == true }.single()
+        }
+        assertThat(work.state).isEqualTo(WorkInfo.State.SUCCEEDED)
         assertThat(reports.map { it.first.getString("id") }).containsExactly(id)
     }
 
     @Test
     fun `a silent SOS sends without any notice`() {
+        // The Play edition shows "Plainphone is on" all the time; the SOS must add nothing to it.
+        val notifications = shadowOf(context.getSystemService(NotificationManager::class.java))
+        val before = notifications.allNotifications.toList()
         SilentSos.queue(context, "clock")
         assertThat(shadowOf(context).nextStartedService).isNull()
-        assertThat(shadowOf(context.getSystemService(NotificationManager::class.java)).allNotifications).isEmpty()
+        assertThat(notifications.allNotifications).containsExactlyElementsIn(before)
     }
 
     @Test

@@ -10,15 +10,21 @@ plugins {
 
 // Release signing is read from a properties file OUTSIDE the repository.
 // Point PLAINPHONE_SIGNING at it (see README "Signing"). Without it, the
-// release build falls back to the local debug key so CI can still build.
+// github release falls back to the local debug key so CI can still build,
+// and the play release stays unsigned.
 val signingProps: Properties? = System.getenv("PLAINPHONE_SIGNING")
     ?.let { file(it) }
     ?.takeIf { it.isFile }
     ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
+// The Play upload key, also outside the repository (docs/play/play-edition.md). Only the play
+// release (bundlePlayRelease, assemblePlayRelease) uses it.
+val playUploadProps: Properties? = System.getenv("PLAINPHONE_PLAY_UPLOAD")
+    ?.let { file(it) }
+    ?.takeIf { it.isFile }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+
 val fcmEnabled = providers.gradleProperty("plainphoneFcm").orNull == "true"
-// Play builds (-PplainphonePlay=true) pay through Google Play Billing; the direct build has no store.
-val playEnabled = providers.gradleProperty("plainphonePlay").orNull == "true"
 // E2EE phase 0 prototype (docs/e2ee-prototype.md): -PplainphoneE2eePrototype=true packages the
 // OpenMLS core from e2ee/mls-core/scripts/build-android.sh into DEBUG builds. Release never has it.
 val e2eePrototype = providers.gradleProperty("plainphoneE2eePrototype").orNull == "true"
@@ -63,6 +69,41 @@ android {
                 keyPassword = signingProps.getProperty("keyPassword")
             }
         }
+        if (playUploadProps != null) {
+            create("playUpload") {
+                storeFile = file(playUploadProps.getProperty("storeFile"))
+                storePassword = playUploadProps.getProperty("storePassword")
+                keyAlias = playUploadProps.getProperty("keyAlias")
+                keyPassword = playUploadProps.getProperty("keyPassword")
+            }
+        }
+    }
+
+    // Where the app is distributed (docs/play/play-edition.md). `github` is today's app for GitHub
+    // Releases and F-Droid, and the default. `play` is the Google Play edition: light mode, Child
+    // profile, no self-updater; its differences live in src/play (Distribution.kt, the manifest).
+    flavorDimensions += "distribution"
+    productFlavors {
+        // Release signing is set per flavor; debug builds always use the debug key.
+        create("github") {
+            dimension = "distribution"
+            isDefault = true
+            signingConfig = if (signingProps != null) {
+                signingConfigs.getByName("plainphone")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
+        // Signed with the Play upload key (or the release key); with neither, the release stays
+        // unsigned, so a debug-signed build can never be uploaded. Play re-signs with the app signing key.
+        create("play") {
+            dimension = "distribution"
+            signingConfig = when {
+                playUploadProps != null -> signingConfigs.getByName("playUpload")
+                signingProps != null -> signingConfigs.getByName("plainphone")
+                else -> null
+            }
+        }
     }
 
     buildTypes {
@@ -71,11 +112,6 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (signingProps != null) {
-                signingConfigs.getByName("plainphone")
-            } else {
-                signingConfigs.getByName("debug")
-            }
         }
     }
 
@@ -85,7 +121,6 @@ android {
     }
 
     sourceSets["main"].kotlin.directories.add(if (fcmEnabled) "src/fcm/java" else "src/noFcm/java")
-    sourceSets["main"].kotlin.directories.add(if (playEnabled) "src/play/java" else "src/direct/java")
     if (fcmEnabled) {
         sourceSets["debug"].manifest.srcFile("src/fcm/AndroidManifest.xml")
         sourceSets["release"].manifest.srcFile("src/fcm/AndroidManifest.xml")
@@ -175,9 +210,10 @@ tasks.withType<Test>().configureEach {
 
 dependencies {
     if (fcmEnabled) implementation("com.google.firebase:firebase-messaging:25.0.1")
-    if (playEnabled) implementation("com.android.billingclient:billing:9.1.0")
+    // The play flavor (src/play) pays through Google Play Billing; the github flavor has no store.
+    "playImplementation"("com.android.billingclient:billing:9.1.0")
     // Billing's Play services pull in fragment 1.1, too old for the activity result APIs (lint error).
-    if (playEnabled) implementation("androidx.fragment:fragment:1.9.1")
+    "playImplementation"("androidx.fragment:fragment:1.9.1")
     // Phone and messages UI (phase 2).
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")
