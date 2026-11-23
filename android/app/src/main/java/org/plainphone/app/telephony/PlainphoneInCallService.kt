@@ -83,7 +83,9 @@ class PlainphoneInCallService : InCallService() {
             CallManager.markQuiet(call)
         }
 
-        val opensWindow = outgoing && number != null && EmergencyNumbers.forContext(this).opensCallBackWindow(number)
+        // childDialled, not outgoing: an emergency call handed back without a direction still opens the
+        // window, but only after a dial of that number, so a call ringing in never opens it.
+        val opensWindow = childDialled && number != null && EmergencyNumbers.forContext(this).opensCallBackWindow(number)
         CallManager.add(call, rules?.contactFor(number)?.name)
         CallNotifications.update(this)
         val callback = object : Call.Callback() {

@@ -221,10 +221,13 @@ internal object TelecomHandoff {
     @RequiresPermission(Manifest.permission.CALL_PHONE)
     fun submit(context: Context, address: Uri) {
         val intercept = interceptForTest
+        if (intercept != null) {
+            intercept(address)
+            return
+        }
         // Remembered so a call Telecom later hands over without a direction counts as the child's own (#273).
         RecentDials.record(address.schemeSpecificPart)
-        if (intercept != null) intercept(address)
-        else context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
+        context.getSystemService(TelecomManager::class.java).placeCall(address, Bundle())
     }
 }
 
