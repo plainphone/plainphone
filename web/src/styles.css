@@ -271,6 +271,23 @@ h1:focus {
   border-bottom-color: var(--accent);
 }
 
+/* On a phone the tabs stay on one line and scroll sideways, instead of one tab wrapping onto a
+   row of its own. The padding keeps the focus outline inside the scrolling box. */
+@media (max-width: 40rem) {
+  .main-nav ul {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 5px;
+    margin: -5px;
+  }
+
+  .main-nav a {
+    padding: 0 0.5rem;
+    white-space: nowrap;
+  }
+}
+
 .count {
   display: inline-grid;
   place-items: center;
@@ -1038,12 +1055,31 @@ input[type="radio"] {
   min-height: 44px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   cursor: pointer;
   font-weight: 650;
 }
 
+/* display: flex hides the disclosure triangle: a chevron says the card opens. */
+.sos-options > summary::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: -0.25rem 0.25rem 0 0;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
 .sos-options[open] > summary {
   margin-bottom: 0.5rem;
+}
+
+.sos-options[open] > summary::after {
+  margin-top: 0.25rem;
+  transform: rotate(225deg);
 }
 
 /* The family inbox thread: the child's messages on the left, a parent's replies on the right,

@@ -82,7 +82,10 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
   if (!res.data) {
     return <>{live}{Boolean(res.error) && <p role="status" className="notice notice-error">{phoneName !== undefined && `${phoneName}: `}{t("sos.unavailable")}</p>}</>;
   }
+  const past = res.data.events.filter((event) => event.seenAt);
   if (phoneName !== undefined && !active.length) return <>{live}</>;
+  // A phone that never sent an SOS has no history to open: nothing above its name.
+  if (!active.length && !past.length && !error && !res.error) return <>{live}</>;
   return <>{live}
     <section className="section stack" aria-label={t("sos.title")}>
       {active.map((event) => eventRow(event, true))}
@@ -92,9 +95,9 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
       </details>}
       {error && <p role="alert">{t("sos.error")}</p>}
       {Boolean(res.error) && <p role="status">{t("sos.unavailable")}</p>}
-      {phoneName === undefined && <details>
+      {phoneName === undefined && past.length > 0 && <details>
         <summary>{t("sos.title")}</summary>
-        {res.data.events.filter((event) => event.seenAt).map((event) => eventRow(event, false))}
+        {past.map((event) => eventRow(event, false))}
       </details>}
     </section>
   </>;

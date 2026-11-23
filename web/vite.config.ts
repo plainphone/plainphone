@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { "/api": { target: "http://localhost:8080", changeOrigin: false } },
+    // PLAINPHONE_API_URL points the dev server at an API on another port (web/scripts/onboarding-walk.sh).
+    proxy: { "/api": { target: process.env.PLAINPHONE_API_URL ?? "http://localhost:8080", changeOrigin: false } },
   },
   build: {
     target: "es2022",
