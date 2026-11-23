@@ -1938,7 +1938,7 @@ export interface paths {
          *     token, valid 24 hours. The browser builds a provisioning QR code in strong mode or a
          *     download and setup link in light mode from `provisioning`, the token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
          *     iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
-         *     its hash never reach the server. Rate limited to 30 per day per user.
+         *     its hash never reach the server. Rate limited to 30 per UTC day per user, counted in the database.
          */
         post: operations["postPhonesEnroll"];
         delete?: never;
@@ -4586,6 +4586,12 @@ export interface components {
             limit: "phones" | "trusted";
             max: number;
         };
+        PhoneCap: {
+            error: string;
+            /** @constant */
+            code: "household_phone_cap";
+            max: number;
+        };
         ChangePending: {
             /** @constant */
             status: "pending";
@@ -5640,6 +5646,15 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["PlanLimit"];
+            };
+        };
+        /** @description Adding the phone(s) would take the household over HOUSEHOLD_PHONE_CAP (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code or a move invitation stays open. */
+        PhoneCap: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PhoneCap"];
             };
         };
     };
@@ -9820,12 +9835,14 @@ export interface operations {
                 };
             };
             402: components["responses"]["PlanLimit"];
-            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`) */
+            /** @description iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`), or the household is at HOUSEHOLD_PHONE_CAP (`code: household_phone_cap`). The code stays open */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["IosNotYet"] | components["schemas"]["PhoneCap"];
+                };
             };
             /** @description Code not found or expired */
             404: {
@@ -9883,6 +9900,7 @@ export interface operations {
                 };
             };
             402: components["responses"]["PlanLimit"];
+            403: components["responses"]["PhoneCap"];
             /** @description Household not found */
             404: {
                 headers: {
@@ -10808,6 +10826,17 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+            /** @description Importing the phones would take the household over HOUSEHOLD_PHONE_CAP (`code` household_phone_cap; nothing is added and the invitation stays open), or the signed-in member is not the household owner (only `error`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneCap"] | {
+                        error: string;
+                    };
+                };
+            };
             410: components["responses"]["Error"];
         };
     };

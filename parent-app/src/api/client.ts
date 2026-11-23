@@ -17,8 +17,8 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly issues: Issue[] = [],
-    /** The error body's other fields, e.g. the `outcome` of a request that was answered already. */
-    readonly data: { outcome?: string; code?: string } = {},
+    /** The error body's other fields, e.g. the `outcome` of a request that was answered already, or a cap's `max`. */
+    readonly data: { outcome?: string; code?: string; max?: number } = {},
   ) {
     super(message);
   }
@@ -99,7 +99,7 @@ export async function unwrap<D = unknown>(p: Promise<Result>): Promise<D> {
     throw new ApiError(0, "network");
   }
   if (!r.response.ok) {
-    const e = (r.error ?? {}) as { error?: string; issues?: Issue[]; outcome?: string; code?: string };
+    const e = (r.error ?? {}) as { error?: string; issues?: Issue[]; outcome?: string; code?: string; max?: number };
     throw new ApiError(r.response.status, e.error ?? r.response.statusText ?? "error", e.issues ?? [], e);
   }
   return r.data as D;

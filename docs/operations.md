@@ -392,6 +392,45 @@ On `/api/metrics`:
 
 Set `0` (or leave empty) to switch a cap off again.
 
+## Phones per household
+
+`HOUSEHOLD_PHONE_CAP` limits how many phones one household can have. Every phone registers its
+own ClientID with the DNS filter, and while billing is off (`BILLING_FREE_PHONES` only applies
+with `BILLING_ENABLED`) nothing else stops one account from registering hundreds. It is off
+(`0`) by default, which is right for self-hosting. `deploy/dokploy-compose.yaml` sets `10` for
+the hosted test service unless Dokploy sets another value; a family with several children and
+a parent's own Myself phone stays well under it.
+
+How it works:
+
+- It is checked only when a phone is added: claiming a pairing code (`POST /api/phones/claim`),
+  a setup from the dashboard (`POST /api/phones/enroll`) and importing phones from another
+  server (`POST /api/households/{hid}/server-move/import`, where every phone in the bundle
+  counts). Phones awaiting setup or a move count, as their ClientID is registered at once.
+- Never affected: phones already in the household, also if the cap is lowered below what a
+  family has. They sync, report and can be changed as before, and SOS, 112, release, removal
+  and a phone redeeming its move token are not checked.
+- It holds for every household, also with billing on and a paid plan. Keep it above the plans'
+  own limits.
+- The count is taken in the same transaction that adds the phone, under a lock per household,
+  so two additions at the same moment cannot both take the last place.
+- At the cap the server answers `403` with `code: "household_phone_cap"` and `max`, adds
+  nothing, and keeps a pairing code or a move invitation open. The dashboard and the parent app say the family has
+  the most phones this server allows, that removing a phone the family no longer uses frees a
+  place, and that the phones it has keep working. The phone that was being paired keeps
+  waiting with its code.
+- `/api/metrics` counts refusals as `plainphone_abuse_blocked_total{reason="phone_cap"}`.
+
+To change it on the hosted service, set only `HOUSEHOLD_PHONE_CAP` in Dokploy and redeploy, as
+for the [daily cap](#change-it-on-the-hosted-service). `0` switches it off. To see how close
+families are:
+
+```sql
+select n, count(*) as households from (
+  select count(*) as n from phones group by household_id
+) per_household group by n order by n desc;
+```
+
 ## Bot and spam protection
 
 Every path where someone without an account, or with a brand-new one, can make the server send
@@ -401,7 +440,9 @@ mail or create something has its own protection. Each one can be switched off pe
 |---|---|---|
 | `POST /api/auth/request` | Mails a sign-in link; a new address becomes a new household | IP limit 20/hour (database), address limit 5/hour (database), honeypot, bot challenge, throwaway-address check for new households, daily cap on new households, [mail caps](#mail-caps) |
 | `POST /api/auth/verify` | Turns a link into a session; makes the household on first sign-in | IP limit 30/15 min (database), daily cap on new households |
-| `POST /api/households/{hid}/invites` | Mails an invitation to a second parent (signed in) | Invitation cap per household, 3 invitations per address and household per day (database), 20 per inviting user per day (memory) |
+| `POST /api/households/{hid}/invites` | Mails an invitation to a second parent (signed in) | Invitation cap per household, 3 invitations per address and household per day (database), 20 per inviting user per UTC day (database) |
+| `POST /api/phones/claim`, `/api/phones/pairing-profile` | A parent claims the code shown on a phone; the phone gets a DNS ClientID | Phones per household, 20 code attempts per address and user per 15 min (database) |
+| `POST /api/phones/enroll`, `/api/phones/{pid}/enrollment` | A parent adds a phone for setup by QR code or link and gets a one-time token; the phone gets a DNS ClientID | Phones per household (`/enroll`), 30 per user per UTC day, shared (database) |
 | Trusted person by mail (`key.set` in the dashboard or the app, or chosen on the phone at setup) | Mails the trusted person an invitation | Invitation cap per household: over it, the key is still set and only the mail is skipped |
 | `POST /api/device/pairings` | A phone starts pairing and gets a code (no mail) | IP limit 10/hour (database) |
 | `POST /api/device/enroll`, `/enrollment-review`, `/enrollment-template` | A phone pairs with the one-time token from a setup link or QR code; `/enroll` can mail the trusted person chosen on the phone | Shared IP limit 20/hour (database), invitation cap per household on the mail |
@@ -424,6 +465,7 @@ phones or parents.
 | `BLOCK_DISPOSABLE_EMAIL` | `on` | A new household cannot start with a throwaway address. Accounts that exist, invited parents and trusted persons are never refused |
 | `INVITES_PER_HOUSEHOLD_DAILY` | `20` | Invitation mails per household in any 24 hours, counted in the database. `0` switches it off |
 | `SIGNUP_DAILY_CAP` | `0` | New households per UTC day ([above](#daily-cap-on-new-households)) |
+| `HOUSEHOLD_PHONE_CAP` | `0` (hosted: `10`) | Phones per household, checked only when one is added ([above](#phones-per-household)) |
 
 The rate limits themselves have no switch: they only stop floods, and they were there before.
 
@@ -477,17 +519,28 @@ the person will keep, so they can still sign in later.
 
 The limits in the table above are counted in `rate_limit_hits`, so they survive restarts and
 hold across processes. A row holds the limit's name, the window and a count. The client is a
-keyed hash: HMAC-SHA-256 of the address with a key derived from a server secret and the UTC
-date, so the key changes every day and yesterday's rows cannot be matched with today's. IPv6
-addresses are cut to their /64 first. The raw address is never stored, and rows are deleted
-once their window has ended (at most a day). The other, high-frequency limits (phone polling,
-receipts) stay in each process's memory.
+keyed hash: HMAC-SHA-256 of the address (or the user's id) with a key derived from a server
+secret and the UTC date, so the key changes every day and yesterday's rows cannot be matched
+with today's. IPv6 addresses are cut to their /64 first. The raw address is never stored, and
+rows are deleted once their window has ended (at most a day). Windows are fixed, so a daily
+limit starts over at 00:00 UTC.
+
+The other limits stay in each process's memory (`RateLimiter` in `server/src/lib/http.ts`):
+they reset when the server restarts and count per process. They sit behind a session or a
+phone's token, send no mail to new people and create nothing a visitor could pile up, or they
+fire many times a minute: phone polling (also a phone polling its pairing code, so with two
+replicas each has its own poll budget) and delivery receipts, location and "more time"
+requests, "Update now" wake-ups, test pushes, setup templates, contact suggestions, reset
+protection, server moves, Stripe checkout, the bot challenge itself and the store review
+sign-in. Moving one of them to the database is a one-line change to `DbRateLimiter`
+(`server/src/services/rate-limits.ts`) if it ever needs to hold across processes.
 
 ### What to watch
 
 - `/api/metrics` (with `METRICS_TOKEN`) has `plainphone_abuse_blocked_total{reason=…}` for
-  `honeypot`, `bot_challenge`, `disposable_email`, `invite_cap` and `rate_limit`, counted since
-  start-up. A sudden rise in `bot_challenge` or `honeypot` is a bot finding the form.
+  `honeypot`, `bot_challenge`, `disposable_email`, `invite_cap`, `phone_cap` and `rate_limit`,
+  counted since start-up. A sudden rise in `bot_challenge` or `honeypot` is a bot finding the
+  form; a steady `phone_cap` is a script adding phones, or a real family that needs a higher cap.
 - The `403`, `422` and `429` rates on `/api/auth/request` in the Traefik numbers in Grafana.
 - If real people report "the security check did not work", look for a clock that is far off
   on the server (the expiry is checked against it) or a proxy that caches `/api/auth/challenge`.

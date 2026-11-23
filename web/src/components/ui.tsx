@@ -26,6 +26,7 @@ export function errorMessage(err: unknown, t: T): string {
     if (err.data.code === "mail_unavailable") return t("mailUnavailable.error");
     // Bot and spam protection (docs/operations.md, "Bot and spam protection").
     if (err.data.code === "invite_cap_reached") return t("inviteCap.error");
+    if (err.data.code === "household_phone_cap") return t("phoneCap.error", { max: Number(err.data.max) || 0 });
     if (err.data.code === "disposable_email") return t("disposableEmail.error");
     if (err.data.code === "bot_challenge_failed" || err.data.code === "bot_challenge_required") return t("botCheck.failed");
     if (err.status === 429) return t("error.tooMany");

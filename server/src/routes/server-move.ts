@@ -10,6 +10,7 @@ import type { Op } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
 import { phoneSummaries } from "../services/phones.js";
 import { allowsServerMove, type MovePhone } from "../services/move-policy.js";
+import { phoneCapBody, PhoneCapError } from "../services/phone-cap.js";
 import {
   exportMove, importMove, maxMoveBytes, MoveError, moveSource, moveTicket, prepareImport, sourceIdentity,
 } from "../services/server-move.js";
@@ -72,7 +73,13 @@ export function mountServerMoveRoutes(
     await owner(c, householdId);
     limit(c);
     const { ticketId, bundle } = await body(c, z.object({ ticketId: z.uuid(), bundle: z.string().max(maxMoveBytes).min(10) }));
-    return c.json({ phoneIds: await transfer(() => importMove(ctx, householdId, ticketId, bundle)) }, 201);
+    try {
+      return c.json({ phoneIds: await transfer(() => importMove(ctx, householdId, ticketId, bundle)) }, 201);
+    } catch (err) {
+      // The invitation stays open, so the owner can remove a phone and import again.
+      if (err instanceof PhoneCapError) return c.json(phoneCapBody(err.max), 403);
+      throw err;
+    }
   });
   app.put("/phones/:pid/server-move/allow", bodyLimit({ maxSize: 1024 }), async (c) => {
     const phone = await access.requirePhone(c);
