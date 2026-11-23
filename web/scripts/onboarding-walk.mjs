@@ -16,7 +16,9 @@ import { en } from "../../packages/i18n/src/en.ts";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
-const { SITE_URL, WEB_URL, API_URL, SERVER_LOG, OUT } = process.env;
+const decodeQr = require("jsqr");
+const { SITE_URL, WEB_URL, SERVER_LOG, OUT } = process.env;
+const EXTRA = "android.app.extra.";
 const SLOW_MS = 2000;
 const LANGS = { en: { m: en, site: "/", locale: "en-GB" }, da: { m: da, site: "/da/", locale: "da-DK" } };
 const WIDTHS = (process.env.WIDTHS ?? "390,1280").split(",").map(Number);
@@ -35,7 +37,8 @@ for (const r of results) {
   console.log(`\n== ${r.run}: ${r.error ? `FAILED at "${r.step}": ${r.error}` : "ok"}`);
   for (const s of r.steps) console.log(`  ${s.ms > SLOW_MS ? "SLOW" : "    "} ${String(s.ms).padStart(6)} ms  ${s.name}`);
   for (const p of r.problems) console.log(`  problem: ${p}`);
-  if (r.notes?.length) console.log(`  note: ${r.notes.length} expected 401s from /api/me before sign-in`);
+  const notes = Map.groupBy(r.notes ?? [], (x) => x);
+  for (const [note, all] of notes) console.log(`  note: ${all.length > 1 ? `${all.length}× ` : ""}${note}`);
   if (r.error || r.problems.length) failed = true;
 }
 process.exit(failed ? 1 : 0);
@@ -73,6 +76,14 @@ async function walk(lang, width) {
       const path = new URL(res.url()).pathname;
       (expected(path, res.status()) ? r.notes : r.problems).push(`${res.request().method()} ${path} → ${res.status()}`);
     }
+  });
+  // A request with no answer at all (refused, reset, empty). The page cancelling its own request
+  // (net::ERR_ABORTED, e.g. on navigation) is noted, not a failure.
+  page.on("requestfailed", (req) => {
+    if (!req.url().startsWith(WEB_URL)) return;
+    const error = req.failure()?.errorText ?? "failed";
+    const line = `${req.method()} ${new URL(req.url()).pathname} → ${error}`;
+    (error === "net::ERR_ABORTED" ? r.notes : r.problems).push(line);
   });
   let n = 0;
   const snap = async (name) => {
@@ -171,8 +182,19 @@ async function walk(lang, width) {
       return body;
     });
     await snap("add-qr");
-    const token = enrolled.enrollment?.token;
-    if (!token?.startsWith("pp_e_")) throw new Error("the enrollment answer had no setup token");
+    // The phone only knows what its camera reads: take the token and the server from the code itself.
+    const { token, server } = await step("read the setup QR code", async () => {
+      const payload = await readQr(main.getByRole("img", { name: t("add.qrAlt") }));
+      const extras = payload[`${EXTRA}PROVISIONING_ADMIN_EXTRAS_BUNDLE`];
+      const token = extras?.["plainphone.enroll"];
+      if (!token?.startsWith("pp_e_")) throw new Error("the setup QR code has no setup token");
+      if (token !== enrolled.enrollment?.token) throw new Error("the setup QR code has another token than the server issued");
+      // Without plainphone.server_url the app uses its default, the hosted service (PolicyConfig.kt).
+      const server = extras["plainphone.server_url"] ?? "https://app.plainphone.org";
+      if (server !== WEB_URL) throw new Error(`the setup QR code sends the phone to ${server}, not this stack (${WEB_URL})`);
+      return { token, server };
+    });
+    const device = (...args) => deviceRequest(server, ...args);
 
     // --- The phone, as the Android app talks to the server (docs/sync-api.md) ------------------
     const phone = await step("phone redeems the setup token", async () => {
@@ -210,7 +232,18 @@ async function walk(lang, width) {
       if (first !== child) throw new Error(`the phone page starts with "${first}", not the phone name`);
     });
     await page.waitForLoadState("networkidle");
-    const health = await main.locator(".health-rows").innerText().catch(() => "");
+    const health = await step("phone health is good", async () => {
+      const text = await main.locator(".health-rows").innerText({ timeout: 5_000 });
+      if (!text.includes(t("phone.lockIntact"))) throw new Error(`the health rows do not say the lock is intact: ${JSON.stringify(text)}`);
+      for (const key of ["health.waitForReport", "health.reconnect", "health.fixLock"]) {
+        if (text.includes(t(key))) throw new Error(`the health rows say "${t(key)}" after a fresh status report`);
+      }
+      const receipt = await main.locator(".rule-receipt").innerText({ timeout: 5_000 });
+      if (!receipt.includes(m["receipt.appliedAt"].split("{time}")[0].trim())) {
+        throw new Error(`the rule receipt does not say the rules are active: ${JSON.stringify(receipt)}`);
+      }
+      return text;
+    });
     r.health = health;
     await snap("phone");
 
@@ -255,12 +288,36 @@ async function mailLink(email) {
   throw new Error("no sign-in mail in the server log");
 }
 
-/** A request as the phone app makes it. */
-async function device(method, path, token, body, etag) {
+/** The JSON in a rendered QR code (an SVG on the page), drawn onto a canvas and decoded with jsQR. */
+async function readQr(img) {
+  const { width, height, data } = await img.evaluate(async (svg) => {
+    const scale = 2;
+    const [, , w, h] = svg.getAttribute("viewBox").split(" ").map(Number);
+    const copy = svg.cloneNode(true);
+    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    copy.setAttribute("width", String(w * scale));
+    copy.setAttribute("height", String(h * scale));
+    const image = new Image();
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const g = canvas.getContext("2d");
+    g.drawImage(image, 0, 0);
+    return { width: canvas.width, height: canvas.height, data: Array.from(g.getImageData(0, 0, canvas.width, canvas.height).data) };
+  });
+  const code = decodeQr(Uint8ClampedArray.from(data), width, height, { inversionAttempts: "dontInvert" });
+  if (!code) throw new Error("the setup QR code could not be read");
+  return JSON.parse(code.data);
+}
+
+/** A request as the phone app makes it, to the server the setup QR code named. */
+async function deviceRequest(server, method, path, token, body, etag) {
   const headers = { "content-type": "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
   if (etag) headers["if-none-match"] = etag;
-  const res = await fetch(`${API_URL}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const res = await fetch(`${server}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const text = await res.text();
   return { status: res.status, etag: res.headers.get("etag"), json: text ? JSON.parse(text) : null };
 }

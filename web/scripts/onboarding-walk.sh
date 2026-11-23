@@ -2,11 +2,11 @@
 # The new-parent onboarding walk (docs/testing.md#onboarding-walk): plainphone.org → "Get started" →
 # sign-in link → household → child → setup QR → a simulated phone enrolls over the device API →
 # dashboard health → one rule change → the phone's /device/rules. English and Danish, 390 and
-# 1280 px. Everything runs on loopback: a throwaway PostgreSQL 18 in Docker (or DATABASE_URL), the
+# 1280 px. Everything runs on loopback: a throwaway PostgreSQL 18 in Docker (or WALK_DATABASE_URL), the
 # server with MAIL_PROVIDER=log and BOT_CHALLENGE=altcha, the Vite dev server and the built site.
 # Links to app.plainphone.org are answered locally by the browser and never leave the machine.
 #   web/scripts/onboarding-walk.sh <output-dir>
-# Needs Docker (unless DATABASE_URL is set) and playwright from NODE_PATH (default ~/dev/pw-test/node_modules).
+# Needs Docker (unless WALK_DATABASE_URL is set) and playwright from NODE_PATH (default ~/dev/pw-test/node_modules).
 set -euo pipefail
 OUT=$(mkdir -p "${1:?usage: onboarding-walk.sh <output-dir>}" && cd "$1" && pwd)
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -31,8 +31,16 @@ wait_for() { # url, what
 }
 
 mkdir -p "$OUT/logs"
-if [ -n "${DATABASE_URL:-}" ]; then
+# An inherited DATABASE_URL is never used: the server migrates and writes test households into
+# whatever it points at. A database of your own must be named here and live on this machine.
+unset DATABASE_URL
+if [ -n "${WALK_DATABASE_URL:-}" ]; then
+  case "$WALK_DATABASE_URL" in
+    postgres://*@127.0.0.1[:/]* | postgres://*@localhost[:/]* | postgresql://*@127.0.0.1[:/]* | postgresql://*@localhost[:/]*) ;;
+    *) echo "WALK_DATABASE_URL must be a disposable database on 127.0.0.1 or localhost" >&2; exit 1 ;;
+  esac
   OWN_DB=1
+  DATABASE_URL=$WALK_DATABASE_URL
 else
   docker run -d --name "$DB_NAME" -e POSTGRES_PASSWORD=dev -p 127.0.0.1::5432 postgres:18 >/dev/null
   DB_PORT=$(docker port "$DB_NAME" 5432 | head -1 | sed 's/.*://')
@@ -44,7 +52,7 @@ fi
 setsid python3 -m http.server -b 127.0.0.1 -d "$ROOT/site/dist" "$SITE_PORT" >"$OUT/logs/site.log" 2>&1 &
 PIDS+=($!)
 
-(cd "$ROOT/server" && exec setsid env DATABASE_URL="$DATABASE_URL" PORT="$API_PORT" MAIL_PROVIDER=log BOT_CHALLENGE=altcha \
+(cd "$ROOT/server" && exec setsid env DATABASE_URL="$DATABASE_URL" HOST=127.0.0.1 PORT="$API_PORT" MAIL_PROVIDER=log BOT_CHALLENGE=altcha \
   PUBLIC_URL="http://127.0.0.1:$WEB_PORT" NODE_ENV=development pnpm exec tsx src/main.ts) >"$OUT/logs/server.log" 2>&1 &
 PIDS+=($!)
 
@@ -58,5 +66,5 @@ wait_for "http://127.0.0.1:$SITE_PORT/" "the site server"
 
 cd "$ROOT/server"
 NODE_PATH=${PLAYWRIGHT_NODE_PATH:-${NODE_PATH:-$HOME/dev/pw-test/node_modules}} \
-  SITE_URL="http://127.0.0.1:$SITE_PORT" WEB_URL="http://127.0.0.1:$WEB_PORT" API_URL="http://127.0.0.1:$API_PORT" \
+  SITE_URL="http://127.0.0.1:$SITE_PORT" WEB_URL="http://127.0.0.1:$WEB_PORT" \
   SERVER_LOG="$OUT/logs/server.log" OUT="$OUT" pnpm exec tsx "$ROOT/web/scripts/onboarding-walk.mjs"

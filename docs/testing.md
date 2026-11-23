@@ -326,8 +326,9 @@ and after changes to sign-in, the Add phone flow or the phone page.
 web/scripts/onboarding-walk.sh /tmp/onboarding-walk
 ```
 
-The script starts a throwaway PostgreSQL 18 in Docker on a free port (or uses `DATABASE_URL`, which
-must be a **disposable** database), builds the site and serves `site/dist`, and starts the server
+The script starts a throwaway PostgreSQL 18 in Docker on a free port (or uses `WALK_DATABASE_URL`,
+which must be a **disposable** database on `127.0.0.1` or `localhost`; an inherited `DATABASE_URL` is
+ignored), builds the site and serves `site/dist`, and starts the server
 with `MAIL_PROVIDER=log` and `BOT_CHALLENGE=altcha`, so sign-in goes through the real puzzle. The
 Vite dev server proxies `/api` to that server (`PLAINPHONE_API_URL`). Everything stops and the
 container is removed when the walk ends; `KEEP_DB=1` keeps the container for a look afterwards.
@@ -341,20 +342,23 @@ Each run is a new parent with an `@example.invalid` address and a made-up child:
 4. Add phone: new phone (strong mode), a Child phone with a name, the 10 to 11 preset, skip the
    family agreement, a parent PIN, the setup QR code.
 5. The phone, as the Android app talks to the server ([sync API](sync-api.md)): `POST /device/enroll`
-   with the QR code's token, `GET /device/rules`, `PUT /device/status`.
-6. The dashboard shows "connected", then the phone page with its health, name first.
+   with the token decoded from the QR code on the page, sent to the server the code names (which must
+   be this stack), then `GET /device/rules` and `PUT /device/status`.
+6. The dashboard shows "connected", then the phone page, name first, with a healthy lock and the
+   rules shown as active on the phone.
 7. The daily time limit changes to 1 hour, and the phone's next `GET /device/rules` (with its last
    ETag) returns the new limit.
 
 It runs in English and Danish at 390 and 1280 px (`LANGS=en` and `WIDTHS=390` narrow it down). The
 button and heading texts come from `packages/i18n`, so a changed text does not break the walk. A run
-fails on a broken step, a console error, a failed request, a page wider than the window or a
-translation key shown as text. Steps slower than 2 seconds are marked `SLOW`; the first step of the
+fails on a broken step, a console error, a failed request (an error status or no answer at all; a
+request the page cancels itself is a note), a page wider than the window or a translation key
+shown as text. Steps slower than 2 seconds are marked `SLOW`; the first step of the
 first run includes the Vite dev server compiling the app. Before sign-in the dashboard asks
 `/api/me` whether there is a session, and the 401 answer appears as a console error in Chrome; the
 walk counts these as notes, not failures.
 
 Screenshots of every step (`<lang>-<width>-<nn>-<step>.png`), `walk.json` with timings, health text
 and problems, and the server, Vite and site logs (`logs/`) go to the output directory. Keep them
-out of git. The walk needs Docker (unless `DATABASE_URL` is set) and `playwright` from `NODE_PATH`
-(default `~/dev/pw-test/node_modules`, as for the site screenshots).
+out of git. The server listens on `127.0.0.1` only (`HOST`). The walk needs Docker (unless
+`WALK_DATABASE_URL` is set) and `playwright` from `NODE_PATH` (default `~/dev/pw-test/node_modules`, as for the site screenshots).
