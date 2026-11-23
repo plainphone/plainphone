@@ -98,7 +98,8 @@ class PhoneSyncContractTest {
         assertThat(store.isPaired).isTrue()
         assertThat(store.phoneId).isEqualTo(phoneId)
         assertThat(store.enrollmentAccount()?.maskedEmail).isEqualTo("p***@example.test")
-        assertThat(store.enrollmentAccount()?.householdName).isEqualTo("Home")
+        // Nobody has named the household yet, so the phone gets no name rather than the placeholder "Home".
+        assertThat(store.enrollmentAccount()?.householdName).isNull()
 
         // 2. First sync: apps reported, rules fetched and applied, status reported.
         val runner = SyncRunner(store, api, device)

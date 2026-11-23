@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, type Phone } from "../lib/api";
-import { errorMessage, type Notice } from "./ui";
+import { errorMessage, type Notice, Switch } from "./ui";
 
 /** Where the "sleep outside the bedroom" recommendation comes from (docs/evidence.md). */
 export const SLEEP_TIP_SOURCE = "https://www.sst.dk/udgivelser/2023/Sundhedsstyrelsens-anbefalinger-om-skaermbrug";
@@ -37,18 +37,8 @@ export function PhoneSwitch({
     }
   }
   return (
-    <label className="health-preference">
-      <input
-        type="checkbox"
-        checked={phone[field] !== false}
-        disabled={saving}
-        aria-labelledby={`phone-${field}-label`}
-        aria-describedby={`phone-${field}-help`}
-        onChange={(event) => void save(event.target.checked)}
-      />
-      <span id={`phone-${field}-label`}>{label}</span>
-      <span className="help" id={`phone-${field}-help`}>{help}</span>
-    </label>
+    <Switch checked={phone[field] !== false} busy={saving} label={label} description={help}
+      onChange={(enabled) => void save(enabled)} />
   );
 }
 

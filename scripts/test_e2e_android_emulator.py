@@ -539,6 +539,20 @@ class AppDeathsTest(unittest.TestCase):
             "Process org.plainphone.app (pid 1234) has died: fg TOP",
         ])
 
+    def test_keeps_a_crash_report_that_other_processes_write_into(self):
+        logcat = """11-23 10:01:00.000  1234  1250 E AndroidRuntime: FATAL EXCEPTION: main
+11-23 10:01:00.000   512   600 W ActivityManager: Process org.plainphone.app has crashed too many times
+11-23 10:01:00.001  1234  1250 E AndroidRuntime: Process: org.plainphone.app, PID: 1234
+11-23 10:01:00.001   300   300 I DEBUG   : unrelated
+11-23 10:01:00.002  1234  1250 E AndroidRuntime: java.lang.IllegalStateException: boom
+"""
+        self.assertEqual([line.split(": ", 1)[1] for line in harness.app_deaths(logcat)], [
+            "FATAL EXCEPTION: main",
+            "Process org.plainphone.app has crashed too many times",
+            "Process: org.plainphone.app, PID: 1234",
+            "java.lang.IllegalStateException: boom",
+        ])
+
     def test_reports_them_in_the_job_log(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "logcat.txt"

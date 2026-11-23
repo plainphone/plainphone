@@ -85,6 +85,7 @@ import { recentLinks, SIGNUP_CAP_CODE, SignupCapError } from "../services/signup
 import { addressKey, DbRateLimiter } from "../services/rate-limits.js";
 import { guardSignupRequest } from "../services/signup-guard.js";
 import { INVITE_CAP_CODE, takeInviteMail } from "../services/invite-cap.js";
+import { DEFAULT_HOUSEHOLD_NAME, HOUSEHOLD_NAME_RESERVED_CODE } from "../services/pairing-account.js";
 import { phoneCapBody, phoneCapReached } from "../services/phone-cap.js";
 import { countAbuse } from "../services/abuse-metrics.js";
 
@@ -424,6 +425,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const hid = param(c, "hid");
     await requireMember(c, hid);
     const input = await body(c, z.object({ name: z.string().trim().min(1).max(60) }));
+    // The same rule as the dashboards' forms: the exact default name marks a household nobody has named.
+    if (input.name === DEFAULT_HOUSEHOLD_NAME) {
+      return c.json({ error: `choose a name other than "${DEFAULT_HOUSEHOLD_NAME}"`, code: HOUSEHOLD_NAME_RESERVED_CODE }, 400);
+    }
     await ctx.db.update(households).set({ name: input.name }).where(eq(households.id, hid));
     return c.body(null, 204);
   });

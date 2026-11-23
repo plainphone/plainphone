@@ -1044,18 +1044,8 @@ function PhoneDisplayPreferences() {
       <h2 id="phone-display-h">{t("health.preferences")}</h2>
       <div className="stack-sm">
         {displayPreferences.map(({ key, label, help }) => (
-          <label className="health-preference" key={key}>
-            <input
-              type="checkbox"
-              checked={phone[key] !== false}
-              disabled={saving}
-              aria-labelledby={`phone-${key}-label`}
-              aria-describedby={`phone-${key}-help`}
-              onChange={(event) => void save(key, event.target.checked)}
-            />
-            <span id={`phone-${key}-label`}>{t(label)}</span>
-            <span className="help" id={`phone-${key}-help`}>{t(help)}</span>
-          </label>
+          <Switch key={key} checked={phone[key] !== false} busy={saving} label={t(label)} description={t(help)}
+            onChange={(enabled) => void save(key, enabled)} />
         ))}
       </div>
     </section>
