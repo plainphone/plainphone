@@ -21,14 +21,14 @@ export interface PhoneCapRefusal { phoneCap: number }
  * Call inside the transaction that adds the phones. Returns a refusal when adding `adding` phones
  * would take the household over the cap (the caller then adds nothing), or null when there is
  * room. Two additions at the same instant wait for each other, so they cannot both take the last
- * place.
+ * place. The lock key is the lower-cased id, because Postgres sees both letter cases as one household.
  */
 export async function phoneCapReached(
   ctx: Ctx, tx: DbLike, householdId: string, adding = 1,
 ): Promise<PhoneCapRefusal | null> {
   const cap = ctx.cfg.HOUSEHOLD_PHONE_CAP;
   if (cap <= 0 || adding <= 0) return null;
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.phone_cap'), hashtext(${householdId}))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('plainphone.phone_cap'), hashtext(${householdId.toLowerCase()}))`);
   const [row] = await tx.select({ n: count() }).from(phones).where(eq(phones.householdId, householdId));
   if ((row?.n ?? 0) + adding <= cap) return null;
   countAbuse(ctx, "phone_cap");
