@@ -109,9 +109,12 @@ class SosSenderTest {
 
     @Test
     fun `a silent SOS sends without any notice`() {
+        // The Play edition shows "Plainphone is on" all the time; the SOS must add nothing to it.
+        val notifications = shadowOf(context.getSystemService(NotificationManager::class.java))
+        val before = notifications.allNotifications.toList()
         SilentSos.queue(context, "clock")
         assertThat(shadowOf(context).nextStartedService).isNull()
-        assertThat(shadowOf(context.getSystemService(NotificationManager::class.java)).allNotifications).isEmpty()
+        assertThat(notifications.allNotifications).containsExactlyElementsIn(before)
     }
 
     @Test

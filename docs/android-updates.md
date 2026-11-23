@@ -1,5 +1,12 @@
 # Android updates
 
+Everything below is about the `github` flavor (GitHub Releases and F-Droid), which updates
+itself from the server. The Google Play edition (`play` flavor) has no self-updater: Google
+Play updates it, as Play's [Device and Network Abuse](https://support.google.com/googleplay/android-developer/answer/9888379)
+policy requires. It never checks `/download/android/latest.json`, never shows a download link,
+ignores the dashboard's **Update now**, and cancels update checks left behind by a GitHub build it
+replaced. See [play/play-edition.md](play/play-edition.md).
+
 ## One-time signing key change in v0.1.10
 
 Official releases through v0.1.9 used the test key. Starting with v0.1.10, they

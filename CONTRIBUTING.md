@@ -56,7 +56,7 @@ The root scripts `pnpm build`, `pnpm typecheck`, `pnpm lint` and `pnpm test` run
 
 | Part | Requirements | Check before a PR |
 |---|---|---|
-| `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testDebugUnitTest lintDebug assembleDebug` |
+| `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testGithubDebugUnitTest lintGithubDebug assembleGithubDebug` |
 | `server/` | PostgreSQL 18, `DATABASE_URL` pointing at a test database | `pnpm --filter @plainphone/server typecheck` and `test` |
 | `web/` | | `pnpm --filter @plainphone/web typecheck` and `test` |
 | `parent-app/` | See [docs/parent-app.md](docs/parent-app.md) | `pnpm typecheck`, `pnpm lint` and `pnpm test` in `parent-app/` |

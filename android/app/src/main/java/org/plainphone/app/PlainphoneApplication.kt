@@ -92,6 +92,7 @@ class PlainphoneApplication : Application() {
             .onFailure { Log.w("Plainphone", "Could not watch Google accounts", it) }
         runCatching { Safety.createChannels(this) }
             .onFailure { Log.e("Plainphone", "could not set up safety notifications", it) }
+        org.plainphone.app.distribution.Distribution.onStateChanged(this)
         Thread({
             runCatching { SyncScheduler.enrollIfNeeded(this) }
                 .onFailure { Log.e("Plainphone", "could not schedule QR enrollment", it) }

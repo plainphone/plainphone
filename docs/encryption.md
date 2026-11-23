@@ -687,7 +687,7 @@ release delivery have received no external security audit. Upstream
 maintenance, upstream testing and conformance vectors give different
 evidence from a Plainphone audit. Public documentation must reflect this.
 The F1 CI gate runs both checked-in JSON files through the TypeScript library
-and the Kotlin library in Android's `testDebugUnitTest`. The real-device
+and the Kotlin library in Android's `testGithubDebugUnitTest`. The real-device
 gate moves to the start of F2. On a physical Android 10 (API 29) device, use
 Tink X25519 to open a shared HPKE vector and round-trip a fresh envelope, and
 use Tink Ed25519 to sign and verify the shared signature vector. At the

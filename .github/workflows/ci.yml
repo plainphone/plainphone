@@ -103,7 +103,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: android
@@ -168,12 +168,24 @@ jobs:
         if: needs.changes.outputs.android == 'true'
         env:
           ROBOLECTRIC_SDK_CACHE_HIT: ${{ steps.robolectric.outputs.cache-hit }}
-        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug assembleRelease lintRelease
+        run: ./gradlew --no-daemon assembleGithubDebug testGithubDebugUnitTest lintGithubDebug assembleGithubRelease lintGithubRelease
 
       - name: Smoke test of the minified release APK (R8)
         if: needs.changes.outputs.android == 'true'
         working-directory: .
-        run: scripts/smoke-release-apk.sh android/app/build/outputs/apk/release/app-release.apk
+        run: scripts/smoke-release-apk.sh android/app/build/outputs/apk/github/release/app-github-release.apk
+
+      # The Google Play edition (docs/play/play-edition.md). CI has no upload key, so both stay unsigned.
+      - name: Play edition, unsigned release APK and bundle, lint and unit tests
+        if: needs.changes.outputs.android == 'true'
+        env:
+          ROBOLECTRIC_SDK_CACHE_HIT: ${{ steps.robolectric.outputs.cache-hit }}
+        run: ./gradlew --no-daemon assemblePlayRelease bundlePlayRelease testPlayDebugUnitTest lintPlayDebug
+
+      - name: Smoke test of the Play release APK (what Play forbids is gone)
+        if: needs.changes.outputs.android == 'true'
+        working-directory: .
+        run: scripts/smoke-play-apk.sh android/app/build/outputs/apk/play/release/app-play-release-unsigned.apk
 
       - name: QR script tests
         if: needs.changes.outputs.android == 'true'
@@ -461,12 +473,12 @@ jobs:
         env:
           ROBOLECTRIC_SDK_CACHE_HIT: ${{ steps.robolectric.outputs.cache-hit }}
         run: |
-          ./gradlew --no-daemon testDebugUnitTest --tests 'org.plainphone.app.e2ee.*' assembleDebug assembleRelease \
+          ./gradlew --no-daemon testGithubDebugUnitTest --tests 'org.plainphone.app.e2ee.*' assembleGithubDebug assembleGithubRelease \
             -PplainphoneE2eePrototype=true -PplainphoneMlsHostLib="$GITHUB_WORKSPACE/e2ee/mls-core/target/release/libplainphone_mls.so"
           grep -q 'tests="3" skipped="0" failures="0" errors="0"' \
-            app/build/test-results/testDebugUnitTest/TEST-org.plainphone.app.e2ee.MlsCoreJniTest.xml
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/arm64-v8a/libplainphone_mls.so'
-          if unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'libplainphone_mls'; then
+            app/build/test-results/testGithubDebugUnitTest/TEST-org.plainphone.app.e2ee.MlsCoreJniTest.xml
+          unzip -l app/build/outputs/apk/github/debug/app-github-debug.apk | grep -q 'lib/arm64-v8a/libplainphone_mls.so'
+          if unzip -l app/build/outputs/apk/github/release/app-github-release.apk | grep -q 'libplainphone_mls'; then
             echo "::error::The release APK contains the E2EE prototype library."
             exit 1
           fi
@@ -524,7 +536,7 @@ jobs:
         working-directory: android
         run: >-
           ./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
-          :app:assembleDebug :app:assembleDebugAndroidTest :e2e-fixture:assembleDebug
+          :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest :e2e-fixture:assembleDebug
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

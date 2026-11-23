@@ -5,7 +5,7 @@ package org.plainphone.app.billing
 import android.app.Activity
 
 /**
- * The app store's payment sheet. Only Play builds (`-PplainphonePlay=true`) have one; the direct
+ * The app store's payment sheet. Only the `play` flavor has one; the `github`
  * build's [Stores.billing] returns null and shows no paid offer at all.
  *
  * The phone only buys and then reports the purchase token to the server. The server verifies it at

@@ -43,7 +43,7 @@ queue) that one day blocks calls would not trip it, so such a state must be adde
 ## The tests
 
 `android/app/src/test/java/org/plainphone/app/reachability/AlwaysReachableTest.kt` (Robolectric, runs
-with `testDebugUnitTest`) and `server/test/always-reachable.test.ts` (runs with `pnpm -r test`).
+with `testGithubDebugUnitTest`) and `server/test/always-reachable.test.ts` (runs with `pnpm -r test`).
 
 They do not list the states by hand:
 

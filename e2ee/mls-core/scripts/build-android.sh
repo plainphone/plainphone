@@ -3,7 +3,7 @@
 #
 # Builds the OpenMLS core for the phone app's DEBUG prototype build (docs/e2ee-prototype.md):
 # libplainphone_mls.so for arm64-v8a with the JNI entry point, into target/jniLibs, where
-# `./gradlew assembleDebug -PplainphoneE2eePrototype=true` picks it up. Release builds never
+# `./gradlew assembleGithubDebug -PplainphoneE2eePrototype=true` picks it up. Release builds never
 # package it.
 #
 # Needs the aarch64-linux-android Rust target and an Android NDK (ANDROID_NDK_HOME,

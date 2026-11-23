@@ -68,7 +68,7 @@ Google Play only allows `VpnService` for apps whose core function needs it, and 
 
 ## Testing
 
-`./gradlew :app:testDebugUnitTest --tests 'org.plainphone.app.light.vpn.*'` covers the packet code, the blocklist, the DNS-over-TLS framing, connection pool and retry (against a local server), the forwarding loop with a fake upstream, and what the service stores and reports. Opening the interface and routing real packets needs a phone; the checks to run there:
+`./gradlew :app:testGithubDebugUnitTest --tests 'org.plainphone.app.light.vpn.*'` covers the packet code, the blocklist, the DNS-over-TLS framing, connection pool and retry (against a local server), the forwarding loop with a fake upstream, and what the service stores and reports. Opening the interface and routing real packets needs a phone; the checks to run there:
 
 1. VPN on: `nslookup example.com` in a terminal app gets an answer, and a blocked adult site gets the filter's answer.
 2. `nslookup example.com 8.8.8.8` gets an answer from the Plainphone resolver (a blocked site is blocked even through 8.8.8.8).

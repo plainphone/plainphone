@@ -14,6 +14,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.plainphone.app.ConfigStore
+import org.plainphone.app.distribution.Distribution
 import org.plainphone.app.sync.HttpError
 import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.SyncStore
@@ -30,6 +31,7 @@ object UpdateRequestListener {
 
     @Synchronized
     fun start(context: Context) {
+        if (!Distribution.SELF_UPDATES) return
         val app = context.applicationContext
         val current = listener ?: register(app).also { listener = it }
         current.wake()
