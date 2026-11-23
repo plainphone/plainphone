@@ -9,6 +9,7 @@ import { latencySamples } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import { latencyOn } from "./latency.js";
 import { abuseMetricsText } from "./abuse-metrics.js";
+import { mailMetricsText } from "./mail-cap.js";
 
 const HOUR = 3_600_000;
 /** Samples carry their hour, rounded down, so a window reaches back to the start of the hour it begins in. */
@@ -79,5 +80,5 @@ export async function metricsText(ctx: Ctx): Promise<string> {
   const counts = failures.get(ctx);
   const names = [...new Set([...PUSH_PROVIDERS, ...(counts?.keys() ?? [])])].sort();
   for (const p of names) out.push(`plainphone_push_failures_total${labels({ provider: p })} ${counts?.get(p) ?? 0}`);
-  return `${out.join("\n")}\n${abuseMetricsText(ctx)}`;
+  return `${out.join("\n")}\n${abuseMetricsText(ctx)}${await mailMetricsText(ctx)}`;
 }
