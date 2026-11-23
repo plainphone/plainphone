@@ -59,6 +59,8 @@ class GuardService : AccessibilityService() {
     }
     /** The app last seen in picture-in-picture, while a pinned window is listed (see [PipGuard.owner]). */
     private var pinnedApp: String? = null
+    /** This service's accessibility connection, read from a node once (see [PipRootNode]). */
+    private var connectionId: Int? = null
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
     private var planWatch: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
@@ -121,6 +123,7 @@ class GuardService : AccessibilityService() {
             return
         }
         isConnected = true
+        connectionId = null
         instance = java.lang.ref.WeakReference(this)
         Log.i(TAG, "guard connected")
         Lock.recoverInstallAsync(this, "guard connected", force = true)
@@ -327,17 +330,20 @@ class GuardService : AccessibilityService() {
 
     /**
      * Closes a blocked app that plays on in picture-in-picture (see [PipGuard]): tries to dismiss the
-     * window, then shows the stop screen, which also sends Home. Android 10 refuses the dismiss (its
-     * System UI accepts it only on a node id that an app's window never reports), so a refused dismiss
-     * brings the app back to full screen instead, where the stop screen covers it without the Home
-     * press that would let it float again. The stop screen comes once per window; the dismiss is
-     * repeated while the window floats, and none of this depends on which app is Home.
+     * window, then shows the stop screen, which also sends Home. Android 10 to 13 refuse the dismiss on
+     * the window's own root (System UI takes it only on a node id no window reports), so the guard
+     * then sends it to that id ([PipRootNode]). Only if that fails too is the app brought back to full
+     * screen, where the stop screen covers it without the Home press that would let it float again.
+     * The stop screen comes once per window; the dismiss is repeated while the window floats, and
+     * none of this depends on which app is Home.
      */
     @Suppress("DEPRECATION")
     private fun guardPip() {
         val wins = ArrayList<PipGuard.Win>()
         val roots = HashMap<String, AccessibilityNodeInfo>()
         val seen = ArrayList<String>()
+        // The pinned windows of each app, its own and System UI's menu: System UI takes a dismiss through any of them.
+        val pinnedWindows = HashMap<String, MutableList<Int>>()
         // Read first, then resolve: a pinned app window names the app that System UI's menu may cover.
         class Raw(val id: Int, val label: String, val inPip: Boolean, val rootPkg: String?)
         val raw = ArrayList<Raw>()
@@ -363,6 +369,7 @@ class GuardService : AccessibilityService() {
             if (r.inPip && pinnedApp == null && pkg != null) pinnedApp = pkg
             if (r.inPip && r.rootPkg != null && r.rootPkg != PipGuard.SYSTEM_UI) windowOwners[r.id] = r.rootPkg
             wins += PipGuard.Win(pkg, r.inPip)
+            if (r.inPip && pkg != null) pinnedWindows.getOrPut(pkg, ::ArrayList) += r.id
             if (r.inPip) seen += if (pkg != r.rootPkg) "${r.label} as $pkg" else r.label
         }
         // Logged on change only: this runs on every window-list change.
@@ -382,11 +389,14 @@ class GuardService : AccessibilityService() {
         val targets = if (inCall) emptyList() else PipGuard.targets(wins, packageName, plan, pipStopped, ::openedForNow)
         if (!inCall) {
             PipGuard.stillFloating(wins, packageName, plan, pipStopped, ::openedForNow)
-                .forEach { dismissPip(it.pkg, roots[it.pkg]) }
+                .forEach { dismissPip(it.pkg, roots[it.pkg], pinnedWindows[it.pkg].orEmpty()) }
         }
         for (t in targets) {
-            // Expanded once per window, like the stop screen: a task that stays pinned is not reopened every tick.
-            if (!dismissPip(t.pkg, roots[t.pkg])) expandPip(t.pkg)
+            // Expanded once per window, like the stop screen: a task that stays pinned is not reopened on
+            // every event while the rate limit holds the stop screen back (run 45125434098: six starts).
+            if (!dismissPip(t.pkg, roots[t.pkg], pinnedWindows[t.pkg].orEmpty()) &&
+                !PipGuard.expandedRecently(pipExpandedAt[t.pkg], SystemClock.elapsedRealtime())
+            ) expandPip(t.pkg)
             // Once per window: if dismissing does not close it, Home and the stop screen must not repeat every tick.
             if (block(t.pkg, if (t.why == LightPlan.Why.NOT_ALLOWED) BlockedActivity.Reason.NOT_ALLOWED else BlockedActivity.Reason.TIME_USED_UP)) pipStopped += t.pkg
         }
@@ -396,15 +406,38 @@ class GuardService : AccessibilityService() {
         if (!inCall && unchecked.isNotEmpty()) pipTimeCheck(unchecked)
     }
 
-    private fun dismissPip(pkg: String, root: AccessibilityNodeInfo?): Boolean {
+    private fun dismissPip(pkg: String, root: AccessibilityNodeInfo?, windowIds: List<Int>): Boolean {
         val dismissed = root?.performAction(AccessibilityNodeInfo.ACTION_DISMISS) == true
         Log.i(TAG, "pip $pkg: dismiss ${if (root == null) "without a root" else if (dismissed) "accepted" else "refused"}")
-        return dismissed
+        return dismissed || dismissThroughSystemUi(pkg, windowIds)
+    }
+
+    /**
+     * The dismiss on System UI's root node ([PipRootNode]), which removes the pinned task. Tried on
+     * each pinned window of the app: one without an accessibility connection yet refuses it.
+     */
+    private fun dismissThroughSystemUi(pkg: String, windowIds: List<Int>): Boolean {
+        if (!PipRootNode.supported || windowIds.isEmpty()) return false
+        val connection = connectionId ?: rootInActiveWindow?.let(PipRootNode::connectionId)?.also { connectionId = it }
+        if (connection == null) {
+            Log.w(TAG, "pip $pkg: no connection id for System UI's dismiss")
+            return false
+        }
+        for (id in windowIds) {
+            val node = PipRootNode.of(id, connection) ?: continue
+            val dismissed = runCatching { node.performAction(AccessibilityNodeInfo.ACTION_DISMISS) }.getOrDefault(false)
+            recycle(node)
+            Log.i(TAG, "pip $pkg: System UI dismiss on window $id ${if (dismissed) "accepted" else "refused"}")
+            if (dismissed) return true
+        }
+        return false
     }
 
     /**
      * Starting the app of a pinned task makes Android expand it to full screen (System UI's answer to
-     * a pinned activity's restart, Android 10 and later). It is then an ordinary app in front.
+     * a pinned activity's restart, Android 10 and later). It is then an ordinary app in front. Only
+     * when the start matches the task's own intent, though: Android 10 adds a second activity to the
+     * pinned task otherwise (ActivityStarter.setTaskFromIntentActivity), and nothing expands.
      */
     private fun expandPip(pkg: String) {
         val launch = packageManager.getLaunchIntentForPackage(pkg)

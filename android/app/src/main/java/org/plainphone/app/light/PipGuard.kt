@@ -60,14 +60,16 @@ object PipGuard {
      * where System UI answers for a pinned window and lays its menu over it, so the window reads as
      * System UI, and where a window can have no root while it enters picture-in-picture. The app is
      * then the one [known] for that window id from before it floated; for System UI's own menu
-     * window, the app last seen floating ([lastPinned]); and failing both, the last app [inFront]
-     * that was not Home, as only the app in front can enter picture-in-picture. Emulator runs 45042386185
-     * ("pip: windows com.android.systemui#10@1") and 45047940235 ("null#10@1", then
-     * "com.android.systemui#14@1") showed these.
+     * window, and for an unreadable window while an app still floats, the app last seen floating
+     * ([lastPinned]); and for System UI failing both, the last app [inFront] that was not Home, as
+     * only the app in front can enter picture-in-picture. Emulator runs 45042386185
+     * ("pip: windows com.android.systemui#10@1"), 45047940235 ("null#10@1", then
+     * "com.android.systemui#14@1") and 45125434098 (the menu window read as "null#12@1", so the
+     * floating player counted as gone and was stopped and expanded again) showed these.
      */
     fun owner(rootPkg: String?, windowId: Int, known: Map<Int, String>, lastPinned: String?, inFront: String?): String? =
         when (rootPkg) {
-            null -> known[windowId]
+            null -> known[windowId] ?: lastPinned
             SYSTEM_UI -> known[windowId] ?: lastPinned ?: inFront
             else -> rootPkg
         }

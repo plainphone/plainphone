@@ -199,7 +199,8 @@ class PipGuardTest {
         val known = mapOf(10 to game)
         assertEquals(video, PipGuard.owner(video, 10, known, game, fine))
         assertEquals("no root yet: the app the window showed", game, PipGuard.owner(null, 10, known, null, fine))
-        assertEquals(null, PipGuard.owner(null, 11, known, game, fine))
+        assertEquals("no root while an app floats: that app", game, PipGuard.owner(null, 11, known, game, fine))
+        assertEquals("no root, nothing seen floating", null, PipGuard.owner(null, 11, known, null, fine))
         assertEquals("System UI answering for the app's window", game, PipGuard.owner(PipGuard.SYSTEM_UI, 10, known, video, fine))
         assertEquals("System UI's menu window over it", video, PipGuard.owner(PipGuard.SYSTEM_UI, 14, known, video, fine))
         assertEquals("never seen before: the app that was in front", fine, PipGuard.owner(PipGuard.SYSTEM_UI, 14, known, null, fine))
@@ -251,6 +252,25 @@ class PipGuardTest {
 
     @Test fun `a floating window seen only as System UI belongs to the app that was in front`() {
         assertStoppedOnceBlocked(listOf(android10Window(PipGuard.SYSTEM_UI, true, 21)))
+    }
+
+    @Test fun `a floating window that turns unreadable is not stopped again`() {
+        // Emulator run 45125434098 (API 29): after the stop screen, the menu window read as
+        // "null#12@1", the player counted as gone, and its next sighting stopped it again.
+        installLauncher(game)
+        val pip = window(game, true)
+        answerDismiss(pip, accepted = false)
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idleFor(Duration.ofSeconds(1))
+        shadow.windowList = listOf(android10Window(null, true, 12))
+        windowsChanged()
+        looper.idleFor(Duration.ofSeconds(1))
+        shadow.windowList = listOf(pip)
+        windowsChanged()
+        val starts = generateSequence { shadowOf(service.application).nextStartedActivity }.toList()
+        assertEquals("stopped once", 1, starts.count { it.component?.className == BlockedActivity::class.java.name })
     }
 
     @Test fun `the quiet window ends`() {
