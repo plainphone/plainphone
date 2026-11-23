@@ -36,6 +36,7 @@ A Plainphone on Android 9 would have no filter and no contact rules, so the app 
 | One position for "Find" | `getCurrentLocation` with a quality request | same | `getCurrentLocation` without a request | `requestSingleUpdate` |
 | Call notification with answer and decline | call style | call style | plain notification with two buttons | same |
 | Speaker and mute in a call | call endpoints | `CallAudioState` (`setAudioRoute`) | same | same |
+| Hanging up a call that is still connecting | at once | at once | at once | the moment it starts dialling (earlier crashes Android's phone process, see [contacts.md](contacts.md)) |
 | Notification permission granted | yes | Android 13 only; Android 12 has no such permission | not needed | not needed |
 | Sync with the dashboard (WorkManager), token in Keystore (AES-GCM) | yes | yes | yes | yes |
 | Schedules (school time, bedtime) | yes | yes | yes | yes |

@@ -4,7 +4,7 @@ The `android-e2e` CI job runs on GitHub-hosted Linux with KVM and AOSP
 x86_64 system images for API 34 and API 29 (Android 10). It runs on main
 pushes, on pull requests that change the Android app, server, workflow,
 or emulator test inputs, and on demand (Actions → CI → Run workflow, which
-runs every check on the chosen branch). Each leg has a 30-minute limit
+runs every check on the chosen branch). Each leg has a 45-minute limit
 and the API 34 leg restores a pre-test emulator snapshot. A leg without a
 cached snapshot boots once and caches the snapshot right away, before any flow
 runs, so the test run never writes back to it. The API 29 leg always cold-boots
@@ -12,10 +12,14 @@ runs, so the test run never writes back to it. The API 29 leg always cold-boots
 `sys.boot_completed` is 1 before the input service is published, so the
 emulator action's own `input keyevent 82` fails and its shutdown then hangs.
 The action has no input to skip that keyevent. A cold boot costs about a minute
-more than a snapshot load. The flows step has its own 10-minute limit: a hang
+more than a snapshot load. The flows step has its own 25-minute limit: a hang
 then fails the step, the artifact below is still uploaded, and an always-run
 step kills any emulator left behind, whereas a job that reaches its own limit
-is cancelled without an artifact.
+is cancelled without an artifact. The light-mode flow must finish within 15
+minutes and the Device Owner flow within 7. The light-mode flow includes one
+minute of app use for its time limit, and if it reaches its counting steps in
+the last ten minutes of a day it first waits for midnight, so nothing it counts
+per day starts over mid-test.
 
 ## Run locally
 
@@ -72,6 +76,15 @@ enrolls Device Owner, and stops with a clear error if adb data shows up there.
 `python3 -m unittest scripts/test_e2e_android_emulator.py` tests this protocol
 without an emulator.
 
+Texts and calls from other numbers come from the emulator console (`adb emu sms send`,
+`adb emu gsm call`), which the modem then delivers to Android as a network would. The test
+asks for them over the test server: it posts the command to `/e2e/console`, the harness polls
+`/e2e/console/next`, runs it and posts the console's output back, and the test asserts the
+console answered `OK`. The test server (`server/test/e2e/phone-sync-server.ts`) offers these
+routes only in emulator mode and only to the test parent, and both it and the harness accept
+nothing but an SMS or an incoming call from a number. `scripts/test_e2e_android_emulator.py`
+covers the harness side.
+
 A restored snapshot answers ADB before Android has its network and modem
 back. Before the first flow, the harness waits until `dumpsys connectivity`
 names a default network and `dumpsys telephony.registry` reports the modem
@@ -82,8 +95,21 @@ Before each flow, it checks that the test server process is alive and answers
 last thing it saw. Every command on the serial console has one deadline for the
 whole command, not one per read: kernel messages share the console and would
 otherwise keep a stuck command alive. A command that overruns gets a Ctrl-C, so
-the diagnostics after it still get a shell. On failure, the job log shows
-whether the server was still running and the end of its log.
+the diagnostics after it still get a shell. Each flow also has a watchdog
+(`FlowWatchdog`) that fails it 60 seconds before the harness's limit for that
+flow (16 minutes for light mode, so its watchdog still allows the 11-minute
+midnight wait plus the flow; 7 for Device Owner). A call that never returns
+then fails the flow with the step it was at and the stack traces of the flow and
+the app's main thread, and logcat gets every thread in parts below its 4 KB
+entry limit (tag `PlainphoneE2E`, which also logs each step as it starts).
+The stuck call itself cannot be stopped, so after a watchdog failure the flow's
+`finally` blocks do not run; after the light flow, the clock then stays 35 days
+ahead for the rest of the run. On failure, the job log shows whether the
+server was still running and the end of its log.
+In the light flow, a wait for the player to leave the foreground or
+picture-in-picture names, when it fails, what the guard took for the app in
+front and for the floating app, the stored plan and synced rules for the player,
+and Android's resumed activities and pinned task.
 
 The test parent's number is the emulator's own SIM number, `+15555215554`
 (`E2E_MODEM_NUMBER` changes it; pass the same 11 digits to `-phone-number`).
@@ -117,8 +143,11 @@ on stopping the fling, so the tap never reaches the button.
 | --- | --- |
 | Setup and rules | The Light setup screens confirm the child profile and PIN, and the Device Owner pairing activity redeems its pending token. Both flows must finish a sync that leaves the new phone's rules saved (recorded through a test-only observer on `SyncRunner.run`, with the rules' phone id as each run left them) and have uploaded the first status, before the test requests another sync. The wait checks that condition, not a sync reason, because Device Owner setup saves the rules in the pairing screen's direct `setup finished` sync before the queued `paired` sync starts. The immediate sync slot (`plainphone-sync-now`) must then drain, and after Device Owner pairing one job in it must have succeeded: the slot keeps its first job, so a stuck one would swallow every later immediate sync (#236 saw one stay enqueued with 0 attempts). On a timeout the message lists each run and every SyncWorker request by its slot, with state, attempts, stop reason and initial delay. The fixture stages the pending QR token for the loopback server. Before the Device Owner pairing screen opens, the test replays the admin-enabled broadcast from `dpm set-device-owner` if that broadcast has not applied the first lock yet (`am instrument` usually force-stops the app before it finishes), and waits for the first lock that opens the PIN-free setup window. Device Owner rules hide, reveal and hide the test APK again. |
 | SOS and emergency access | Holding the child’s SOS button creates an incident in the parent API and a parent can mark it seen. The SOS emergency keypad opens. The public `placeCall` hands the exact 112, 911 and 114 addresses to `TelecomHandoff`, the single place where a call goes to Android's Telecom, and rejects an unapproved ordinary number. The test replaces only the last step of that hand-off with a recorder, so it places no calls. |
-| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. Plainphone is not the default Home app in this flow, so Home opens Android's home-app chooser, as on a child's phone where no Home app was chosen; the guard has to close the window anyway. School time still blocks the app after the AOSP clock moves forward by 12 hours. |
+| Light mode | The accessibility guard stops a blocked app from staying in the foreground. Revoking an app while it floats in picture-in-picture removes its pinned task according to Android's activity manager. Plainphone is not the default Home app in this flow, so Home opens Android's home-app chooser, as on a child's phone where no Home app was chosen; the guard has to close the window anyway. |
+| Light mode after a date jump | The phone is set up in `Europe/Copenhagen`, where the app catalog exists. The test app uses up a one-minute limit, measured from Android's usage events (usage access is granted from the shell, as a parent does in Settings). Five Play windows for a catalog app open and close through `InstallWindow.openForParent`, the call the maintenance screen makes after the parent PIN, and a sixth is refused. One emergency opening is counted through the phone's real opening store and trusted clock with a Self rule of one a month; the flow's phone is a Child phone, so the Self setup and the stop screen's button are not part of it. Then the AOSP clock moves forward 35 days, into another day and month. School time still blocks the app, the used minute still counts, there is no sixth Play window and no new opening. If the run starts in the last 10 minutes before midnight (more than the flow's slowest path takes) (phone or system time zone), the flow first waits until midnight has passed, so these counts cannot start over for a real reason. |
 | Quick messages | The child taps a quick message and the test gateway answers HTTP 429. The modem simulator loops the outgoing message back only when it is addressed to the SIM's own number, which the emulator gets with `-phone-number`. The test checks the exact body and number in the inbox before the emulator console injects a separate parent reply. |
+| Calls and texts (Device Owner) | The keypad, opened with a `tel:` number as a link in another app opens it, refuses a number that is not approved, shows "Only approved contacts can be called" and hands nothing to Telecom. A call the shell places with `ACTION_CALL` (standing in for the maker's dialer or a contact card) is ended, logged and shows the "Call not allowed" notification. A stranger's SMS from the modem is logged as blocked, with no notification and nothing in the inbox. A contact entered in the dashboard as `+1 202 555 0123` texts from the national number `2025550123` (the emulator SIM is a US SIM) and the message is in the inbox under the contact's name. The server strips the spaces before it stores a number, so the phone matches `+12025550123` against `2025550123`: this covers the with/without country code half of C17, not spaces on the phone. 114 is placed through the real Telecom (Android does not treat it as an emergency number on this SIM, which the test checks), hung up, and opens no call-back window: a stranger's call afterwards is still rejected and logged. The modem answers an outgoing call about a second after dialling, so the test cannot hold 114 before it connects; 114 must not open the window either way. Before the stranger calls, the test checks that the modem itself has no call left, not only Telecom: on Android 10 an early hang-up once left 114 live on the modem, the phone process restarted, and Telecom handed the stranger over as a call of unknown direction, which was ended but logged as outgoing. |
+| Clock policy (Device Owner) | Automatic date and time are forced and `DISALLOW_CONFIG_DATE_TIME` is set. On Android 11 and later, automatic time zone is forced too, and Android's time and time zone detectors, which Settings → Date & time uses, refuse to turn automatic detection off or take a manual time or zone. Android 10 can only require automatic time. A privileged shell then writes the raw `auto_time` settings to 0 (a child has no shell: adb is off). The test logs whether Android refused each write or took it, and asserts that after Plainphone's lock check both are forced again; it does not assume which of the two kept them on. |
 
 The emulator covers the AOSP paths listed above. Hardware QR provisioning,
 vendor restrictions, Play services, carrier delivery, real calls, PiP

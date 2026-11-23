@@ -149,7 +149,7 @@ class BrandIconsScreenshotTest {
         RuntimeEnvironment.setQualifiers(if (night) "+night" else "+notnight")
         compose.setContent {
             PlainphoneTheme {
-                Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) { KeypadScreen(initial = "112", onCall = {}) }
+                Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) { KeypadScreen(initial = "112", onCall = { null }) }
             }
         }
         save(name, compose.onRoot().captureToImage().asAndroidBitmap())
