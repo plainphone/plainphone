@@ -151,6 +151,42 @@ class SerialShellTest(unittest.TestCase):
         thread.join(timeout=5)
         self.assertEqual(self.received, b"\x03", "the overrunning command must be interrupted")
 
+    def overrun(self, reply, *args, **kwargs):
+        # The guest answers `reply(marker)` and then leaves the command running past its deadline.
+        ours, guest = socket.socketpair()
+        self.addCleanup(ours.close)
+
+        def stall():
+            with guest:
+                marker = re.search(rb"'(plainphone-[0-9a-f]+)-start'", guest.makefile("rb").readline())[1]
+                guest.sendall(reply(marker))
+                guest.settimeout(2)
+                guest.recv(64)
+
+        thread = threading.Thread(target=stall, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        with self.assertRaises(TimeoutError) as raised:
+            harness.serial_shell(ours, *args, timeout=0.3, **kwargs)
+        return str(raised.exception)
+
+    def test_an_overrun_names_the_command_behind_a_root_prefix(self):
+        # Issue 237: "su did not finish" was DeviceOwnerFlow's am instrument run as root in Android's namespace.
+        message = self.overrun(lambda marker: b"", "su", "0", "nsenter", "--", "am", "instrument",
+                               name="DeviceOwnerFlow (am instrument)")
+        self.assertIn("DeviceOwnerFlow (am instrument) did not finish within 0.3 s", message)
+        self.assertNotIn("su did not", message)
+
+    def test_an_overrun_before_the_start_marker_says_the_command_never_started(self):
+        message = self.overrun(lambda marker: b"[  42.0] binder: still waiting\r\n", "true")
+        self.assertIn("no shell answered", message)
+
+    def test_an_overrun_shows_the_last_output_of_the_started_command(self):
+        lines = b"".join(b"INSTRUMENTATION_STATUS: step=%d\r\n" % step for step in range(40))
+        message = self.overrun(lambda marker: b"\r\n" + marker + b"-start\r\n" + lines, "am", "instrument")
+        self.assertIn("step=39", message)
+        self.assertNotIn("step=19\n", message, "only the last lines")
+
     def test_reports_a_closed_console(self):
         ours, guest = socket.socketpair()
         self.addCleanup(ours.close)
@@ -286,6 +322,14 @@ class InstrumentTest(unittest.TestCase):
             self.assertLess(watchdog, limit, flow)
             self.assertGreaterEqual(limit - watchdog, 30, f"{flow}: room for the failure report")
             self.assertEqual(adb.call_args.kwargs["timeout"], limit, flow)
+
+    def test_a_flow_on_the_serial_console_is_named_by_the_flow_not_its_root_prefix(self):
+        # Issue 237: the Device Owner flow runs behind `su 0 nsenter`, and its overrun read "su did not finish".
+        with mock.patch.object(harness, "serial_shell", return_value="OK (1 test)\n") as serial:
+            harness.instrument("DeviceOwnerFlow", 8080, "token", console=object(), command_prefix=("su", "0"))
+        self.assertEqual(serial.call_args.args[1:3], ("su", "0"))
+        self.assertEqual(serial.call_args.kwargs["name"], "DeviceOwnerFlow (am instrument)")
+        self.assertEqual(serial.call_args.kwargs["timeout"], harness.INSTRUMENT_TIMEOUTS["DeviceOwnerFlow"])
 
     def test_the_light_watchdog_waits_out_a_run_that_starts_just_before_midnight(self):
         # Up to 11 minutes of midnight wait plus a four-minute flow is a pass, not a hang.

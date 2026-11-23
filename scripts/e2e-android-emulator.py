@@ -84,9 +84,12 @@ def probe_console(console, attempts=12, timeout=10):
                 raise RuntimeError("No shell answered on the emulator serial console") from None
 
 
-def serial_shell(console, *args, timeout=30):
+def serial_shell(console, *args, timeout=30, name=None):
     # The Device Owner disables adb as part of the real lock. The disposable
     # emulator's separate root console remains available to the test harness.
+    # `name` is what errors call the command; a command behind the root prefix would
+    # otherwise be reported as `su` (issue 237: it was DeviceOwnerFlow's am instrument).
+    name = name or args[0]
     marker = f"plainphone-{uuid4().hex}"
     command = shlex.join(args)
     # One deadline for the whole command: kernel messages share the console, so a timeout per
@@ -99,27 +102,39 @@ def serial_shell(console, *args, timeout=30):
     start = f"{marker}-start".encode()
     end = f"{marker}-end ".encode()
     started = False
-    for line in console_lines(console, deadline, f"{args[0]} did not finish within {timeout:g} s"):
-        content = line.rstrip(b"\r\n")
-        # Only the shell's own lines can carry adb's handshake. The command's
-        # output (base64 screenshots, logcat) may contain "CNXN" by chance.
-        at_end = started and content.startswith(end)
-        if (not started or at_end) and b"CNXN" in line:
-            raise RuntimeError("adb is connected to the serial console socket; "
-                               "move -shell-serial outside adb's emulator ports")
-        if content == start:
-            started = True
-        elif at_end:
-            result = output.decode(errors="replace").replace("\r\n", "\n")
-            status = content[len(end):].decode(errors="replace")
-            if not status.isdigit():
-                raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
-            if status != "0":
-                raise RuntimeError(f"Emulator serial command failed: {args[0]} ({status})\n{result}")
-            return result
-        elif started:
-            output.extend(line)
+    try:
+        for line in console_lines(console, deadline, f"{name} did not finish within {timeout:g} s"):
+            content = line.rstrip(b"\r\n")
+            # Only the shell's own lines can carry adb's handshake. The command's
+            # output (base64 screenshots, logcat) may contain "CNXN" by chance.
+            at_end = started and content.startswith(end)
+            if (not started or at_end) and b"CNXN" in line:
+                raise RuntimeError("adb is connected to the serial console socket; "
+                                   "move -shell-serial outside adb's emulator ports")
+            if content == start:
+                started = True
+            elif at_end:
+                result = output.decode(errors="replace").replace("\r\n", "\n")
+                status = content[len(end):].decode(errors="replace")
+                if not status.isdigit():
+                    raise RuntimeError(f"Unexpected data on the emulator serial console: {status!r}")
+                if status != "0":
+                    raise RuntimeError(f"Emulator serial command failed: {name} ({status})\n{result}")
+                return result
+            elif started:
+                output.extend(line)
+    except TimeoutError as error:
+        raise TimeoutError(f"{error}; {overrun_detail(started, output)}") from None
     raise RuntimeError("Emulator serial console disconnected")
+
+
+def overrun_detail(started, output, lines=15):
+    # Tells a console that never ran the command (no shell, or a busy one) from a command that ran
+    # and stalled, and in the second case where it was: am instrument prints each test's status.
+    if not started:
+        return "no shell answered with the command's start marker, so it never ran"
+    tail = output.decode(errors="replace").replace("\r\n", "\n").splitlines()[-lines:]
+    return "the command started; its last output:\n" + "\n".join(tail) if tail else "the command started and printed nothing"
 
 
 # Each flow takes two to four minutes. The light flow can first wait up to eleven minutes so that
@@ -171,7 +186,8 @@ def instrument(flow, port, token, console=None, command_prefix=(), *, parent_num
         result = adb("shell", *command, text=True, stdout=subprocess.PIPE,
                      stderr=subprocess.STDOUT, timeout=INSTRUMENT_TIMEOUTS[flow]).stdout
     else:
-        result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow])
+        result = serial_shell(console, *command_prefix, *command, timeout=INSTRUMENT_TIMEOUTS[flow],
+                              name=f"{flow} (am instrument)")
     (ARTIFACTS / f"{flow}.txt").write_text(result, encoding="utf-8")
     print(result, flush=True)
     # am instrument can exit zero even when a test fails or never ran.
@@ -354,7 +370,8 @@ def run_flows(port, token, console, check_server=lambda: None):
     )
     # am instrument force-stops the app this starts for its admin-enabled broadcast,
     # so DeviceOwnerFlow replays that broadcast before it opens the pairing screen.
-    serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver")
+    serial_shell(console, *android_runtime, "dpm", "set-device-owner", f"{PACKAGE}/.PlainphoneAdminReceiver",
+                 name="dpm set-device-owner")
     stop = Event()
     with ThreadPoolExecutor(max_workers=1) as executor:
         commands = executor.submit(serve_console, port, token, stop, serial)
