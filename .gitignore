@@ -33,3 +33,4 @@ site/.screenshots-tmp/
 
 # Turborepo local cache
 .turbo/
+load-results/
