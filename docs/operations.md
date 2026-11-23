@@ -314,8 +314,80 @@ Set `0` to switch the cap off again.
   A steady stream after midday UTC means the cap is full; raise it only if the mail server
   keeps up.
 - **The mail server**: its queue and the provider's hourly and daily send limits. If mail
-  is slow, lower the cap rather than raise it.
+  is slow, lower the cap rather than raise it. The [mail caps](#mail-caps) stop the server
+  before the provider does.
 - **App health** in Uptime Kuma and memory against the container limit.
+
+## Mail caps
+
+Sign-in is by mail only. If the mail server stops taking mail because its own hourly or daily
+limit is reached, nobody can sign in. `MAIL_HOURLY_CAP` and `MAIL_DAILY_CAP` make the server stop
+a little before that, with a clear message, whatever the provider's limit is. Both are off (`0`)
+by default, which is right for self-hosting.
+
+How it counts:
+
+- Every mail the server sends counts: sign-in links, invitations, alerts, summaries, receipts and
+  SOS. The windows are the UTC hour and the UTC day; the count starts over at the next whole hour
+  and at 00:00 UTC.
+- It is counted in the database (`rate_limit_hits`, buckets `mail-hour` and `mail-day`, one row per
+  window for the whole server, no address), so it survives restarts and holds across processes.
+  Old rows are deleted by the sweeper. Nothing is counted while both caps are off.
+- A mail counts when it is handed to the mail server, also if the server then refuses it.
+
+What people see at the cap:
+
+- **Sign-in**: `POST /api/auth/request` answers `503` with `code: "mail_unavailable"`, `retryAt`
+  (the end of the full hour or day) and a `Retry-After` header. The dashboard and the parent app
+  say "We can't send mail right now. Try again in a little while." in all five languages. No link
+  is kept, so the attempt takes no place under the [daily cap](#daily-cap-on-new-households) and
+  does not count towards the address's 5 links an hour.
+- **Invitations to a second parent**: the invitation is kept, and the dashboard gets the link to
+  pass on by hand, the same as on a server without mail (`mailed: false`).
+- **Other mail** (alerts, trusted-person invitations, approval requests, summaries, receipts) is
+  skipped, the same as when the mail server is down: alerts still go out as push, and setup
+  undo notices are tried again later.
+- **SOS** is always sent, also at the cap. It still counts.
+
+The mail server's own refusals: a temporary answer (SMTP `4xx`, for example `421`, `450`, `451`
+or `452`, which is how most servers say "rate limited") gets the same `503 mail_unavailable` on
+sign-in, with `retryAt` five minutes ahead, instead of a `500`. It is logged as
+`mail server refused for now (SMTP 451)`, the code only. A permanent answer (`5xx`) stays an error.
+
+The log has one warning per hour per process while a cap is full, without addresses:
+`mail cap reached (MAIL_HOURLY_CAP=40): mail is refused until 2026-11-23T13:00:00.000Z; SOS mail still goes out`.
+
+### Choose the numbers
+
+1. Look up the mail provider's hourly and daily send limits. For the hosted service that is the
+   Stalwart server behind `SMTP_URL` (its own throttle settings), and the limits of any relay it
+   sends through.
+2. Set each cap about 10% under the provider's limit, so the server's message comes before the
+   provider's refusal and there is room for SOS mail.
+3. Check it covers a launch day: every sign-in from a new device sends one mail, so 500 new people
+   on two devices each is about 1,000 sign-in mails, plus invitations and alerts. If the
+   provider's limit is lower than that, raise it there, or spread the launch with
+   `SIGNUP_DAILY_CAP`.
+
+### Change it on the hosted service
+
+1. Set `MAIL_HOURLY_CAP` and/or `MAIL_DAILY_CAP` in the app's environment in Dokploy (the compose
+   file passes them through; unset means `0`). Change only these variables.
+2. Redeploy the app. The values are read at start.
+3. Check `GET /api/metrics` (with `METRICS_TOKEN`): `plainphone_mail_cap{window="hour"}` shows the
+   value.
+
+### What to watch
+
+On `/api/metrics`:
+
+- `plainphone_mail_counted{window="hour"|"day"}` against `plainphone_mail_cap`: alert at 80%
+  of either cap.
+- `plainphone_mail_refused_total{reason="cap"}` and `{reason="provider"}`: alert on any rise.
+  A rise in `provider` with the cap not reached means the provider's limit is lower than the cap.
+- `plainphone_mail_sent_total`: mails handed to the mail server since start-up.
+
+Set `0` (or leave empty) to switch a cap off again.
 
 ## Bot and spam protection
 
@@ -324,7 +396,7 @@ mail or create something has its own protection. Each one can be switched off pe
 
 | Endpoint | What it does | Protection |
 |---|---|---|
-| `POST /api/auth/request` | Mails a sign-in link; a new address becomes a new household | IP limit 20/hour (database), address limit 5/hour (database), honeypot, bot challenge, throwaway-address check for new households, daily cap on new households |
+| `POST /api/auth/request` | Mails a sign-in link; a new address becomes a new household | IP limit 20/hour (database), address limit 5/hour (database), honeypot, bot challenge, throwaway-address check for new households, daily cap on new households, [mail caps](#mail-caps) |
 | `POST /api/auth/verify` | Turns a link into a session; makes the household on first sign-in | IP limit 30/15 min (database), daily cap on new households |
 | `POST /api/households/{hid}/invites` | Mails an invitation to a second parent (signed in) | Invitation cap per household, 3 invitations per address and household per day (database), 20 per inviting user per day (memory) |
 | Trusted person by mail (`key.set` in the dashboard or the app, or chosen on the phone at setup) | Mails the trusted person an invitation | Invitation cap per household: over it, the key is still set and only the mail is skipped |
