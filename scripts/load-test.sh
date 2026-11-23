@@ -6,7 +6,7 @@
 # a steady phase with every phone syncing once a minute, an app restart, and a burst with
 # every phone at once. Never point this at a real server: it only talks to the local copy.
 #
-#   scripts/load-test.sh [phones=500] [steady-minutes=10] [burst-minutes=3]
+#   [DB_POOL_MAX=20] [LOAD_WAKES_PER_HOUR=4] scripts/load-test.sh [phones=500] [steady-minutes=10] [burst-minutes=3]
 # Results: JSON per phase in $LOAD_OUT (default load-results/<timestamp>/). Needs Docker and pnpm.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -48,7 +48,7 @@ echo "seeded $phones households and phones"
 
 loadgen() {
   (cd server && pnpm exec tsx test/load-sync.ts --base "$base" --phones "$phones" \
-    --wakes-per-hour "$wakes" --app-container "$app" --db-container "$db" "$@")
+    --wakes-per-hour "$wakes" --pool-max "${DB_POOL_MAX:-10}" --app-container "$app" --db-container "$db" "$@")
 }
 
 echo "== steady: $phones phones, $steady minutes"

@@ -134,6 +134,7 @@ when a setting the server reads is missing from `compose.yaml`, `deploy/dokploy-
 | `BLOCK_DISPOSABLE_EMAIL` | `on` | A new household cannot start with a throwaway mail address (a vendored list, no lookup online). Existing accounts and invited people are never refused |
 | `INVITES_PER_HOUSEHOLD_DAILY` | `20` | Invitation mails a household can send in 24 hours. `0` = no cap |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
+| `DB_POOL_MAX` | `10` | Database connections the server keeps open at most. Ten carry about 2,000 phones; raise it only with the numbers in [operations.md](operations.md#capacity) |
 | `BILLING_ENABLED` | `false` | Paid plan and paid early unlock of the hosted service. Leave it off when self-hosting: every household then has everything, and no payment provider is called. The other `BILLING_*`, `STRIPE_*` and `PLAY_*` variables only matter with it on ([billing.md](billing.md)) |
 | `E2EE_PROTOTYPE_ENABLED` | `false` | The E2EE phase 0 prototype's delivery-service routes under `/api/e2ee`, for test data only. Always off with `NODE_ENV=production`; leave it off ([e2ee-prototype.md](e2ee-prototype.md)) |
 | `PAYMENTS_ENABLED` | `false` | Unused (the old pay-to-unlock flag, replaced by [billing](billing.md)). |

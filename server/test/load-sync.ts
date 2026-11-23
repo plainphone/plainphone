@@ -27,6 +27,7 @@ const { values: opt } = parseArgs({
     "app-container": { type: "string" },
     "db-container": { type: "string" },
     out: { type: "string" },
+    "pool-max": { type: "string", default: "10" },
   },
 });
 if (!opt.base) throw new Error("--base is required");
@@ -281,7 +282,7 @@ const report = {
   },
   db: {
     connectionsPeak: peak(total), connectionsAvg: avg(total),
-    activePeak: peak((s) => s.dbConnections?.active ?? 0), poolMax: 10,
+    activePeak: peak((s) => s.dbConnections?.active ?? 0), poolMax: Number(opt["pool-max"]),
     cpuAvgPct: avg((s) => s.dbCpu), cpuPeakPct: peak((s) => s.dbCpu), memPeakMiB: peak((s) => s.dbMemMiB),
   },
   loadgen: { cpuAvgPct: avg((s) => s.loadgenCpuPct) },
