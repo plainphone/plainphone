@@ -5633,7 +5633,7 @@ export interface components {
                 "application/json": components["schemas"]["PlanLimit"];
             };
         };
-        /** @description The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code or a move invitation stays open. */
+        /** @description Adding the phone(s) would take the household over HOUSEHOLD_PHONE_CAP (`code` household_phone_cap, docs/operations.md#phones-per-household). Nothing is added; a pairing code or a move invitation stays open. */
         PhoneCap: {
             headers: {
                 [name: string]: unknown;
@@ -10810,7 +10810,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
-            /** @description The household already has HOUSEHOLD_PHONE_CAP phones (`code` household_phone_cap; nothing is added and the invitation stays open), or the signed-in member is not the household owner (only `error`). */
+            /** @description Importing the phones would take the household over HOUSEHOLD_PHONE_CAP (`code` household_phone_cap; nothing is added and the invitation stays open), or the signed-in member is not the household owner (only `error`). */
             403: {
                 headers: {
                     [name: string]: unknown;
