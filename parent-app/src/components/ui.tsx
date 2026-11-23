@@ -47,6 +47,7 @@ export function errorMessage(err: unknown, t: TFn): string {
     if (err.data.code === "signup_cap_reached") return `${t("signupCap.body")} ${t("signupCap.selfHost")}`;
     // Bot and spam protection (docs/operations.md, "Bot and spam protection").
     if (err.data.code === "invite_cap_reached") return t("inviteCap.error");
+    if (err.data.code === "household_phone_cap") return t("phoneCap.error", { max: Number(err.data.max) || 0 });
     if (err.data.code === "disposable_email") return t("disposableEmail.error");
     if (err.status === 429) return t("error.tooMany");
     if (err.status === 404) return t("error.notFound");
