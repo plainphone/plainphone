@@ -587,6 +587,7 @@ export const sv: Messages = {
   "house.nameSave": "Spara namn",
   "house.nameSaved": "Namnet är sparat.",
   "house.nameInvalid": "Skriv ett namn på 1 till 60 tecken.",
+  "house.nameReserved": "Välj ett annat namn än \"Home\".",
   "house.members": "Medlemmar",
   "house.owner": "Ägare",
   "house.parent": "Förälder",

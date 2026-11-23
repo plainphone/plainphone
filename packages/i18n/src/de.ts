@@ -587,6 +587,7 @@ export const de: Messages = {
   "house.nameSave": "Namen speichern",
   "house.nameSaved": "Der Name ist gespeichert.",
   "house.nameInvalid": "Geben Sie einen Namen mit 1 bis 60 Zeichen ein.",
+  "house.nameReserved": "Wählen Sie einen anderen Namen als „Home“.",
   "house.members": "Mitglieder",
   "house.owner": "Eigentümer",
   "house.parent": "Elternteil",

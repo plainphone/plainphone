@@ -622,6 +622,7 @@ export const en = {
   "house.nameSave": "Save name",
   "house.nameSaved": "The name is saved.",
   "house.nameInvalid": "Write a name of 1 to 60 characters.",
+  "house.nameReserved": "Choose a name other than \"Home\".",
   "house.members": "Members",
   "house.owner": "Owner",
   "house.parent": "Parent",

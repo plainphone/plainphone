@@ -24,6 +24,11 @@ export function HouseholdName({ household, notify }: {
       setError(t("house.nameInvalid"));
       return;
     }
+    // "Home" is how the server marks a household nobody has named; saved, it would read as unnamed again.
+    if (value === DEFAULT_HOUSEHOLD_NAME) {
+      setError(t("house.nameReserved"));
+      return;
+    }
     setError(undefined);
     setSaving(true);
     try {

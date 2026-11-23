@@ -620,6 +620,7 @@ export const da: Messages = {
   "house.nameSave": "Gem navn",
   "house.nameSaved": "Navnet er gemt.",
   "house.nameInvalid": "Skriv et navn på 1 til 60 tegn.",
+  "house.nameReserved": "Vælg et andet navn end \"Home\".",
   "house.members": "Medlemmer",
   "house.owner": "Ejer",
   "house.parent": "Forælder",

@@ -253,11 +253,43 @@ describe("household members", () => {
     expect(await screen.findByText("Write a name of 1 to 60 characters.")).toBeTruthy();
     expect(api.calls.some((c) => c.method === "PATCH")).toBe(false);
 
+    // "Home" is the unnamed household's marker: saved, the screen would show "Household" again.
+    await fireEvent.changeText(field, " Home ");
+    await fireEvent.press(screen.getByTestId("household-name-save"));
+    expect(await screen.findByText('Choose a name other than "Home".')).toBeTruthy();
+    expect(api.calls.some((c) => c.method === "PATCH")).toBe(false);
+
     await fireEvent.changeText(field, "  Our family  ");
     await fireEvent.press(screen.getByTestId("household-name-save"));
     await waitFor(() => expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ name: "Our family" }));
     expect(await screen.findByText("The name is saved.")).toBeTruthy();
     // The screen's title follows the new name once the session is refreshed.
     expect(await screen.findByText("Our family")).toBeTruthy();
+  });
+
+  it("sends one save when Done is tapped again while the name is on its way", async () => {
+    const hid = ME.households[0].id;
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      [`GET /households/${hid}/members`]: { body: { members: [{ id: "u1", email: "parent@example.org", role: "owner" }], invites: [] } },
+      [`PATCH /households/${hid}`]: { status: 204 },
+    });
+    // Hold the PATCH answer back, like a slow connection, until both taps have landed.
+    const answer = globalThis.fetch;
+    let release = () => {};
+    const slow = new Promise<void>((resolve) => { release = resolve; });
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = input instanceof Request ? input.method : init?.method;
+      if (method === "PATCH") await slow;
+      return answer(input, init);
+    }) as typeof fetch;
+    await renderRouter(routes, { initialUrl: "/household" });
+    const field = await screen.findByTestId("household-name");
+    await fireEvent.changeText(field, "Family A");
+    await fireEvent(field, "submitEditing");
+    await fireEvent(field, "submitEditing");
+    release();
+    expect(await screen.findByText("The name is saved.")).toBeTruthy();
+    expect(api.calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
   });
 });

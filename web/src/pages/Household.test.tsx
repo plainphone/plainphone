@@ -109,6 +109,12 @@ it("lets a new household get a name, with a placeholder while it has none", asyn
   expect(patch).not.toHaveBeenCalled();
   expect(container.textContent).toContain("Write a name of 1 to 60 characters.");
 
+  // "Home" is the unnamed household's marker: saved, the page would show "Household" again.
+  await typeName(" Home ");
+  await act(async () => button("Save name")!.click());
+  expect(patch).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('Choose a name other than "Home".');
+
   await typeName("  Our family  ");
   await act(async () => button("Save name")!.click());
   expect(patch).toHaveBeenCalledWith("/households/h1", { name: "Our family" });

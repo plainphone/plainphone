@@ -587,6 +587,7 @@ export const nb: Messages = {
   "house.nameSave": "Lagre navn",
   "house.nameSaved": "Navnet er lagret.",
   "house.nameInvalid": "Skriv et navn på 1 til 60 tegn.",
+  "house.nameReserved": "Velg et annet navn enn \"Home\".",
   "house.members": "Medlemmer",
   "house.owner": "Eier",
   "house.parent": "Foreldre",

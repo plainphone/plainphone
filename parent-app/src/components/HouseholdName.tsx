@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DEFAULT_HOUSEHOLD_NAME } from "@plainphone/shared/household";
 import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
@@ -16,14 +16,24 @@ export function HouseholdName({ household, notify }: {
   const [name, setName] = useState(household.name === DEFAULT_HOUSEHOLD_NAME ? "" : household.name);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  // The keyboard's Done also saves, and it ignores the button's busy state: a second save while
+  // the first is on its way could land first and be overwritten by the older name.
+  const inFlight = useRef(false);
 
   async function save() {
+    if (inFlight.current) return;
     const value = name.trim();
     if (!value || value.length > 60) {
       setError(t("house.nameInvalid"));
       return;
     }
+    // "Home" is how the server marks a household nobody has named; saved, it would read as unnamed again.
+    if (value === DEFAULT_HOUSEHOLD_NAME) {
+      setError(t("house.nameReserved"));
+      return;
+    }
     setError(undefined);
+    inFlight.current = true;
     setSaving(true);
     try {
       await unwrap(client.PATCH("/households/{hid}", { params: { path: { hid: household.id } }, body: { name: value } }));
@@ -32,6 +42,7 @@ export function HouseholdName({ household, notify }: {
     } catch (err) {
       notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
+      inFlight.current = false;
       setSaving(false);
     }
   }
