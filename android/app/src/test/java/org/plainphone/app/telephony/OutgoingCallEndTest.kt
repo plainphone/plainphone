@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.admin.DevicePolicyManager
 import android.net.Uri
@@ -10,18 +11,24 @@ import android.telecom.Call
 import android.telecom.TelecomManager
 import com.google.common.truth.Truth.assertThat
 import java.lang.reflect.Proxy
+import java.time.Duration
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.PlainphoneAdminReceiver
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.Channel
+import org.plainphone.app.contacts.ContactPolicySources
+import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.LocalContactPolicySource
+import org.plainphone.app.contacts.ParentNumbers
 import org.plainphone.app.contacts.TelephonyLog
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter
 
@@ -36,6 +43,8 @@ class OutgoingCallEndTest {
     private val approved = "+12025550123"
     private val service = Robolectric.buildService(PlainphoneInCallService::class.java).create().get()
     private val ended = mutableListOf<String>()
+
+    @Before fun forgetDials() = RecentDials.clear()
 
     private fun strongPhone() {
         val dpm = service.getSystemService(DevicePolicyManager::class.java)
@@ -186,6 +195,52 @@ class OutgoingCallEndTest {
         assertThat(shadowOf(service.getSystemService(NotificationManager::class.java)).allNotifications).isEmpty()
     }
 
+    /** Issue #273: the child's own call that the phone process restart handed back without a direction. */
+    @Config(sdk = [29, 34])
+    @Test fun `a call of unknown direction to a number the child just dialled is an outgoing block with the message`() {
+        strongPhone()
+        RecentDials.record("+1 202 555 0102")
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.channel to it.direction })
+            .containsExactly(Channel.CALL to Direction.OUTGOING)
+        val shown = shadowOf(service.getSystemService(NotificationManager::class.java)).allNotifications
+        assertThat(shown.map { it.extras.getString(Notification.EXTRA_TITLE) }).containsExactly("Call not allowed")
+    }
+
+    @Config(sdk = [29])
+    @Test fun `a dial older than a minute does not make a stranger's call of unknown direction outgoing`() {
+        strongPhone()
+        RecentDials.record(stranger)
+        ShadowSystemClock.advanceBy(Duration.ofMillis(RecentDials.WINDOW_MS + 1))
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_NEW, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.channel to it.direction })
+            .containsExactly(Channel.CALL to Direction.INCOMING)
+    }
+
+    @Config(sdk = [29])
+    @Test fun `a blocked outgoing call that comes back without a direction stays outgoing`() {
+        strongPhone()
+        // Another app dialled the stranger; the in-call service sees it as outgoing first (run 45060357626).
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_DIALING))
+        service.onCallAdded(outgoingCall(stranger, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN))
+        assertThat(ended).containsExactly("TC@1", "TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.direction })
+            .containsExactly(Direction.OUTGOING, Direction.OUTGOING)
+    }
+
+    @Config(sdk = [29])
+    @Test fun `an approved call of unknown direction right after dialling it is kept`() {
+        strongPhone()
+        RecentDials.record(approved)
+        val call = outgoingCall(approved, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN)
+        service.onCallAdded(call)
+        service.onCallRemoved(call)
+        assertThat(ended).isEmpty()
+        assertThat(TelephonyLog(service).blocked()).isEmpty()
+    }
+
     @Config(sdk = [29])
     @Test fun `an emergency or approved call of unknown direction is kept`() {
         strongPhone()
@@ -196,6 +251,57 @@ class OutgoingCallEndTest {
         }
         assertThat(ended).isEmpty()
         assertThat(TelephonyLog(service).blocked()).isEmpty()
+    }
+
+    /** Issue #273: the child's emergency call, handed back without a direction, must still let the service call back. */
+    @Config(sdk = [29, 34])
+    @Test fun `an emergency call of unknown direction right after dialling it opens the call-back window`() {
+        strongPhone()
+        RecentDials.record("112")
+        val call = outgoingCall("112", Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN)
+        service.onCallAdded(call)
+        try {
+            call.moveTo(Call.STATE_ACTIVE)
+            assertThat(TelephonyLog(service).sinceLastEmergencyMs()).isNotNull()
+        } finally {
+            service.onCallRemoved(call)
+        }
+    }
+
+    /** Caller IDs can be spoofed: a 112 the child did not just dial must not open the window. */
+    @Config(sdk = [29, 34])
+    @Test fun `an emergency number of unknown direction without a recent dial does not open the call-back window`() {
+        strongPhone()
+        val call = outgoingCall("112", Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN)
+        service.onCallAdded(call)
+        try {
+            call.moveTo(Call.STATE_ACTIVE)
+            assertThat(TelephonyLog(service).sinceLastEmergencyMs()).isNull()
+        } finally {
+            service.onCallRemoved(call)
+        }
+    }
+
+    /** Rules that cannot be read: the child's own call of unknown direction goes only to parents and emergency numbers. */
+    @Config(sdk = [29])
+    @Test fun `with unreadable rules a just-dialled call of unknown direction follows the parents-only rule`() {
+        strongPhone()
+        ParentNumbers(service).remember(listOf(ApprovedContact("Parent", approved)), ContactRules(true, emptyList(), null))
+        ContactPolicySources.override = { throw IllegalStateException("rules cannot be read") }
+        try {
+            for (number in listOf("112", approved, stranger)) {
+                RecentDials.record(number)
+                val call = outgoingCall(number, Call.STATE_DIALING, Call.Details.DIRECTION_UNKNOWN)
+                service.onCallAdded(call)
+                service.onCallRemoved(call)
+            }
+        } finally {
+            ContactPolicySources.override = null
+        }
+        assertThat(ended).containsExactly("TC@1")
+        assertThat(TelephonyLog(service).blocked().map { it.direction to it.number })
+            .containsExactly(Direction.OUTGOING to stranger)
+        assertThat(shadowOf(service.getSystemService(NotificationManager::class.java)).allNotifications).hasSize(1)
     }
 
     @Config(sdk = [34])

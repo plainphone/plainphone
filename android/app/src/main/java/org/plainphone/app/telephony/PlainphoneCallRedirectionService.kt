@@ -34,6 +34,7 @@ class PlainphoneCallRedirectionService : CallRedirectionService() {
             runCatching { UnreadableRules.outgoingCall(this, number).allowed }.getOrDefault(true)
         }
         if (allowed) {
+            RecentDials.record(number)
             placeCallUnmodified()
             return
         }

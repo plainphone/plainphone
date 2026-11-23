@@ -16,6 +16,7 @@ import android.content.Intent
 import android.telecom.TelecomManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Instant
@@ -31,6 +32,7 @@ import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.ServerRules
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.rulesJson
+import org.plainphone.app.telephony.RecentDials
 import org.plainphone.app.ui.placeCall
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -39,6 +41,9 @@ import org.robolectric.Shadows.shadowOf
 @RunWith(RobolectricTestRunner::class)
 class EmergencyNumbersTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
+
+    /** placeCall takes the real Telecom route here and records the dial; keep it out of later test classes. */
+    @After fun forgetDials() = RecentDials.clear()
 
     @Test
     fun `112, 911 and 114 are emergency numbers on any phone`() {
